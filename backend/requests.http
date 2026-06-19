@@ -1,0 +1,229 @@
+### Estado del backend
+GET http://localhost:4000/api/health
+
+### Estado de la base de datos
+GET http://localhost:4000/api/health/db
+
+### Login administrador
+POST http://localhost:4000/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### Perfil del usuario autenticado
+GET http://localhost:4000/api/auth/me
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar usuarios, solo administrador
+GET http://localhost:4000/api/users
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Crear vendedor, solo administrador
+POST http://localhost:4000/api/users/sellers
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "name": "Vendedor 1",
+  "username": "vendedor1",
+  "password": "vendedor123"
+}
+
+### Cambiar contrasena de usuario, solo administrador
+PUT http://localhost:4000/api/users/1/password
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "password": "nueva123"
+}
+
+### Activar o desactivar usuario, solo administrador
+PUT http://localhost:4000/api/users/1/status
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "isActive": true
+}
+
+### Catalogos para formularios
+GET http://localhost:4000/api/catalogs
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar proveedores
+GET http://localhost:4000/api/suppliers
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Crear proveedor, administrador o bodega
+POST http://localhost:4000/api/suppliers
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "name": "Finca La Esperanza",
+  "phone": "3100000000",
+  "address": "Vereda principal",
+  "originZone": "Pitalito, Huila",
+  "notes": "Proveedor de prueba"
+}
+
+### Actualizar proveedor, administrador o bodega
+PUT http://localhost:4000/api/suppliers/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "name": "Finca La Esperanza",
+  "phone": "3100000000",
+  "address": "Vereda principal",
+  "originZone": "Pitalito, Huila",
+  "notes": "Proveedor actualizado",
+  "isActive": true
+}
+
+### Listar lotes
+GET http://localhost:4000/api/lots
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar lotes pendientes de laboratorio
+GET http://localhost:4000/api/lots?status=pendiente_laboratorio
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Registrar lote recibido, administrador o bodega
+POST http://localhost:4000/api/lots/received
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "supplierId": 1,
+  "coffeeTypeId": 1,
+  "grossWeightKg": 70,
+  "packagingTypeId": 1,
+  "packagingQuantity": 1,
+  "hasInnerBag": true,
+  "humidityPercent": 11.2,
+  "visualStatus": "aprobado",
+  "visualDefectPercent": 3,
+  "visualNotes": "Cafe recibido en buen estado visual",
+  "originZone": "Pitalito, Huila",
+  "initialComment": "Pergamino seco para revision"
+}
+
+### Carga inicial de lote LOT, solo administrador
+POST http://localhost:4000/api/lots/initial-load
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "lotKind": "LOT",
+  "supplierId": 1,
+  "coffeeTypeId": 1,
+  "weightKg": 500,
+  "humidityPercent": 11.5,
+  "originZone": "Pitalito, Huila",
+  "initialComment": "Inventario inicial de pergamino",
+  "purchasePricePerKg": 12000,
+  "purchasePaid": true
+}
+
+### Carga inicial de lote PROC, solo administrador
+POST http://localhost:4000/api/lots/initial-load
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "lotKind": "PROC",
+  "coffeeProfileId": 1,
+  "weightKg": 80,
+  "humidityPercent": 10.8,
+  "score": 86.5,
+  "originZone": "Pitalito, Huila",
+  "initialComment": "Inventario inicial de cafe procesado"
+}
+
+### Ver detalle de lote
+GET http://localhost:4000/api/lots/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Aprobar lote en laboratorio, administrador o laboratorio
+PUT http://localhost:4000/api/lots/1/lab-review
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "decision": "aprobado",
+  "humidityPercent": 11.4,
+  "aroma": "Texto libre de aroma",
+  "fragrance": "Texto libre de fragancia",
+  "flavor": "Texto libre de sabor",
+  "acidity": "Texto libre de acidez",
+  "sweetness": "Texto libre de dulzor",
+  "body": "Texto libre de cuerpo",
+  "balance": "Texto libre de balance",
+  "uniformity": "Texto libre de uniformidad",
+  "residual": "Texto libre de residual",
+  "cleanCup": "Texto libre de taza limpia",
+  "score": 86.5,
+  "notes": "Lote apto para compra"
+}
+
+### Rechazar lote en laboratorio, administrador o laboratorio
+PUT http://localhost:4000/api/lots/1/lab-review
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "decision": "rechazado",
+  "humidityPercent": 13.1,
+  "notes": "Humedad fuera del rango aceptado"
+}
+
+### Registrar compra/pago del lote, administrador o contabilidad
+PUT http://localhost:4000/api/lots/1/purchase
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "purchasePricePerKg": 12000,
+  "paymentMethodId": 2,
+  "paymentReference": "RECIBO-001",
+  "paidAt": "2026-06-19"
+}
+
+### Inventario disponible por lotes
+GET http://localhost:4000/api/inventory/lots
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Inventario disponible agrupado
+GET http://localhost:4000/api/inventory/grouped
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Movimientos de un lote
+GET http://localhost:4000/api/inventory/lots/1/movements
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Ajuste manual de aumento, administrador o contabilidad
+POST http://localhost:4000/api/inventory/lots/1/adjustments
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "adjustmentType": "increase",
+  "quantityKg": 5,
+  "reason": "Ajuste por verificacion fisica en bodega"
+}
+
+### Ajuste manual de disminucion, administrador o contabilidad
+POST http://localhost:4000/api/inventory/lots/1/adjustments
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "adjustmentType": "decrease",
+  "quantityKg": 2,
+  "reason": "Ajuste por diferencia encontrada en conteo"
+}
