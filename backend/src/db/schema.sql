@@ -70,6 +70,24 @@ CREATE TABLE IF NOT EXISTS suppliers (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS clients (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  document_type VARCHAR(30),
+  document_number VARCHAR(60),
+  phone VARCHAR(40) UNIQUE NOT NULL,
+  email VARCHAR(150),
+  address TEXT NOT NULL,
+  city VARCHAR(100),
+  country VARCHAR(100),
+  shipping_notes TEXT,
+  billing_notes TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS coffee_lots (
   id SERIAL PRIMARY KEY,
   code VARCHAR(30) UNIQUE,
@@ -177,10 +195,231 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS coffee_processes (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(30) UNIQUE NOT NULL,
+  quote_id INTEGER,
+  status VARCHAR(30) NOT NULL DEFAULT 'en_proceso',
+  process_location TEXT,
+  notes TEXT,
+  total_input_kg NUMERIC(12, 3) NOT NULL DEFAULT 0,
+  output_lot_id INTEGER REFERENCES coffee_lots(id),
+  output_weight_kg NUMERIC(12, 3),
+  created_by INTEGER REFERENCES users(id),
+  finalized_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  finalized_at TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT coffee_processes_status_check CHECK (
+    status IN ('en_proceso', 'finalizado')
+  ),
+  CONSTRAINT coffee_processes_weight_check CHECK (
+    total_input_kg >= 0 AND (output_weight_kg IS NULL OR output_weight_kg >= 0)
+  )
+);
+
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS quote_id INTEGER;
+
+CREATE TABLE IF NOT EXISTS coffee_process_inputs (
+  id SERIAL PRIMARY KEY,
+  process_id INTEGER NOT NULL REFERENCES coffee_processes(id),
+  lot_id INTEGER NOT NULL REFERENCES coffee_lots(id),
+  quantity_kg NUMERIC(12, 3) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT coffee_process_inputs_quantity_check CHECK (quantity_kg > 0)
+);
+
+CREATE TABLE IF NOT EXISTS quotes (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(30) UNIQUE NOT NULL,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  seller_id INTEGER NOT NULL REFERENCES users(id),
+  quote_type VARCHAR(30) NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'borrador',
+  currency VARCHAR(3) NOT NULL,
+  payment_terms TEXT,
+  delivery_terms TEXT,
+  shipping_cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  estimated_delivery_date DATE,
+  notes TEXT,
+  subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT quotes_type_check CHECK (quote_type IN ('inventario_disponible', 'preventa')),
+  CONSTRAINT quotes_status_check CHECK (status IN ('borrador', 'enviada', 'aceptada', 'anulada')),
+  CONSTRAINT quotes_currency_check CHECK (currency IN ('COP', 'USD')),
+  CONSTRAINT quotes_amounts_check CHECK (shipping_cost >= 0 AND subtotal >= 0 AND total >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS quote_items (
+  id SERIAL PRIMARY KEY,
+  quote_id INTEGER NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  lot_id INTEGER REFERENCES coffee_lots(id),
+  coffee_type_id INTEGER REFERENCES coffee_types(id),
+  coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
+  description TEXT,
+  quantity_kg NUMERIC(12, 3) NOT NULL,
+  unit_price NUMERIC(14, 2) NOT NULL,
+  line_total NUMERIC(14, 2) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT quote_items_quantity_check CHECK (quantity_kg > 0),
+  CONSTRAINT quote_items_price_check CHECK (unit_price >= 0 AND line_total >= 0)
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'coffee_processes_quote_id_fkey'
+  ) THEN
+    ALTER TABLE coffee_processes
+    ADD CONSTRAINT coffee_processes_quote_id_fkey
+    FOREIGN KEY (quote_id) REFERENCES quotes(id);
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS sales (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(30) UNIQUE NOT NULL,
+  quote_id INTEGER UNIQUE REFERENCES quotes(id),
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  seller_id INTEGER NOT NULL REFERENCES users(id),
+  status VARCHAR(40) NOT NULL DEFAULT 'pendiente_alistamiento',
+  payment_status VARCHAR(30) NOT NULL,
+  currency VARCHAR(3) NOT NULL,
+  subtotal NUMERIC(14, 2) NOT NULL,
+  shipping_cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  total NUMERIC(14, 2) NOT NULL,
+  amount_paid NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  balance_due NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  estimated_payment_date DATE,
+  external_invoice_reference TEXT,
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sales_status_check CHECK (
+    status IN ('pendiente_alistamiento', 'alistada', 'despachada', 'anulada')
+  ),
+  CONSTRAINT sales_payment_status_check CHECK (
+    payment_status IN ('pagada', 'pago_parcial', 'pendiente_pago')
+  ),
+  CONSTRAINT sales_currency_check CHECK (currency IN ('COP', 'USD')),
+  CONSTRAINT sales_amounts_check CHECK (
+    subtotal >= 0 AND shipping_cost >= 0 AND total >= 0 AND amount_paid >= 0 AND balance_due >= 0
+  )
+);
+
+CREATE TABLE IF NOT EXISTS sale_items (
+  id SERIAL PRIMARY KEY,
+  sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  quote_item_id INTEGER REFERENCES quote_items(id),
+  lot_id INTEGER REFERENCES coffee_lots(id),
+  coffee_type_id INTEGER REFERENCES coffee_types(id),
+  coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
+  description TEXT,
+  quantity_kg NUMERIC(12, 3) NOT NULL,
+  unit_price NUMERIC(14, 2) NOT NULL,
+  line_total NUMERIC(14, 2) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sale_items_quantity_check CHECK (quantity_kg > 0),
+  CONSTRAINT sale_items_price_check CHECK (unit_price >= 0 AND line_total >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS sale_item_lots (
+  id SERIAL PRIMARY KEY,
+  sale_item_id INTEGER NOT NULL REFERENCES sale_items(id) ON DELETE CASCADE,
+  lot_id INTEGER NOT NULL REFERENCES coffee_lots(id),
+  quantity_kg NUMERIC(12, 3) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sale_item_lots_quantity_check CHECK (quantity_kg > 0)
+);
+
+CREATE TABLE IF NOT EXISTS sale_payments (
+  id SERIAL PRIMARY KEY,
+  sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  amount NUMERIC(14, 2) NOT NULL,
+  payment_method_id INTEGER REFERENCES payment_methods(id),
+  payment_reference TEXT,
+  paid_at DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes TEXT,
+  registered_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sale_payments_amount_check CHECK (amount > 0)
+);
+
+CREATE TABLE IF NOT EXISTS accounts_payable (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(30) UNIQUE NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES payable_categories(id),
+  supplier_id INTEGER REFERENCES suppliers(id),
+  lot_id INTEGER REFERENCES coffee_lots(id),
+  status VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+  third_party_name VARCHAR(150),
+  description TEXT NOT NULL,
+  total NUMERIC(14, 2) NOT NULL,
+  amount_paid NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  balance_due NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  due_date DATE,
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT accounts_payable_status_check CHECK (status IN ('pendiente', 'pago_parcial', 'pagada')),
+  CONSTRAINT accounts_payable_amounts_check CHECK (total >= 0 AND amount_paid >= 0 AND balance_due >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS accounts_payable_payments (
+  id SERIAL PRIMARY KEY,
+  payable_id INTEGER NOT NULL REFERENCES accounts_payable(id) ON DELETE CASCADE,
+  amount NUMERIC(14, 2) NOT NULL,
+  payment_method_id INTEGER REFERENCES payment_methods(id),
+  payment_reference TEXT NOT NULL,
+  paid_at DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes TEXT,
+  registered_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT accounts_payable_payments_amount_check CHECK (amount > 0)
+);
+
+CREATE TABLE IF NOT EXISTS backup_exports (
+  id SERIAL PRIMARY KEY,
+  module_name VARCHAR(80) NOT NULL,
+  format VARCHAR(20) NOT NULL DEFAULT 'csv',
+  exported_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_suppliers_phone ON suppliers(phone);
+CREATE INDEX IF NOT EXISTS idx_clients_phone ON clients(phone);
+CREATE INDEX IF NOT EXISTS idx_clients_document ON clients(document_type, document_number);
 CREATE INDEX IF NOT EXISTS idx_coffee_lots_code ON coffee_lots(code);
 CREATE INDEX IF NOT EXISTS idx_coffee_lots_status ON coffee_lots(status);
 CREATE INDEX IF NOT EXISTS idx_coffee_lots_supplier_id ON coffee_lots(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_lot_id ON inventory_movements(lot_id);
+CREATE INDEX IF NOT EXISTS idx_coffee_processes_status ON coffee_processes(status);
+CREATE INDEX IF NOT EXISTS idx_coffee_processes_quote_id ON coffee_processes(quote_id);
+CREATE INDEX IF NOT EXISTS idx_coffee_process_inputs_process_id ON coffee_process_inputs(process_id);
+CREATE INDEX IF NOT EXISTS idx_coffee_process_inputs_lot_id ON coffee_process_inputs(lot_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_client_id ON quotes(client_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_seller_id ON quotes(seller_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
+CREATE INDEX IF NOT EXISTS idx_quote_items_quote_id ON quote_items(quote_id);
+CREATE INDEX IF NOT EXISTS idx_sales_quote_id ON sales(quote_id);
+CREATE INDEX IF NOT EXISTS idx_sales_client_id ON sales(client_id);
+CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
+CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_item_lots_sale_item_id ON sale_item_lots(sale_item_id);
+CREATE INDEX IF NOT EXISTS idx_sale_item_lots_lot_id ON sale_item_lots(lot_id);
+CREATE INDEX IF NOT EXISTS idx_sale_payments_sale_id ON sale_payments(sale_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_payable_status ON accounts_payable(status);
+CREATE INDEX IF NOT EXISTS idx_accounts_payable_category_id ON accounts_payable(category_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_payable_supplier_id ON accounts_payable(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_payable_lot_id ON accounts_payable(lot_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_payable_payments_payable_id ON accounts_payable_payments(payable_id);
+CREATE INDEX IF NOT EXISTS idx_backup_exports_module_name ON backup_exports(module_name);
+CREATE INDEX IF NOT EXISTS idx_backup_exports_created_at ON backup_exports(created_at);

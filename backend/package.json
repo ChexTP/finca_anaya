@@ -8,7 +8,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "db:schema": "node src/db/run-schema.js",
-    "db:seed": "node src/db/seed.js"
+    "db:seed": "node src/db/seed.js",
+    "db:demo": "node src/db/seed-demo.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

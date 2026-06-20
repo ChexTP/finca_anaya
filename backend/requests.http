@@ -54,6 +54,78 @@ Content-Type: application/json
 GET http://localhost:4000/api/catalogs
 Authorization: Bearer PEGAR_TOKEN_AQUI
 
+### Actualizar perfil comercial y precios base, administrador o contabilidad
+PUT http://localhost:4000/api/catalogs/coffee-profiles/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "name": "Perfil 1",
+  "basePriceCop": 45000,
+  "basePriceUsd": 18,
+  "isActive": true
+}
+
+### Dashboard y alertas por rol
+GET http://localhost:4000/api/dashboard
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte resumen de ventas
+GET http://localhost:4000/api/reports/sales-summary?dateFrom=2026-06-01&dateTo=2026-06-30
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte resumen de ventas en COP
+GET http://localhost:4000/api/reports/sales-summary?currency=COP
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte de ventas por vendedor
+GET http://localhost:4000/api/reports/sales-by-seller?currency=COP
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte de ventas por perfil o tipo
+GET http://localhost:4000/api/reports/sales-by-profile?currency=USD
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte de utilidad estimada
+GET http://localhost:4000/api/reports/profit?dateFrom=2026-06-01&dateTo=2026-06-30&currency=COP
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte de cuentas por cobrar
+GET http://localhost:4000/api/reports/accounts-receivable
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte de cuentas por pagar
+GET http://localhost:4000/api/reports/accounts-payable?status=pendiente
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Reporte de inventario
+GET http://localhost:4000/api/reports/inventory
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Exportar reporte de ventas a CSV compatible con Excel
+GET http://localhost:4000/api/reports/sales-summary?dateFrom=2026-06-01&dateTo=2026-06-30&format=csv
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Exportar reporte de inventario a CSV compatible con Excel
+GET http://localhost:4000/api/reports/inventory?format=csv
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar modulos disponibles para backup manual
+GET http://localhost:4000/api/backups/modules
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Exportar backup manual de lotes
+GET http://localhost:4000/api/backups/export?module=lots
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Exportar backup manual de ventas
+GET http://localhost:4000/api/backups/export?module=sales
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Historial de backups manuales
+GET http://localhost:4000/api/backups/history
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
 ### Listar proveedores
 GET http://localhost:4000/api/suppliers
 Authorization: Bearer PEGAR_TOKEN_AQUI
@@ -82,6 +154,51 @@ Content-Type: application/json
   "address": "Vereda principal",
   "originZone": "Pitalito, Huila",
   "notes": "Proveedor actualizado",
+  "isActive": true
+}
+
+### Listar clientes
+GET http://localhost:4000/api/clients
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Buscar clientes por nombre, telefono o documento
+GET http://localhost:4000/api/clients?search=juan
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Crear cliente, administrador, contabilidad o vendedor
+POST http://localhost:4000/api/clients
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "name": "Cliente de Prueba",
+  "documentType": "NIT",
+  "documentNumber": "900000001",
+  "phone": "3200000000",
+  "email": "cliente@example.com",
+  "address": "Direccion principal",
+  "city": "Bogota",
+  "country": "Colombia",
+  "shippingNotes": "Datos operativos de envio",
+  "billingNotes": "Datos operativos de facturacion"
+}
+
+### Actualizar cliente, administrador, contabilidad o vendedor
+PUT http://localhost:4000/api/clients/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "name": "Cliente de Prueba",
+  "documentType": "NIT",
+  "documentNumber": "900000001",
+  "phone": "3200000000",
+  "email": "cliente@example.com",
+  "address": "Direccion principal actualizada",
+  "city": "Bogota",
+  "country": "Colombia",
+  "shippingNotes": "Datos operativos de envio",
+  "billingNotes": "Datos operativos de facturacion",
   "isActive": true
 }
 
@@ -226,4 +343,315 @@ Content-Type: application/json
   "adjustmentType": "decrease",
   "quantityKg": 2,
   "reason": "Ajuste por diferencia encontrada en conteo"
+}
+
+### Listar procesos
+GET http://localhost:4000/api/processes
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar procesos en proceso
+GET http://localhost:4000/api/processes?status=en_proceso
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Crear proceso, administrador o bodega
+POST http://localhost:4000/api/processes
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "quoteId": 1,
+  "processLocation": "Finca de proceso",
+  "notes": "Proceso solicitado para cafe especial",
+  "inputs": [
+    {
+      "lotId": 1,
+      "quantityKg": 50
+    }
+  ]
+}
+
+### Ver detalle de proceso
+GET http://localhost:4000/api/processes/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Finalizar proceso y crear lote PROC, administrador o laboratorio
+PUT http://localhost:4000/api/processes/1/finish
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "coffeeProfileId": 1,
+  "outputWeightKg": 38,
+  "humidityPercent": 10.9,
+  "aroma": "Texto libre de aroma",
+  "fragrance": "Texto libre de fragancia",
+  "flavor": "Texto libre de sabor",
+  "acidity": "Texto libre de acidez",
+  "sweetness": "Texto libre de dulzor",
+  "body": "Texto libre de cuerpo",
+  "balance": "Texto libre de balance",
+  "uniformity": "Texto libre de uniformidad",
+  "residual": "Texto libre de residual",
+  "cleanCup": "Texto libre de taza limpia",
+  "score": 87.2,
+  "notes": "Cafe procesado correctamente",
+  "initialComment": "Lote PROC generado desde proceso"
+}
+
+### Listar cotizaciones
+GET http://localhost:4000/api/quotes
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar cotizaciones enviadas
+GET http://localhost:4000/api/quotes?status=enviada
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Crear cotizacion de inventario disponible
+POST http://localhost:4000/api/quotes
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "clientId": 1,
+  "quoteType": "inventario_disponible",
+  "status": "enviada",
+  "currency": "COP",
+  "paymentTerms": "Pago al confirmar compra",
+  "deliveryTerms": "Entrega coordinada con bodega",
+  "shippingCost": 50000,
+  "estimatedDeliveryDate": "2026-06-25",
+  "notes": "Cotizacion de prueba",
+  "items": [
+    {
+      "lotId": 1,
+      "quantityKg": 20,
+      "unitPrice": 45000,
+      "description": "Cafe disponible en bodega"
+    }
+  ]
+}
+
+### Crear preventa por perfil
+POST http://localhost:4000/api/quotes
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "clientId": 1,
+  "quoteType": "preventa",
+  "status": "enviada",
+  "currency": "USD",
+  "paymentTerms": "Abono inicial y saldo antes del envio",
+  "deliveryTerms": "Cafe se procesa bajo solicitud",
+  "shippingCost": 120,
+  "estimatedDeliveryDate": "2026-07-10",
+  "notes": "Preventa para cafe especial",
+  "items": [
+    {
+      "coffeeProfileId": 1,
+      "quantityKg": 50,
+      "unitPrice": 18,
+      "description": "Perfil especial solicitado"
+    }
+  ]
+}
+
+### Ver cotizacion
+GET http://localhost:4000/api/quotes/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Datos para PDF o impresion de cotizacion
+GET http://localhost:4000/api/documents/quotes/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Cambiar estado de cotizacion
+PUT http://localhost:4000/api/quotes/1/status
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "status": "aceptada"
+}
+
+### Listar ventas, administrador, contabilidad o bodega
+GET http://localhost:4000/api/sales
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar mis ventas, vendedor
+GET http://localhost:4000/api/sales
+Authorization: Bearer PEGAR_TOKEN_VENDEDOR_AQUI
+
+### Convertir cotizacion aceptada en venta pagada
+POST http://localhost:4000/api/sales/from-quote/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "paymentStatus": "pagada",
+  "amountPaid": 950000,
+  "paymentMethodId": 2,
+  "paymentReference": "PAGO-INICIAL-001",
+  "externalInvoiceReference": "FAC-EXT-001",
+  "notes": "Venta creada desde cotizacion aceptada"
+}
+
+### Convertir cotizacion aceptada en venta pendiente o parcial
+POST http://localhost:4000/api/sales/from-quote/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "paymentStatus": "pago_parcial",
+  "amountPaid": 300000,
+  "paymentMethodId": 2,
+  "paymentReference": "ABONO-INICIAL-001",
+  "estimatedPaymentDate": "2026-06-30",
+  "externalInvoiceReference": "FAC-EXT-002",
+  "notes": "Cliente de confianza con saldo pendiente"
+}
+
+### Crear venta directa sin cotizacion, administrador o contabilidad
+POST http://localhost:4000/api/sales/direct
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "clientId": 1,
+  "sellerId": 1,
+  "paymentStatus": "pagada",
+  "currency": "COP",
+  "shippingCost": 50000,
+  "amountPaid": 950000,
+  "paymentMethodId": 2,
+  "paymentReference": "PAGO-DIRECTO-001",
+  "externalInvoiceReference": "FAC-EXT-003",
+  "notes": "Venta directa desde inventario",
+  "items": [
+    {
+      "lotId": 1,
+      "quantityKg": 20,
+      "unitPrice": 45000,
+      "description": "Cafe disponible vendido directamente"
+    }
+  ]
+}
+
+### Ver venta con lotes descontados
+GET http://localhost:4000/api/sales/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Datos para PDF o impresion de venta
+GET http://localhost:4000/api/documents/sales/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Datos para PDF o impresion de venta con pagos
+GET http://localhost:4000/api/documents/sales/1?includePayments=true
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar ventas pendientes de pago
+GET http://localhost:4000/api/sales?paymentStatus=pendiente_pago
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar ventas con pago parcial
+GET http://localhost:4000/api/sales?paymentStatus=pago_parcial
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Registrar abono o pago posterior, administrador o contabilidad
+POST http://localhost:4000/api/sales/1/payments
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "amount": 200000,
+  "paymentMethodId": 2,
+  "paymentReference": "ABONO-002",
+  "paidAt": "2026-06-24",
+  "notes": "Abono posterior del cliente"
+}
+
+### Marcar venta como alistada, administrador, contabilidad o bodega
+PUT http://localhost:4000/api/sales/1/prepare
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "notes": "Cafe alistado en bodega"
+}
+
+### Marcar venta como despachada, administrador, contabilidad o bodega
+PUT http://localhost:4000/api/sales/1/dispatch
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "notes": "Venta despachada al cliente"
+}
+
+### Anular venta antes de despacho, administrador o contabilidad
+PUT http://localhost:4000/api/sales/1/cancel
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "notes": "Cliente cancelo antes del despacho"
+}
+
+### Listar cuentas por pagar, administrador o contabilidad
+GET http://localhost:4000/api/payables
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Listar cuentas por pagar pendientes
+GET http://localhost:4000/api/payables?status=pendiente
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Crear cuenta por pagar pendiente
+POST http://localhost:4000/api/payables
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "categoryId": 1,
+  "supplierId": 1,
+  "lotId": 1,
+  "status": "pendiente",
+  "description": "Compra de lote de cafe",
+  "total": 840000,
+  "amountPaid": 0,
+  "dueDate": "2026-06-30",
+  "notes": "Recibo manual entregado a contabilidad"
+}
+
+### Crear cuenta por pagar pagada
+POST http://localhost:4000/api/payables
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "categoryId": 2,
+  "thirdPartyName": "Transporte local",
+  "status": "pagada",
+  "description": "Servicio de transporte",
+  "total": 150000,
+  "amountPaid": 150000,
+  "paymentMethodId": 2,
+  "paymentReference": "PAGO-TRANSPORTE-001",
+  "paidAt": "2026-06-24",
+  "notes": "Gasto operativo"
+}
+
+### Ver cuenta por pagar con pagos
+GET http://localhost:4000/api/payables/1
+Authorization: Bearer PEGAR_TOKEN_AQUI
+
+### Registrar pago de cuenta por pagar
+POST http://localhost:4000/api/payables/1/payments
+Authorization: Bearer PEGAR_TOKEN_AQUI
+Content-Type: application/json
+
+{
+  "amount": 840000,
+  "paymentMethodId": 2,
+  "paymentReference": "PAGO-LOTE-001",
+  "paidAt": "2026-06-30",
+  "notes": "Pago completo del lote"
 }
