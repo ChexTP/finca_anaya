@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   net_weight_kg NUMERIC(12, 3) NOT NULL,
   available_weight_kg NUMERIC(12, 3) NOT NULL DEFAULT 0,
   humidity_percent NUMERIC(5, 2),
+  threshing_loss_percent NUMERIC(5, 2),
   visual_status VARCHAR(20),
   visual_defect_percent NUMERIC(5, 2),
   visual_notes TEXT,
@@ -158,6 +159,9 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   CONSTRAINT coffee_lots_humidity_check CHECK (
     humidity_percent IS NULL OR (humidity_percent >= 0 AND humidity_percent <= 100)
   ),
+  CONSTRAINT coffee_lots_threshing_loss_check CHECK (
+    threshing_loss_percent IS NULL OR (threshing_loss_percent >= 0 AND threshing_loss_percent <= 100)
+  ),
   CONSTRAINT coffee_lots_visual_defect_check CHECK (
     visual_defect_percent IS NULL OR (visual_defect_percent >= 0 AND visual_defect_percent <= 100)
   ),
@@ -184,6 +188,20 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_method_id INTE
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_reference TEXT;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_paid_at TIMESTAMP;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_registered_by INTEGER REFERENCES users(id);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS threshing_loss_percent NUMERIC(5, 2);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'coffee_lots_threshing_loss_check'
+  ) THEN
+    ALTER TABLE coffee_lots
+    ADD CONSTRAINT coffee_lots_threshing_loss_check
+    CHECK (threshing_loss_percent IS NULL OR (threshing_loss_percent >= 0 AND threshing_loss_percent <= 100));
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
   id SERIAL PRIMARY KEY,
@@ -384,6 +402,43 @@ CREATE TABLE IF NOT EXISTS accounts_payable_payments (
   CONSTRAINT accounts_payable_payments_amount_check CHECK (amount > 0)
 );
 
+CREATE TABLE IF NOT EXISTS sample_requests (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(30) UNIQUE NOT NULL,
+  requester_name VARCHAR(150) NOT NULL,
+  requester_phone VARCHAR(40) NOT NULL,
+  requester_email VARCHAR(150),
+  requester_company VARCHAR(150),
+  requester_address TEXT,
+  requester_city VARCHAR(100),
+  requester_country VARCHAR(100),
+  coffee_type_id INTEGER REFERENCES coffee_types(id),
+  coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
+  description TEXT,
+  quantity_kg NUMERIC(12, 3) NOT NULL,
+  is_charged BOOLEAN NOT NULL DEFAULT FALSE,
+  currency VARCHAR(3) NOT NULL DEFAULT 'COP',
+  price NUMERIC(14, 2),
+  requested_at DATE NOT NULL DEFAULT CURRENT_DATE,
+  tentative_delivery_date DATE,
+  status VARCHAR(30) NOT NULL DEFAULT 'solicitada',
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  handled_by INTEGER REFERENCES users(id),
+  handled_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sample_requests_status_check CHECK (
+    status IN ('solicitada', 'en_preparacion', 'lista', 'entregada', 'cancelada')
+  ),
+  CONSTRAINT sample_requests_currency_check CHECK (currency IN ('COP', 'USD')),
+  CONSTRAINT sample_requests_quantity_check CHECK (quantity_kg > 0),
+  CONSTRAINT sample_requests_price_check CHECK (price IS NULL OR price >= 0),
+  CONSTRAINT sample_requests_coffee_reference_check CHECK (
+    coffee_type_id IS NOT NULL OR coffee_profile_id IS NOT NULL OR description IS NOT NULL
+  )
+);
+
 CREATE TABLE IF NOT EXISTS backup_exports (
   id SERIAL PRIMARY KEY,
   module_name VARCHAR(80) NOT NULL,
@@ -421,5 +476,8 @@ CREATE INDEX IF NOT EXISTS idx_accounts_payable_category_id ON accounts_payable(
 CREATE INDEX IF NOT EXISTS idx_accounts_payable_supplier_id ON accounts_payable(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_payable_lot_id ON accounts_payable(lot_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_payable_payments_payable_id ON accounts_payable_payments(payable_id);
+CREATE INDEX IF NOT EXISTS idx_sample_requests_status ON sample_requests(status);
+CREATE INDEX IF NOT EXISTS idx_sample_requests_created_by ON sample_requests(created_by);
+CREATE INDEX IF NOT EXISTS idx_sample_requests_requested_at ON sample_requests(requested_at);
 CREATE INDEX IF NOT EXISTS idx_backup_exports_module_name ON backup_exports(module_name);
 CREATE INDEX IF NOT EXISTS idx_backup_exports_created_at ON backup_exports(created_at);

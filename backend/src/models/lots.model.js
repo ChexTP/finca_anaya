@@ -135,6 +135,7 @@ export const createReceivedLot = async (lotData) => {
         net_weight_kg,
         available_weight_kg,
         humidity_percent,
+        threshing_loss_percent,
         visual_status,
         visual_defect_percent,
         visual_notes,
@@ -144,7 +145,7 @@ export const createReceivedLot = async (lotData) => {
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18
+        $11, $12, $13, $14, $15, $16, $17, $18, $19
       )
       RETURNING *
       `,
@@ -161,6 +162,7 @@ export const createReceivedLot = async (lotData) => {
         lotData.netWeightKg,
         lotData.availableWeightKg,
         lotData.humidityPercent,
+        lotData.threshingLossPercent,
         lotData.visualStatus,
         lotData.visualDefectPercent,
         lotData.visualNotes,

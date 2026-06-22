@@ -3,12 +3,16 @@ import {
   Boxes,
   ClipboardList,
   Coffee,
+  CreditCard,
+  DatabaseBackup,
   FileText,
+  FlaskConical,
   LayoutDashboard,
   LogOut,
   Menu,
   ReceiptText,
   Users,
+  UserCog,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -23,10 +27,14 @@ const navigation = [
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse", "laboratory"] },
   { label: "Comercial", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting", "seller"] },
+  { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
   { label: "Ventas", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "warehouse", "seller"] },
+  { label: "Cuentas por pagar", path: "/cuentas-por-pagar", icon: CreditCard, roles: ["admin", "accounting"] },
   { label: "Clientes", path: "/clientes", icon: Users, roles: ["admin", "accounting", "seller"] },
   { label: "Reportes", path: "/reportes", icon: BarChart3, roles: ["admin", "accounting"] },
   { label: "Documentos", path: "/documentos", icon: FileText, roles: ["admin", "accounting", "seller"] },
+  { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },
+  { label: "Usuarios", path: "/usuarios", icon: UserCog, roles: ["admin"] },
 ];
 
 const AppLayout = () => {

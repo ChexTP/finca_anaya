@@ -4,6 +4,7 @@ export const roleLabels = {
   warehouse: "Bodega",
   laboratory: "Laboratorio",
   seller: "Vendedor",
+  samples: "Muestras",
 };
 
 export const canSeeReports = (role) => ["admin", "accounting"].includes(role);

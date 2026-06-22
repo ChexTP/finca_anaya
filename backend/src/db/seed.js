@@ -7,6 +7,7 @@ const roles = [
   ["laboratory", "Laboratorio"],
   ["accounting", "Contabilidad"],
   ["seller", "Vendedor"],
+  ["samples", "Muestras"],
 ];
 
 const initialUsers = [
@@ -14,6 +15,7 @@ const initialUsers = [
   { name: "Bodega", username: "bodega", password: "bodega123", role: "warehouse" },
   { name: "Laboratorio", username: "laboratorio", password: "laboratorio123", role: "laboratory" },
   { name: "Contabilidad", username: "contabilidad", password: "contabilidad123", role: "accounting" },
+  { name: "Muestras", username: "muestras", password: "muestras123", role: "samples" },
 ];
 
 const coffeeTypes = ["Pergamino", "Trillado", "Procesado", "Especial"];

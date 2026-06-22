@@ -27,6 +27,34 @@ const ensureSeller = async () => {
   return seller.id;
 };
 
+const ensureSamplesUser = async () => {
+  const existing = await getOne("SELECT id FROM users WHERE username = $1", ["muestras"]);
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const role = await getOne(
+    `
+    INSERT INTO roles (name, label)
+    VALUES ('samples', 'Muestras')
+    ON CONFLICT (name) DO UPDATE SET label = EXCLUDED.label
+    RETURNING id
+    `
+  );
+  const passwordHash = await bcrypt.hash("muestras123", 10);
+  const samplesUser = await getOne(
+    `
+    INSERT INTO users (name, username, password_hash, role_id)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id
+    `,
+    ["Muestras", "muestras", passwordHash, role.id]
+  );
+
+  return samplesUser.id;
+};
+
 const upsertSupplier = async ({ name, phone, address, originZone, notes }) => {
   const supplier = await getOne(
     `
@@ -93,6 +121,72 @@ const upsertClient = async ({ name, documentType, documentNumber, phone, email, 
   return client.id;
 };
 
+const upsertSampleRequest = async (sample) => {
+  await pool.query(
+    `
+    INSERT INTO sample_requests (
+      code,
+      requester_name,
+      requester_phone,
+      requester_email,
+      requester_company,
+      requester_address,
+      requester_city,
+      requester_country,
+      coffee_type_id,
+      coffee_profile_id,
+      description,
+      quantity_kg,
+      is_charged,
+      currency,
+      price,
+      requested_at,
+      tentative_delivery_date,
+      status,
+      notes,
+      created_by,
+      handled_by,
+      handled_at
+    )
+    VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+      $21, $22
+    )
+    ON CONFLICT (code)
+    DO UPDATE SET
+      status = EXCLUDED.status,
+      tentative_delivery_date = EXCLUDED.tentative_delivery_date,
+      notes = EXCLUDED.notes,
+      updated_at = NOW()
+    `,
+    [
+      sample.code,
+      sample.requesterName,
+      sample.requesterPhone,
+      sample.requesterEmail,
+      sample.requesterCompany,
+      sample.requesterAddress,
+      sample.requesterCity,
+      sample.requesterCountry,
+      sample.coffeeTypeId,
+      sample.coffeeProfileId,
+      sample.description,
+      sample.quantityKg,
+      sample.isCharged,
+      sample.currency,
+      sample.price,
+      sample.requestedAt,
+      sample.tentativeDeliveryDate,
+      sample.status,
+      sample.notes,
+      sample.createdBy,
+      sample.handledBy,
+      sample.handledAt,
+    ]
+  );
+};
+
 const upsertLot = async (lot) => {
   const result = await getOne(
     `
@@ -111,6 +205,7 @@ const upsertLot = async (lot) => {
       net_weight_kg,
       available_weight_kg,
       humidity_percent,
+      threshing_loss_percent,
       visual_status,
       visual_defect_percent,
       visual_notes,
@@ -144,7 +239,7 @@ const upsertLot = async (lot) => {
       $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
       $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
       $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
-      $41
+      $41, $42
     )
     ON CONFLICT (code)
     DO UPDATE SET
@@ -152,6 +247,7 @@ const upsertLot = async (lot) => {
       coffee_profile_id = EXCLUDED.coffee_profile_id,
       available_weight_kg = EXCLUDED.available_weight_kg,
       humidity_percent = EXCLUDED.humidity_percent,
+      threshing_loss_percent = EXCLUDED.threshing_loss_percent,
       lab_score = EXCLUDED.lab_score,
       purchase_paid = EXCLUDED.purchase_paid,
       updated_at = NOW()
@@ -172,6 +268,7 @@ const upsertLot = async (lot) => {
       lot.netWeightKg,
       lot.availableWeightKg,
       lot.humidityPercent,
+      lot.threshingLossPercent,
       lot.visualStatus,
       lot.visualDefectPercent,
       lot.visualNotes,
@@ -329,6 +426,7 @@ const runDemoSeed = async () => {
     const laboratory = await getOne("SELECT id FROM users WHERE username = 'laboratorio'");
     const accounting = await getOne("SELECT id FROM users WHERE username = 'contabilidad'");
     const sellerId = await ensureSeller();
+    const samplesUserId = await ensureSamplesUser();
 
     const pergamino = await getOne("SELECT id FROM coffee_types WHERE name = 'Pergamino'");
     const trillado = await getOne("SELECT id FROM coffee_types WHERE name = 'Trillado'");
@@ -390,6 +488,56 @@ const runDemoSeed = async () => {
       country: "Estados Unidos",
     });
 
+    await upsertSampleRequest({
+      code: "MUE-2026-8001",
+      requesterName: "Laura Gomez",
+      requesterPhone: "3101112233",
+      requesterEmail: "compras@tostadoranorte.test",
+      requesterCompany: "Tostadora Norte SAS",
+      requesterAddress: "Carrera 12 # 45-20",
+      requesterCity: "Bogota",
+      requesterCountry: "Colombia",
+      coffeeTypeId: null,
+      coffeeProfileId: perfil1.id,
+      description: "Muestra para evaluar perfil dulce",
+      quantityKg: 0.25,
+      isCharged: false,
+      currency: "COP",
+      price: null,
+      requestedAt: new Date(),
+      tentativeDeliveryDate: new Date(),
+      status: "solicitada",
+      notes: "Cliente antiguo, muestra sin cobro.",
+      createdBy: sellerId,
+      handledBy: null,
+      handledAt: null,
+    });
+
+    await upsertSampleRequest({
+      code: "MUE-2026-8002",
+      requesterName: "Mark Anderson",
+      requesterPhone: "3102223344",
+      requesterEmail: "orders@andescoffee.test",
+      requesterCompany: "Importadora Andes Coffee",
+      requesterAddress: "120 Coffee St",
+      requesterCity: "Miami",
+      requesterCountry: "Estados Unidos",
+      coffeeTypeId: trillado.id,
+      coffeeProfileId: null,
+      description: "Muestra internacional de cafe trillado",
+      quantityKg: 0.5,
+      isCharged: true,
+      currency: "USD",
+      price: 15,
+      requestedAt: new Date(),
+      tentativeDeliveryDate: new Date(),
+      status: "en_preparacion",
+      notes: "Confirmar direccion antes de enviar.",
+      createdBy: accounting.id,
+      handledBy: samplesUserId,
+      handledAt: new Date(),
+    });
+
     const pendingLabLot = await upsertLot({
       code: "LOT-2026-8001",
       supplierId: supplier1,
@@ -405,6 +553,7 @@ const runDemoSeed = async () => {
       netWeightKg: 250.4,
       availableWeightKg: 0,
       humidityPercent: 11.4,
+      threshingLossPercent: 18.2,
       visualStatus: "aprobado",
       visualDefectPercent: 2.5,
       visualNotes: "Color parejo, sin olores extranos.",
@@ -449,6 +598,7 @@ const runDemoSeed = async () => {
       netWeightKg: 178.95,
       availableWeightKg: 0,
       humidityPercent: 10.8,
+      threshingLossPercent: 17.6,
       visualStatus: "aprobado",
       visualDefectPercent: 1.8,
       visualNotes: "Buena apariencia general.",
@@ -493,6 +643,7 @@ const runDemoSeed = async () => {
       netWeightKg: 121.6,
       availableWeightKg: 121.6,
       humidityPercent: 11.7,
+      threshingLossPercent: 0,
       visualStatus: "aprobado",
       visualDefectPercent: 1.2,
       visualNotes: "Cafe trillado limpio.",
@@ -537,6 +688,7 @@ const runDemoSeed = async () => {
       netWeightKg: 75,
       availableWeightKg: 75,
       humidityPercent: 10.9,
+      threshingLossPercent: null,
       visualStatus: "aprobado",
       visualDefectPercent: 0.8,
       visualNotes: "Producto procesado demo.",
@@ -858,7 +1010,7 @@ const runDemoSeed = async () => {
     console.log("Cotizacion demo: COT-2026-8001");
     console.log("Venta demo: VEN-2026-8001");
   } catch (error) {
-    console.error("Error al crear datos demo:", error.message);
+    console.error("Error al crear datos demo:", error.stack || error.message);
     process.exitCode = 1;
   } finally {
     await pool.end();

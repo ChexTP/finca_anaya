@@ -66,6 +66,11 @@ const backupQueries = {
     FROM coffee_process_inputs
     ORDER BY created_at DESC
   `,
+  sample_requests: `
+    SELECT *
+    FROM sample_requests
+    ORDER BY created_at DESC
+  `,
 };
 
 export const listBackupModules = () => {

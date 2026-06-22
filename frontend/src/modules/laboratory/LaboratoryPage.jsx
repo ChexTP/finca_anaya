@@ -267,6 +267,9 @@ const LaboratoryPage = () => {
                         <StatusBadge tone="warning">{lot.humidity_percent}% humedad</StatusBadge>
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{lot.net_weight_kg} kg netos</p>
+                      <p className="text-sm text-slate-500">
+                        Merma por trilla: {lot.threshing_loss_percent ?? "-"}%
+                      </p>
                       {lot.visual_notes && <p className="mt-1 text-sm text-slate-500">{lot.visual_notes}</p>}
                     </button>
                   ))}

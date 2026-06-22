@@ -20,6 +20,7 @@ const initialLot = {
   packagingQuantity: "",
   hasInnerBag: false,
   humidityPercent: "",
+  threshingLossPercent: "",
   visualStatus: "aprobado",
   visualDefectPercent: "",
   visualNotes: "",
@@ -103,6 +104,8 @@ const WarehousePage = () => {
           packagingTypeId: Number(lotForm.packagingTypeId),
           packagingQuantity: Number(lotForm.packagingQuantity),
           humidityPercent: Number(lotForm.humidityPercent),
+          threshingLossPercent:
+            lotForm.threshingLossPercent === "" ? null : Number(lotForm.threshingLossPercent),
           visualDefectPercent: lotForm.visualDefectPercent === "" ? null : Number(lotForm.visualDefectPercent),
         }),
       });
@@ -248,6 +251,14 @@ const WarehousePage = () => {
               value={lotForm.humidityPercent}
               onChange={(event) => setLotForm({ ...lotForm, humidityPercent: event.target.value })}
             />
+            <input
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Merma por trilla %"
+              type="number"
+              step="0.01"
+              value={lotForm.threshingLossPercent}
+              onChange={(event) => setLotForm({ ...lotForm, threshingLossPercent: event.target.value })}
+            />
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={lotForm.visualStatus}
@@ -307,6 +318,7 @@ const WarehousePage = () => {
                   <th className="px-3 py-2">Proveedor</th>
                   <th className="px-3 py-2">Peso neto</th>
                   <th className="px-3 py-2">Humedad</th>
+                  <th className="px-3 py-2">Merma</th>
                   <th className="px-3 py-2">Estado</th>
                 </tr>
               </thead>
@@ -317,6 +329,7 @@ const WarehousePage = () => {
                     <td className="px-3 py-2">{lot.supplier_name}</td>
                     <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
                     <td className="px-3 py-2">{lot.humidity_percent}%</td>
+                    <td className="px-3 py-2">{lot.threshing_loss_percent ?? "-"}%</td>
                     <td className="px-3 py-2">
                       <StatusBadge tone="warning">{lot.status}</StatusBadge>
                     </td>

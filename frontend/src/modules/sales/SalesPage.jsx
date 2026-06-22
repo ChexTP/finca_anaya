@@ -9,11 +9,21 @@ const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
 
+const initialPayment = {
+  amount: "",
+  paymentMethodId: "",
+  paymentReference: "",
+  paidAt: new Date().toISOString().slice(0, 10),
+  notes: "",
+};
+
 const SalesPage = () => {
   const { user } = useAuth();
   const [sales, setSales] = useState([]);
+  const [catalogs, setCatalogs] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
   const [notes, setNotes] = useState("");
+  const [paymentForm, setPaymentForm] = useState(initialPayment);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -23,8 +33,15 @@ const SalesPage = () => {
   const showFinancialData = ["admin", "accounting"].includes(user?.role);
 
   const loadSales = async () => {
-    const data = await apiRequest("/sales");
+    const requests = [apiRequest("/sales")];
+
+    if (showFinancialData) {
+      requests.push(apiRequest("/catalogs"));
+    }
+
+    const [data, catalogData] = await Promise.all(requests);
     setSales(data);
+    setCatalogs(catalogData || null);
 
     if (selectedSale) {
       const stillExists = data.find((sale) => sale.id === selectedSale.id);
@@ -45,10 +62,45 @@ const SalesPage = () => {
       const data = await apiRequest(`/sales/${saleId}`);
       setSelectedSale(data);
       setNotes("");
+      setPaymentForm({
+        ...initialPayment,
+        amount: data.balance_due && Number(data.balance_due) > 0 ? String(data.balance_due) : "",
+      });
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setLoadingDetail(false);
+    }
+  };
+
+  const registerPayment = async (event) => {
+    event.preventDefault();
+
+    if (!selectedSale) {
+      setError("Seleccione una venta.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...paymentForm,
+          amount: Number(paymentForm.amount),
+          paymentMethodId: Number(paymentForm.paymentMethodId),
+        }),
+      });
+      await loadSales();
+      await loadSaleDetail(selectedSale.id, false);
+      setMessage("Pago registrado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -167,6 +219,14 @@ const SalesPage = () => {
                 <p className="text-sm text-slate-500">{selectedSale.client_address || "Sin direccion"}</p>
               </div>
 
+              {showFinancialData && (
+                <div className="rounded bg-slate-50 p-3 text-sm">
+                  <p className="text-slate-500">Total: {formatMoney(selectedSale.currency, selectedSale.total)}</p>
+                  <p className="text-slate-500">Pagado: {formatMoney(selectedSale.currency, selectedSale.amount_paid)}</p>
+                  <p className="font-semibold text-ink">Saldo: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
                 {selectedSale.items?.map((item) => (
@@ -217,6 +277,69 @@ const SalesPage = () => {
                       Despachada
                     </button>
                   </div>
+                </div>
+              )}
+
+              {showFinancialData && (
+                <div className="space-y-3 border-t border-slate-200 pt-4">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Pagos</p>
+                  {selectedSale.payments?.length ? (
+                    selectedSale.payments.map((payment) => (
+                      <div key={payment.id} className="rounded border border-slate-200 p-3 text-sm">
+                        <p className="font-medium text-ink">{formatMoney(selectedSale.currency, payment.amount)}</p>
+                        <p className="text-slate-500">{payment.payment_method_name} - {payment.payment_reference}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">Sin pagos registrados.</p>
+                  )}
+
+                  <form className="space-y-3" onSubmit={registerPayment}>
+                    <input
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Valor a registrar"
+                      type="number"
+                      step="0.01"
+                      value={paymentForm.amount}
+                      onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })}
+                    />
+                    <select
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      value={paymentForm.paymentMethodId}
+                      onChange={(event) => setPaymentForm({ ...paymentForm, paymentMethodId: event.target.value })}
+                    >
+                      <option value="">Metodo de pago</option>
+                      {catalogs?.paymentMethods?.map((method) => (
+                        <option key={method.id} value={method.id}>
+                          {method.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Referencia"
+                      value={paymentForm.paymentReference}
+                      onChange={(event) => setPaymentForm({ ...paymentForm, paymentReference: event.target.value })}
+                    />
+                    <input
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      type="date"
+                      value={paymentForm.paidAt}
+                      onChange={(event) => setPaymentForm({ ...paymentForm, paidAt: event.target.value })}
+                    />
+                    <textarea
+                      className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Notas del pago"
+                      value={paymentForm.notes}
+                      onChange={(event) => setPaymentForm({ ...paymentForm, notes: event.target.value })}
+                    />
+                    <button
+                      className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      disabled={saving || selectedSale.payment_status === "pagada"}
+                    >
+                      Registrar pago
+                    </button>
+                  </form>
                 </div>
               )}
             </div>
