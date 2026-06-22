@@ -1,5 +1,5 @@
 import pg from "pg";
-import { DATABASE_URL } from "./config.js";
+import { DATABASE_SSL, DATABASE_URL } from "./config.js";
 
 const { Pool } = pg;
 
@@ -7,6 +7,7 @@ const { Pool } = pg;
 // Los modelos importan este pool y ejecutan consultas directas con pool.query.
 export const pool = new Pool({
   connectionString: DATABASE_URL,
+  ssl: DATABASE_SSL ? { rejectUnauthorized: false } : false,
 });
 
 export const testConnection = async () => {
