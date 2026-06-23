@@ -15,6 +15,14 @@ const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
+const formatDate = (value) => {
+  if (!value) return "Sin fecha estimada";
+  const [datePart] = String(value).split("T");
+  const [year, month, day] = datePart.split("-");
+
+  return [day, month, year].filter(Boolean).join("/");
+};
+
 const ProcessesPage = () => {
   const { user } = useAuth();
   const [processes, setProcesses] = useState([]);
@@ -26,7 +34,7 @@ const ProcessesPage = () => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const canCreateProcess = ["admin", "warehouse"].includes(user?.role);
+  const canCreateProcess = ["admin", "warehouse", "laboratory"].includes(user?.role);
 
   const selectedInputs = useMemo(() => {
     return Object.entries(selectedLots)
@@ -141,7 +149,7 @@ const ProcessesPage = () => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Crear proceso</h2>
-              <p className="text-sm text-slate-500">Seleccione los lotes y cantidades que salen de bodega.</p>
+              <p className="text-sm text-slate-500">Seleccione los lotes y cantidades definidos para el proceso.</p>
             </div>
             <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">
               Total: <span className="font-semibold text-ink">{totalSelectedKg} kg</span>
@@ -248,6 +256,11 @@ const ProcessesPage = () => {
                 <p>{process.process_location || "Sin ubicacion"}</p>
                 <p>{process.output_lot_code || "Sin lote final"}</p>
               </div>
+              {process.quote_code && (
+                <p className="mt-2 text-sm text-slate-500">
+                  Entrega estimada preventa: {formatDate(process.quote_estimated_delivery_date)}
+                </p>
+              )}
               {process.notes && <p className="mt-2 text-sm text-slate-500">{process.notes}</p>}
               {process.inputs?.length > 0 && (
                 <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">

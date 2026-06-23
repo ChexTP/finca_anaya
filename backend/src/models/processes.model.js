@@ -36,6 +36,7 @@ export const listProcesses = async ({ status }) => {
     SELECT
       coffee_processes.*,
       quotes.code AS quote_code,
+      quotes.estimated_delivery_date AS quote_estimated_delivery_date,
       clients.name AS quote_client_name,
       output_lot.code AS output_lot_code,
       users.name AS created_by_name,
@@ -72,7 +73,9 @@ export const listProcesses = async ({ status }) => {
     LEFT JOIN coffee_lots output_lot ON output_lot.id = coffee_processes.output_lot_id
     LEFT JOIN users ON users.id = coffee_processes.created_by
     ${where}
-    ORDER BY coffee_processes.created_at DESC
+    ORDER BY
+      COALESCE(quotes.estimated_delivery_date, DATE '9999-12-31') ASC,
+      coffee_processes.created_at DESC
     `,
     params
   );
@@ -86,6 +89,7 @@ export const findProcessById = async (id) => {
     SELECT
       coffee_processes.*,
       quotes.code AS quote_code,
+      quotes.estimated_delivery_date AS quote_estimated_delivery_date,
       clients.name AS quote_client_name,
       output_lot.code AS output_lot_code,
       users.name AS created_by_name

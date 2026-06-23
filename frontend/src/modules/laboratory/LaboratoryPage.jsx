@@ -57,6 +57,14 @@ const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
+const formatDate = (value) => {
+  if (!value) return "Sin fecha estimada";
+  const [datePart] = String(value).split("T");
+  const [year, month, day] = datePart.split("-");
+
+  return [day, month, year].filter(Boolean).join("/");
+};
+
 const LaboratoryPage = () => {
   const [activePanel, setActivePanel] = useState("lots");
   const [lots, setLots] = useState([]);
@@ -377,6 +385,11 @@ const LaboratoryPage = () => {
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{process.total_input_kg} kg de entrada</p>
                       <p className="text-sm text-slate-500">{process.process_location || "Sin ubicacion"}</p>
+                      {process.quote_code && (
+                        <p className="text-sm text-slate-500">
+                          Entrega estimada: {formatDate(process.quote_estimated_delivery_date)}
+                        </p>
+                      )}
                       {process.inputs?.length > 0 && (
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
                           {process.inputs.map((input) => (

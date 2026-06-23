@@ -683,12 +683,14 @@ Finalizar proceso:
 
 Reglas implementadas:
 
+- Administrador, bodega y laboratorio pueden crear procesos.
 - Crear proceso descuenta inmediatamente la cantidad seleccionada de los lotes origen.
 - El proceso puede asociarse a una preventa usando `quoteId`.
 - Si se envia `quoteId`, debe existir y ser una cotizacion de tipo `preventa`.
 - No se puede asociar un proceso a una preventa anulada.
 - El listado y detalle de procesos muestran el codigo de preventa y cliente asociado cuando aplica.
 - El listado y detalle de procesos muestran los lotes usados en la mezcla, con kg y porcentaje calculado sobre la entrada total.
+- Los procesos asociados a preventa se ordenan por fecha estimada de entrega para ayudar a priorizar laboratorio.
 - No permite tomar mas kg que la cantidad disponible del lote.
 - Si un lote origen queda en cero al enviarse a proceso, pasa a `en_proceso`.
 - Si solo se toma una parte del lote, el remanente queda `disponible`.
