@@ -112,10 +112,44 @@ export const findSaleById = async (id) => {
     `
     SELECT
       sale_item_lots.*,
-      coffee_lots.code AS lot_code
+      coffee_lots.code AS lot_code,
+      coffee_lots.lot_kind,
+      coffee_lots.commercial_classification,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name,
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'lot_id', coffee_process_inputs.lot_id,
+              'lot_code', input_lots.code,
+              'quantity_kg', coffee_process_inputs.quantity_kg,
+              'input_percentage',
+                CASE
+                  WHEN coffee_processes.total_input_kg > 0
+                  THEN ROUND((coffee_process_inputs.quantity_kg / coffee_processes.total_input_kg * 100)::numeric, 2)
+                  ELSE 0
+                END,
+              'coffee_type_name', input_types.name,
+              'coffee_profile_name', input_profiles.name,
+              'commercial_classification', input_lots.commercial_classification
+            )
+            ORDER BY coffee_process_inputs.created_at ASC
+          )
+          FROM coffee_processes
+          INNER JOIN coffee_process_inputs ON coffee_process_inputs.process_id = coffee_processes.id
+          INNER JOIN coffee_lots input_lots ON input_lots.id = coffee_process_inputs.lot_id
+          LEFT JOIN coffee_types input_types ON input_types.id = input_lots.coffee_type_id
+          LEFT JOIN coffee_profiles input_profiles ON input_profiles.id = input_lots.coffee_profile_id
+          WHERE coffee_processes.output_lot_id = coffee_lots.id
+        ),
+        '[]'::json
+      ) AS process_mix
     FROM sale_item_lots
     INNER JOIN coffee_lots ON coffee_lots.id = sale_item_lots.lot_id
     INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     WHERE sale_items.sale_id = $1
     ORDER BY sale_item_lots.id ASC
     `,

@@ -908,6 +908,7 @@ Reglas de alistamiento y despacho:
 - Solo se puede despachar una venta en estado `alistada`.
 - Bodega, contabilidad y administrador pueden cambiar estos estados.
 - Bodega puede consultar el detalle de la venta para saber que lotes y cantidades debe sacar.
+- Si la venta descuenta un lote `PROC` generado por proceso, el detalle muestra la mezcla origen con lotes, kg y porcentajes para que bodega tenga la orden completa.
 - Al despachar no se vuelve a descontar inventario, porque el descuento ya ocurrio al crear la venta.
 
 Anular venta:

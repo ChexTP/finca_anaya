@@ -9,6 +9,10 @@ const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
 
+const formatInputLabel = (input) => {
+  return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
+};
+
 const initialPayment = {
   amount: "",
   paymentMethodId: "",
@@ -241,9 +245,35 @@ const SalesPage = () => {
                 <p className="text-xs font-semibold uppercase text-slate-500">Lotes a sacar</p>
                 {selectedSale.deductedLots?.length ? (
                   selectedSale.deductedLots.map((lot) => (
-                    <div key={lot.id} className="flex items-center justify-between rounded bg-slate-50 px-3 py-2 text-sm">
-                      <span className="font-medium text-ink">{lot.lot_code}</span>
-                      <span>{lot.quantity_kg} kg</span>
+                    <div key={lot.id} className="rounded bg-slate-50 px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-ink">{lot.lot_code}</p>
+                          <p className="text-xs text-slate-500">
+                            {lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind}
+                          </p>
+                        </div>
+                        <span>{lot.quantity_kg} kg</span>
+                      </div>
+                      {lot.process_mix?.length > 0 && (
+                        <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3">
+                          <p className="text-xs font-semibold uppercase text-amber-800">Orden de mezcla</p>
+                          <div className="mt-2 space-y-2">
+                            {lot.process_mix.map((input) => (
+                              <div key={`${lot.id}-${input.lot_id}`} className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-medium text-ink">{input.lot_code}</p>
+                                  <p className="text-xs text-slate-600">{formatInputLabel(input)}</p>
+                                </div>
+                                <p className="text-right text-slate-700">
+                                  {input.input_percentage}%<br />
+                                  <span className="text-xs text-slate-500">{input.quantity_kg} kg usados</span>
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
