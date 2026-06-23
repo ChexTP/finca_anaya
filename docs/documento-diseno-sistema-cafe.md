@@ -101,7 +101,7 @@ Permisos principales:
 - Registrar datos de catacion.
 - Registrar score.
 - Aprobar o rechazar lotes segun criterios tecnicos.
-- Registrar datos de trilla, procesamiento, merma y perfil comercial.
+- Registrar datos de trilla, procesamiento, factor de rendimiento y perfil comercial.
 - Consultar historico tecnico de lotes.
 
 ### Vendedor
@@ -183,7 +183,7 @@ Permisos principales:
 4. El usuario indica la cantidad que se toma de cada lote.
 5. La cantidad asignada al proceso queda bloqueada para venta y otros procesos.
 6. El proceso puede quedar en estado pendiente, en_proceso o finalizado.
-7. Al finalizar, se registra cantidad total de entrada, cantidad total de salida, merma en kg y merma porcentual.
+7. Al finalizar, se registra cantidad total de entrada y cantidad total de salida; el sistema puede mostrar la diferencia como dato informativo.
 8. El proceso genera un nuevo lote procesado con codigo PROC-AAAA-0001.
 9. Laboratorio registra mediciones, catacion y perfil final del lote procesado.
 10. Si el proceso estaba asociado a una preventa, el lote PROC resultante queda bloqueado/sugerido para esa preventa.
@@ -496,7 +496,7 @@ Funciones:
 - Registrar procesamiento de uno o varios lotes.
 - Registrar resultado del proceso.
 - Actualizar cantidad disponible.
-- Guardar merma.
+- Guardar factor de rendimiento y diferencia entre entrada/salida del proceso como dato informativo.
 - Agregar perfil comercial.
 - Asociar proceso a preventa, si aplica.
 - Generar lote procesado con codigo PROC.
@@ -511,8 +511,8 @@ Datos tentativos:
 - Estado del proceso.
 - Cantidad inicial.
 - Cantidad final.
-- Merma en kg.
-- Merma en porcentaje.
+- Diferencia entre entrada y salida del proceso.
+- Porcentaje informativo de diferencia entre entrada y salida.
 - Humedad final.
 - Perfil comercial.
 - Notas sensoriales.
@@ -553,7 +553,7 @@ Reglas de laboratorio:
 - Estos campos seran obligatorios para aprobar un lote recibido de proveedor.
 - Estos campos tambien seran obligatorios para finalizar un lote procesado PROC.
 - La humedad final sera obligatoria para finalizar un proceso/lote PROC.
-- Merma en kg y merma porcentual se calcularan automaticamente desde cantidad de entrada y cantidad de salida.
+- La diferencia entre entrada y salida se calculara automaticamente solo como dato informativo.
 - Laboratorio podra corregir cantidad de entrada o salida mientras el proceso este pendiente o en_proceso, con aviso de confirmacion.
 - Una vez el proceso quede finalizado, las cantidades quedan bloqueadas.
 - Solo administrador podra corregir cantidades de un proceso finalizado en caso excepcional.
@@ -931,7 +931,7 @@ Tipos de movimiento:
 - Venta.
 - Procesamiento.
 - Ajuste.
-- Merma.
+- Diferencia de proceso.
 
 Datos tentativos:
 
@@ -1109,7 +1109,7 @@ Graficas iniciales:
 - Para aprobar un lote recibido de proveedor o finalizar un lote procesado PROC, laboratorio debera registrar la catacion con aroma, fragancia, sabor, acidez, dulzor, cuerpo, balance, uniformidad, residual, taza limpia y score.
 - Campos de catacion seran texto libre, excepto score que sera numerico decimal sin rango definido en fase 1.
 - Humedad final sera obligatoria para finalizar un proceso/lote PROC.
-- Merma en kg y porcentaje se calculara automaticamente.
+- Diferencia entre entrada y salida se calculara automaticamente como referencia.
 - Laboratorio podra corregir cantidades antes de finalizar un proceso, con confirmacion.
 - Proceso finalizado queda bloqueado para edicion de cantidades, salvo correccion excepcional por administrador.
 - El vendedor puede registrar pagos o abonos, pero contabilidad valida o corrige.

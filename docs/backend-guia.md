@@ -407,6 +407,8 @@ Registrar lote recibido:
   "packagingQuantity": 1,
   "hasInnerBag": true,
   "humidityPercent": 11.2,
+  "performanceFactor": 92,
+  "commercialClassification": "Regional",
   "visualStatus": "aprobado",
   "visualDefectPercent": 3,
   "visualNotes": "Cafe recibido en buen estado visual",
@@ -421,10 +423,25 @@ Reglas implementadas:
 - El descuento del embalaje se toma desde el catalogo `packaging_types`.
 - Si `hasInnerBag` es `true`, se descuenta una bolsa interna de 0.05 kg por embalaje.
 - Tambien se puede enviar `innerBagQuantity` para indicar la cantidad exacta de bolsas internas.
+- El `performanceFactor` registra el factor de rendimiento medido en recepcion.
+- La `commercialClassification` permite clasificar el cafe como `Base`, `Regional`, `Varietal`, `Exotico` o `Procesado`.
 - Si el examen visual es `aprobado`, se genera codigo `LOT-AAAA-0001`.
 - Si el examen visual es `rechazado`, no entra a inventario disponible y queda como historico tecnico.
+- Los lotes rechazados quedan pendientes de retiro hasta que bodega los marque como `retirado`.
 - Un lote recibido aprobado queda en estado `pendiente_laboratorio`.
 - La cantidad disponible inicia en `0` hasta que laboratorio y contabilidad completen el flujo.
+
+Marcar lote rechazado como retirado:
+
+```http
+PUT /api/lots/:id/withdraw-rejected
+```
+
+```json
+{
+  "notes": "Proveedor retiro el cafe rechazado"
+}
+```
 
 ### Carga Inicial De Inventario
 
@@ -671,6 +688,7 @@ Reglas implementadas:
 - Si se envia `quoteId`, debe existir y ser una cotizacion de tipo `preventa`.
 - No se puede asociar un proceso a una preventa anulada.
 - El listado y detalle de procesos muestran el codigo de preventa y cliente asociado cuando aplica.
+- El listado y detalle de procesos muestran los lotes usados en la mezcla, con kg y porcentaje calculado sobre la entrada total.
 - No permite tomar mas kg que la cantidad disponible del lote.
 - Si un lote origen queda en cero al enviarse a proceso, pasa a `en_proceso`.
 - Si solo se toma una parte del lote, el remanente queda `disponible`.

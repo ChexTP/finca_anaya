@@ -230,7 +230,7 @@ def build_document():
     )
 
     add_heading(doc, "2. Modulo Bodega", 1)
-    add_body(doc, "Este modulo valida la recepcion inicial del cafe. Aqui se registra proveedor, peso, empaque, humedad, merma por trilla, examen visual y observaciones.")
+    add_body(doc, "Este modulo valida la recepcion inicial del cafe. Aqui se registra proveedor, peso, empaque, humedad, factor de rendimiento, clasificacion comercial, examen visual y observaciones.")
     add_heading(doc, "Datos que debe preparar la persona que prueba", 2)
     add_bullets(
         doc,
@@ -238,7 +238,7 @@ def build_document():
             "Nombre, telefono, direccion y zona de procedencia del proveedor o finca.",
             "Tipo de cafe recibido: pergamino, trillado, procesado o especial.",
             "Peso bruto en kg, tipo de empaque, cantidad de empaques y si tiene bolsa interna.",
-            "Humedad %, merma por trilla %, resultado del examen visual y defecto visual % si aplica.",
+            "Humedad %, factor de rendimiento, clasificacion comercial, resultado del examen visual y defecto visual % si aplica.",
             "Observaciones visuales y comentario inicial del lote.",
         ],
     )
@@ -254,7 +254,7 @@ def build_document():
             ),
             (
                 "B2",
-                "Ingresar cafe aprobado visualmente con peso bruto, empaque, humedad y merma por trilla.",
+                "Ingresar cafe aprobado visualmente con peso bruto, empaque, humedad, factor de rendimiento y clasificacion comercial.",
                 "El sistema calcula el peso neto, genera un codigo LOT y lo muestra como pendiente de laboratorio.",
                 "",
             ),
@@ -266,13 +266,13 @@ def build_document():
             ),
             (
                 "B4",
-                "Ingresar Merma por trilla % con un valor entre 0 y 100.",
-                "El lote se guarda y la merma aparece en la tabla Pendientes de laboratorio.",
+                "Ingresar Factor de rendimiento con un valor valido mayor o igual a cero.",
+                "El lote se guarda y el factor de rendimiento aparece en la tabla Pendientes de laboratorio.",
                 "",
             ),
             (
                 "B5",
-                "Intentar ingresar Merma por trilla % mayor a 100.",
+                "Intentar ingresar Factor de rendimiento negativo.",
                 "El sistema debe rechazar el registro y mostrar un mensaje de validacion.",
                 "",
             ),
@@ -293,7 +293,7 @@ def build_document():
     add_note(
         doc,
         "Criterio de aceptacion en Bodega",
-        "El responsable debe poder registrar un cafe recibido sin usar hojas externas para los datos principales de trazabilidad: proveedor, origen, humedad, merma, peso y examen visual.",
+        "El responsable debe poder registrar un cafe recibido sin usar hojas externas para los datos principales de trazabilidad: proveedor, origen, humedad, factor de rendimiento, clasificacion comercial, peso y examen visual.",
     )
 
     add_heading(doc, "3. Modulo Laboratorio", 1)
@@ -316,7 +316,7 @@ def build_document():
             ),
             (
                 "L3",
-                "Verificar que se muestre la merma por trilla del lote.",
+                "Verificar que se muestre el factor de rendimiento del lote.",
                 "La persona de laboratorio puede ver el dato registrado en Bodega antes de aprobar.",
                 "",
             ),
