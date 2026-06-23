@@ -53,6 +53,10 @@ const cuppingFields = [
   ["cleanCup", "Taza limpia"],
 ];
 
+const formatInputLabel = (input) => {
+  return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
+};
+
 const LaboratoryPage = () => {
   const [activePanel, setActivePanel] = useState("lots");
   const [lots, setLots] = useState([]);
@@ -373,6 +377,19 @@ const LaboratoryPage = () => {
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{process.total_input_kg} kg de entrada</p>
                       <p className="text-sm text-slate-500">{process.process_location || "Sin ubicacion"}</p>
+                      {process.inputs?.length > 0 && (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {process.inputs.map((input) => (
+                            <div key={`${process.id}-${input.lot_id}`} className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                              <p className="font-semibold text-ink">{input.lot_code}</p>
+                              <p className="text-slate-600">{formatInputLabel(input)}</p>
+                              <p className="text-slate-500">
+                                {input.quantity_kg} kg - {input.input_percentage}%
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>

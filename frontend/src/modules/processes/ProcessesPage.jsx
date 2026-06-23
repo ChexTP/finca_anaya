@@ -11,6 +11,10 @@ const initialProcess = {
   notes: "",
 };
 
+const formatInputLabel = (input) => {
+  return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
+};
+
 const ProcessesPage = () => {
   const { user } = useAuth();
   const [processes, setProcesses] = useState([]);
@@ -178,6 +182,7 @@ const ProcessesPage = () => {
                   <th className="px-3 py-2">Usar</th>
                   <th className="px-3 py-2">Lote</th>
                   <th className="px-3 py-2">Tipo / Perfil</th>
+                  <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Disponible</th>
                   <th className="px-3 py-2">Cantidad a procesar</th>
                 </tr>
@@ -194,6 +199,7 @@ const ProcessesPage = () => {
                     </td>
                     <td className="px-3 py-2 font-medium">{lot.code}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || lot.coffee_type_name || "-"}</td>
+                    <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                     <td className="px-3 py-2">{lot.available_weight_kg} kg</td>
                     <td className="px-3 py-2">
                       <input
@@ -243,6 +249,22 @@ const ProcessesPage = () => {
                 <p>{process.output_lot_code || "Sin lote final"}</p>
               </div>
               {process.notes && <p className="mt-2 text-sm text-slate-500">{process.notes}</p>}
+              {process.inputs?.length > 0 && (
+                <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Mezcla del proceso</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {process.inputs.map((input) => (
+                      <div key={`${process.id}-${input.lot_id}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <p className="font-semibold text-ink">{input.lot_code}</p>
+                        <p className="text-slate-600">{formatInputLabel(input)}</p>
+                        <p className="text-slate-500">
+                          {input.quantity_kg} kg - {input.input_percentage}%
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

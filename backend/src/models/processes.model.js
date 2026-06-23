@@ -38,7 +38,34 @@ export const listProcesses = async ({ status }) => {
       quotes.code AS quote_code,
       clients.name AS quote_client_name,
       output_lot.code AS output_lot_code,
-      users.name AS created_by_name
+      users.name AS created_by_name,
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'lot_id', coffee_process_inputs.lot_id,
+              'lot_code', coffee_lots.code,
+              'quantity_kg', coffee_process_inputs.quantity_kg,
+              'input_percentage',
+                CASE
+                  WHEN coffee_processes.total_input_kg > 0
+                  THEN ROUND((coffee_process_inputs.quantity_kg / coffee_processes.total_input_kg * 100)::numeric, 2)
+                  ELSE 0
+                END,
+              'coffee_type_name', coffee_types.name,
+              'coffee_profile_name', coffee_profiles.name,
+              'commercial_classification', coffee_lots.commercial_classification
+            )
+            ORDER BY coffee_process_inputs.created_at ASC
+          )
+          FROM coffee_process_inputs
+          INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
+          LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+          LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+          WHERE coffee_process_inputs.process_id = coffee_processes.id
+        ),
+        '[]'::json
+      ) AS inputs
     FROM coffee_processes
     LEFT JOIN quotes ON quotes.id = coffee_processes.quote_id
     LEFT JOIN clients ON clients.id = quotes.client_id
@@ -84,9 +111,16 @@ export const findProcessById = async (id) => {
       coffee_process_inputs.*,
       coffee_lots.code AS lot_code,
       coffee_lots.available_weight_kg AS current_available_weight_kg,
+      coffee_lots.commercial_classification,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.name AS coffee_profile_name,
+      CASE
+        WHEN coffee_processes.total_input_kg > 0
+        THEN ROUND((coffee_process_inputs.quantity_kg / coffee_processes.total_input_kg * 100)::numeric, 2)
+        ELSE 0
+      END AS input_percentage
     FROM coffee_process_inputs
+    INNER JOIN coffee_processes ON coffee_processes.id = coffee_process_inputs.process_id
     INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
