@@ -1,4 +1,4 @@
-import { RefreshCw, Save } from "lucide-react";
+import { Eye, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -29,11 +29,197 @@ const initialLot = {
   initialComment: "",
 };
 
+const formatDate = (value) => {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("es-CO");
+};
+
+const formatInputLabel = (input) => {
+  return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
+};
+
+const buildWarehouseOrderHtml = (sale) => {
+  const productRows = sale.items
+    ?.map(
+      (item) => `
+        <tr>
+          <td>${item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "-"}</td>
+          <td>${item.quantity_kg} kg</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const finalBlendOrder = sale.items
+    ?.filter((item) => item.blend_items?.length > 0)
+    .map(
+      (item) => `
+        <section class="lot-block">
+          <div class="lot-head">
+            <div>
+              <h3>${item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}</h3>
+              <p>${item.quantity_kg} kg solicitados</p>
+            </div>
+            <strong>Mezcla final</strong>
+          </div>
+          <table class="mix-table">
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>Lote</th>
+                <th>Porcentaje</th>
+                <th>Kg estimados</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${item.blend_items
+                .map(
+                  (blend) => `
+                    <tr>
+                      <td>${blend.commercial_classification || "-"}</td>
+                      <td>${blend.lot_code || "-"}</td>
+                      <td>${blend.percentage}%</td>
+                      <td>${blend.calculated_quantity_kg} kg</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </section>
+      `
+    )
+    .join("");
+
+  const deductedLots = sale.deductedLots
+    ?.map((lot) => {
+      const mixRows = lot.process_mix?.length
+        ? `
+          <table class="mix-table">
+            <thead>
+              <tr>
+                <th>Lote origen</th>
+                <th>Tipo / perfil</th>
+                <th>Porcentaje</th>
+                <th>Kg usados</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${lot.process_mix
+                .map(
+                  (input) => `
+                    <tr>
+                      <td>${input.lot_code || "-"}</td>
+                      <td>${formatInputLabel(input)}</td>
+                      <td>${input.input_percentage}%</td>
+                      <td>${input.quantity_kg} kg</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `
+        : `<p class="muted">Este lote no tiene mezcla de proceso registrada.</p>`;
+
+      return `
+        <section class="lot-block">
+          <div class="lot-head">
+            <div>
+              <h3>${lot.lot_code}</h3>
+              <p>${lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind || "-"}</p>
+            </div>
+            <strong>${lot.quantity_kg} kg a sacar</strong>
+          </div>
+          ${mixRows}
+        </section>
+      `;
+    })
+    .join("");
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Orden ${sale.code}</title>
+        <style>
+          body { color: #17201a; font-family: Arial, sans-serif; margin: 28px; }
+          header { align-items: flex-start; border-bottom: 1px solid #d8ded8; display: flex; justify-content: space-between; gap: 24px; padding-bottom: 14px; }
+          h1 { font-size: 22px; margin: 0 0 6px; }
+          h2 { font-size: 15px; margin: 22px 0 8px; }
+          h3 { font-size: 14px; margin: 0 0 3px; }
+          p { font-size: 12px; margin: 3px 0; }
+          table { border-collapse: collapse; margin-top: 10px; width: 100%; }
+          th, td { border: 1px solid #d8ded8; font-size: 12px; padding: 8px; text-align: left; }
+          th { background: #f3f6f3; }
+          .meta { display: grid; gap: 4px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+          .lot-block { border: 1px solid #d8ded8; margin-top: 12px; padding: 12px; page-break-inside: avoid; }
+          .lot-head { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; }
+          .mix-table th { background: #fff7d6; }
+          .muted { color: #667085; }
+          .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
+          .line { border-top: 1px solid #17201a; padding-top: 6px; }
+          @media print { body { margin: 18px; } }
+        </style>
+      </head>
+      <body>
+        <header>
+          <div>
+            <h1>Orden de alistamiento y mezcla</h1>
+            <p><strong>Venta:</strong> ${sale.code}</p>
+            ${sale.quote_code ? `<p><strong>Preventa:</strong> ${sale.quote_code}</p>` : ""}
+            <p><strong>Fecha:</strong> ${formatDate(new Date())}</p>
+          </div>
+          <div>
+            <p><strong>Finca Anaya</strong></p>
+            <p>Documento operativo para bodega</p>
+          </div>
+        </header>
+
+        <section class="meta">
+          <p><strong>Cliente:</strong> ${sale.client_name || "-"}</p>
+          <p><strong>Telefono:</strong> ${sale.client_phone || "-"}</p>
+          <p><strong>Direccion:</strong> ${sale.client_address || "-"}</p>
+          <p><strong>Estado:</strong> ${sale.status || "-"}</p>
+        </section>
+
+        <h2>Pedido</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Producto solicitado</th>
+              <th>Cantidad</th>
+            </tr>
+          </thead>
+          <tbody>${productRows || ""}</tbody>
+        </table>
+
+        <h2>Lotes y porcentajes de mezcla</h2>
+        ${
+          finalBlendOrder ||
+          deductedLots ||
+          '<p class="muted">No hay orden de mezcla ni lotes descontados registrados.</p>'
+        }
+
+        <section class="signature">
+          <p class="line">Entrega bodega</p>
+          <p class="line">Recibe / realiza mezcla</p>
+        </section>
+      </body>
+    </html>
+  `;
+};
+
 const WarehousePage = () => {
   const [catalogs, setCatalogs] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [pendingLots, setPendingLots] = useState([]);
   const [rejectedLots, setRejectedLots] = useState([]);
+  const [pendingSales, setPendingSales] = useState([]);
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [notes, setNotes] = useState("");
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [supplierForm, setSupplierForm] = useState(initialSupplier);
   const [lotForm, setLotForm] = useState(initialLot);
   const [message, setMessage] = useState("");
@@ -54,16 +240,27 @@ const WarehousePage = () => {
   }, [lotForm, selectedPackaging]);
 
   const loadData = async () => {
-    const [catalogData, supplierData, lotData, rejectedData] = await Promise.all([
+    const [catalogData, supplierData, lotData, rejectedData, saleData] = await Promise.all([
       apiRequest("/catalogs"),
       apiRequest("/suppliers"),
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/lots?status=rechazado"),
+      apiRequest("/sales"),
     ]);
     setCatalogs(catalogData);
     setSuppliers(supplierData);
     setPendingLots(lotData);
     setRejectedLots(rejectedData);
+    setPendingSales(saleData.filter((sale) => ["pendiente_alistamiento", "alistada"].includes(sale.status)));
+
+    if (selectedSale) {
+      const stillExists = saleData.find((sale) => sale.id === selectedSale.id && ["pendiente_alistamiento", "alistada"].includes(sale.status));
+      if (stillExists) {
+        await loadSaleDetail(selectedSale.id, false);
+      } else {
+        setSelectedSale(null);
+      }
+    }
   };
 
   useEffect(() => {
@@ -152,6 +349,68 @@ const WarehousePage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const loadSaleDetail = async (saleId, withLoading = true) => {
+    if (withLoading) {
+      setLoadingDetail(true);
+    }
+
+    try {
+      const sale = await apiRequest(`/sales/${saleId}`);
+      setSelectedSale(sale);
+      setNotes("");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const updateSaleStatus = async (action) => {
+    if (!selectedSale) return;
+
+    const label = action === "prepare" ? "marcar esta venta como alistada" : "marcar esta venta como despachada";
+    const confirmed = window.confirm(`Confirmas ${label}?`);
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/${action}`, {
+        method: "PUT",
+        body: JSON.stringify({ notes }),
+      });
+      await loadData();
+      setMessage(action === "prepare" ? "Venta marcada como alistada." : "Venta marcada como despachada.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const printWarehouseOrder = () => {
+    if (!selectedSale) {
+      setError("Seleccione una orden para imprimir.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      setError("El navegador bloqueo la ventana de impresion.");
+      return;
+    }
+
+    printWindow.document.write(buildWarehouseOrderHtml(selectedSale));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 
   return (
@@ -346,6 +605,151 @@ const WarehousePage = () => {
             Registrar cafe
           </button>
         </form>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Ordenes pendientes de bodega</h2>
+          </div>
+          {pendingSales.length === 0 ? (
+            <div className="p-4">
+              <EmptyState title="Sin ordenes pendientes" message="Las ventas pendientes de alistamiento o despacho apareceran aqui." />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Codigo</th>
+                    <th className="px-3 py-2">Cliente</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Accion</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingSales.map((sale) => (
+                    <tr key={sale.id}>
+                      <td className="px-3 py-2 font-medium">{sale.code}</td>
+                      <td className="px-3 py-2">{sale.client_name}</td>
+                      <td className="px-3 py-2">
+                        <StatusBadge tone={sale.status === "alistada" ? "success" : "warning"}>{sale.status}</StatusBadge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                          type="button"
+                          onClick={() => loadSaleDetail(sale.id)}
+                        >
+                          <Eye size={14} />
+                          Ver orden
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <aside className="rounded border border-slate-200 bg-white p-4">
+          <h2 className="text-sm font-semibold text-slate-800">Orden seleccionada</h2>
+          {loadingDetail ? (
+            <p className="mt-3 text-sm text-slate-500">Cargando orden...</p>
+          ) : !selectedSale ? (
+            <div className="mt-3">
+              <EmptyState title="Seleccione una orden" message="Aqui vera productos, mezcla y acciones de bodega." />
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="font-semibold text-ink">{selectedSale.code}</p>
+                <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
+                <p className="text-sm text-slate-500">{selectedSale.client_address || "Sin direccion"}</p>
+                <div className="mt-2">
+                  <StatusBadge tone={selectedSale.status === "alistada" ? "success" : "warning"}>{selectedSale.status}</StatusBadge>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
+                {selectedSale.items?.map((item) => (
+                  <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
+                    <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name}</p>
+                    <p className="text-slate-500">{item.quantity_kg} kg</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedSale.items?.some((item) => item.blend_items?.length > 0) && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Mezcla indicada por laboratorio</p>
+                  {selectedSale.items
+                    .filter((item) => item.blend_items?.length > 0)
+                    .map((item) => (
+                      <div key={`warehouse-blend-${item.id}`} className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
+                        <p className="font-semibold text-ink">
+                          {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {item.blend_items.map((blend) => (
+                            <div key={blend.id} className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-medium text-ink">{blend.lot_code}</p>
+                                <p className="text-xs text-slate-600">{blend.commercial_classification || formatInputLabel(blend)}</p>
+                              </div>
+                              <p className="text-right text-slate-700">
+                                {blend.percentage}%<br />
+                                <span className="text-xs text-slate-500">{blend.calculated_quantity_kg} kg estimados</span>
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                type="button"
+                onClick={printWarehouseOrder}
+              >
+                <Printer size={16} />
+                Imprimir orden / guardar PDF
+              </button>
+
+              <textarea
+                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Observaciones de bodega"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+              />
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving || selectedSale.status !== "pendiente_alistamiento"}
+                  type="button"
+                  onClick={() => updateSaleStatus("prepare")}
+                >
+                  <PackageCheck size={16} />
+                  Alistada
+                </button>
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving || selectedSale.status !== "alistada"}
+                  type="button"
+                  onClick={() => updateSaleStatus("dispatch")}
+                >
+                  <Truck size={16} />
+                  Despachada
+                </button>
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
 
       <div className="rounded border border-slate-200 bg-white">
