@@ -73,6 +73,7 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
     `
     SELECT
       coffee_lots.*,
+      DATE_PART('day', NOW() - coffee_lots.created_at)::INTEGER AS days_in_warehouse,
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
@@ -96,6 +97,7 @@ export const findLotById = async (id) => {
     `
     SELECT
       coffee_lots.*,
+      DATE_PART('day', NOW() - coffee_lots.created_at)::INTEGER AS days_in_warehouse,
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
@@ -287,6 +289,70 @@ export const updateLotLabReview = async (id, reviewData) => {
           : "Lote rechazado por laboratorio",
         reviewData.reviewedBy,
       ]
+    );
+
+    await client.query("COMMIT");
+    return lot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const markRejectedLotAsWithdrawn = async ({ id, notes, withdrawnBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (currentLot.status !== "rechazado") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot: currentLot };
+    }
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        status = 'retirado',
+        initial_comment = CASE
+          WHEN $1::text IS NULL OR $1::text = '' THEN initial_comment
+          WHEN initial_comment IS NULL OR initial_comment = '' THEN $1::text
+          ELSE initial_comment || E'\nRetiro: ' || $1::text
+        END,
+        updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+      `,
+      [notes || null, id]
+    );
+
+    const lot = result.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'retiro_lote_rechazado', $2, $3, $4)
+      `,
+      [lot.id, lot.net_weight_kg, notes || "Lote rechazado retirado por proveedor", withdrawnBy]
     );
 
     await client.query("COMMIT");

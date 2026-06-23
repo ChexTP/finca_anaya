@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
     status IN (
       'pendiente_laboratorio',
       'rechazado',
+      'retirado',
       'aprobado',
       'disponible',
       'en_proceso',
@@ -193,6 +194,25 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_reference TEXT
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_paid_at TIMESTAMP;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_registered_by INTEGER REFERENCES users(id);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS performance_factor NUMERIC(8, 2);
+
+DO $$
+BEGIN
+  ALTER TABLE coffee_lots DROP CONSTRAINT IF EXISTS coffee_lots_status_check;
+  ALTER TABLE coffee_lots
+  ADD CONSTRAINT coffee_lots_status_check CHECK (
+    status IN (
+      'pendiente_laboratorio',
+      'rechazado',
+      'retirado',
+      'aprobado',
+      'disponible',
+      'en_proceso',
+      'procesado',
+      'vendido_parcial',
+      'agotado'
+    )
+  );
+END $$;
 
 DO $$
 BEGIN

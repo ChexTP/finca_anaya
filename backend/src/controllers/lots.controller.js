@@ -9,6 +9,7 @@ import {
   listLots,
   findLotById,
   createReceivedLot,
+  markRejectedLotAsWithdrawn,
   updateLotLabReview,
   registerLotPurchase,
   createInitialInventoryLot,
@@ -133,7 +134,7 @@ export const postReceivedLot = async (req, res) => {
       });
     }
 
-    const code = visualStatus === "aprobado" ? await getNextLotCode() : null;
+    const code = await getNextLotCode();
     const status = visualStatus === "aprobado" ? "pendiente_laboratorio" : "rechazado";
     const humidity = toNumber(humidityPercent);
     const performance = toNumber(performanceFactor);
@@ -191,6 +192,38 @@ export const postReceivedLot = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al registrar lote",
+      error: error.message,
+    });
+  }
+};
+
+export const putRejectedLotWithdrawal = async (req, res) => {
+  try {
+    const { notes } = req.body;
+    const lot = await markRejectedLotAsWithdrawn({
+      id: req.params.id,
+      notes,
+      withdrawnBy: req.user.id,
+    });
+
+    if (!lot) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (lot.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden retirar lotes que esten rechazados",
+        data: lot.lot,
+      });
+    }
+
+    res.json({
+      message: "Lote rechazado marcado como retirado",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al marcar lote rechazado como retirado",
       error: error.message,
     });
   }

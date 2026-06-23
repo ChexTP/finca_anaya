@@ -32,6 +32,7 @@ const WarehousePage = () => {
   const [catalogs, setCatalogs] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [pendingLots, setPendingLots] = useState([]);
+  const [rejectedLots, setRejectedLots] = useState([]);
   const [supplierForm, setSupplierForm] = useState(initialSupplier);
   const [lotForm, setLotForm] = useState(initialLot);
   const [message, setMessage] = useState("");
@@ -52,14 +53,16 @@ const WarehousePage = () => {
   }, [lotForm, selectedPackaging]);
 
   const loadData = async () => {
-    const [catalogData, supplierData, lotData] = await Promise.all([
+    const [catalogData, supplierData, lotData, rejectedData] = await Promise.all([
       apiRequest("/catalogs"),
       apiRequest("/suppliers"),
       apiRequest("/lots?status=pendiente_laboratorio"),
+      apiRequest("/lots?status=rechazado"),
     ]);
     setCatalogs(catalogData);
     setSuppliers(supplierData);
     setPendingLots(lotData);
+    setRejectedLots(rejectedData);
   };
 
   useEffect(() => {
@@ -110,7 +113,38 @@ const WarehousePage = () => {
       });
       setLotForm(initialLot);
       await loadData();
-      setMessage("Cafe recibido correctamente. Quedo pendiente de laboratorio.");
+      setMessage(
+        lotForm.visualStatus === "aprobado"
+          ? "Cafe recibido correctamente. Quedo pendiente de laboratorio."
+          : "Cafe rechazado registrado correctamente con codigo de lote."
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const withdrawRejectedLot = async (lot) => {
+    const notes = window.prompt(`Observacion de retiro para ${lot.code}`, "Retirado por proveedor");
+
+    if (notes === null) return;
+
+    const confirmed = window.confirm(`Confirmas marcar el lote ${lot.code} como retirado?`);
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${lot.id}/withdraw-rejected`, {
+        method: "PUT",
+        body: JSON.stringify({ notes }),
+      });
+      await loadData();
+      setMessage("Lote rechazado marcado como retirado.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -331,6 +365,55 @@ const WarehousePage = () => {
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                     <td className="px-3 py-2">
                       <StatusBadge tone="warning">{lot.status}</StatusBadge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-sm font-semibold text-slate-800">Rechazados pendientes de retiro</h2>
+        </div>
+        {rejectedLots.length === 0 ? (
+          <div className="p-4">
+            <EmptyState title="Sin rechazados en bodega" message="Los lotes rechazados que sigan ocupando espacio apareceran aqui." />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-100 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2">Codigo</th>
+                  <th className="px-3 py-2">Proveedor</th>
+                  <th className="px-3 py-2">Peso neto</th>
+                  <th className="px-3 py-2">Humedad</th>
+                  <th className="px-3 py-2">Factor</th>
+                  <th className="px-3 py-2">Dias en bodega</th>
+                  <th className="px-3 py-2">Accion</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rejectedLots.map((lot) => (
+                  <tr key={lot.id}>
+                    <td className="px-3 py-2 font-medium">{lot.code}</td>
+                    <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
+                    <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
+                    <td className="px-3 py-2">{lot.humidity_percent ?? "-"}%</td>
+                    <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
+                    <td className="px-3 py-2">{lot.days_in_warehouse ?? 0}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        type="button"
+                        onClick={() => withdrawRejectedLot(lot)}
+                        disabled={saving}
+                      >
+                        Marcar retirado
+                      </button>
                     </td>
                   </tr>
                 ))}
