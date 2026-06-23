@@ -224,6 +224,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         coffee_profile_id,
         status,
         lot_kind,
+        commercial_classification,
         gross_weight_kg,
         tare_weight_kg,
         net_weight_kg,
@@ -247,7 +248,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         created_by
       )
       VALUES (
-        $1, $2, 'disponible', 'PROC', $3, 0, $3, $3, $4,
+        $1, $2, 'disponible', 'PROC', 'Procesado', $3, 0, $3, $3, $4,
         $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
         $15, $16, $17, NOW(), $18, $17
       )

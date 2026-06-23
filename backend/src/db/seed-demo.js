@@ -197,6 +197,7 @@ const upsertLot = async (lot) => {
       coffee_profile_id,
       status,
       lot_kind,
+      commercial_classification,
       gross_weight_kg,
       packaging_type_id,
       packaging_quantity,
@@ -239,12 +240,13 @@ const upsertLot = async (lot) => {
       $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
       $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
       $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
-      $41, $42
+      $41, $42, $43
     )
     ON CONFLICT (code)
     DO UPDATE SET
       status = EXCLUDED.status,
       coffee_profile_id = EXCLUDED.coffee_profile_id,
+      commercial_classification = EXCLUDED.commercial_classification,
       available_weight_kg = EXCLUDED.available_weight_kg,
       humidity_percent = EXCLUDED.humidity_percent,
       performance_factor = EXCLUDED.performance_factor,
@@ -260,6 +262,7 @@ const upsertLot = async (lot) => {
       lot.coffeeProfileId,
       lot.status,
       lot.lotKind,
+      lot.commercialClassification,
       lot.grossWeightKg,
       lot.packagingTypeId,
       lot.packagingQuantity,
@@ -545,6 +548,7 @@ const runDemoSeed = async () => {
       coffeeProfileId: null,
       status: "pendiente_laboratorio",
       lotKind: "LOT",
+      commercialClassification: "Regional",
       grossWeightKg: 253.4,
       packagingTypeId: costal.id,
       packagingQuantity: 4,
@@ -590,6 +594,7 @@ const runDemoSeed = async () => {
       coffeeProfileId: null,
       status: "aprobado",
       lotKind: "LOT",
+      commercialClassification: "Base",
       grossWeightKg: 181.2,
       packagingTypeId: costal.id,
       packagingQuantity: 3,
@@ -635,6 +640,7 @@ const runDemoSeed = async () => {
       coffeeProfileId: null,
       status: "disponible",
       lotKind: "LOT",
+      commercialClassification: "Varietal",
       grossWeightKg: 122.0,
       packagingTypeId: tula.id,
       packagingQuantity: 2,
@@ -680,6 +686,7 @@ const runDemoSeed = async () => {
       coffeeProfileId: perfil1.id,
       status: "disponible",
       lotKind: "PROC",
+      commercialClassification: "Procesado",
       grossWeightKg: 75,
       packagingTypeId: null,
       packagingQuantity: 0,

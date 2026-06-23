@@ -141,13 +141,14 @@ export const createReceivedLot = async (lotData) => {
         visual_status,
         visual_defect_percent,
         visual_notes,
+        commercial_classification,
         origin_zone,
         initial_comment,
         created_by
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
       )
       RETURNING *
       `,
@@ -168,6 +169,7 @@ export const createReceivedLot = async (lotData) => {
         lotData.visualStatus,
         lotData.visualDefectPercent,
         lotData.visualNotes,
+        lotData.commercialClassification,
         lotData.originZone,
         lotData.initialComment,
         lotData.createdBy,
@@ -461,6 +463,7 @@ export const createInitialInventoryLot = async (lotData) => {
         coffee_profile_id,
         status,
         lot_kind,
+        commercial_classification,
         gross_weight_kg,
         tare_weight_kg,
         net_weight_kg,
@@ -475,8 +478,8 @@ export const createInitialInventoryLot = async (lotData) => {
         created_by
       )
       VALUES (
-        $1, $2, $3, $4, 'disponible', $5, $6, 0, $6, $6,
-        $7, $8, $9, $10, $11, $12, $13, $14
+        $1, $2, $3, $4, 'disponible', $5, $6, $7, 0, $7, $7,
+        $8, $9, $10, $11, $12, $13, $14, $15
       )
       RETURNING *
       `,
@@ -486,6 +489,7 @@ export const createInitialInventoryLot = async (lotData) => {
         lotData.coffeeTypeId,
         lotData.coffeeProfileId,
         lotData.lotKind,
+        lotData.commercialClassification,
         lotData.weightKg,
         lotData.humidityPercent,
         lotData.score,

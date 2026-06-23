@@ -21,6 +21,7 @@ const initialLot = {
   hasInnerBag: false,
   humidityPercent: "",
   performanceFactor: "",
+  commercialClassification: "",
   visualStatus: "aprobado",
   visualDefectPercent: "",
   visualNotes: "",
@@ -108,6 +109,7 @@ const WarehousePage = () => {
           packagingQuantity: Number(lotForm.packagingQuantity),
           humidityPercent: Number(lotForm.humidityPercent),
           performanceFactor: lotForm.performanceFactor === "" ? null : Number(lotForm.performanceFactor),
+          commercialClassification: lotForm.commercialClassification || null,
           visualDefectPercent: lotForm.visualDefectPercent === "" ? null : Number(lotForm.visualDefectPercent),
         }),
       });
@@ -300,6 +302,18 @@ const WarehousePage = () => {
               <option value="aprobado">Visual aprobado</option>
               <option value="rechazado">Visual rechazado</option>
             </select>
+            <select
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+              value={lotForm.commercialClassification}
+              onChange={(event) => setLotForm({ ...lotForm, commercialClassification: event.target.value })}
+            >
+              <option value="">Clasificacion comercial</option>
+              <option value="Base">Base</option>
+              <option value="Regional">Regional</option>
+              <option value="Varietal">Varietal</option>
+              <option value="Exotico">Exotico</option>
+              <option value="Procesado">Procesado</option>
+            </select>
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Defecto visual %"
@@ -352,6 +366,7 @@ const WarehousePage = () => {
                   <th className="px-3 py-2">Peso neto</th>
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor rendimiento</th>
+                  <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Estado</th>
                 </tr>
               </thead>
@@ -363,6 +378,7 @@ const WarehousePage = () => {
                     <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
                     <td className="px-3 py-2">{lot.humidity_percent}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
+                    <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                     <td className="px-3 py-2">
                       <StatusBadge tone="warning">{lot.status}</StatusBadge>
                     </td>
@@ -392,6 +408,7 @@ const WarehousePage = () => {
                   <th className="px-3 py-2">Peso neto</th>
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor</th>
+                  <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Dias en bodega</th>
                   <th className="px-3 py-2">Accion</th>
                 </tr>
@@ -404,6 +421,7 @@ const WarehousePage = () => {
                     <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
                     <td className="px-3 py-2">{lot.humidity_percent ?? "-"}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
+                    <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                     <td className="px-3 py-2">{lot.days_in_warehouse ?? 0}</td>
                     <td className="px-3 py-2">
                       <button

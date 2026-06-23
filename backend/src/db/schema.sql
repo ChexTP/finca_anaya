@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   status VARCHAR(40) NOT NULL DEFAULT 'pendiente_laboratorio',
   lot_kind VARCHAR(20) NOT NULL DEFAULT 'LOT',
+  commercial_classification VARCHAR(30),
   gross_weight_kg NUMERIC(12, 3) NOT NULL,
   packaging_type_id INTEGER REFERENCES packaging_types(id),
   packaging_quantity INTEGER NOT NULL DEFAULT 0,
@@ -150,6 +151,9 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
     )
   ),
   CONSTRAINT coffee_lots_kind_check CHECK (lot_kind IN ('LOT', 'PROC')),
+  CONSTRAINT coffee_lots_commercial_classification_check CHECK (
+    commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado')
+  ),
   CONSTRAINT coffee_lots_visual_status_check CHECK (
     visual_status IS NULL OR visual_status IN ('aprobado', 'rechazado')
   ),
@@ -187,6 +191,7 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_score NUMERIC(8, 2);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_notes TEXT;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_reviewed_by INTEGER REFERENCES users(id);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_reviewed_at TIMESTAMP;
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS commercial_classification VARCHAR(30);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS internal_code VARCHAR(30);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS category VARCHAR(80);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_method_id INTEGER REFERENCES payment_methods(id);
@@ -216,6 +221,18 @@ END $$;
 
 DO $$
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'coffee_lots_commercial_classification_check'
+  ) THEN
+    ALTER TABLE coffee_lots
+    ADD CONSTRAINT coffee_lots_commercial_classification_check
+    CHECK (
+      commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado')
+    );
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint

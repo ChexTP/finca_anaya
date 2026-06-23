@@ -126,6 +126,7 @@ const InventoryPage = () => {
                       <th className="px-3 py-2">Codigo</th>
                       <th className="px-3 py-2">Proveedor</th>
                       <th className="px-3 py-2">Peso neto</th>
+                      <th className="px-3 py-2">Clasificacion</th>
                       <th className="px-3 py-2">Factor</th>
                       <th className="px-3 py-2">Score</th>
                       <th className="px-3 py-2">Accion</th>
@@ -137,6 +138,7 @@ const InventoryPage = () => {
                         <td className="px-3 py-2 font-medium">{lot.code}</td>
                         <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
                         <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
+                        <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                         <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                         <td className="px-3 py-2">{lot.lab_score || "-"}</td>
                         <td className="px-3 py-2">
@@ -225,6 +227,7 @@ const InventoryPage = () => {
                   <th className="px-3 py-2">Codigo</th>
                   <th className="px-3 py-2">Tipo</th>
                   <th className="px-3 py-2">Perfil</th>
+                  <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Disponible</th>
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor</th>
@@ -237,6 +240,7 @@ const InventoryPage = () => {
                     <td className="px-3 py-2 font-medium">{lot.code}</td>
                     <td className="px-3 py-2">{lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || "-"}</td>
+                    <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                     <td className="px-3 py-2">{lot.available_weight_kg} kg</td>
                     <td className="px-3 py-2">{lot.humidity_percent || "-"}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>

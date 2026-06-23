@@ -27,6 +27,8 @@ const roundKg = (value) => Number(value.toFixed(3));
 
 const isValidNumber = (value) => Number.isFinite(value);
 
+const commercialClassifications = ["Base", "Regional", "Varietal", "Exotico", "Procesado"];
+
 export const getLots = async (req, res) => {
   try {
     const lots = await listLots({
@@ -76,6 +78,7 @@ export const postReceivedLot = async (req, res) => {
       visualStatus,
       visualDefectPercent,
       visualNotes,
+      commercialClassification,
       originZone,
       initialComment,
     } = req.body;
@@ -88,6 +91,10 @@ export const postReceivedLot = async (req, res) => {
 
     if (!["aprobado", "rechazado"].includes(visualStatus)) {
       return res.status(400).json({ message: "El examen visual debe ser aprobado o rechazado" });
+    }
+
+    if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
+      return res.status(400).json({ message: "La clasificacion comercial no es valida" });
     }
 
     const supplier = await findSupplierById(supplierId);
@@ -177,6 +184,7 @@ export const postReceivedLot = async (req, res) => {
       visualStatus,
       visualDefectPercent: visualDefect,
       visualNotes,
+      commercialClassification: commercialClassification || null,
       originZone,
       initialComment,
       createdBy: req.user.id,
@@ -415,12 +423,17 @@ export const postInitialLoad = async (req, res) => {
       score,
       originZone,
       initialComment,
+      commercialClassification,
       purchasePricePerKg,
       purchasePaid = false,
     } = req.body;
 
     if (!["LOT", "PROC"].includes(lotKind)) {
       return res.status(400).json({ message: "El tipo de lote debe ser LOT o PROC" });
+    }
+
+    if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
+      return res.status(400).json({ message: "La clasificacion comercial no es valida" });
     }
 
     const weight = toNumber(weightKg);
@@ -489,6 +502,7 @@ export const postInitialLoad = async (req, res) => {
       score: scoreValue,
       originZone,
       initialComment,
+      commercialClassification: lotKind === "PROC" ? "Procesado" : commercialClassification || null,
       purchasePricePerKg: purchasePrice,
       purchaseTotal,
       purchasePaid,

@@ -25,6 +25,7 @@ export const listAvailableLots = async ({ status = "disponible", coffeeTypeId, c
       coffee_lots.id,
       coffee_lots.code,
       coffee_lots.lot_kind,
+      coffee_lots.commercial_classification,
       coffee_lots.status,
       coffee_lots.net_weight_kg,
       coffee_lots.available_weight_kg,

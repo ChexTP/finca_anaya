@@ -270,6 +270,9 @@ const LaboratoryPage = () => {
                       <p className="text-sm text-slate-500">
                         Factor rendimiento: {lot.performance_factor ?? "-"}
                       </p>
+                      <p className="text-sm text-slate-500">
+                        Clasificacion: {lot.commercial_classification || "-"}
+                      </p>
                       {lot.visual_notes && <p className="mt-1 text-sm text-slate-500">{lot.visual_notes}</p>}
                     </button>
                   ))}
