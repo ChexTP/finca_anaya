@@ -1,4 +1,4 @@
-import { Eye, PackageCheck, RefreshCw, Truck } from "lucide-react";
+import { Eye, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -9,8 +9,141 @@ const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
 
+const formatDate = (value) => {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("es-CO");
+};
+
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
+};
+
+const buildWarehouseOrderHtml = (sale) => {
+  const productRows = sale.items
+    ?.map(
+      (item) => `
+        <tr>
+          <td>${item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "-"}</td>
+          <td>${item.quantity_kg} kg</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const deductedLots = sale.deductedLots
+    ?.map((lot) => {
+      const mixRows = lot.process_mix?.length
+        ? `
+          <table class="mix-table">
+            <thead>
+              <tr>
+                <th>Lote origen</th>
+                <th>Tipo / perfil</th>
+                <th>Porcentaje</th>
+                <th>Kg usados</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${lot.process_mix
+                .map(
+                  (input) => `
+                    <tr>
+                      <td>${input.lot_code || "-"}</td>
+                      <td>${formatInputLabel(input)}</td>
+                      <td>${input.input_percentage}%</td>
+                      <td>${input.quantity_kg} kg</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `
+        : `<p class="muted">Este lote no tiene mezcla de proceso registrada.</p>`;
+
+      return `
+        <section class="lot-block">
+          <div class="lot-head">
+            <div>
+              <h3>${lot.lot_code}</h3>
+              <p>${lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind || "-"}</p>
+            </div>
+            <strong>${lot.quantity_kg} kg a sacar</strong>
+          </div>
+          ${mixRows}
+        </section>
+      `;
+    })
+    .join("");
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Orden ${sale.code}</title>
+        <style>
+          body { color: #17201a; font-family: Arial, sans-serif; margin: 28px; }
+          header { align-items: flex-start; border-bottom: 1px solid #d8ded8; display: flex; justify-content: space-between; gap: 24px; padding-bottom: 14px; }
+          h1 { font-size: 22px; margin: 0 0 6px; }
+          h2 { font-size: 15px; margin: 22px 0 8px; }
+          h3 { font-size: 14px; margin: 0 0 3px; }
+          p { font-size: 12px; margin: 3px 0; }
+          table { border-collapse: collapse; margin-top: 10px; width: 100%; }
+          th, td { border: 1px solid #d8ded8; font-size: 12px; padding: 8px; text-align: left; }
+          th { background: #f3f6f3; }
+          .meta { display: grid; gap: 4px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+          .lot-block { border: 1px solid #d8ded8; margin-top: 12px; padding: 12px; page-break-inside: avoid; }
+          .lot-head { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; }
+          .mix-table th { background: #fff7d6; }
+          .muted { color: #667085; }
+          .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
+          .line { border-top: 1px solid #17201a; padding-top: 6px; }
+          @media print { body { margin: 18px; } }
+        </style>
+      </head>
+      <body>
+        <header>
+          <div>
+            <h1>Orden de alistamiento y mezcla</h1>
+            <p><strong>Venta:</strong> ${sale.code}</p>
+            ${sale.quote_code ? `<p><strong>Preventa:</strong> ${sale.quote_code}</p>` : ""}
+            <p><strong>Fecha:</strong> ${formatDate(new Date())}</p>
+          </div>
+          <div>
+            <p><strong>Finca Anaya</strong></p>
+            <p>Documento operativo para bodega</p>
+          </div>
+        </header>
+
+        <section class="meta">
+          <p><strong>Cliente:</strong> ${sale.client_name || "-"}</p>
+          <p><strong>Telefono:</strong> ${sale.client_phone || "-"}</p>
+          <p><strong>Direccion:</strong> ${sale.client_address || "-"}</p>
+          <p><strong>Estado:</strong> ${sale.status || "-"}</p>
+        </section>
+
+        <h2>Pedido</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Producto solicitado</th>
+              <th>Cantidad</th>
+            </tr>
+          </thead>
+          <tbody>${productRows || ""}</tbody>
+        </table>
+
+        <h2>Lotes y porcentajes de mezcla</h2>
+        ${deductedLots || '<p class="muted">No hay lotes descontados registrados.</p>'}
+
+        <section class="signature">
+          <p class="line">Entrega bodega</p>
+          <p class="line">Recibe / realiza mezcla</p>
+        </section>
+      </body>
+    </html>
+  `;
 };
 
 const initialPayment = {
@@ -137,6 +270,26 @@ const SalesPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const printWarehouseOrder = () => {
+    if (!selectedSale) {
+      setError("Seleccione una venta para imprimir la orden.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      setError("El navegador bloqueo la ventana de impresion.");
+      return;
+    }
+
+    printWindow.document.write(buildWarehouseOrderHtml(selectedSale));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 
   return (
@@ -283,6 +436,14 @@ const SalesPage = () => {
 
               {canManageDispatch && (
                 <div className="space-y-3">
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    type="button"
+                    onClick={printWarehouseOrder}
+                  >
+                    <Printer size={16} />
+                    Imprimir orden / guardar PDF
+                  </button>
                   <textarea
                     className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     placeholder="Observaciones de bodega"
