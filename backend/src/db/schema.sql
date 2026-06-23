@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS coffee_types (
 CREATE TABLE IF NOT EXISTS coffee_profiles (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL,
+  internal_code VARCHAR(30),
+  category VARCHAR(80),
   base_price_cop NUMERIC(14, 2) NOT NULL DEFAULT 0,
   base_price_usd NUMERIC(14, 2) NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -104,7 +106,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   net_weight_kg NUMERIC(12, 3) NOT NULL,
   available_weight_kg NUMERIC(12, 3) NOT NULL DEFAULT 0,
   humidity_percent NUMERIC(5, 2),
-  threshing_loss_percent NUMERIC(5, 2),
+  performance_factor NUMERIC(8, 2),
   visual_status VARCHAR(20),
   visual_defect_percent NUMERIC(5, 2),
   visual_notes TEXT,
@@ -159,8 +161,8 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   CONSTRAINT coffee_lots_humidity_check CHECK (
     humidity_percent IS NULL OR (humidity_percent >= 0 AND humidity_percent <= 100)
   ),
-  CONSTRAINT coffee_lots_threshing_loss_check CHECK (
-    threshing_loss_percent IS NULL OR (threshing_loss_percent >= 0 AND threshing_loss_percent <= 100)
+  CONSTRAINT coffee_lots_performance_factor_check CHECK (
+    performance_factor IS NULL OR performance_factor >= 0
   ),
   CONSTRAINT coffee_lots_visual_defect_check CHECK (
     visual_defect_percent IS NULL OR (visual_defect_percent >= 0 AND visual_defect_percent <= 100)
@@ -184,23 +186,26 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_score NUMERIC(8, 2);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_notes TEXT;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_reviewed_by INTEGER REFERENCES users(id);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_reviewed_at TIMESTAMP;
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS internal_code VARCHAR(30);
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS category VARCHAR(80);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_method_id INTEGER REFERENCES payment_methods(id);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_reference TEXT;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_paid_at TIMESTAMP;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_registered_by INTEGER REFERENCES users(id);
-ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS threshing_loss_percent NUMERIC(5, 2);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS performance_factor NUMERIC(8, 2);
 
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
-    WHERE conname = 'coffee_lots_threshing_loss_check'
+    WHERE conname = 'coffee_lots_performance_factor_check'
   ) THEN
     ALTER TABLE coffee_lots
-    ADD CONSTRAINT coffee_lots_threshing_loss_check
-    CHECK (threshing_loss_percent IS NULL OR (threshing_loss_percent >= 0 AND threshing_loss_percent <= 100));
+    ADD CONSTRAINT coffee_lots_performance_factor_check
+    CHECK (performance_factor IS NULL OR performance_factor >= 0);
   END IF;
+
 END $$;
 
 CREATE TABLE IF NOT EXISTS inventory_movements (

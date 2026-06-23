@@ -5,6 +5,7 @@ import { getInitialRouteByRole } from "./controllers/authController";
 import { useAuth } from "./context/AuthContext";
 import LoginPage from "./modules/auth/LoginPage";
 import BackupsPage from "./modules/backups/BackupsPage";
+import CoffeeProfilesPage from "./modules/catalogs/CoffeeProfilesPage";
 import ClientsPage from "./modules/clients/ClientsPage";
 import CommercialPage from "./modules/commercial/CommercialPage";
 import DashboardPage from "./modules/dashboard/DashboardPage";
@@ -146,6 +147,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin"]}>
               <UsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/perfiles-cafe"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <CoffeeProfilesPage />
             </ProtectedRoute>
           }
         />

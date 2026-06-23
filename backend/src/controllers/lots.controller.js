@@ -71,7 +71,7 @@ export const postReceivedLot = async (req, res) => {
       hasInnerBag = false,
       innerBagQuantity,
       humidityPercent,
-      threshingLossPercent,
+      performanceFactor,
       visualStatus,
       visualDefectPercent,
       visualNotes,
@@ -136,26 +136,26 @@ export const postReceivedLot = async (req, res) => {
     const code = visualStatus === "aprobado" ? await getNextLotCode() : null;
     const status = visualStatus === "aprobado" ? "pendiente_laboratorio" : "rechazado";
     const humidity = toNumber(humidityPercent);
-    const threshingLoss = toNumber(threshingLossPercent);
+    const performance = toNumber(performanceFactor);
     const visualDefect = toNumber(visualDefectPercent);
 
     if (
       (humidity !== null && !isValidNumber(humidity)) ||
-      (threshingLoss !== null && !isValidNumber(threshingLoss)) ||
+      (performance !== null && !isValidNumber(performance)) ||
       (visualDefect !== null && !isValidNumber(visualDefect))
     ) {
       return res.status(400).json({
-        message: "La humedad, la merma y el porcentaje de defectos deben ser numeros validos",
+        message: "La humedad, el factor de rendimiento y el porcentaje de defectos deben ser numeros validos",
       });
     }
 
     if (
       (humidity !== null && (humidity < 0 || humidity > 100)) ||
-      (threshingLoss !== null && (threshingLoss < 0 || threshingLoss > 100)) ||
+      (performance !== null && performance < 0) ||
       (visualDefect !== null && (visualDefect < 0 || visualDefect > 100))
     ) {
       return res.status(400).json({
-        message: "La humedad, la merma y el porcentaje de defectos deben estar entre 0 y 100",
+        message: "La humedad y defectos deben estar entre 0 y 100; el factor de rendimiento debe ser mayor o igual a cero",
       });
     }
 
@@ -172,7 +172,7 @@ export const postReceivedLot = async (req, res) => {
       netWeightKg,
       availableWeightKg: 0,
       humidityPercent: humidity,
-      threshingLossPercent: threshingLoss,
+      performanceFactor: performance,
       visualStatus,
       visualDefectPercent: visualDefect,
       visualNotes,
