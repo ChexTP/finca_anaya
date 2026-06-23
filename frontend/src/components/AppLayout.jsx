@@ -22,7 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { roleLabels } from "../utils/roles";
 
 const navigation = [
-  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting"] },
+  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting", "warehouse", "laboratory", "seller"] },
   { label: "Bodega", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },

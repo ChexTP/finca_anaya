@@ -217,6 +217,7 @@ Alertas iniciales:
 - Humedad fuera del rango `10%` a `12%`.
 - Lotes disponibles con mas de 15 dias en bodega.
 - Procesos en curso.
+- Ventas activas que aun no tienen mezcla final definida por laboratorio.
 - Preventas enviadas o aceptadas que aun no son venta.
 - Ventas pendientes de alistamiento.
 - Ventas despachadas con pago pendiente o parcial.
@@ -227,6 +228,7 @@ Reglas implementadas:
 
 - Vendedor solo ve sus preventas pendientes.
 - Laboratorio ve lotes pendientes, humedad fuera de rango y procesos en curso.
+- Laboratorio tambien ve alertas de ventas que necesitan orden final de mezcla.
 - Bodega ve inventario, procesos y ventas pendientes de alistamiento.
 - Contabilidad ve cartera, preventas, ventas y cuentas por pagar.
 - Administrador ve todas las alertas.

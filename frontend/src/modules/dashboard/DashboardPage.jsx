@@ -4,6 +4,7 @@ import {
   ClipboardList,
   FlaskConical,
   RefreshCw,
+  SlidersHorizontal,
   Truck,
   WalletCards,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const counterConfig = [
   ["lowInventoryGroups", "Inventario bajo", "grupos", AlertTriangle],
   ["labPendingLots", "Lotes laboratorio", "lotes", FlaskConical],
   ["activeProcesses", "Procesos activos", "procesos", ClipboardList],
+  ["salesPendingBlend", "Mezclas pendientes", "ventas", SlidersHorizontal],
   ["pendingQuotes", "Preventas pendientes", "preventas", ClipboardList],
   ["salesToPrepare", "Ventas por alistar", "ventas", Truck],
   ["dispatchedSalesWithDebt", "Despachadas con saldo", "ventas", WalletCards],

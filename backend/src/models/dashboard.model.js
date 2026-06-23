@@ -9,6 +9,7 @@ export const getDashboardData = async ({ role, userId }) => {
     humidityAlerts,
     oldLots,
     activeProcesses,
+    salesPendingBlend,
     pendingQuotes,
     salesToPrepare,
     dispatchedSalesWithDebt,
@@ -20,6 +21,7 @@ export const getDashboardData = async ({ role, userId }) => {
     getHumidityAlerts(role),
     getOldLots(role),
     getActiveProcesses(role),
+    getSalesPendingBlend(role),
     getPendingQuotes(role, userId),
     getSalesToPrepare(role),
     getDispatchedSalesWithDebt(role),
@@ -32,6 +34,7 @@ export const getDashboardData = async ({ role, userId }) => {
       inventorySummary,
       labPendingLots,
       activeProcesses,
+      salesPendingBlend,
       pendingQuotes,
       salesToPrepare,
       dispatchedSalesWithDebt,
@@ -45,6 +48,7 @@ export const getDashboardData = async ({ role, userId }) => {
       humidityAlerts,
       oldLots,
       activeProcesses,
+      salesPendingBlend,
       pendingQuotes,
       salesToPrepare,
       dispatchedSalesWithDebt,
@@ -58,6 +62,7 @@ const buildCounters = ({
   inventorySummary,
   labPendingLots,
   activeProcesses,
+  salesPendingBlend,
   pendingQuotes,
   salesToPrepare,
   dispatchedSalesWithDebt,
@@ -68,6 +73,7 @@ const buildCounters = ({
   lowInventoryGroups: inventorySummary.low_groups || 0,
   labPendingLots: labPendingLots.length,
   activeProcesses: activeProcesses.length,
+  salesPendingBlend: salesPendingBlend.length,
   pendingQuotes: pendingQuotes.length,
   salesToPrepare: salesToPrepare.length,
   dispatchedSalesWithDebt: dispatchedSalesWithDebt.length,
@@ -82,6 +88,7 @@ const buildAlerts = ({
   humidityAlerts,
   oldLots,
   activeProcesses,
+  salesPendingBlend,
   pendingQuotes,
   salesToPrepare,
   dispatchedSalesWithDebt,
@@ -134,6 +141,13 @@ const buildAlerts = ({
     addListAlerts(alerts, "proceso_en_curso", "media", activeProcesses, (process) => ({
       message: `Proceso ${process.code} en curso`,
       data: process,
+    }));
+  }
+
+  if (["admin", "laboratory"].includes(role)) {
+    addListAlerts(alerts, "mezcla_pendiente", "alta", salesPendingBlend, (sale) => ({
+      message: `Venta ${sale.code} tiene mezcla final pendiente`,
+      data: sale,
     }));
   }
 
@@ -282,6 +296,36 @@ const getActiveProcesses = async (role) => {
     FROM coffee_processes
     WHERE status = 'en_proceso'
     ORDER BY created_at ASC
+    LIMIT 10
+    `
+  );
+
+  return result.rows;
+};
+
+const getSalesPendingBlend = async (role) => {
+  if (!["admin", "laboratory"].includes(role)) {
+    return [];
+  }
+
+  const result = await pool.query(
+    `
+    SELECT DISTINCT
+      sales.id,
+      sales.code,
+      sales.status,
+      sales.created_at,
+      clients.name AS client_name
+    FROM sales
+    INNER JOIN clients ON clients.id = sales.client_id
+    INNER JOIN sale_items ON sale_items.sale_id = sales.id
+    WHERE sales.status IN ('pendiente_alistamiento', 'alistada')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM sale_blend_items
+        WHERE sale_blend_items.sale_item_id = sale_items.id
+      )
+    ORDER BY sales.created_at ASC
     LIMIT 10
     `
   );
