@@ -8,13 +8,14 @@ import {
   putSaleDispatched,
   postSalePayment,
   putSaleCancelled,
+  putSaleBlendOrder,
 } from "../controllers/sales.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller"), getSales);
-router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller"), getSale);
+router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSales);
+router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
 router.post(
   "/from-quote/:quoteId",
   requireAuth,
@@ -44,6 +45,12 @@ router.put(
   requireAuth,
   requireRoles("admin", "accounting"),
   putSaleCancelled
+);
+router.put(
+  "/:id/blend-order",
+  requireAuth,
+  requireRoles("admin", "laboratory"),
+  putSaleBlendOrder
 );
 router.post(
   "/:id/payments",

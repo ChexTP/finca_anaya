@@ -171,12 +171,105 @@ export const findSaleById = async (id) => {
     [id]
   );
 
+  const blendResult = await pool.query(
+    `
+    SELECT
+      sale_blend_items.*,
+      sale_items.quantity_kg AS requested_quantity_kg,
+      ROUND((sale_items.quantity_kg * sale_blend_items.percentage / 100)::numeric, 3) AS calculated_quantity_kg,
+      coffee_lots.code AS lot_code,
+      coffee_lots.lot_kind,
+      coffee_lots.commercial_classification,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name
+    FROM sale_blend_items
+    INNER JOIN sale_items ON sale_items.id = sale_blend_items.sale_item_id
+    INNER JOIN coffee_lots ON coffee_lots.id = sale_blend_items.lot_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    WHERE sale_blend_items.sale_id = $1
+    ORDER BY sale_blend_items.sale_item_id ASC, sale_blend_items.id ASC
+    `,
+    [id]
+  );
+
+  const blendItemsBySaleItem = blendResult.rows.reduce((groups, blendItem) => {
+    const key = blendItem.sale_item_id;
+    groups[key] = groups[key] || [];
+    groups[key].push(blendItem);
+    return groups;
+  }, {});
+
   return {
     ...sale,
-    items: itemsResult.rows,
+    items: itemsResult.rows.map((item) => ({
+      ...item,
+      blend_items: blendItemsBySaleItem[item.id] || [],
+    })),
     deductedLots: lotsResult.rows,
+    blendItems: blendResult.rows,
     payments: paymentsResult.rows,
   };
+};
+
+export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [saleId]);
+
+    for (const item of items) {
+      const saleItemResult = await client.query(
+        "SELECT id FROM sale_items WHERE id = $1 AND sale_id = $2 LIMIT 1",
+        [item.saleItemId, saleId]
+      );
+
+      if (!saleItemResult.rows[0]) {
+        throw new Error("El producto de venta no pertenece a esta venta");
+      }
+
+      const lotResult = await client.query(
+        `
+        SELECT id, status, available_weight_kg
+        FROM coffee_lots
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [item.lotId]
+      );
+      const lot = lotResult.rows[0];
+
+      if (!lot || !["disponible", "vendido_parcial"].includes(lot.status) || Number(lot.available_weight_kg) <= 0) {
+        throw new Error("El lote seleccionado para mezcla no esta disponible en inventario");
+      }
+
+      await client.query(
+        `
+        INSERT INTO sale_blend_items (sale_id, sale_item_id, lot_id, percentage, notes, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [saleId, item.saleItemId, item.lotId, item.percentage, item.notes || null, createdBy]
+      );
+    }
+
+    await client.query("COMMIT");
+    return sale;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const convertQuoteToSale = async ({

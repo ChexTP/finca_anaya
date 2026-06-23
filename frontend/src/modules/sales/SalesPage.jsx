@@ -30,6 +30,47 @@ const buildWarehouseOrderHtml = (sale) => {
     )
     .join("");
 
+  const finalBlendOrder = sale.items
+    ?.filter((item) => item.blend_items?.length > 0)
+    .map((item) => {
+      return `
+        <section class="lot-block">
+          <div class="lot-head">
+            <div>
+              <h3>${item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}</h3>
+              <p>${item.quantity_kg} kg solicitados</p>
+            </div>
+            <strong>Mezcla final</strong>
+          </div>
+          <table class="mix-table">
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>Lote</th>
+                <th>Porcentaje</th>
+                <th>Kg estimados</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${item.blend_items
+                .map(
+                  (blend) => `
+                    <tr>
+                      <td>${blend.commercial_classification || "-"}</td>
+                      <td>${blend.lot_code || "-"}</td>
+                      <td>${blend.percentage}%</td>
+                      <td>${blend.calculated_quantity_kg} kg</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </section>
+      `;
+    })
+    .join("");
+
   const deductedLots = sale.deductedLots
     ?.map((lot) => {
       const mixRows = lot.process_mix?.length
@@ -135,7 +176,11 @@ const buildWarehouseOrderHtml = (sale) => {
         </table>
 
         <h2>Lotes y porcentajes de mezcla</h2>
-        ${deductedLots || '<p class="muted">No hay lotes descontados registrados.</p>'}
+        ${
+          finalBlendOrder ||
+          deductedLots ||
+          '<p class="muted">No hay orden de mezcla ni lotes descontados registrados.</p>'
+        }
 
         <section class="signature">
           <p class="line">Entrega bodega</p>
@@ -393,6 +438,38 @@ const SalesPage = () => {
                   </div>
                 ))}
               </div>
+
+              {selectedSale.items?.some((item) => item.blend_items?.length > 0) && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Orden final de mezcla</p>
+                  {selectedSale.items
+                    .filter((item) => item.blend_items?.length > 0)
+                    .map((item) => (
+                      <div key={`blend-${item.id}`} className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
+                        <p className="font-semibold text-ink">
+                          {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}
+                        </p>
+                        <p className="text-xs text-slate-600">{item.quantity_kg} kg solicitados</p>
+                        <div className="mt-2 space-y-2">
+                          {item.blend_items.map((blend) => (
+                            <div key={blend.id} className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-medium text-ink">{blend.lot_code}</p>
+                                <p className="text-xs text-slate-600">
+                                  {blend.commercial_classification || formatInputLabel(blend)}
+                                </p>
+                              </div>
+                              <p className="text-right text-slate-700">
+                                {blend.percentage}%<br />
+                                <span className="text-xs text-slate-500">{blend.calculated_quantity_kg} kg estimados</span>
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Lotes a sacar</p>

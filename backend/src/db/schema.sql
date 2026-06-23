@@ -397,6 +397,18 @@ CREATE TABLE IF NOT EXISTS sale_item_lots (
   CONSTRAINT sale_item_lots_quantity_check CHECK (quantity_kg > 0)
 );
 
+CREATE TABLE IF NOT EXISTS sale_blend_items (
+  id SERIAL PRIMARY KEY,
+  sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  sale_item_id INTEGER NOT NULL REFERENCES sale_items(id) ON DELETE CASCADE,
+  lot_id INTEGER NOT NULL REFERENCES coffee_lots(id),
+  percentage NUMERIC(5, 2) NOT NULL,
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sale_blend_items_percentage_check CHECK (percentage > 0 AND percentage <= 100)
+);
+
 CREATE TABLE IF NOT EXISTS sale_payments (
   id SERIAL PRIMARY KEY,
   sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
@@ -512,6 +524,9 @@ CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_item_lots_sale_item_id ON sale_item_lots(sale_item_id);
 CREATE INDEX IF NOT EXISTS idx_sale_item_lots_lot_id ON sale_item_lots(lot_id);
+CREATE INDEX IF NOT EXISTS idx_sale_blend_items_sale_id ON sale_blend_items(sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_blend_items_sale_item_id ON sale_blend_items(sale_item_id);
+CREATE INDEX IF NOT EXISTS idx_sale_blend_items_lot_id ON sale_blend_items(lot_id);
 CREATE INDEX IF NOT EXISTS idx_sale_payments_sale_id ON sale_payments(sale_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_payable_status ON accounts_payable(status);
 CREATE INDEX IF NOT EXISTS idx_accounts_payable_category_id ON accounts_payable(category_id);

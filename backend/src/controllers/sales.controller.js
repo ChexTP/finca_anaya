@@ -7,6 +7,7 @@ import {
   updateSaleOperationalStatus,
   cancelSale,
   registerSalePayment,
+  replaceSaleBlendOrder,
 } from "../models/sales.model.js";
 import { findQuoteById } from "../models/quotes.model.js";
 import { findClientById } from "../models/clients.model.js";
@@ -77,6 +78,73 @@ export const getSale = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener venta",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleBlendOrder = async (req, res) => {
+  try {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "Debe agregar al menos una linea de mezcla" });
+    }
+
+    const cleanItems = items.map((item) => ({
+      saleItemId: Number(item.saleItemId),
+      lotId: Number(item.lotId),
+      percentage: toNumber(item.percentage),
+      notes: item.notes || null,
+    }));
+
+    const invalidItem = cleanItems.find(
+      (item) =>
+        !Number.isInteger(item.saleItemId) ||
+        !Number.isInteger(item.lotId) ||
+        !Number.isFinite(item.percentage) ||
+        item.percentage <= 0 ||
+        item.percentage > 100
+    );
+
+    if (invalidItem) {
+      return res.status(400).json({
+        message: "Cada linea debe tener producto de venta, lote y porcentaje entre 0 y 100",
+      });
+    }
+
+    const totalsBySaleItem = cleanItems.reduce((totals, item) => {
+      totals[item.saleItemId] = Number(((totals[item.saleItemId] || 0) + item.percentage).toFixed(2));
+      return totals;
+    }, {});
+
+    const invalidTotal = Object.values(totalsBySaleItem).find((total) => total !== 100);
+
+    if (invalidTotal !== undefined) {
+      return res.status(400).json({
+        message: "La mezcla de cada producto debe sumar exactamente 100%",
+      });
+    }
+
+    const sale = await replaceSaleBlendOrder({
+      saleId: req.params.id,
+      items: cleanItems,
+      createdBy: req.user.id,
+    });
+
+    if (!sale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Orden de mezcla guardada correctamente",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al guardar orden de mezcla",
       error: error.message,
     });
   }

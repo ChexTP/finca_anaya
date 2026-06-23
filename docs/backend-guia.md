@@ -910,6 +910,8 @@ Reglas de alistamiento y despacho:
 - Bodega puede consultar el detalle de la venta para saber que lotes y cantidades debe sacar.
 - Si la venta descuenta un lote `PROC` generado por proceso, el detalle muestra la mezcla origen con lotes, kg y porcentajes para que bodega tenga la orden completa.
 - Desde la pantalla de ventas se puede imprimir o guardar como PDF una orden operativa con pedido, lotes y porcentajes de mezcla para entregar a la persona que prepara la mezcla.
+- Laboratorio puede crear una orden final de mezcla por venta y producto vendido, seleccionando lotes por categoria comercial y asignando porcentajes que deben sumar 100% por producto.
+- La orden impresa para bodega usa primero esa mezcla final definida por laboratorio; si aun no existe, muestra la mezcla historica del proceso como referencia.
 - Al despachar no se vuelve a descontar inventario, porque el descuento ya ocurrio al crear la venta.
 
 Anular venta:

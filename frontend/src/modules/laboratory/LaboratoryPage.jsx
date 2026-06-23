@@ -1,4 +1,4 @@
-import { ClipboardCheck, FlaskConical, RefreshCw, Save } from "lucide-react";
+import { ClipboardCheck, FlaskConical, RefreshCw, Save, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -53,6 +53,8 @@ const cuppingFields = [
   ["cleanCup", "Taza limpia"],
 ];
 
+const commercialCategories = ["Procesado", "Base", "Regional", "Varietal", "Exotico"];
+
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
@@ -69,9 +71,13 @@ const LaboratoryPage = () => {
   const [activePanel, setActivePanel] = useState("lots");
   const [lots, setLots] = useState([]);
   const [processes, setProcesses] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [availableLots, setAvailableLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
   const [selectedProcess, setSelectedProcess] = useState(null);
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [blendRows, setBlendRows] = useState([]);
   const [review, setReview] = useState(initialReview);
   const [finishForm, setFinishForm] = useState(initialFinish);
   const [message, setMessage] = useState("");
@@ -79,14 +85,18 @@ const LaboratoryPage = () => {
   const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
-    const [lotData, processData, catalogData] = await Promise.all([
+    const [lotData, processData, saleData, availableLotData, catalogData] = await Promise.all([
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/processes?status=en_proceso"),
+      apiRequest("/sales"),
+      apiRequest("/inventory/lots"),
       apiRequest("/catalogs"),
     ]);
 
     setLots(lotData);
     setProcesses(processData);
+    setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
+    setAvailableLots(availableLotData);
     setCatalogs(catalogData);
 
     if (selectedLot) {
@@ -124,6 +134,116 @@ const LaboratoryPage = () => {
     });
     setMessage("");
     setError("");
+  };
+
+  const selectSaleForBlend = async (saleId) => {
+    if (!saleId) {
+      setSelectedSale(null);
+      setBlendRows([]);
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const sale = await apiRequest(`/sales/${saleId}`);
+      setSelectedSale(sale);
+      const existingRows = sale.blendItems?.map((item) => ({
+        saleItemId: String(item.sale_item_id),
+        category: item.commercial_classification || "",
+        lotId: String(item.lot_id),
+        percentage: String(item.percentage),
+        notes: item.notes || "",
+      }));
+
+      setBlendRows(
+        existingRows?.length
+          ? existingRows
+          : [
+              {
+                saleItemId: sale.items?.[0]?.id ? String(sale.items[0].id) : "",
+                category: "",
+                lotId: "",
+                percentage: "",
+                notes: "",
+              },
+            ]
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateBlendRow = (index, field, value) => {
+    setBlendRows((currentRows) =>
+      currentRows.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
+
+        return {
+          ...row,
+          [field]: value,
+          ...(field === "category" ? { lotId: "" } : {}),
+        };
+      })
+    );
+  };
+
+  const addBlendRow = () => {
+    setBlendRows((currentRows) => [
+      ...currentRows,
+      {
+        saleItemId: selectedSale?.items?.[0]?.id ? String(selectedSale.items[0].id) : "",
+        category: "",
+        lotId: "",
+        percentage: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const removeBlendRow = (index) => {
+    setBlendRows((currentRows) => currentRows.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  const saveBlendOrder = async (event) => {
+    event.preventDefault();
+
+    if (!selectedSale) {
+      setError("Seleccione una venta para crear la mezcla.");
+      return;
+    }
+
+    const confirmed = window.confirm("Confirma guardar esta orden de mezcla para bodega?");
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/blend-order`, {
+        method: "PUT",
+        body: JSON.stringify({
+          items: blendRows.map((row) => ({
+            saleItemId: Number(row.saleItemId),
+            lotId: Number(row.lotId),
+            percentage: Number(row.percentage),
+            notes: row.notes || null,
+          })),
+        }),
+      });
+      await selectSaleForBlend(selectedSale.id);
+      setMessage("Orden de mezcla guardada. Bodega ya puede imprimir el documento.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const submitReview = async (event) => {
@@ -249,6 +369,18 @@ const LaboratoryPage = () => {
             </span>
             <span className="text-xs">{processes.length}</span>
           </button>
+          <button
+            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
+              activePanel === "blends" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+            }`}
+            onClick={() => setActivePanel("blends")}
+          >
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <SlidersHorizontal size={16} />
+              Mezclas
+            </span>
+            <span className="text-xs">{sales.length}</span>
+          </button>
         </aside>
 
         {activePanel === "lots" ? (
@@ -354,7 +486,7 @@ const LaboratoryPage = () => {
             </div>
           </form>
           </div>
-        ) : (
+        ) : activePanel === "processes" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
@@ -492,6 +624,161 @@ const LaboratoryPage = () => {
               </button>
             </div>
           </form>
+          </div>
+        ) : (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
+            <div className="rounded border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h2 className="text-sm font-semibold text-slate-800">Ventas para mezcla</h2>
+              </div>
+              {sales.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title="Sin ventas pendientes" message="Las ventas pendientes o alistadas apareceran aqui." />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {sales.map((sale) => (
+                    <button
+                      key={sale.id}
+                      className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
+                        selectedSale?.id === sale.id ? "bg-emerald-50" : "bg-white"
+                      }`}
+                      onClick={() => selectSaleForBlend(sale.id)}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-ink">{sale.code}</p>
+                          <p className="text-sm text-slate-500">
+                            {sale.quote_code ? `${sale.quote_code} - ${sale.client_name}` : sale.client_name}
+                          </p>
+                        </div>
+                        <StatusBadge tone="warning">{sale.status}</StatusBadge>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <form className="rounded border border-slate-200 bg-white p-4" onSubmit={saveBlendOrder}>
+              <h2 className="text-sm font-semibold text-slate-800">Orden final de mezcla</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedSale ? `Venta seleccionada: ${selectedSale.code}` : "Seleccione una venta pendiente."}
+              </p>
+
+              {selectedSale && (
+                <div className="mt-4 space-y-4">
+                  <div className="rounded bg-slate-50 p-3 text-sm">
+                    <p className="font-medium text-ink">Productos pedidos</p>
+                    <div className="mt-2 space-y-1">
+                      {selectedSale.items?.map((item) => (
+                        <p key={item.id} className="text-slate-600">
+                          {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.quantity_kg} kg
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {blendRows.map((row, index) => {
+                      const filteredLots = availableLots.filter((lot) => {
+                        if (!row.category) return true;
+                        return lot.commercial_classification === row.category;
+                      });
+
+                      return (
+                        <div key={`blend-${index}`} className="rounded border border-slate-200 p-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <select
+                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              value={row.saleItemId}
+                              onChange={(event) => updateBlendRow(index, "saleItemId", event.target.value)}
+                              required
+                            >
+                              <option value="">Producto vendido</option>
+                              {selectedSale.items?.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.quantity_kg} kg
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              value={row.category}
+                              onChange={(event) => updateBlendRow(index, "category", event.target.value)}
+                              required
+                            >
+                              <option value="">Categoria</option>
+                              {commercialCategories.map((category) => (
+                                <option key={category} value={category}>
+                                  {category}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              value={row.lotId}
+                              onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
+                              required
+                            >
+                              <option value="">Lote de la categoria</option>
+                              {filteredLots.map((lot) => (
+                                <option key={lot.id} value={lot.id}>
+                                  {lot.code} - {lot.commercial_classification || "Sin categoria"} -{" "}
+                                  {lot.coffee_profile_name || lot.coffee_type_name || "Cafe"} - {lot.available_weight_kg} kg
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Porcentaje %"
+                              type="number"
+                              min="0.01"
+                              max="100"
+                              step="0.01"
+                              value={row.percentage}
+                              onChange={(event) => updateBlendRow(index, "percentage", event.target.value)}
+                              required
+                            />
+                          </div>
+                          <textarea
+                            className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Observacion opcional"
+                            value={row.notes}
+                            onChange={(event) => updateBlendRow(index, "notes", event.target.value)}
+                          />
+                          <button
+                            className="mt-2 rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            type="button"
+                            onClick={() => removeBlendRow(index)}
+                            disabled={blendRows.length === 1}
+                          >
+                            Quitar linea
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      type="button"
+                      onClick={addBlendRow}
+                    >
+                      Agregar lote
+                    </button>
+                    <button
+                      className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      disabled={saving}
+                    >
+                      <Save size={16} />
+                      Guardar mezcla
+                    </button>
+                  </div>
+                </div>
+              )}
+            </form>
           </div>
         )}
       </div>
