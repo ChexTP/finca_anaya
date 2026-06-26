@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { getSaleNextAction, getSaleStatusTone, saleStatusLabels } from "../../utils/workflow";
 
 const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
@@ -373,6 +374,7 @@ const SalesPage = () => {
                     <th className="px-3 py-2">Codigo</th>
                     <th className="px-3 py-2">Cliente</th>
                     <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Siguiente accion</th>
                     {showFinancialData && <th className="px-3 py-2">Pago</th>}
                     {showFinancialData && <th className="px-3 py-2">Total</th>}
                     <th className="px-3 py-2">Accion</th>
@@ -384,8 +386,9 @@ const SalesPage = () => {
                       <td className="px-3 py-2 font-medium">{sale.code}</td>
                       <td className="px-3 py-2">{sale.client_name}</td>
                       <td className="px-3 py-2">
-                        <StatusBadge tone={sale.status === "despachada" ? "success" : "warning"}>{sale.status}</StatusBadge>
+                        <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </td>
+                      <td className="px-3 py-2 text-slate-600">{getSaleNextAction(sale)}</td>
                       {showFinancialData && <td className="px-3 py-2">{sale.payment_status}</td>}
                       {showFinancialData && <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>}
                       <td className="px-3 py-2">
@@ -419,6 +422,9 @@ const SalesPage = () => {
                 <p className="font-semibold text-ink">{selectedSale.code}</p>
                 <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
                 <p className="text-sm text-slate-500">{selectedSale.client_address || "Sin direccion"}</p>
+                <p className="mt-2 rounded bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                  {getSaleNextAction(selectedSale)}
+                </p>
               </div>
 
               {showFinancialData && (

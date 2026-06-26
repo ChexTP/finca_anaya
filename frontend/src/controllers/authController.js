@@ -4,7 +4,7 @@ export const getInitialRouteByRole = (role) => {
   }
 
   if (role === "warehouse") {
-    return "/bodega";
+    return "/bodega/pendientes";
   }
 
   if (role === "seller") {

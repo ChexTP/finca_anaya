@@ -4,6 +4,13 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
 import {
+  getSaleNextAction,
+  getSaleStatusTone,
+  getSaleTaskKey,
+  isDeliveryDueSoon,
+  saleStatusLabels,
+} from "../../utils/workflow";
+import {
   activeWarehouseStatuses,
   buildWarehouseOrderHtml,
   formatDate,
@@ -16,10 +23,20 @@ const priorityOrder = {
   baja: 3,
 };
 
+const taskFilters = [
+  { key: "all", label: "Todo" },
+  { key: "decision", label: "Por decidir" },
+  { key: "process", label: "Procesos" },
+  { key: "blend", label: "Ensamble" },
+  { key: "prepare", label: "Alistar" },
+  { key: "dispatch", label: "Despachar" },
+];
+
 const WarehousePendingPage = () => {
   const [sales, setSales] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [taskFilter, setTaskFilter] = useState("all");
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
@@ -27,16 +44,36 @@ const WarehousePendingPage = () => {
   const [saving, setSaving] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const sortedSales = useMemo(() => {
-    return [...sales].sort((left, right) => {
-      const priorityDiff = (priorityOrder[left.warehouse_priority] || 4) - (priorityOrder[right.warehouse_priority] || 4);
-      if (priorityDiff !== 0) return priorityDiff;
-
-      const leftDate = left.estimated_delivery_date ? new Date(left.estimated_delivery_date).getTime() : Number.MAX_SAFE_INTEGER;
-      const rightDate = right.estimated_delivery_date ? new Date(right.estimated_delivery_date).getTime() : Number.MAX_SAFE_INTEGER;
-      return leftDate - rightDate;
-    });
+  const taskCounts = useMemo(() => {
+    return sales.reduce(
+      (counts, sale) => {
+        const key = getSaleTaskKey(sale);
+        return {
+          ...counts,
+          all: counts.all + 1,
+          [key]: (counts[key] || 0) + 1,
+        };
+      },
+      { all: 0 }
+    );
   }, [sales]);
+
+  const sortedSales = useMemo(() => {
+    return sales
+      .filter((sale) => taskFilter === "all" || getSaleTaskKey(sale) === taskFilter)
+      .sort((left, right) => {
+        const leftDue = isDeliveryDueSoon(left.estimated_delivery_date) ? 0 : 1;
+        const rightDue = isDeliveryDueSoon(right.estimated_delivery_date) ? 0 : 1;
+        if (leftDue !== rightDue) return leftDue - rightDue;
+
+        const priorityDiff = (priorityOrder[left.warehouse_priority] || 4) - (priorityOrder[right.warehouse_priority] || 4);
+        if (priorityDiff !== 0) return priorityDiff;
+
+        const leftDate = left.estimated_delivery_date ? new Date(left.estimated_delivery_date).getTime() : Number.MAX_SAFE_INTEGER;
+        const rightDate = right.estimated_delivery_date ? new Date(right.estimated_delivery_date).getTime() : Number.MAX_SAFE_INTEGER;
+        return leftDate - rightDate;
+      });
+  }, [sales, taskFilter]);
 
   const loadData = async () => {
     const [saleData, inventoryData] = await Promise.all([
@@ -217,7 +254,7 @@ const WarehousePendingPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">Pendientes de bodega</h1>
-          <p className="text-sm text-slate-500">Ventas por prioridad, fecha de entrega y estado operativo.</p>
+          <p className="text-sm text-slate-500">Trabajo diario ordenado por urgencia, prioridad y fecha de entrega.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -231,10 +268,25 @@ const WarehousePendingPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {taskFilters.map((filter) => (
+          <button
+            key={filter.key}
+            className={`shrink-0 rounded border px-3 py-2 text-sm font-semibold ${
+              taskFilter === filter.key ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+            }`}
+            type="button"
+            onClick={() => setTaskFilter(filter.key)}
+          >
+            {filter.label} ({taskCounts[filter.key] || 0})
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_460px]">
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-800">Ordenes por prioridad</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Ordenes por hacer</h2>
           </div>
           {sortedSales.length === 0 ? (
             <div className="p-4">
@@ -250,6 +302,7 @@ const WarehousePendingPage = () => {
                     <th className="px-3 py-2">Entrega</th>
                     <th className="px-3 py-2">Prioridad</th>
                     <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Siguiente accion</th>
                     <th className="px-3 py-2">Accion</th>
                   </tr>
                 </thead>
@@ -258,15 +311,23 @@ const WarehousePendingPage = () => {
                     <tr key={sale.id}>
                       <td className="px-3 py-2 font-medium">{sale.code}</td>
                       <td className="px-3 py-2">{sale.client_name}</td>
-                      <td className="px-3 py-2">{formatDate(sale.estimated_delivery_date)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-1">
+                          <span>{formatDate(sale.estimated_delivery_date)}</span>
+                          {isDeliveryDueSoon(sale.estimated_delivery_date) && (
+                            <StatusBadge tone="danger">Urgente</StatusBadge>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-3 py-2">
                         <StatusBadge tone={sale.warehouse_priority === "alta" ? "danger" : sale.warehouse_priority === "media" ? "warning" : "neutral"}>
                           {sale.warehouse_priority || "media"}
                         </StatusBadge>
                       </td>
                       <td className="px-3 py-2">
-                        <StatusBadge tone={sale.status === "alistada" ? "success" : "warning"}>{sale.status}</StatusBadge>
+                        <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </td>
+                      <td className="px-3 py-2 text-slate-600">{getSaleNextAction(sale)}</td>
                       <td className="px-3 py-2">
                         <button
                           className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
@@ -300,8 +361,13 @@ const WarehousePendingPage = () => {
                 <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
                 <p className="text-sm text-slate-500">Entrega: {formatDate(selectedSale.estimated_delivery_date)}</p>
                 <div className="mt-2">
-                  <StatusBadge tone={selectedSale.status === "alistada" ? "success" : "warning"}>{selectedSale.status}</StatusBadge>
+                  <StatusBadge tone={getSaleStatusTone(selectedSale)}>
+                    {saleStatusLabels[selectedSale.status] || selectedSale.status}
+                  </StatusBadge>
                 </div>
+                <p className="mt-2 rounded bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                  {getSaleNextAction(selectedSale)}
+                </p>
               </div>
 
               <div className="rounded border border-slate-200 p-3">

@@ -1,8 +1,9 @@
 import { ClipboardCheck, FlaskConical, RefreshCw, Save, SlidersHorizontal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
+import { getProcessNextAction, getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
   decision: "aprobado",
@@ -61,6 +62,13 @@ const cuppingFields = [
 
 const commercialCategories = ["Procesado", "Base", "Regional", "Varietal", "Exotico"];
 
+const processFilters = [
+  { key: "pendiente", label: "Por iniciar" },
+  { key: "en_proceso", label: "En curso" },
+  { key: "pendiente_laboratorio", label: "Por analizar" },
+  { key: "all", label: "Todo" },
+];
+
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
@@ -75,6 +83,7 @@ const formatDate = (value) => {
 
 const LaboratoryPage = () => {
   const [activePanel, setActivePanel] = useState("lots");
+  const [processFilter, setProcessFilter] = useState("pendiente");
   const [lots, setLots] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [sales, setSales] = useState([]);
@@ -102,7 +111,7 @@ const LaboratoryPage = () => {
 
     setLots(lotData);
     setProcesses(processData.filter((process) => ["pendiente", "en_proceso", "pendiente_laboratorio"].includes(process.status)));
-    setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
+    setSales(saleData.filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
     setAvailableLots(availableLotData);
     setCatalogs(catalogData);
 
@@ -120,6 +129,21 @@ const LaboratoryPage = () => {
   useEffect(() => {
     loadData().catch((requestError) => setError(requestError.message));
   }, []);
+
+  const processCounts = useMemo(() => {
+    return processes.reduce(
+      (counts, process) => ({
+        ...counts,
+        all: counts.all + 1,
+        [process.status]: (counts[process.status] || 0) + 1,
+      }),
+      { all: 0 }
+    );
+  }, [processes]);
+
+  const filteredProcesses = useMemo(() => {
+    return processes.filter((process) => processFilter === "all" || process.status === processFilter);
+  }, [processes, processFilter]);
 
   const selectLot = (lot) => {
     setActivePanel("lots");
@@ -398,7 +422,7 @@ const LaboratoryPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">Laboratorio</h1>
-          <p className="text-sm text-slate-500">Revision de lotes recibidos y cierre de procesos.</p>
+          <p className="text-sm text-slate-500">Lotes, procesos y mezclas separados por trabajo pendiente.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -559,15 +583,31 @@ const LaboratoryPage = () => {
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
-                <h2 className="text-sm font-semibold text-slate-800">Procesos pendientes</h2>
+                <h2 className="text-sm font-semibold text-slate-800">Procesos por etapa</h2>
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                  {processFilters.map((filter) => (
+                    <button
+                      key={filter.key}
+                      className={`shrink-0 rounded border px-3 py-1.5 text-xs font-semibold ${
+                        processFilter === filter.key
+                          ? "border-leaf bg-emerald-50 text-leaf"
+                          : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                      type="button"
+                      onClick={() => setProcessFilter(filter.key)}
+                    >
+                      {filter.label} ({processCounts[filter.key] || 0})
+                    </button>
+                  ))}
+                </div>
               </div>
-              {processes.length === 0 ? (
+              {filteredProcesses.length === 0 ? (
                 <div className="p-4">
                   <EmptyState title="Sin procesos pendientes" message="Los procesos creados por bodega apareceran aqui." />
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {processes.map((process) => (
+                  {filteredProcesses.map((process) => (
                     <button
                       key={process.id}
                       className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
@@ -586,9 +626,12 @@ const LaboratoryPage = () => {
                                 : "Sin venta o preventa asociada"}
                           </p>
                         </div>
-                        <StatusBadge tone="warning">{process.status}</StatusBadge>
+                        <StatusBadge tone={getProcessStatusTone(process)}>
+                          {processStatusLabels[process.status] || process.status}
+                        </StatusBadge>
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{process.total_input_kg} kg de entrada</p>
+                      <p className="text-sm font-medium text-slate-700">{getProcessNextAction(process)}</p>
                       <p className="text-sm text-slate-500">{process.process_location || "Sin ubicacion"}</p>
                       {process.estimated_return_date && (
                         <p className="text-sm text-slate-500">
@@ -627,6 +670,11 @@ const LaboratoryPage = () => {
             <p className="mt-1 text-sm text-slate-500">
               {selectedProcess ? `Proceso seleccionado: ${selectedProcess.code}` : "Seleccione un proceso pendiente."}
             </p>
+            {selectedProcess && (
+              <p className="mt-3 rounded bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                {getProcessNextAction(selectedProcess)}
+              </p>
+            )}
 
             {!selectedProcess ? (
               <div className="mt-4">
