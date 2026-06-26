@@ -17,9 +17,17 @@ export const apiRequest = async (path, options = {}) => {
   });
 
   const contentType = response.headers.get("content-type") || "";
+  const requestId = response.headers.get("x-request-id");
   const data = contentType.includes("application/json") ? await response.json() : await response.text();
 
   if (!response.ok) {
+    console.error("[API ERROR]", {
+      path,
+      status: response.status,
+      requestId,
+      response: data,
+    });
+
     const details = data?.error ? `: ${data.error}` : "";
     throw new Error(`${data?.message || "Error de comunicacion con el servidor"}${details}`);
   }

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import { ALLOWED_ORIGINS } from "./config.js";
+import { requestDebugLogger } from "./middlewares/debug.middleware.js";
 
 import healthRoutes from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -24,6 +25,7 @@ import documentsRoutes from "./routes/documents.routes.js";
 const app = express();
 
 app.use(morgan("dev"));
+app.use(requestDebugLogger);
 app.use(express.json());
 app.use(
   cors({

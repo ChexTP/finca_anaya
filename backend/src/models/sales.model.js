@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { logger } from "../utils/logger.js";
 
 export const getNextSaleCode = async () => {
   const year = new Date().getFullYear();
@@ -960,7 +961,25 @@ export const registerSalePayment = async ({
     const currentAmountPaid = Number(paidResult.rows[0].amount_paid);
     const currentBalance = Number((Number(sale.total) - currentAmountPaid).toFixed(2));
 
+    logger.info("Validando abono de venta", {
+      saleId,
+      saleCode: sale.code,
+      total: Number(sale.total),
+      currentAmountPaid,
+      currentBalance,
+      paymentAmount: amount,
+      registeredBy,
+    });
+
     if (amount > currentBalance) {
+      logger.warn("Abono rechazado por superar saldo pendiente", {
+        saleId,
+        saleCode: sale.code,
+        currentBalance,
+        paymentAmount: amount,
+        registeredBy,
+      });
+
       await client.query("ROLLBACK");
       return {
         amountTooHigh: true,
@@ -999,7 +1018,7 @@ export const registerSalePayment = async ({
         amount_paid = $1,
         balance_due = $2,
         payment_status = $3,
-        estimated_payment_date = CASE WHEN $2 = 0 THEN NULL ELSE estimated_payment_date END,
+        estimated_payment_date = CASE WHEN $2::numeric = 0 THEN NULL ELSE estimated_payment_date END,
         updated_at = NOW()
       WHERE id = $4
       RETURNING *
@@ -1008,6 +1027,15 @@ export const registerSalePayment = async ({
     );
 
     await client.query("COMMIT");
+    logger.info("Abono de venta registrado", {
+      saleId,
+      saleCode: sale.code,
+      paymentAmount: amount,
+      newAmountPaid,
+      newBalance,
+      newPaymentStatus,
+      registeredBy,
+    });
     return updateResult.rows[0];
   } catch (error) {
     await client.query("ROLLBACK");

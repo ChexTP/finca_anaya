@@ -11,6 +11,7 @@ import {
   updateSaleWarehousePriority,
   replaceSaleLotAssignments,
 } from "../models/sales.model.js";
+import { logControllerError } from "../utils/logger.js";
 import { findQuoteById } from "../models/quotes.model.js";
 import { findClientById } from "../models/clients.model.js";
 import { findUserById } from "../models/users.model.js";
@@ -589,6 +590,11 @@ export const postSalePayment = async (req, res) => {
       data: fullSale,
     });
   } catch (error) {
+    logControllerError(req, error, {
+      operation: "postSalePayment",
+      saleId: req.params.id,
+    });
+
     res.status(500).json({
       message: "Error al registrar pago",
       error: error.message,
