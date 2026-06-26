@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import StatusBadge from "../../components/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 
 const counterConfig = [
@@ -31,6 +32,20 @@ const priorityTone = {
   baja: "neutral",
 };
 
+const roleCounterOrder = {
+  warehouse: ["salesToPrepare", "activeProcesses", "salesPendingBlend", "labPendingLots", "availableInventoryKg", "lowInventoryGroups"],
+  laboratory: ["labPendingLots", "activeProcesses", "salesPendingBlend", "salesToPrepare", "availableInventoryKg", "lowInventoryGroups"],
+  accounting: ["overdueSales", "dispatchedSalesWithDebt", "pendingQuotes", "salesToPrepare", "overduePayables", "availableInventoryKg"],
+  seller: ["pendingQuotes", "salesToPrepare", "salesPendingBlend", "dispatchedSalesWithDebt"],
+};
+
+const dashboardCopy = {
+  warehouse: "Pendientes operativos de bodega, procesos y ventas por alistar.",
+  laboratory: "Lotes, procesos y mezclas que requieren revision tecnica.",
+  accounting: "Cartera, ventas, cuentas y alertas financieras principales.",
+  seller: "Cotizaciones, preventas y seguimiento comercial.",
+};
+
 const formatValue = (key, value) => {
   if (key === "availableInventoryKg") {
     return `${Number(value || 0).toLocaleString("es-CO")} kg`;
@@ -40,6 +55,7 @@ const formatValue = (key, value) => {
 };
 
 const DashboardPage = () => {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -72,6 +88,18 @@ const DashboardPage = () => {
     };
   }, [data]);
 
+  const orderedCounters = useMemo(() => {
+    const preferredOrder = roleCounterOrder[user?.role];
+    if (!preferredOrder) return counterConfig;
+
+    const preferredCounters = preferredOrder
+      .map((key) => counterConfig.find(([counterKey]) => counterKey === key))
+      .filter(Boolean);
+    const remainingCounters = counterConfig.filter(([key]) => !preferredOrder.includes(key));
+
+    return [...preferredCounters, ...remainingCounters];
+  }, [user?.role]);
+
   if (error) {
     return <p className="rounded bg-rose-50 p-3 text-sm text-rose-700">{error}</p>;
   }
@@ -85,7 +113,9 @@ const DashboardPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">Dashboard</h1>
-          <p className="text-sm text-slate-500">Estado general de la operacion y alertas principales.</p>
+          <p className="text-sm text-slate-500">
+            {dashboardCopy[user?.role] || "Estado general de la operacion y alertas principales."}
+          </p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -97,7 +127,7 @@ const DashboardPage = () => {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {counterConfig.map(([key, label, unit, Icon]) => (
+        {orderedCounters.map(([key, label, unit, Icon]) => (
           <div key={key} className="rounded border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <div>

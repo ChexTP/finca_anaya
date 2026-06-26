@@ -1,5 +1,5 @@
 import { Eye, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -200,6 +200,52 @@ const initialPayment = {
   notes: "",
 };
 
+const operationalFilters = [
+  { key: "all", label: "Todas" },
+  { key: "pending", label: "Pendientes" },
+  { key: "process", label: "En proceso" },
+  { key: "blend", label: "Por ensamble" },
+  { key: "blend_ready", label: "Ensamble listo" },
+  { key: "alistada", label: "Alistadas" },
+  { key: "despachada", label: "Despachadas" },
+];
+
+const paymentFilters = [
+  { key: "all", label: "Todos los pagos" },
+  { key: "pendiente_pago", label: "Pendientes" },
+  { key: "pago_parcial", label: "Parciales" },
+  { key: "pagada", label: "Pagadas" },
+];
+
+const roleCopy = {
+  accounting: {
+    title: "Ventas y pagos",
+    subtitle: "Seguimiento de ventas, cartera, abonos y referencias.",
+    detailTitle: "Detalle financiero",
+    empty: "Seleccione una venta para revisar pagos, saldo y soporte operativo.",
+  },
+  warehouse: {
+    title: "Despachos",
+    subtitle: "Ventas que requieren alistamiento, orden de mezcla o despacho.",
+    detailTitle: "Detalle para bodega",
+    empty: "Seleccione una venta para ver lotes, cantidades y orden de alistamiento.",
+  },
+  seller: {
+    title: "Seguimiento de ventas",
+    subtitle: "Estado de las ventas asociadas a sus cotizaciones.",
+    detailTitle: "Seguimiento comercial",
+    empty: "Seleccione una venta para ver su estado general.",
+  },
+};
+
+const getOperationalFilterKey = (status) => {
+  if (["pendiente_alistamiento", "pendiente_bodega", "lote_asignado"].includes(status)) return "pending";
+  if (["proceso_solicitado", "en_proceso"].includes(status)) return "process";
+  if (status === "listo_para_ensamble") return "blend";
+  if (status === "ensamble_definido") return "blend_ready";
+  return status;
+};
+
 const SalesPage = () => {
   const { user } = useAuth();
   const [sales, setSales] = useState([]);
@@ -209,11 +255,49 @@ const SalesPage = () => {
   const [paymentForm, setPaymentForm] = useState(initialPayment);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const canManageDispatch = ["admin", "accounting", "warehouse"].includes(user?.role);
   const showFinancialData = ["admin", "accounting"].includes(user?.role);
+  const pageCopy = roleCopy[user?.role] || {
+    title: "Ventas",
+    subtitle: "Alistamiento, despacho y seguimiento operativo.",
+    detailTitle: "Detalle de venta",
+    empty: "Seleccione una venta para revisar su informacion.",
+  };
+
+  const saleCounts = useMemo(() => {
+    return sales.reduce(
+      (counts, sale) => ({
+        ...counts,
+        all: counts.all + 1,
+        [getOperationalFilterKey(sale.status)]: (counts[getOperationalFilterKey(sale.status)] || 0) + 1,
+      }),
+      { all: 0 }
+    );
+  }, [sales]);
+
+  const paymentCounts = useMemo(() => {
+    return sales.reduce(
+      (counts, sale) => ({
+        ...counts,
+        all: counts.all + 1,
+        [sale.payment_status]: (counts[sale.payment_status] || 0) + 1,
+      }),
+      { all: 0 }
+    );
+  }, [sales]);
+
+  const filteredSales = useMemo(() => {
+    return sales.filter((sale) => {
+      const matchesStatus = statusFilter === "all" || getOperationalFilterKey(sale.status) === statusFilter;
+      const matchesPayment = paymentFilter === "all" || sale.payment_status === paymentFilter;
+      return matchesStatus && matchesPayment;
+    });
+  }, [sales, statusFilter, paymentFilter]);
 
   const loadSales = async () => {
     const requests = [apiRequest("/sales")];
@@ -355,8 +439,8 @@ const SalesPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Ventas</h1>
-          <p className="text-sm text-slate-500">Alistamiento, despacho y seguimiento operativo.</p>
+          <h1 className="text-xl font-bold text-ink">{pageCopy.title}</h1>
+          <p className="text-sm text-slate-500">{pageCopy.subtitle}</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -374,8 +458,38 @@ const SalesPage = () => {
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Ventas registradas</h2>
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {operationalFilters.map((filter) => (
+                <button
+                  key={filter.key}
+                  className={`shrink-0 rounded border px-3 py-1.5 text-xs font-semibold ${
+                    statusFilter === filter.key ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                  type="button"
+                  onClick={() => setStatusFilter(filter.key)}
+                >
+                  {filter.label} ({saleCounts[filter.key] || 0})
+                </button>
+              ))}
+            </div>
+            {showFinancialData && (
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {paymentFilters.map((filter) => (
+                  <button
+                    key={filter.key}
+                    className={`shrink-0 rounded border px-3 py-1.5 text-xs font-semibold ${
+                      paymentFilter === filter.key ? "border-ink bg-slate-100 text-ink" : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                    type="button"
+                    onClick={() => setPaymentFilter(filter.key)}
+                  >
+                    {filter.label} ({paymentCounts[filter.key] || 0})
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {sales.length === 0 ? (
+          {filteredSales.length === 0 ? (
             <div className="p-4">
               <EmptyState title="Sin ventas" message="Las ventas creadas desde cotizacion o directas apareceran aqui." />
             </div>
@@ -394,7 +508,7 @@ const SalesPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sales.map((sale) => (
+                  {filteredSales.map((sale) => (
                     <tr key={sale.id}>
                       <td className="px-3 py-2 font-medium">{sale.code}</td>
                       <td className="px-3 py-2">{sale.client_name}</td>
@@ -422,12 +536,12 @@ const SalesPage = () => {
         </div>
 
         <aside className="rounded border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-slate-800">Detalle para bodega</h2>
+          <h2 className="text-sm font-semibold text-slate-800">{pageCopy.detailTitle}</h2>
           {loadingDetail ? (
             <p className="mt-3 text-sm text-slate-500">Cargando venta...</p>
           ) : !selectedSale ? (
             <div className="mt-3">
-              <EmptyState title="Seleccione una venta" message="Aqui vera que lotes y cantidades debe alistar." />
+              <EmptyState title="Seleccione una venta" message={pageCopy.empty} />
             </div>
           ) : (
             <div className="mt-4 space-y-4">

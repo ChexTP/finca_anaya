@@ -1,4 +1,4 @@
-import { Eye, Plus, RefreshCw, Save } from "lucide-react";
+import { Eye, Plus, RefreshCw, Save, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -38,6 +38,27 @@ const initialSale = {
   notes: "",
 };
 
+const initialQuickClient = {
+  name: "",
+  documentType: "",
+  documentNumber: "",
+  phone: "",
+  email: "",
+  address: "",
+  city: "",
+  country: "",
+  shippingNotes: "",
+  billingNotes: "",
+};
+
+const quoteFilters = [
+  { key: "all", label: "Todas" },
+  { key: "borrador", label: "Borradores" },
+  { key: "enviada", label: "Enviadas" },
+  { key: "aceptada", label: "Aceptadas" },
+  { key: "anulada", label: "Anuladas" },
+];
+
 const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
 const CommercialPage = () => {
@@ -49,6 +70,9 @@ const CommercialPage = () => {
   const [quoteForm, setQuoteForm] = useState(initialQuote);
   const [itemForm, setItemForm] = useState(initialItem);
   const [saleForm, setSaleForm] = useState(initialSale);
+  const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
+  const [showQuickClient, setShowQuickClient] = useState(false);
+  const [quoteFilter, setQuoteFilter] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -62,6 +86,21 @@ const CommercialPage = () => {
   }, [subtotal, quoteForm.shippingCost]);
 
   const canConvertToSale = ["admin", "accounting"].includes(user?.role);
+
+  const quoteCounts = useMemo(() => {
+    return quotes.reduce(
+      (counts, quote) => ({
+        ...counts,
+        all: counts.all + 1,
+        [quote.status]: (counts[quote.status] || 0) + 1,
+      }),
+      { all: 0 }
+    );
+  }, [quotes]);
+
+  const filteredQuotes = useMemo(() => {
+    return quotes.filter((quote) => quoteFilter === "all" || quote.status === quoteFilter);
+  }, [quotes, quoteFilter]);
 
   const loadData = async () => {
     const [quoteData, clientData, catalogData] = await Promise.all([
@@ -136,6 +175,34 @@ const CommercialPage = () => {
       setItemForm(initialItem);
       await loadData();
       setMessage("Cotizacion creada correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const createQuickClient = async () => {
+    if (!quickClientForm.name || !quickClientForm.phone || !quickClientForm.address) {
+      setError("Nombre, telefono y direccion son obligatorios para crear el cliente.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest("/clients", {
+        method: "POST",
+        body: JSON.stringify(quickClientForm),
+      });
+      const createdClient = response.data;
+      setQuickClientForm(initialQuickClient);
+      setShowQuickClient(false);
+      await loadData();
+      setQuoteForm((currentForm) => ({ ...currentForm, clientId: String(createdClient.id) }));
+      setMessage("Cliente creado y seleccionado para la cotizacion.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -258,6 +325,14 @@ const CommercialPage = () => {
                   </option>
                 ))}
               </select>
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                type="button"
+                onClick={() => setShowQuickClient((currentValue) => !currentValue)}
+              >
+                <UserPlus size={16} />
+                Crear cliente rapido
+              </button>
               <select
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 value={quoteForm.quoteType}
@@ -310,6 +385,77 @@ const CommercialPage = () => {
                 onChange={(event) => setQuoteForm({ ...quoteForm, deliveryTerms: event.target.value })}
               />
             </div>
+
+            {showQuickClient && (
+              <div className="mt-4 rounded border border-emerald-100 bg-emerald-50 p-3">
+                <h3 className="text-sm font-semibold text-slate-800">Cliente rapido</h3>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Nombre"
+                    value={quickClientForm.name}
+                    onChange={(event) => setQuickClientForm({ ...quickClientForm, name: event.target.value })}
+                    required
+                  />
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Telefono"
+                    value={quickClientForm.phone}
+                    onChange={(event) => setQuickClientForm({ ...quickClientForm, phone: event.target.value })}
+                    required
+                  />
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+                    placeholder="Direccion"
+                    value={quickClientForm.address}
+                    onChange={(event) => setQuickClientForm({ ...quickClientForm, address: event.target.value })}
+                    required
+                  />
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Tipo documento"
+                    value={quickClientForm.documentType}
+                    onChange={(event) => setQuickClientForm({ ...quickClientForm, documentType: event.target.value })}
+                  />
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Numero documento"
+                    value={quickClientForm.documentNumber}
+                    onChange={(event) => setQuickClientForm({ ...quickClientForm, documentNumber: event.target.value })}
+                  />
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Ciudad"
+                    value={quickClientForm.city}
+                    onChange={(event) => setQuickClientForm({ ...quickClientForm, city: event.target.value })}
+                  />
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Pais"
+                    value={quickClientForm.country}
+                    onChange={(event) => setQuickClientForm({ ...quickClientForm, country: event.target.value })}
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={saving}
+                    type="button"
+                    onClick={createQuickClient}
+                  >
+                    <Save size={16} />
+                    Guardar cliente
+                  </button>
+                  <button
+                    className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+                    type="button"
+                    onClick={() => setShowQuickClient(false)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 rounded border border-slate-200 p-3">
               <h3 className="text-sm font-semibold text-slate-800">Producto</h3>
@@ -398,8 +544,24 @@ const CommercialPage = () => {
           <div className="rounded border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-4 py-3">
               <h2 className="text-sm font-semibold text-slate-800">Historial</h2>
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {quoteFilters.map((filter) => (
+                  <button
+                    key={filter.key}
+                    className={`shrink-0 rounded border px-3 py-1.5 text-xs font-semibold ${
+                      quoteFilter === filter.key
+                        ? "border-leaf bg-emerald-50 text-leaf"
+                        : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                    type="button"
+                    onClick={() => setQuoteFilter(filter.key)}
+                  >
+                    {filter.label} ({quoteCounts[filter.key] || 0})
+                  </button>
+                ))}
+              </div>
             </div>
-            {quotes.length === 0 ? (
+            {filteredQuotes.length === 0 ? (
               <div className="p-4">
                 <EmptyState title="Sin cotizaciones" message="Las cotizaciones del vendedor apareceran aqui." />
               </div>
@@ -417,7 +579,7 @@ const CommercialPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {quotes.map((quote) => (
+                    {filteredQuotes.map((quote) => (
                       <tr key={quote.id}>
                         <td className="px-3 py-2 font-medium">{quote.code}</td>
                         <td className="px-3 py-2">{quote.client_name}</td>

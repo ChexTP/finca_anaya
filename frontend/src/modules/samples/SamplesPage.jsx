@@ -1,5 +1,5 @@
 import { FlaskConical, RefreshCw, Save } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -44,6 +44,23 @@ const statusTones = {
 
 const editableStatuses = ["solicitada", "en_preparacion", "lista", "entregada", "cancelada"];
 
+const sampleFilters = [
+  { key: "all", label: "Todas" },
+  { key: "solicitada", label: "Solicitadas" },
+  { key: "en_preparacion", label: "En preparacion" },
+  { key: "lista", label: "Listas" },
+  { key: "entregada", label: "Entregadas" },
+  { key: "cancelada", label: "Canceladas" },
+];
+
+const statusOrder = {
+  solicitada: 1,
+  en_preparacion: 2,
+  lista: 3,
+  entregada: 4,
+  cancelada: 5,
+};
+
 const formatDate = (value) => {
   if (!value) return "-";
   const [datePart] = String(value).split("T");
@@ -65,10 +82,35 @@ const SamplesPage = () => {
   const [statusNotes, setStatusNotes] = useState({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [sampleFilter, setSampleFilter] = useState("all");
   const [saving, setSaving] = useState(false);
 
   const canCreate = ["admin", "accounting", "seller"].includes(user?.role);
   const canUpdateStatus = ["admin", "accounting", "samples"].includes(user?.role);
+
+  const sampleCounts = useMemo(() => {
+    return samples.reduce(
+      (counts, sample) => ({
+        ...counts,
+        all: counts.all + 1,
+        [sample.status]: (counts[sample.status] || 0) + 1,
+      }),
+      { all: 0 }
+    );
+  }, [samples]);
+
+  const filteredSamples = useMemo(() => {
+    return samples
+      .filter((sample) => sampleFilter === "all" || sample.status === sampleFilter)
+      .sort((left, right) => {
+        const statusDiff = (statusOrder[left.status] || 99) - (statusOrder[right.status] || 99);
+        if (statusDiff !== 0) return statusDiff;
+
+        const leftDate = left.tentative_delivery_date || left.requested_at || "";
+        const rightDate = right.tentative_delivery_date || right.requested_at || "";
+        return String(leftDate).localeCompare(String(rightDate));
+      });
+  }, [samples, sampleFilter]);
 
   const loadData = async () => {
     const [sampleData, catalogData] = await Promise.all([
@@ -322,15 +364,29 @@ const SamplesPage = () => {
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Solicitudes registradas</h2>
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {sampleFilters.map((filter) => (
+                <button
+                  key={filter.key}
+                  className={`shrink-0 rounded border px-3 py-1.5 text-xs font-semibold ${
+                    sampleFilter === filter.key ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                  type="button"
+                  onClick={() => setSampleFilter(filter.key)}
+                >
+                  {filter.label} ({sampleCounts[filter.key] || 0})
+                </button>
+              ))}
+            </div>
           </div>
 
-          {samples.length === 0 ? (
+          {filteredSamples.length === 0 ? (
             <div className="p-4">
               <EmptyState title="Sin solicitudes" message="Las muestras solicitadas apareceran aqui." />
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {samples.map((sample) => (
+              {filteredSamples.map((sample) => (
                 <article key={sample.id} className="p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
