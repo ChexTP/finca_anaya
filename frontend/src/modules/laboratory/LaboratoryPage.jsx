@@ -40,6 +40,12 @@ const initialFinish = {
   initialComment: "",
 };
 
+const initialStartProcess = {
+  processLocation: "",
+  estimatedReturnDate: "",
+  notes: "",
+};
+
 const cuppingFields = [
   ["aroma", "Aroma"],
   ["fragrance", "Fragancia"],
@@ -80,6 +86,7 @@ const LaboratoryPage = () => {
   const [blendRows, setBlendRows] = useState([]);
   const [review, setReview] = useState(initialReview);
   const [finishForm, setFinishForm] = useState(initialFinish);
+  const [startForm, setStartForm] = useState(initialStartProcess);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -87,14 +94,14 @@ const LaboratoryPage = () => {
   const loadData = async () => {
     const [lotData, processData, saleData, availableLotData, catalogData] = await Promise.all([
       apiRequest("/lots?status=pendiente_laboratorio"),
-      apiRequest("/processes?status=en_proceso"),
+      apiRequest("/processes"),
       apiRequest("/sales"),
       apiRequest("/inventory/lots"),
       apiRequest("/catalogs"),
     ]);
 
     setLots(lotData);
-    setProcesses(processData);
+    setProcesses(processData.filter((process) => ["pendiente", "en_proceso", "pendiente_laboratorio"].includes(process.status)));
     setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
     setAvailableLots(availableLotData);
     setCatalogs(catalogData);
@@ -132,8 +139,70 @@ const LaboratoryPage = () => {
       ...initialFinish,
       outputWeightKg: process.output_weight_kg || "",
     });
+    setStartForm({
+      processLocation: process.process_location || "",
+      estimatedReturnDate: process.estimated_return_date ? String(process.estimated_return_date).slice(0, 10) : "",
+      notes: process.notes || "",
+    });
     setMessage("");
     setError("");
+  };
+
+  const startSelectedProcess = async () => {
+    if (!selectedProcess) {
+      setError("Seleccione un proceso para iniciar.");
+      return;
+    }
+
+    const confirmed = window.confirm("Confirma que este cafe ya entro a procesamiento?");
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/processes/${selectedProcess.id}/start`, {
+        method: "PUT",
+        body: JSON.stringify(startForm),
+      });
+      setSelectedProcess(null);
+      setStartForm(initialStartProcess);
+      await loadData();
+      setMessage("Proceso iniciado. Las cantidades quedaron descontadas y se guardo la fecha estimada de regreso.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const markSelectedProcessPendingLab = async () => {
+    if (!selectedProcess) {
+      setError("Seleccione un proceso.");
+      return;
+    }
+
+    const confirmed = window.confirm("Confirma que el proceso fisico termino y queda pendiente de examen?");
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/processes/${selectedProcess.id}/pending-laboratory`, {
+        method: "PUT",
+        body: JSON.stringify({ notes: startForm.notes || undefined }),
+      });
+      setSelectedProcess(null);
+      await loadData();
+      setMessage("Proceso marcado como pendiente de laboratorio.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const selectSaleForBlend = async (saleId) => {
@@ -510,13 +579,22 @@ const LaboratoryPage = () => {
                         <div>
                           <p className="font-semibold text-ink">{process.code}</p>
                           <p className="text-sm text-slate-500">
-                            {process.quote_code ? `${process.quote_code} - ${process.quote_client_name}` : "Sin preventa asociada"}
+                            {process.sale_code
+                              ? `${process.sale_code} - ${process.sale_client_name}`
+                              : process.quote_code
+                                ? `${process.quote_code} - ${process.quote_client_name}`
+                                : "Sin venta o preventa asociada"}
                           </p>
                         </div>
                         <StatusBadge tone="warning">{process.status}</StatusBadge>
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{process.total_input_kg} kg de entrada</p>
                       <p className="text-sm text-slate-500">{process.process_location || "Sin ubicacion"}</p>
+                      {process.estimated_return_date && (
+                        <p className="text-sm text-slate-500">
+                          Regreso estimado a bodega: {formatDate(process.estimated_return_date)}
+                        </p>
+                      )}
                       {process.quote_code && (
                         <p className="text-sm text-slate-500">
                           Entrega estimada: {formatDate(process.quote_estimated_delivery_date)}
@@ -544,85 +622,142 @@ const LaboratoryPage = () => {
             <form className="rounded border border-slate-200 bg-white p-4" onSubmit={finishProcess}>
             <div className="flex items-center gap-2">
               <FlaskConical size={17} className="text-leaf" />
-              <h2 className="text-sm font-semibold text-slate-800">Finalizar proceso</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Gestionar proceso</h2>
             </div>
             <p className="mt-1 text-sm text-slate-500">
               {selectedProcess ? `Proceso seleccionado: ${selectedProcess.code}` : "Seleccione un proceso pendiente."}
             </p>
 
-            <div className="mt-4 space-y-3">
-              <select
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                value={finishForm.coffeeProfileId}
-                onChange={(event) => setFinishForm({ ...finishForm, coffeeProfileId: event.target.value })}
-              >
-                <option value="">Perfil comercial</option>
-                {catalogs?.coffeeProfiles?.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.name}
-                  </option>
-                ))}
-              </select>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Cantidad final kg"
-                  type="number"
-                  step="0.001"
-                  max={selectedProcess?.total_input_kg || undefined}
-                  value={finishForm.outputWeightKg}
-                  onChange={(event) => setFinishForm({ ...finishForm, outputWeightKg: event.target.value })}
-                />
-                <input
-                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Humedad final %"
-                  type="number"
-                  step="0.01"
-                  value={finishForm.humidityPercent}
-                  onChange={(event) => setFinishForm({ ...finishForm, humidityPercent: event.target.value })}
-                />
+            {!selectedProcess ? (
+              <div className="mt-4">
+                <EmptyState title="Sin proceso seleccionado" message="Seleccione un proceso de la lista." />
               </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {cuppingFields.map(([field, label]) => (
+            ) : selectedProcess.status === "pendiente" ? (
+              <div className="mt-4 space-y-3">
+                <input
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Ubicacion del proceso"
+                  value={startForm.processLocation}
+                  onChange={(event) => setStartForm({ ...startForm, processLocation: event.target.value })}
+                />
+                <input
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  type="date"
+                  value={startForm.estimatedReturnDate}
+                  onChange={(event) => setStartForm({ ...startForm, estimatedReturnDate: event.target.value })}
+                />
+                <textarea
+                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Observaciones de inicio"
+                  value={startForm.notes}
+                  onChange={(event) => setStartForm({ ...startForm, notes: event.target.value })}
+                />
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  type="button"
+                  disabled={saving}
+                  onClick={startSelectedProcess}
+                >
+                  <Save size={16} />
+                  Confirmar inicio
+                </button>
+              </div>
+            ) : selectedProcess.status === "en_proceso" ? (
+              <div className="mt-4 space-y-3">
+                <p className="rounded bg-slate-50 p-3 text-sm text-slate-600">
+                  Cuando el proceso fisico termine, marque este proceso como pendiente de examen de laboratorio.
+                </p>
+                <textarea
+                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Observaciones del cierre fisico"
+                  value={startForm.notes}
+                  onChange={(event) => setStartForm({ ...startForm, notes: event.target.value })}
+                />
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  type="button"
+                  disabled={saving}
+                  onClick={markSelectedProcessPendingLab}
+                >
+                  <Save size={16} />
+                  Pendiente de examen
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <select
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={finishForm.coffeeProfileId}
+                  onChange={(event) => setFinishForm({ ...finishForm, coffeeProfileId: event.target.value })}
+                >
+                  <option value="">Perfil comercial</option>
+                  {catalogs?.coffeeProfiles?.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <input
-                    key={field}
                     className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder={label}
-                    value={finishForm[field]}
-                    onChange={(event) => setFinishForm({ ...finishForm, [field]: event.target.value })}
+                    placeholder="Cantidad final kg"
+                    type="number"
+                    step="0.001"
+                    max={selectedProcess?.total_input_kg || undefined}
+                    value={finishForm.outputWeightKg}
+                    onChange={(event) => setFinishForm({ ...finishForm, outputWeightKg: event.target.value })}
                   />
-                ))}
-                <input
-                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Score"
-                  type="number"
-                  step="0.01"
-                  value={finishForm.score}
-                  onChange={(event) => setFinishForm({ ...finishForm, score: event.target.value })}
-                />
-              </div>
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Humedad final %"
+                    type="number"
+                    step="0.01"
+                    value={finishForm.humidityPercent}
+                    onChange={(event) => setFinishForm({ ...finishForm, humidityPercent: event.target.value })}
+                  />
+                </div>
 
-              <textarea
-                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Notas del proceso"
-                value={finishForm.notes}
-                onChange={(event) => setFinishForm({ ...finishForm, notes: event.target.value })}
-              />
-              <textarea
-                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Comentario inicial del lote PROC"
-                value={finishForm.initialComment}
-                onChange={(event) => setFinishForm({ ...finishForm, initialComment: event.target.value })}
-              />
-              <button
-                className="inline-flex items-center justify-center gap-2 rounded bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                disabled={saving || !selectedProcess}
-              >
-                <Save size={16} />
-                Crear lote PROC
-              </button>
-            </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {cuppingFields.map(([field, label]) => (
+                    <input
+                      key={field}
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder={label}
+                      value={finishForm[field]}
+                      onChange={(event) => setFinishForm({ ...finishForm, [field]: event.target.value })}
+                    />
+                  ))}
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Score"
+                    type="number"
+                    step="0.01"
+                    value={finishForm.score}
+                    onChange={(event) => setFinishForm({ ...finishForm, score: event.target.value })}
+                  />
+                </div>
+
+                <textarea
+                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Notas del proceso"
+                  value={finishForm.notes}
+                  onChange={(event) => setFinishForm({ ...finishForm, notes: event.target.value })}
+                />
+                <textarea
+                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Comentario inicial del lote PROC"
+                  value={finishForm.initialComment}
+                  onChange={(event) => setFinishForm({ ...finishForm, initialComment: event.target.value })}
+                />
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving || !selectedProcess}
+                >
+                  <Save size={16} />
+                  Crear lote PROC
+                </button>
+              </div>
+            )}
           </form>
           </div>
         ) : (

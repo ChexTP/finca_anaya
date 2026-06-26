@@ -3,6 +3,8 @@ import {
   listProcesses,
   findProcessById,
   createProcess,
+  startProcess,
+  markProcessPendingLaboratory,
   finishProcess,
 } from "../models/processes.model.js";
 import {
@@ -125,12 +127,81 @@ export const postProcess = async (req, res) => {
     });
 
     res.status(201).json({
-      message: "Proceso creado y cantidades descontadas",
+      message: "Solicitud de proceso creada correctamente",
       data: process,
     });
   } catch (error) {
     res.status(500).json({
       message: "Error al crear proceso",
+      error: error.message,
+    });
+  }
+};
+
+export const putStartProcess = async (req, res) => {
+  try {
+    const { processLocation, estimatedReturnDate, notes } = req.body;
+
+    if (!estimatedReturnDate) {
+      return res.status(400).json({ message: "La fecha estimada de regreso a bodega es obligatoria" });
+    }
+
+    const result = await startProcess({
+      processId: req.params.id,
+      processLocation,
+      estimatedReturnDate,
+      notes,
+      startedBy: req.user.id,
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: "Proceso no encontrado" });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden iniciar procesos en estado pendiente",
+        data: result.process,
+      });
+    }
+
+    res.json({
+      message: "Proceso iniciado correctamente",
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al iniciar proceso",
+      error: error.message,
+    });
+  }
+};
+
+export const putProcessPendingLaboratory = async (req, res) => {
+  try {
+    const result = await markProcessPendingLaboratory({
+      processId: req.params.id,
+      notes: req.body.notes,
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: "Proceso no encontrado" });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden enviar a laboratorio procesos en estado en_proceso",
+        data: result.process,
+      });
+    }
+
+    res.json({
+      message: "Proceso marcado como pendiente de laboratorio",
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al marcar proceso pendiente de laboratorio",
       error: error.message,
     });
   }
@@ -218,7 +289,7 @@ export const putFinishProcess = async (req, res) => {
 
     if (result.invalidStatus) {
       return res.status(409).json({
-        message: "Solo se pueden finalizar procesos en estado en_proceso",
+        message: "Solo se pueden finalizar procesos pendientes de laboratorio",
         data: result.process,
       });
     }

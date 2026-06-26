@@ -171,10 +171,10 @@ export const createProcess = async ({ code, quoteId, saleId, processLocation, no
     for (const input of inputs) {
       const lotResult = await client.query(
         `
-        SELECT *
+        SELECT id, code, status, available_weight_kg
         FROM coffee_lots
         WHERE id = $1
-        FOR UPDATE
+        LIMIT 1
         `,
         [input.lotId]
       );
@@ -188,23 +188,9 @@ export const createProcess = async ({ code, quoteId, saleId, processLocation, no
         throw new Error(`El lote ${lot.code || lot.id} no esta disponible para proceso`);
       }
 
-      const currentAvailable = Number(lot.available_weight_kg);
-
-      if (currentAvailable < input.quantityKg) {
+      if (Number(lot.available_weight_kg) < input.quantityKg) {
         throw new Error(`El lote ${lot.code || lot.id} no tiene cantidad suficiente`);
       }
-
-      const newAvailable = Number((currentAvailable - input.quantityKg).toFixed(3));
-      const newStatus = newAvailable === 0 ? "en_proceso" : "disponible";
-
-      await client.query(
-        `
-        UPDATE coffee_lots
-        SET available_weight_kg = $1, status = $2, updated_at = NOW()
-        WHERE id = $3
-        `,
-        [newAvailable, newStatus, input.lotId]
-      );
 
       await client.query(
         `
@@ -214,20 +200,13 @@ export const createProcess = async ({ code, quoteId, saleId, processLocation, no
         [process.id, input.lotId, input.quantityKg]
       );
 
-      await client.query(
-        `
-        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
-        VALUES ($1, 'proceso_salida', $2, $3, $4)
-        `,
-        [input.lotId, input.quantityKg, `Cafe enviado al proceso ${process.code}`, createdBy]
-      );
     }
 
     if (saleId) {
       await client.query(
         `
         UPDATE sales
-        SET status = 'en_proceso', updated_at = NOW()
+        SET status = 'proceso_solicitado', updated_at = NOW()
         WHERE id = $1
           AND status <> 'anulada'
         `,
@@ -237,6 +216,176 @@ export const createProcess = async ({ code, quoteId, saleId, processLocation, no
 
     await client.query("COMMIT");
     return process;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const startProcess = async ({ processId, processLocation, estimatedReturnDate, notes, startedBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const processResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_processes
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [processId]
+    );
+    const process = processResult.rows[0];
+
+    if (!process) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (process.status !== "pendiente") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, process };
+    }
+
+    const inputsResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_process_inputs
+      WHERE process_id = $1
+      ORDER BY id ASC
+      `,
+      [processId]
+    );
+
+    for (const input of inputsResult.rows) {
+      const lotResult = await client.query(
+        `
+        SELECT *
+        FROM coffee_lots
+        WHERE id = $1
+        FOR UPDATE
+        `,
+        [input.lot_id]
+      );
+      const lot = lotResult.rows[0];
+
+      if (!lot || !["disponible", "vendido_parcial"].includes(lot.status)) {
+        throw new Error(`El lote ${lot?.code || input.lot_id} no esta disponible para iniciar proceso`);
+      }
+
+      const currentAvailable = Number(lot.available_weight_kg);
+      const quantity = Number(input.quantity_kg);
+
+      if (currentAvailable < quantity) {
+        throw new Error(`El lote ${lot.code || lot.id} no tiene cantidad suficiente`);
+      }
+
+      const newAvailable = Number((currentAvailable - quantity).toFixed(3));
+      const newStatus = newAvailable === 0 ? "en_proceso" : "vendido_parcial";
+
+      await client.query(
+        `
+        UPDATE coffee_lots
+        SET available_weight_kg = $1, status = $2, updated_at = NOW()
+        WHERE id = $3
+        `,
+        [newAvailable, newStatus, lot.id]
+      );
+
+      await client.query(
+        `
+        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+        VALUES ($1, 'proceso_salida', $2, $3, $4)
+        `,
+        [lot.id, quantity, `Cafe enviado al proceso ${process.code}`, startedBy]
+      );
+    }
+
+    const updateResult = await client.query(
+      `
+      UPDATE coffee_processes
+      SET
+        status = 'en_proceso',
+        process_location = COALESCE($1, process_location),
+        estimated_return_date = $2,
+        notes = COALESCE($3, notes),
+        started_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $4
+      RETURNING *
+      `,
+      [processLocation || null, estimatedReturnDate || null, notes || null, processId]
+    );
+
+    if (process.sale_id) {
+      await client.query(
+        `
+        UPDATE sales
+        SET status = 'en_proceso', updated_at = NOW()
+        WHERE id = $1
+          AND status <> 'anulada'
+        `,
+        [process.sale_id]
+      );
+    }
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const markProcessPendingLaboratory = async ({ processId, notes }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const processResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_processes
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [processId]
+    );
+    const process = processResult.rows[0];
+
+    if (!process) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (process.status !== "en_proceso") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, process };
+    }
+
+    const updateResult = await client.query(
+      `
+      UPDATE coffee_processes
+      SET
+        status = 'pendiente_laboratorio',
+        notes = COALESCE($1, notes),
+        lab_pending_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+      `,
+      [notes || null, processId]
+    );
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -267,7 +416,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       return null;
     }
 
-    if (process.status !== "en_proceso") {
+    if (process.status !== "pendiente_laboratorio") {
       await client.query("ROLLBACK");
       return { invalidStatus: true, process };
     }

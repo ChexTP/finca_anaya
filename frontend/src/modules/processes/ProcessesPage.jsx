@@ -99,7 +99,7 @@ const ProcessesPage = () => {
       return;
     }
 
-    const confirmed = window.confirm("Confirma crear este proceso y descontar esas cantidades del inventario?");
+    const confirmed = window.confirm("Confirma solicitar este proceso para laboratorio?");
 
     if (!confirmed) {
       return;
@@ -122,7 +122,7 @@ const ProcessesPage = () => {
       setForm(initialProcess);
       setSelectedLots({});
       await loadData();
-      setMessage("Proceso creado correctamente. Las cantidades quedaron descontadas.");
+      setMessage("Solicitud de proceso creada correctamente. Laboratorio debe confirmar el inicio.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -153,8 +153,8 @@ const ProcessesPage = () => {
         <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createProcess}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-800">Crear proceso</h2>
-              <p className="text-sm text-slate-500">Seleccione los lotes y cantidades definidos para el proceso.</p>
+              <h2 className="text-sm font-semibold text-slate-800">Solicitar proceso</h2>
+              <p className="text-sm text-slate-500">Seleccione los lotes y cantidades que se enviaran cuando laboratorio confirme el inicio.</p>
             </div>
             <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">
               Total: <span className="font-semibold text-ink">{totalSelectedKg} kg</span>
@@ -248,7 +248,7 @@ const ProcessesPage = () => {
             disabled={saving || selectedInputs.length === 0}
           >
             <Plus size={16} />
-            Crear proceso
+            Solicitar proceso
           </button>
         </form>
       )}

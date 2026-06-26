@@ -660,6 +660,32 @@ Crear proceso:
 }
 ```
 
+Iniciar proceso:
+
+```http
+PUT /api/processes/:id/start
+```
+
+```json
+{
+  "processLocation": "Finca de proceso",
+  "estimatedReturnDate": "2026-07-05",
+  "notes": "Cafe recibido por encargado de proceso"
+}
+```
+
+Marcar proceso fisico terminado y pendiente de laboratorio:
+
+```http
+PUT /api/processes/:id/pending-laboratory
+```
+
+```json
+{
+  "notes": "Proceso terminado, pendiente de examen final"
+}
+```
+
 Finalizar proceso:
 
 ```json
@@ -686,8 +712,13 @@ Finalizar proceso:
 Reglas implementadas:
 
 - Administrador, bodega y laboratorio pueden crear procesos.
-- Crear proceso descuenta inmediatamente la cantidad seleccionada de los lotes origen.
+- Crear proceso genera una solicitud y no descuenta inventario todavia.
+- Laboratorio confirma el inicio del proceso y registra la fecha estimada de regreso a bodega.
+- Al confirmar el inicio del proceso, el sistema descuenta las cantidades seleccionadas de los lotes origen.
+- Cuando el proceso fisico termina, laboratorio lo marca como `pendiente_laboratorio`.
+- Solo despues del examen final de laboratorio se crea el lote `PROC`.
 - El proceso puede asociarse a una preventa usando `quoteId`.
+- El proceso tambien puede asociarse a una venta usando `saleId`.
 - Si se envia `quoteId`, debe existir y ser una cotizacion de tipo `preventa`.
 - No se puede asociar un proceso a una preventa anulada.
 - El listado y detalle de procesos muestran el codigo de preventa y cliente asociado cuando aplica.
@@ -696,12 +727,13 @@ Reglas implementadas:
 - No permite tomar mas kg que la cantidad disponible del lote.
 - Si un lote origen queda en cero al enviarse a proceso, pasa a `en_proceso`.
 - Si solo se toma una parte del lote, el remanente queda `disponible`.
+- Finalizar proceso solo se permite si el proceso esta `pendiente_laboratorio`.
 - Finalizar proceso crea un nuevo lote `PROC-AAAA-0001`.
 - El lote `PROC` queda directamente `disponible`.
 - Para finalizar se exige perfil comercial, humedad final, catacion completa y score.
 - La cantidad final del proceso no puede ser mayor que la cantidad total de entrada.
 - Al finalizar, los lotes origen que quedaron en cero pasan a `agotado`.
-- Todo queda registrado en movimientos de inventario como `proceso_salida` y `proceso_entrada`.
+- Todo queda registrado en movimientos de inventario como `proceso_salida` al iniciar y `proceso_entrada` al finalizar laboratorio.
 
 ### Cotizaciones Y Preventas
 

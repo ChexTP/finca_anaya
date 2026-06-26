@@ -260,8 +260,9 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
   code VARCHAR(30) UNIQUE NOT NULL,
   quote_id INTEGER,
   sale_id INTEGER,
-  status VARCHAR(30) NOT NULL DEFAULT 'en_proceso',
+  status VARCHAR(30) NOT NULL DEFAULT 'pendiente',
   process_location TEXT,
+  estimated_return_date DATE,
   notes TEXT,
   total_input_kg NUMERIC(12, 3) NOT NULL DEFAULT 0,
   output_lot_id INTEGER REFERENCES coffee_lots(id),
@@ -269,10 +270,12 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
   created_by INTEGER REFERENCES users(id),
   finalized_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMP,
+  lab_pending_at TIMESTAMP,
   finalized_at TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT coffee_processes_status_check CHECK (
-    status IN ('en_proceso', 'finalizado')
+    status IN ('pendiente', 'en_proceso', 'pendiente_laboratorio', 'finalizado')
   ),
   CONSTRAINT coffee_processes_weight_check CHECK (
     total_input_kg >= 0 AND (output_weight_kg IS NULL OR output_weight_kg >= 0)
@@ -281,6 +284,19 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
 
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS quote_id INTEGER;
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS sale_id INTEGER;
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS estimated_return_date DATE;
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS lab_pending_at TIMESTAMP;
+ALTER TABLE coffee_processes ALTER COLUMN status SET DEFAULT 'pendiente';
+
+DO $$
+BEGIN
+  ALTER TABLE coffee_processes DROP CONSTRAINT IF EXISTS coffee_processes_status_check;
+  ALTER TABLE coffee_processes
+  ADD CONSTRAINT coffee_processes_status_check CHECK (
+    status IN ('pendiente', 'en_proceso', 'pendiente_laboratorio', 'finalizado')
+  );
+END $$;
 
 CREATE TABLE IF NOT EXISTS coffee_process_inputs (
   id SERIAL PRIMARY KEY,

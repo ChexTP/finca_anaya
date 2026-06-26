@@ -292,10 +292,10 @@ const getActiveProcesses = async (role) => {
 
   const result = await pool.query(
     `
-    SELECT id, code, process_location, total_input_kg, created_at
+    SELECT id, code, status, process_location, estimated_return_date, total_input_kg, created_at
     FROM coffee_processes
-    WHERE status = 'en_proceso'
-    ORDER BY created_at ASC
+    WHERE status IN ('pendiente', 'en_proceso', 'pendiente_laboratorio')
+    ORDER BY estimated_return_date ASC NULLS LAST, created_at ASC
     LIMIT 10
     `
   );
