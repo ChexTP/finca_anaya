@@ -34,17 +34,36 @@ const buildDocumentHtml = (document) => {
   const payments = document.payments?.length
     ? `
       <h3>Pagos</h3>
-      ${document.payments
-        .map(
-          (payment) => `
-            <p>${formatDate(payment.paidAt)} - ${formatMoney(currency, payment.amount)} - ${
-              payment.paymentMethod || "-"
-            } - ${payment.paymentReference || "-"}</p>
-          `
-        )
-        .join("")}
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Metodo</th>
+            <th>Referencia</th>
+            <th>Valor</th>
+            <th>Notas</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${document.payments
+            .map(
+              (payment) => `
+                <tr>
+                  <td>${formatDate(payment.paidAt)}</td>
+                  <td>${payment.paymentMethod || "-"}</td>
+                  <td>${payment.paymentReference || "-"}</td>
+                  <td>${formatMoney(currency, payment.amount)}</td>
+                  <td>${payment.notes || "-"}</td>
+                </tr>
+              `
+            )
+            .join("")}
+        </tbody>
+      </table>
     `
-    : "";
+    : document.totals?.amountPaid !== undefined
+      ? "<h3>Pagos</h3><p>No hay abonos registrados para esta venta.</p>"
+      : "";
 
   return `
     <!doctype html>
@@ -316,6 +335,12 @@ const DocumentsPage = () => {
                 <p className="text-slate-500">Subtotal: {formatMoney(selectedDocument.totals.currency, selectedDocument.totals.subtotal)}</p>
                 <p className="text-slate-500">Envio: {formatMoney(selectedDocument.totals.currency, selectedDocument.totals.shippingCost)}</p>
                 <p className="font-semibold text-ink">Total: {formatMoney(selectedDocument.totals.currency, selectedDocument.totals.total)}</p>
+                {selectedDocument.totals.amountPaid !== undefined && (
+                  <>
+                    <p className="text-slate-500">Pagado: {formatMoney(selectedDocument.totals.currency, selectedDocument.totals.amountPaid)}</p>
+                    <p className="font-semibold text-ink">Saldo: {formatMoney(selectedDocument.totals.currency, selectedDocument.totals.balanceDue)}</p>
+                  </>
+                )}
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
@@ -326,6 +351,29 @@ const DocumentsPage = () => {
                   </div>
                 ))}
               </div>
+              {selectedDocument.payments !== undefined && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Pagos registrados</p>
+                  {selectedDocument.payments.length ? (
+                    selectedDocument.payments.map((payment, index) => (
+                      <div key={`${payment.paymentReference}-${index}`} className="rounded border border-slate-200 p-3 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-ink">{formatDate(payment.paidAt)}</p>
+                            <p className="text-slate-500">{payment.paymentMethod || "-"} - {payment.paymentReference || "-"}</p>
+                            {payment.notes && <p className="text-slate-500">{payment.notes}</p>}
+                          </div>
+                          <p className="font-semibold text-ink">
+                            {formatMoney(selectedDocument.totals.currency, payment.amount)}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-500">Sin pagos registrados.</p>
+                  )}
+                </div>
+              )}
               <button
                 className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
                 onClick={printDocument}
