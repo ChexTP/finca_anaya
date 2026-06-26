@@ -20,7 +20,8 @@ export const apiRequest = async (path, options = {}) => {
   const data = contentType.includes("application/json") ? await response.json() : await response.text();
 
   if (!response.ok) {
-    throw new Error(data?.message || "Error de comunicacion con el servidor");
+    const details = data?.error ? `: ${data.error}` : "";
+    throw new Error(`${data?.message || "Error de comunicacion con el servidor"}${details}`);
   }
 
   return data;

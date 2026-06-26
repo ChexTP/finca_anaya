@@ -5,3 +5,6 @@ backend/*.log
 docs/render_tmp/
 docs/rendered_guide/
 ~$*.docx
+video-review/
+video_tools/
+video_cv/

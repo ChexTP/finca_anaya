@@ -949,11 +949,27 @@ export const registerSalePayment = async ({
       return { invalidStatus: true, sale };
     }
 
-    const currentBalance = Number(sale.balance_due);
+    const paidResult = await client.query(
+      `
+      SELECT COALESCE(SUM(amount), 0) AS amount_paid
+      FROM sale_payments
+      WHERE sale_id = $1
+      `,
+      [saleId]
+    );
+    const currentAmountPaid = Number(paidResult.rows[0].amount_paid);
+    const currentBalance = Number((Number(sale.total) - currentAmountPaid).toFixed(2));
 
     if (amount > currentBalance) {
       await client.query("ROLLBACK");
-      return { amountTooHigh: true, sale };
+      return {
+        amountTooHigh: true,
+        sale: {
+          ...sale,
+          amount_paid: currentAmountPaid,
+          balance_due: currentBalance,
+        },
+      };
     }
 
     await client.query(
@@ -972,8 +988,8 @@ export const registerSalePayment = async ({
       [saleId, amount, paymentMethodId, paymentReference, paidAt, notes || null, registeredBy]
     );
 
-    const newAmountPaid = Number((Number(sale.amount_paid) + amount).toFixed(2));
-    const newBalance = Number((Number(sale.total) - newAmountPaid).toFixed(2));
+    const newAmountPaid = Number((currentAmountPaid + amount).toFixed(2));
+    const newBalance = Number(Math.max(Number(sale.total) - newAmountPaid, 0).toFixed(2));
     const newPaymentStatus = newBalance === 0 ? "pagada" : "pago_parcial";
 
     const updateResult = await client.query(
