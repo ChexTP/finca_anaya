@@ -19,6 +19,7 @@ import SalesPage from "./modules/sales/SalesPage";
 import SamplesPage from "./modules/samples/SamplesPage";
 import UsersPage from "./modules/users/UsersPage";
 import WarehousePage from "./modules/warehouse/WarehousePage";
+import WarehousePendingPage from "./modules/warehouse/WarehousePendingPage";
 
 const RoleRedirect = () => {
   const { user } = useAuth();
@@ -67,6 +68,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin", "warehouse"]}>
               <WarehousePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bodega/pendientes"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <WarehousePendingPage />
             </ProtectedRoute>
           }
         />

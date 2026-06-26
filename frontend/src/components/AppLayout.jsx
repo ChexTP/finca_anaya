@@ -24,6 +24,7 @@ import { roleLabels } from "../utils/roles";
 const navigation = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting", "warehouse", "laboratory", "seller"] },
   { label: "Bodega", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
+  { label: "Pendientes", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse", "laboratory"] },
@@ -90,6 +91,7 @@ const AppLayout = () => {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  end={item.path === "/bodega"}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded px-3 py-2 text-sm font-medium ${

@@ -915,7 +915,7 @@ Reglas de bodega, alistamiento y despacho:
 - Solo se puede despachar una venta en estado `alistada`.
 - Bodega, contabilidad y administrador pueden cambiar estos estados.
 - Bodega puede consultar el detalle de la venta para saber que lotes y cantidades debe sacar.
-- La pantalla de bodega muestra las ordenes pendientes de alistamiento o despacho, permite ver el detalle, imprimir la orden y cambiar el estado operativo.
+- La pantalla `Pendientes` de bodega muestra las ordenes activas por prioridad y fecha de entrega, permite ver el detalle, imprimir la orden, asignar lotes y cambiar el estado operativo.
 - Si la venta descuenta un lote `PROC` generado por proceso, el detalle muestra la mezcla origen con lotes, kg y porcentajes para que bodega tenga la orden completa.
 - Desde la pantalla de ventas se puede imprimir o guardar como PDF una orden operativa con pedido, lotes y porcentajes de mezcla para entregar a la persona que prepara la mezcla.
 - Laboratorio puede crear una orden final de mezcla por venta y producto vendido, seleccionando lotes por categoria comercial y asignando porcentajes que deben sumar 100% por producto.

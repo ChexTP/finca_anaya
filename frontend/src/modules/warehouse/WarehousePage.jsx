@@ -29,7 +29,7 @@ const initialLot = {
   initialComment: "",
 };
 
-const activeWarehouseStatuses = [
+export const activeWarehouseStatuses = [
   "pendiente_alistamiento",
   "pendiente_bodega",
   "lote_asignado",
@@ -40,16 +40,16 @@ const activeWarehouseStatuses = [
   "alistada",
 ];
 
-const formatDate = (value) => {
+export const formatDate = (value) => {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("es-CO");
 };
 
-const formatInputLabel = (input) => {
+export const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
-const buildWarehouseOrderHtml = (sale) => {
+export const buildWarehouseOrderHtml = (sale) => {
   const productRows = sale.items
     ?.map(
       (item) => `
@@ -714,254 +714,6 @@ const WarehousePage = () => {
             Registrar cafe
           </button>
         </form>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
-        <div className="rounded border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-800">Ordenes pendientes de bodega</h2>
-          </div>
-          {pendingSales.length === 0 ? (
-            <div className="p-4">
-              <EmptyState title="Sin ordenes pendientes" message="Las ventas pendientes de alistamiento o despacho apareceran aqui." />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-100 text-slate-600">
-                  <tr>
-                    <th className="px-3 py-2">Codigo</th>
-                    <th className="px-3 py-2">Cliente</th>
-                    <th className="px-3 py-2">Entrega</th>
-                    <th className="px-3 py-2">Prioridad</th>
-                    <th className="px-3 py-2">Estado</th>
-                    <th className="px-3 py-2">Accion</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {pendingSales.map((sale) => (
-                    <tr key={sale.id}>
-                      <td className="px-3 py-2 font-medium">{sale.code}</td>
-                      <td className="px-3 py-2">{sale.client_name}</td>
-                      <td className="px-3 py-2">{formatDate(sale.estimated_delivery_date)}</td>
-                      <td className="px-3 py-2">
-                        <StatusBadge tone={sale.warehouse_priority === "alta" ? "danger" : sale.warehouse_priority === "media" ? "warning" : "neutral"}>
-                          {sale.warehouse_priority || "media"}
-                        </StatusBadge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <StatusBadge tone={sale.status === "alistada" ? "success" : "warning"}>{sale.status}</StatusBadge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                          type="button"
-                          onClick={() => loadSaleDetail(sale.id)}
-                        >
-                          <Eye size={14} />
-                          Ver orden
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <aside className="rounded border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-slate-800">Orden seleccionada</h2>
-          {loadingDetail ? (
-            <p className="mt-3 text-sm text-slate-500">Cargando orden...</p>
-          ) : !selectedSale ? (
-            <div className="mt-3">
-              <EmptyState title="Seleccione una orden" message="Aqui vera productos, mezcla y acciones de bodega." />
-            </div>
-          ) : (
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="font-semibold text-ink">{selectedSale.code}</p>
-                <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
-                <p className="text-sm text-slate-500">{selectedSale.client_address || "Sin direccion"}</p>
-                <p className="text-sm text-slate-500">Entrega: {formatDate(selectedSale.estimated_delivery_date)}</p>
-                <div className="mt-2">
-                  <StatusBadge tone={selectedSale.status === "alistada" ? "success" : "warning"}>{selectedSale.status}</StatusBadge>
-                </div>
-              </div>
-
-              <div className="rounded border border-slate-200 p-3">
-                <label className="text-xs font-semibold uppercase text-slate-500">Prioridad de entrega</label>
-                <select
-                  className="mt-2 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  value={selectedSale.warehouse_priority || "media"}
-                  onChange={(event) => updateSalePriority(event.target.value)}
-                  disabled={saving}
-                >
-                  <option value="alta">Alta</option>
-                  <option value="media">Media</option>
-                  <option value="baja">Baja</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
-                {selectedSale.items?.map((item) => (
-                  <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
-                    <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name}</p>
-                    <p className="text-slate-500">{item.quantity_kg} kg</p>
-                  </div>
-                ))}
-              </div>
-
-              {selectedSale.items?.some((item) => item.blend_items?.length > 0) && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase text-slate-500">Mezcla indicada por laboratorio</p>
-                  {selectedSale.items
-                    .filter((item) => item.blend_items?.length > 0)
-                    .map((item) => (
-                      <div key={`warehouse-blend-${item.id}`} className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
-                        <p className="font-semibold text-ink">
-                          {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {item.blend_items.map((blend) => (
-                            <div key={blend.id} className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="font-medium text-ink">{blend.lot_code}</p>
-                                <p className="text-xs text-slate-600">{blend.commercial_classification || formatInputLabel(blend)}</p>
-                              </div>
-                              <p className="text-right text-slate-700">
-                                {blend.percentage}%<br />
-                                <span className="text-xs text-slate-500">{blend.calculated_quantity_kg} kg estimados</span>
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-
-              <div className="space-y-3 rounded border border-slate-200 p-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-500">Asignar lotes de bodega</p>
-                  <p className="text-xs text-slate-500">Estos lotes se reservan operativamente y se descuentan al marcar la venta como alistada.</p>
-                </div>
-                {assignmentRows.map((row, index) => (
-                  <div key={`assignment-${index}`} className="rounded border border-slate-200 p-3">
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <select
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
-                        value={row.saleItemId}
-                        onChange={(event) => updateAssignmentRow(index, "saleItemId", event.target.value)}
-                      >
-                        <option value="">Producto vendido</option>
-                        {selectedSale.items?.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.quantity_kg} kg
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
-                        value={row.lotId}
-                        onChange={(event) => updateAssignmentRow(index, "lotId", event.target.value)}
-                      >
-                        <option value="">Lote disponible</option>
-                        {availableLots.map((lot) => (
-                          <option key={lot.id} value={lot.id}>
-                            {lot.code} - {lot.commercial_classification || lot.coffee_profile_name || lot.coffee_type_name || "Cafe"} - {lot.available_weight_kg} kg
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Cantidad kg"
-                        type="number"
-                        min="0.001"
-                        step="0.001"
-                        value={row.quantityKg}
-                        onChange={(event) => updateAssignmentRow(index, "quantityKg", event.target.value)}
-                      />
-                      <input
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Observacion opcional"
-                        value={row.notes}
-                        onChange={(event) => updateAssignmentRow(index, "notes", event.target.value)}
-                      />
-                    </div>
-                    <button
-                      className="mt-2 rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                      type="button"
-                      onClick={() => removeAssignmentRow(index)}
-                      disabled={assignmentRows.length === 1}
-                    >
-                      Quitar linea
-                    </button>
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    type="button"
-                    onClick={addAssignmentRow}
-                  >
-                    Agregar lote
-                  </button>
-                  <button
-                    className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                    type="button"
-                    onClick={saveAssignments}
-                    disabled={saving || ["alistada", "despachada"].includes(selectedSale.status)}
-                  >
-                    Guardar asignacion
-                  </button>
-                </div>
-              </div>
-
-              <button
-                className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                type="button"
-                onClick={printWarehouseOrder}
-              >
-                <Printer size={16} />
-                Imprimir orden / guardar PDF
-              </button>
-
-              <textarea
-                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Observaciones de bodega"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-              />
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={
-                    saving ||
-                    !["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status)
-                  }
-                  type="button"
-                  onClick={() => updateSaleStatus("prepare")}
-                >
-                  <PackageCheck size={16} />
-                  Alistada
-                </button>
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={saving || selectedSale.status !== "alistada"}
-                  type="button"
-                  onClick={() => updateSaleStatus("dispatch")}
-                >
-                  <Truck size={16} />
-                  Despachada
-                </button>
-              </div>
-            </div>
-          )}
-        </aside>
       </div>
 
       <div className="rounded border border-slate-200 bg-white">
