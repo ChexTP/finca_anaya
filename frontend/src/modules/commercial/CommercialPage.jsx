@@ -45,7 +45,6 @@ const CommercialPage = () => {
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
-  const [lots, setLots] = useState([]);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [quoteForm, setQuoteForm] = useState(initialQuote);
   const [itemForm, setItemForm] = useState(initialItem);
@@ -65,16 +64,14 @@ const CommercialPage = () => {
   const canConvertToSale = ["admin", "accounting"].includes(user?.role);
 
   const loadData = async () => {
-    const [quoteData, clientData, catalogData, lotData] = await Promise.all([
+    const [quoteData, clientData, catalogData] = await Promise.all([
       apiRequest("/quotes"),
       apiRequest("/clients"),
       apiRequest("/catalogs"),
-      apiRequest("/inventory/lots"),
     ]);
     setQuotes(quoteData);
     setClients(clientData);
     setCatalogs(catalogData);
-    setLots(lotData);
   };
 
   useEffect(() => {
@@ -98,15 +95,6 @@ const CommercialPage = () => {
       ...itemForm,
       coffeeProfileId: profileId,
       unitPrice: basePrice && Number(basePrice) > 0 ? String(basePrice) : itemForm.unitPrice,
-    });
-  };
-
-  const selectLot = (lotId) => {
-    const lot = lots.find((currentLot) => String(currentLot.id) === String(lotId));
-    setItemForm({
-      ...itemForm,
-      lotId,
-      description: lot ? `${lot.code} - ${lot.coffee_profile_name || lot.coffee_type_name || "Cafe"}` : "",
     });
   };
 
@@ -333,7 +321,6 @@ const CommercialPage = () => {
                 >
                   <option value="profile">Perfil</option>
                   <option value="type">Tipo de cafe</option>
-                  <option value="lot">Lote especifico</option>
                   <option value="description">Descripcion libre</option>
                 </select>
 
@@ -362,21 +349,6 @@ const CommercialPage = () => {
                     {catalogs?.coffeeTypes?.map((type) => (
                       <option key={type.id} value={type.id}>
                         {type.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {itemForm.itemType === "lot" && (
-                  <select
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={itemForm.lotId}
-                    onChange={(event) => selectLot(event.target.value)}
-                  >
-                    <option value="">Lote disponible</option>
-                    {lots.map((lot) => (
-                      <option key={lot.id} value={lot.id}>
-                        {lot.code} - {lot.available_weight_kg} kg
                       </option>
                     ))}
                   </select>

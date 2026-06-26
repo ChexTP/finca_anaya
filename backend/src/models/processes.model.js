@@ -38,6 +38,9 @@ export const listProcesses = async ({ status }) => {
       quotes.code AS quote_code,
       quotes.estimated_delivery_date AS quote_estimated_delivery_date,
       clients.name AS quote_client_name,
+      sales.code AS sale_code,
+      sales.estimated_delivery_date AS sale_estimated_delivery_date,
+      sale_clients.name AS sale_client_name,
       output_lot.code AS output_lot_code,
       users.name AS created_by_name,
       COALESCE(
@@ -70,11 +73,13 @@ export const listProcesses = async ({ status }) => {
     FROM coffee_processes
     LEFT JOIN quotes ON quotes.id = coffee_processes.quote_id
     LEFT JOIN clients ON clients.id = quotes.client_id
+    LEFT JOIN sales ON sales.id = coffee_processes.sale_id
+    LEFT JOIN clients sale_clients ON sale_clients.id = sales.client_id
     LEFT JOIN coffee_lots output_lot ON output_lot.id = coffee_processes.output_lot_id
     LEFT JOIN users ON users.id = coffee_processes.created_by
     ${where}
     ORDER BY
-      COALESCE(quotes.estimated_delivery_date, DATE '9999-12-31') ASC,
+      COALESCE(sales.estimated_delivery_date, quotes.estimated_delivery_date, DATE '9999-12-31') ASC,
       coffee_processes.created_at DESC
     `,
     params
@@ -91,11 +96,16 @@ export const findProcessById = async (id) => {
       quotes.code AS quote_code,
       quotes.estimated_delivery_date AS quote_estimated_delivery_date,
       clients.name AS quote_client_name,
+      sales.code AS sale_code,
+      sales.estimated_delivery_date AS sale_estimated_delivery_date,
+      sale_clients.name AS sale_client_name,
       output_lot.code AS output_lot_code,
       users.name AS created_by_name
     FROM coffee_processes
     LEFT JOIN quotes ON quotes.id = coffee_processes.quote_id
     LEFT JOIN clients ON clients.id = quotes.client_id
+    LEFT JOIN sales ON sales.id = coffee_processes.sale_id
+    LEFT JOIN clients sale_clients ON sale_clients.id = sales.client_id
     LEFT JOIN coffee_lots output_lot ON output_lot.id = coffee_processes.output_lot_id
     LEFT JOIN users ON users.id = coffee_processes.created_by
     WHERE coffee_processes.id = $1
@@ -140,7 +150,7 @@ export const findProcessById = async (id) => {
   };
 };
 
-export const createProcess = async ({ code, quoteId, processLocation, notes, inputs, createdBy }) => {
+export const createProcess = async ({ code, quoteId, saleId, processLocation, notes, inputs, createdBy }) => {
   const client = await pool.connect();
 
   try {
@@ -150,11 +160,11 @@ export const createProcess = async ({ code, quoteId, processLocation, notes, inp
 
     const processResult = await client.query(
       `
-      INSERT INTO coffee_processes (code, quote_id, process_location, notes, total_input_kg, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO coffee_processes (code, quote_id, sale_id, process_location, notes, total_input_kg, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
       `,
-      [code, quoteId || null, processLocation || null, notes || null, totalInputKg, createdBy]
+      [code, quoteId || null, saleId || null, processLocation || null, notes || null, totalInputKg, createdBy]
     );
     const process = processResult.rows[0];
 
@@ -210,6 +220,18 @@ export const createProcess = async ({ code, quoteId, processLocation, notes, inp
         VALUES ($1, 'proceso_salida', $2, $3, $4)
         `,
         [input.lotId, input.quantityKg, `Cafe enviado al proceso ${process.code}`, createdBy]
+      );
+    }
+
+    if (saleId) {
+      await client.query(
+        `
+        UPDATE sales
+        SET status = 'en_proceso', updated_at = NOW()
+        WHERE id = $1
+          AND status <> 'anulada'
+        `,
+        [saleId]
       );
     }
 
@@ -330,6 +352,18 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       `,
       [newLot.id, outputLot.weightKg, finalizedBy, processId]
     );
+
+    if (process.sale_id) {
+      await client.query(
+        `
+        UPDATE sales
+        SET status = 'listo_para_ensamble', updated_at = NOW()
+        WHERE id = $1
+          AND status <> 'anulada'
+        `,
+        [process.sale_id]
+      );
+    }
 
     await client.query(
       `

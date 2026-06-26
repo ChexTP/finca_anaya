@@ -9,6 +9,8 @@ import {
   postSalePayment,
   putSaleCancelled,
   putSaleBlendOrder,
+  putSalePriority,
+  putSaleLotAssignments,
 } from "../controllers/sales.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
@@ -51,6 +53,18 @@ router.put(
   requireAuth,
   requireRoles("admin", "laboratory"),
   putSaleBlendOrder
+);
+router.put(
+  "/:id/priority",
+  requireAuth,
+  requireRoles("admin", "warehouse"),
+  putSalePriority
+);
+router.put(
+  "/:id/lot-assignments",
+  requireAuth,
+  requireRoles("admin", "warehouse"),
+  putSaleLotAssignments
 );
 router.post(
   "/:id/payments",

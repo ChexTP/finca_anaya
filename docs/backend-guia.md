@@ -771,7 +771,7 @@ Reglas implementadas:
 - El vendedor solo ve sus propias cotizaciones.
 - Administrador y contabilidad pueden ver todas.
 - Estados iniciales: `borrador`, `enviada`, `aceptada`, `anulada`.
-- Cambiar a `aceptada` todavia no descuenta inventario; el descuento se implementara al convertir a venta.
+- Cambiar a `aceptada` todavia no descuenta inventario; el descuento lo hace bodega al marcar la venta como `alistada`.
 - Una cotizacion convertida en venta ya no puede anularse desde cotizaciones.
 - Una preventa con procesos asociados no puede anularse desde cotizaciones.
 - El vendedor puede anular sus propias cotizaciones mientras no esten convertidas en venta.
@@ -839,15 +839,16 @@ Reglas implementadas:
 
 - Solo se convierten cotizaciones en estado `aceptada`.
 - Una cotizacion solo puede convertirse una vez.
-- Al convertir a venta se descuenta inventario.
-- Si el item trae `lotId`, se descuenta de ese lote.
-- Si el item trae perfil o tipo, se descuenta por FIFO desde los lotes disponibles compatibles.
-- El sistema guarda exactamente que lotes y cantidades se descontaron.
-- Si no hay inventario suficiente, no se crea la venta.
+- Al convertir a venta no se descuenta inventario automaticamente.
+- La venta queda para gestion de bodega con estado `pendiente_bodega` y prioridad inicial `media`.
+- La fecha estimada de entrega de la cotizacion se copia a la venta.
+- Bodega define la prioridad real de entrega: `alta`, `media` o `baja`.
+- Bodega decide si asigna lote disponible o si crea un proceso asociado a esa venta.
+- Los lotes asignados por bodega quedan guardados en la venta, pero solo se descuentan cuando bodega marca la venta como `alistada`.
 - Estados de pago: `pagada`, `pago_parcial`, `pendiente_pago`.
 - Si la venta queda parcial o pendiente, la fecha estimada de pago es obligatoria.
 - Si se registra pago inicial, metodo de pago y referencia son obligatorios.
-- La venta queda en estado operativo `pendiente_alistamiento`.
+- La venta queda en estado operativo `pendiente_bodega`.
 - Bodega, contabilidad y administrador pueden consultar ventas.
 - El vendedor puede consultar sus propias ventas para seguimiento comercial.
 - El vendedor no ve cartera completa, pagos ni lotes descontados en el detalle de venta.
@@ -881,12 +882,10 @@ Crear venta directa sin cotizacion:
 Reglas de venta directa:
 
 - Administrador y contabilidad pueden crear ventas directas.
-- La venta directa descuenta inventario inmediatamente.
+- La venta directa tampoco descuenta inventario inmediatamente; queda para asignacion y alistamiento en bodega.
 - Los items deben indicar lote, tipo de cafe o perfil comercial.
-- Si el item trae perfil o tipo, se descuenta por FIFO desde lotes disponibles compatibles.
-- Se guarda exactamente que lotes y cantidades se descontaron.
+- Bodega define despues que lotes se usaran realmente.
 - Se puede registrar pago total, parcial o pendiente igual que en ventas desde cotizacion.
-- Si no hay inventario suficiente, no se crea la venta.
 
 Alistar venta:
 
@@ -904,9 +903,15 @@ Despachar venta:
 }
 ```
 
-Reglas de alistamiento y despacho:
+Reglas de bodega, alistamiento y despacho:
 
-- Solo se puede alistar una venta en estado `pendiente_alistamiento`.
+- Bodega ve las ventas activas ordenadas por prioridad y fecha estimada de entrega.
+- Bodega puede asignar lotes especificos a cada producto vendido.
+- Bodega puede crear procesos asociados a una venta cuando el cafe se debe preparar.
+- Cuando un proceso asociado a una venta finaliza, la venta pasa a `listo_para_ensamble`.
+- Cuando laboratorio define la mezcla final, la venta pasa a `ensamble_definido`.
+- Solo se puede alistar una venta que este pendiente de bodega, con lote asignado o con ensamble definido.
+- Al marcar una venta como `alistada`, el sistema descuenta las cantidades asignadas de los lotes.
 - Solo se puede despachar una venta en estado `alistada`.
 - Bodega, contabilidad y administrador pueden cambiar estos estados.
 - Bodega puede consultar el detalle de la venta para saber que lotes y cantidades debe sacar.
@@ -915,7 +920,7 @@ Reglas de alistamiento y despacho:
 - Desde la pantalla de ventas se puede imprimir o guardar como PDF una orden operativa con pedido, lotes y porcentajes de mezcla para entregar a la persona que prepara la mezcla.
 - Laboratorio puede crear una orden final de mezcla por venta y producto vendido, seleccionando lotes por categoria comercial y asignando porcentajes que deben sumar 100% por producto.
 - La orden impresa para bodega usa primero esa mezcla final definida por laboratorio; si aun no existe, muestra la mezcla historica del proceso como referencia.
-- Al despachar no se vuelve a descontar inventario, porque el descuento ya ocurrio al crear la venta.
+- Al despachar no se vuelve a descontar inventario, porque el descuento ya ocurrio al marcar la venta como `alistada`.
 
 Anular venta:
 
@@ -928,7 +933,7 @@ Anular venta:
 Reglas de anulacion:
 
 - Administrador y contabilidad pueden anular ventas.
-- Solo se pueden anular ventas en estado `pendiente_alistamiento` o `alistada`.
+- Solo se pueden anular ventas antes de despacho, incluyendo ventas pendientes de bodega, en proceso, con ensamble definido o alistadas.
 - Una venta despachada no se puede anular.
 - Al anular una venta, el inventario vuelve automaticamente a los mismos lotes descontados.
 - Se registra un movimiento de inventario `venta_anulada_entrada`.

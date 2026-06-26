@@ -7,6 +7,7 @@ import { apiRequest } from "../../utils/api";
 
 const initialProcess = {
   quoteId: "",
+  saleId: "",
   processLocation: "",
   notes: "",
 };
@@ -28,6 +29,7 @@ const ProcessesPage = () => {
   const [processes, setProcesses] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [quotes, setQuotes] = useState([]);
+  const [sales, setSales] = useState([]);
   const [form, setForm] = useState(initialProcess);
   const [selectedLots, setSelectedLots] = useState({});
   const [message, setMessage] = useState("");
@@ -55,12 +57,14 @@ const ProcessesPage = () => {
     if (canCreateProcess) {
       requests.push(apiRequest("/inventory/lots"));
       requests.push(apiRequest("/quotes?status=aceptada"));
+      requests.push(apiRequest("/sales"));
     }
 
-    const [processData, lotData = [], quoteData = []] = await Promise.all(requests);
+    const [processData, lotData = [], quoteData = [], saleData = []] = await Promise.all(requests);
     setProcesses(processData);
     setAvailableLots(lotData);
     setQuotes(quoteData.filter((quote) => quote.quote_type === "preventa"));
+    setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
   };
 
   useEffect(() => {
@@ -111,6 +115,7 @@ const ProcessesPage = () => {
         body: JSON.stringify({
           ...form,
           quoteId: form.quoteId ? Number(form.quoteId) : null,
+          saleId: form.saleId ? Number(form.saleId) : null,
           inputs: selectedInputs,
         }),
       });
@@ -156,16 +161,28 @@ const ProcessesPage = () => {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={form.quoteId}
-              onChange={(event) => setForm({ ...form, quoteId: event.target.value })}
+              onChange={(event) => setForm({ ...form, quoteId: event.target.value, saleId: "" })}
             >
               <option value="">Sin preventa asociada</option>
               {quotes.map((quote) => (
                 <option key={quote.id} value={quote.id}>
                   {quote.code} - {quote.client_name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+              value={form.saleId}
+              onChange={(event) => setForm({ ...form, saleId: event.target.value, quoteId: "" })}
+            >
+              <option value="">Sin venta asociada</option>
+              {sales.map((sale) => (
+                <option key={sale.id} value={sale.id}>
+                  {sale.code} - {sale.client_name}
                 </option>
               ))}
             </select>
@@ -246,7 +263,11 @@ const ProcessesPage = () => {
                 <div>
                   <p className="font-semibold text-ink">{process.code}</p>
                   <p className="text-sm text-slate-500">
-                    {process.quote_code ? `${process.quote_code} - ${process.quote_client_name}` : "Sin preventa asociada"}
+                    {process.sale_code
+                      ? `${process.sale_code} - ${process.sale_client_name}`
+                      : process.quote_code
+                        ? `${process.quote_code} - ${process.quote_client_name}`
+                        : "Sin venta o preventa asociada"}
                   </p>
                 </div>
                 <StatusBadge tone={process.status === "finalizado" ? "success" : "warning"}>{process.status}</StatusBadge>
@@ -259,6 +280,11 @@ const ProcessesPage = () => {
               {process.quote_code && (
                 <p className="mt-2 text-sm text-slate-500">
                   Entrega estimada preventa: {formatDate(process.quote_estimated_delivery_date)}
+                </p>
+              )}
+              {process.sale_code && (
+                <p className="mt-2 text-sm text-slate-500">
+                  Entrega estimada venta: {formatDate(process.sale_estimated_delivery_date)}
                 </p>
               )}
               {process.notes && <p className="mt-2 text-sm text-slate-500">{process.notes}</p>}

@@ -10,6 +10,7 @@ import {
   getNextProcessedLotCode,
 } from "../models/lots.model.js";
 import { findQuoteById } from "../models/quotes.model.js";
+import { findSaleById } from "../models/sales.model.js";
 
 const toNumber = (value) => {
   if (value === undefined || value === null || value === "") {
@@ -63,7 +64,7 @@ export const getProcess = async (req, res) => {
 
 export const postProcess = async (req, res) => {
   try {
-    const { quoteId, processLocation, notes, inputs } = req.body;
+    const { quoteId, saleId, processLocation, notes, inputs } = req.body;
 
     if (!Array.isArray(inputs) || inputs.length === 0) {
       return res.status(400).json({ message: "Debe seleccionar al menos un lote de entrada" });
@@ -100,10 +101,23 @@ export const postProcess = async (req, res) => {
       }
     }
 
+    if (saleId) {
+      const sale = await findSaleById(saleId);
+
+      if (!sale) {
+        return res.status(404).json({ message: "Venta no encontrada" });
+      }
+
+      if (["despachada", "anulada"].includes(sale.status)) {
+        return res.status(409).json({ message: "No se puede crear proceso para una venta despachada o anulada" });
+      }
+    }
+
     const code = await getNextProcessCode();
     const process = await createProcess({
       code,
       quoteId,
+      saleId,
       processLocation,
       notes,
       inputs: cleanInputs,

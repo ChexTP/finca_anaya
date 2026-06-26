@@ -127,7 +127,7 @@ const buildAlerts = ({
     }));
 
     addListAlerts(alerts, "venta_por_alistar", "alta", salesToPrepare, (sale) => ({
-      message: `Venta ${sale.code} pendiente de alistamiento`,
+      message: `Venta ${sale.code} pendiente en bodega (${sale.status})`,
       data: sale,
     }));
 
@@ -319,7 +319,7 @@ const getSalesPendingBlend = async (role) => {
     FROM sales
     INNER JOIN clients ON clients.id = sales.client_id
     INNER JOIN sale_items ON sale_items.sale_id = sales.id
-    WHERE sales.status IN ('pendiente_alistamiento', 'alistada')
+    WHERE sales.status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'listo_para_ensamble', 'ensamble_definido')
       AND NOT EXISTS (
         SELECT 1
         FROM sale_blend_items
@@ -378,10 +378,18 @@ const getSalesToPrepare = async (role) => {
 
   const result = await pool.query(
     `
-    SELECT id, code, payment_status, balance_due, created_at
+    SELECT id, code, status, warehouse_priority, payment_status, balance_due, estimated_delivery_date, created_at
     FROM sales
-    WHERE status = 'pendiente_alistamiento'
-    ORDER BY created_at ASC
+    WHERE status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'proceso_solicitado', 'en_proceso', 'listo_para_ensamble', 'ensamble_definido')
+    ORDER BY
+      estimated_delivery_date ASC NULLS LAST,
+      CASE warehouse_priority
+        WHEN 'alta' THEN 1
+        WHEN 'media' THEN 2
+        WHEN 'baja' THEN 3
+        ELSE 4
+      END ASC,
+      created_at ASC
     LIMIT 10
     `
   );

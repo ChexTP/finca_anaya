@@ -8,6 +8,8 @@ import {
   cancelSale,
   registerSalePayment,
   replaceSaleBlendOrder,
+  updateSaleWarehousePriority,
+  replaceSaleLotAssignments,
 } from "../models/sales.model.js";
 import { findQuoteById } from "../models/quotes.model.js";
 import { findClientById } from "../models/clients.model.js";
@@ -150,6 +152,97 @@ export const putSaleBlendOrder = async (req, res) => {
   }
 };
 
+export const putSalePriority = async (req, res) => {
+  try {
+    const { priority } = req.body;
+
+    if (!["alta", "media", "baja"].includes(priority)) {
+      return res.status(400).json({ message: "La prioridad debe ser alta, media o baja" });
+    }
+
+    const sale = await updateSaleWarehousePriority({
+      saleId: req.params.id,
+      priority,
+    });
+
+    if (!sale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Prioridad actualizada correctamente",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar prioridad",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleLotAssignments = async (req, res) => {
+  try {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "Debe agregar al menos un lote asignado" });
+    }
+
+    const cleanItems = items.map((item) => ({
+      saleItemId: Number(item.saleItemId),
+      lotId: Number(item.lotId),
+      quantityKg: toNumber(item.quantityKg),
+      notes: item.notes || null,
+    }));
+
+    const invalidItem = cleanItems.find(
+      (item) =>
+        !Number.isInteger(item.saleItemId) ||
+        !Number.isInteger(item.lotId) ||
+        !Number.isFinite(item.quantityKg) ||
+        item.quantityKg <= 0
+    );
+
+    if (invalidItem) {
+      return res.status(400).json({
+        message: "Cada asignacion debe tener producto, lote y cantidad mayor a cero",
+      });
+    }
+
+    const sale = await replaceSaleLotAssignments({
+      saleId: req.params.id,
+      items: cleanItems,
+      createdBy: req.user.id,
+    });
+
+    if (!sale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (sale.invalidStatus) {
+      return res.status(409).json({
+        message: "No se puede cambiar la asignacion de una venta alistada, despachada o anulada",
+        data: sale.sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Lotes asignados correctamente",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al asignar lotes",
+      error: error.message,
+    });
+  }
+};
+
 export const postSaleFromQuote = async (req, res) => {
   try {
     const {
@@ -245,7 +338,7 @@ export const postSaleFromQuote = async (req, res) => {
     const fullSale = await findSaleById(sale.id);
 
     res.status(201).json({
-      message: "Venta creada y inventario descontado",
+      message: "Venta creada y enviada a bodega",
       data: fullSale,
     });
   } catch (error) {
@@ -265,6 +358,7 @@ export const postDirectSale = async (req, res) => {
       currency,
       shippingCost = 0,
       amountPaid = 0,
+      estimatedDeliveryDate,
       estimatedPaymentDate,
       externalInvoiceReference,
       paymentMethodId,
@@ -408,6 +502,7 @@ export const postDirectSale = async (req, res) => {
       shippingCost: shipping,
       total,
       amountPaid: paid,
+      estimatedDeliveryDate,
       estimatedPaymentDate,
       externalInvoiceReference,
       paymentMethodId,
@@ -420,7 +515,7 @@ export const postDirectSale = async (req, res) => {
     const fullSale = await findSaleById(sale.id);
 
     res.status(201).json({
-      message: "Venta directa creada e inventario descontado",
+      message: "Venta directa creada y enviada a bodega",
       data: fullSale,
     });
   } catch (error) {
@@ -509,9 +604,9 @@ export const putSalePrepared = async (req, res) => {
       return res.status(404).json({ message: "Venta no encontrada" });
     }
 
-    if (sale.status !== "pendiente_alistamiento") {
+    if (!["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(sale.status)) {
       return res.status(409).json({
-        message: "Solo se pueden alistar ventas pendientes de alistamiento",
+        message: "Solo se pueden alistar ventas pendientes de bodega o con lotes asignados",
         data: sale,
       });
     }
@@ -520,7 +615,15 @@ export const putSalePrepared = async (req, res) => {
       saleId: req.params.id,
       status: "alistada",
       notes: req.body.notes,
+      userId: req.user.id,
     });
+
+    if (updatedSale.missingAssignments) {
+      return res.status(409).json({
+        message: "Antes de alistar se debe asignar al menos un lote a la venta",
+        data: updatedSale.sale,
+      });
+    }
 
     res.json({
       message: "Venta marcada como alistada",
@@ -553,6 +656,7 @@ export const putSaleDispatched = async (req, res) => {
       saleId: req.params.id,
       status: "despachada",
       notes: req.body.notes,
+      userId: req.user.id,
     });
 
     res.json({

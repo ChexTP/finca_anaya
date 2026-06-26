@@ -58,7 +58,15 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
     INNER JOIN users ON users.id = sales.seller_id
     LEFT JOIN quotes ON quotes.id = sales.quote_id
     ${where}
-    ORDER BY sales.created_at DESC
+    ORDER BY
+      CASE sales.warehouse_priority
+        WHEN 'alta' THEN 1
+        WHEN 'media' THEN 2
+        WHEN 'baja' THEN 3
+        ELSE 4
+      END ASC,
+      sales.estimated_delivery_date ASC NULLS LAST,
+      sales.created_at DESC
     `,
     params
   );
@@ -112,6 +120,7 @@ export const findSaleById = async (id) => {
     `
     SELECT
       sale_item_lots.*,
+      sale_item_lots.deducted_at,
       coffee_lots.code AS lot_code,
       coffee_lots.lot_kind,
       coffee_lots.commercial_classification,
@@ -262,6 +271,121 @@ export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
       );
     }
 
+    await client.query(
+      `
+      UPDATE sales
+      SET status = 'ensamble_definido', updated_at = NOW()
+      WHERE id = $1
+        AND status IN ('pendiente_bodega', 'lote_asignado', 'proceso_solicitado', 'en_proceso', 'listo_para_ensamble', 'ensamble_definido')
+      `,
+      [saleId]
+    );
+
+    await client.query("COMMIT");
+    return sale;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const updateSaleWarehousePriority = async ({ saleId, priority }) => {
+  const result = await pool.query(
+    `
+    UPDATE sales
+    SET warehouse_priority = $1, updated_at = NOW()
+    WHERE id = $2
+      AND status <> 'anulada'
+    RETURNING *
+    `,
+    [priority, saleId]
+  );
+
+  return result.rows[0];
+};
+
+export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (["alistada", "despachada", "anulada"].includes(sale.status)) {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, sale };
+    }
+
+    await client.query(
+      `
+      DELETE FROM sale_item_lots
+      WHERE sale_item_id IN (
+        SELECT id
+        FROM sale_items
+        WHERE sale_id = $1
+      )
+      AND deducted_at IS NULL
+      `,
+      [saleId]
+    );
+
+    for (const item of items) {
+      const saleItemResult = await client.query(
+        "SELECT id FROM sale_items WHERE id = $1 AND sale_id = $2 LIMIT 1",
+        [item.saleItemId, saleId]
+      );
+
+      if (!saleItemResult.rows[0]) {
+        throw new Error("El producto no pertenece a esta venta");
+      }
+
+      const lotResult = await client.query(
+        `
+        SELECT id, code, status, available_weight_kg
+        FROM coffee_lots
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [item.lotId]
+      );
+      const lot = lotResult.rows[0];
+
+      if (!lot || !["disponible", "vendido_parcial"].includes(lot.status)) {
+        throw new Error("El lote seleccionado no esta disponible para asignar");
+      }
+
+      if (Number(lot.available_weight_kg) < item.quantityKg) {
+        throw new Error(`El lote ${lot.code || lot.id} no tiene cantidad suficiente`);
+      }
+
+      await client.query(
+        `
+        INSERT INTO sale_item_lots (sale_item_id, lot_id, quantity_kg, notes, created_by)
+        VALUES ($1, $2, $3, $4, $5)
+        `,
+        [item.saleItemId, item.lotId, item.quantityKg, item.notes || null, createdBy]
+      );
+    }
+
+    await client.query(
+      `
+      UPDATE sales
+      SET status = 'lote_asignado', updated_at = NOW()
+      WHERE id = $1
+        AND status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'proceso_solicitado', 'listo_para_ensamble', 'ensamble_definido')
+      `,
+      [saleId]
+    );
+
     await client.query("COMMIT");
     return sale;
   } catch (error) {
@@ -334,12 +458,13 @@ export const convertQuoteToSale = async ({
         total,
         amount_paid,
         balance_due,
+        estimated_delivery_date,
         estimated_payment_date,
         external_invoice_reference,
         notes,
         created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
       `,
       [
@@ -354,6 +479,7 @@ export const convertQuoteToSale = async ({
         quote.total,
         amountPaid,
         balanceDue,
+        quote.estimated_delivery_date,
         estimatedPaymentDate || null,
         externalInvoiceReference || null,
         notes || null,
@@ -427,34 +553,6 @@ export const convertQuoteToSale = async ({
           item.line_total,
         ]
       );
-      const saleItem = saleItemResult.rows[0];
-      let remainingKg = Number(item.quantity_kg);
-
-      const allocations = await allocateLotsForItem(client, item, remainingKg);
-
-      for (const allocation of allocations) {
-        remainingKg = Number((remainingKg - allocation.quantityKg).toFixed(3));
-
-        await client.query(
-          `
-          INSERT INTO sale_item_lots (sale_item_id, lot_id, quantity_kg)
-          VALUES ($1, $2, $3)
-          `,
-          [saleItem.id, allocation.lotId, allocation.quantityKg]
-        );
-
-        await client.query(
-          `
-          INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
-          VALUES ($1, 'venta_salida', $2, $3, $4)
-          `,
-          [allocation.lotId, allocation.quantityKg, `Cafe descontado para venta ${sale.code}`, createdBy]
-        );
-      }
-
-      if (remainingKg > 0) {
-        throw new Error("No hay inventario suficiente para convertir la cotizacion en venta");
-      }
     }
 
     await client.query("COMMIT");
@@ -477,6 +575,7 @@ export const createDirectSale = async ({
   shippingCost,
   total,
   amountPaid,
+  estimatedDeliveryDate,
   estimatedPaymentDate,
   externalInvoiceReference,
   notes,
@@ -506,12 +605,13 @@ export const createDirectSale = async ({
         total,
         amount_paid,
         balance_due,
+        estimated_delivery_date,
         estimated_payment_date,
         external_invoice_reference,
         notes,
         created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
       `,
       [
@@ -525,6 +625,7 @@ export const createDirectSale = async ({
         total,
         amountPaid,
         balanceDue,
+        estimatedDeliveryDate || null,
         estimatedPaymentDate || null,
         externalInvoiceReference || null,
         notes || null,
@@ -586,41 +687,6 @@ export const createDirectSale = async ({
           item.lineTotal,
         ]
       );
-      const saleItem = saleItemResult.rows[0];
-      let remainingKg = Number(item.quantityKg);
-      const allocations = await allocateLotsForItem(
-        client,
-        {
-          lot_id: item.lotId,
-          coffee_type_id: item.coffeeTypeId,
-          coffee_profile_id: item.coffeeProfileId,
-        },
-        remainingKg
-      );
-
-      for (const allocation of allocations) {
-        remainingKg = Number((remainingKg - allocation.quantityKg).toFixed(3));
-
-        await client.query(
-          `
-          INSERT INTO sale_item_lots (sale_item_id, lot_id, quantity_kg)
-          VALUES ($1, $2, $3)
-          `,
-          [saleItem.id, allocation.lotId, allocation.quantityKg]
-        );
-
-        await client.query(
-          `
-          INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
-          VALUES ($1, 'venta_salida', $2, $3, $4)
-          `,
-          [allocation.lotId, allocation.quantityKg, `Cafe descontado para venta directa ${sale.code}`, createdBy]
-        );
-      }
-
-      if (remainingKg > 0) {
-        throw new Error("No hay inventario suficiente para crear la venta directa");
-      }
     }
 
     await client.query("COMMIT");
@@ -633,21 +699,116 @@ export const createDirectSale = async ({
   }
 };
 
-export const updateSaleOperationalStatus = async ({ saleId, status, notes }) => {
-  const result = await pool.query(
-    `
-    UPDATE sales
-    SET
-      status = $1,
-      notes = COALESCE($2, notes),
-      updated_at = NOW()
-    WHERE id = $3
-    RETURNING *
-    `,
-    [status, notes || null, saleId]
-  );
+export const updateSaleOperationalStatus = async ({ saleId, status, notes, userId }) => {
+  const client = await pool.connect();
 
-  return result.rows[0];
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query(
+      `
+      SELECT *
+      FROM sales
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [saleId]
+    );
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (status === "alistada") {
+      const pendingAssignments = await client.query(
+        `
+        SELECT
+          sale_item_lots.*,
+          coffee_lots.code AS lot_code,
+          coffee_lots.available_weight_kg,
+          coffee_lots.status AS lot_status
+        FROM sale_item_lots
+        INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+        INNER JOIN coffee_lots ON coffee_lots.id = sale_item_lots.lot_id
+        WHERE sale_items.sale_id = $1
+          AND sale_item_lots.deducted_at IS NULL
+        ORDER BY sale_item_lots.id ASC
+        FOR UPDATE
+        `,
+        [saleId]
+      );
+
+      if (pendingAssignments.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return { missingAssignments: true, sale };
+      }
+
+      for (const assignment of pendingAssignments.rows) {
+        if (!["disponible", "vendido_parcial"].includes(assignment.lot_status)) {
+          throw new Error(`El lote ${assignment.lot_code || assignment.lot_id} no esta disponible para alistar`);
+        }
+
+        const available = Number(assignment.available_weight_kg);
+        const quantity = Number(assignment.quantity_kg);
+
+        if (available < quantity) {
+          throw new Error(`El lote ${assignment.lot_code || assignment.lot_id} no tiene cantidad suficiente`);
+        }
+
+        const newAvailable = Number((available - quantity).toFixed(3));
+        const newStatus = newAvailable === 0 ? "agotado" : "vendido_parcial";
+
+        await client.query(
+          `
+          UPDATE coffee_lots
+          SET available_weight_kg = $1, status = $2, updated_at = NOW()
+          WHERE id = $3
+          `,
+          [newAvailable, newStatus, assignment.lot_id]
+        );
+
+        await client.query(
+          `
+          UPDATE sale_item_lots
+          SET deducted_at = NOW()
+          WHERE id = $1
+          `,
+          [assignment.id]
+        );
+
+        await client.query(
+          `
+          INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+          VALUES ($1, 'venta_salida', $2, $3, $4)
+          `,
+          [assignment.lot_id, quantity, `Cafe alistado para venta ${sale.code}`, userId]
+        );
+      }
+    }
+
+    const updateResult = await client.query(
+      `
+      UPDATE sales
+      SET
+        status = $1,
+        notes = COALESCE($2, notes),
+        updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+      `,
+      [status, notes || null, saleId]
+    );
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const cancelSale = async ({ saleId, notes, cancelledBy }) => {
@@ -682,7 +843,7 @@ export const cancelSale = async ({ saleId, notes, cancelledBy }) => {
       return { alreadyCancelled: true, sale };
     }
 
-    if (!["pendiente_alistamiento", "alistada"].includes(sale.status)) {
+    if (!["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "proceso_solicitado", "en_proceso", "listo_para_ensamble", "ensamble_definido", "alistada"].includes(sale.status)) {
       await client.query("ROLLBACK");
       return { invalidStatus: true, sale };
     }
@@ -695,6 +856,7 @@ export const cancelSale = async ({ saleId, notes, cancelledBy }) => {
       FROM sale_item_lots
       INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
       WHERE sale_items.sale_id = $1
+        AND sale_item_lots.deducted_at IS NOT NULL
       GROUP BY sale_item_lots.lot_id
       `,
       [saleId]

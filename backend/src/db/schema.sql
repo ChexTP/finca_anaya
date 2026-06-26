@@ -259,6 +259,7 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
   id SERIAL PRIMARY KEY,
   code VARCHAR(30) UNIQUE NOT NULL,
   quote_id INTEGER,
+  sale_id INTEGER,
   status VARCHAR(30) NOT NULL DEFAULT 'en_proceso',
   process_location TEXT,
   notes TEXT,
@@ -279,6 +280,7 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
 );
 
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS quote_id INTEGER;
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS sale_id INTEGER;
 
 CREATE TABLE IF NOT EXISTS coffee_process_inputs (
   id SERIAL PRIMARY KEY,
@@ -346,7 +348,8 @@ CREATE TABLE IF NOT EXISTS sales (
   quote_id INTEGER UNIQUE REFERENCES quotes(id),
   client_id INTEGER NOT NULL REFERENCES clients(id),
   seller_id INTEGER NOT NULL REFERENCES users(id),
-  status VARCHAR(40) NOT NULL DEFAULT 'pendiente_alistamiento',
+  status VARCHAR(40) NOT NULL DEFAULT 'pendiente_bodega',
+  warehouse_priority VARCHAR(20) NOT NULL DEFAULT 'media',
   payment_status VARCHAR(30) NOT NULL,
   currency VARCHAR(3) NOT NULL,
   subtotal NUMERIC(14, 2) NOT NULL,
@@ -354,6 +357,7 @@ CREATE TABLE IF NOT EXISTS sales (
   total NUMERIC(14, 2) NOT NULL,
   amount_paid NUMERIC(14, 2) NOT NULL DEFAULT 0,
   balance_due NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  estimated_delivery_date DATE,
   estimated_payment_date DATE,
   external_invoice_reference TEXT,
   notes TEXT,
@@ -361,7 +365,21 @@ CREATE TABLE IF NOT EXISTS sales (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sales_status_check CHECK (
-    status IN ('pendiente_alistamiento', 'alistada', 'despachada', 'anulada')
+    status IN (
+      'pendiente_alistamiento',
+      'pendiente_bodega',
+      'lote_asignado',
+      'proceso_solicitado',
+      'en_proceso',
+      'listo_para_ensamble',
+      'ensamble_definido',
+      'alistada',
+      'despachada',
+      'anulada'
+    )
+  ),
+  CONSTRAINT sales_warehouse_priority_check CHECK (
+    warehouse_priority IN ('alta', 'media', 'baja')
   ),
   CONSTRAINT sales_payment_status_check CHECK (
     payment_status IN ('pagada', 'pago_parcial', 'pendiente_pago')
@@ -393,9 +411,65 @@ CREATE TABLE IF NOT EXISTS sale_item_lots (
   sale_item_id INTEGER NOT NULL REFERENCES sale_items(id) ON DELETE CASCADE,
   lot_id INTEGER NOT NULL REFERENCES coffee_lots(id),
   quantity_kg NUMERIC(12, 3) NOT NULL,
+  deducted_at TIMESTAMP,
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sale_item_lots_quantity_check CHECK (quantity_kg > 0)
 );
+
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS warehouse_priority VARCHAR(20) NOT NULL DEFAULT 'media';
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS estimated_delivery_date DATE;
+ALTER TABLE sales ALTER COLUMN status SET DEFAULT 'pendiente_bodega';
+ALTER TABLE sales ALTER COLUMN warehouse_priority SET DEFAULT 'media';
+ALTER TABLE sale_item_lots ADD COLUMN IF NOT EXISTS deducted_at TIMESTAMP;
+ALTER TABLE sale_item_lots ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE sale_item_lots ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id);
+
+DO $$
+BEGIN
+  ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_status_check;
+  ALTER TABLE sales
+  ADD CONSTRAINT sales_status_check CHECK (
+    status IN (
+      'pendiente_alistamiento',
+      'pendiente_bodega',
+      'lote_asignado',
+      'proceso_solicitado',
+      'en_proceso',
+      'listo_para_ensamble',
+      'ensamble_definido',
+      'alistada',
+      'despachada',
+      'anulada'
+    )
+  );
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'sales_warehouse_priority_check'
+  ) THEN
+    ALTER TABLE sales
+    ADD CONSTRAINT sales_warehouse_priority_check CHECK (
+      warehouse_priority IN ('alta', 'media', 'baja')
+    );
+  END IF;
+END $$;
+
+UPDATE sales
+SET estimated_delivery_date = quotes.estimated_delivery_date
+FROM quotes
+WHERE sales.quote_id = quotes.id
+  AND sales.estimated_delivery_date IS NULL;
+
+UPDATE sale_item_lots
+SET deducted_at = COALESCE(sale_item_lots.deducted_at, sale_item_lots.created_at)
+FROM sale_items
+INNER JOIN sales ON sales.id = sale_items.sale_id
+WHERE sale_item_lots.sale_item_id = sale_items.id
+  AND sale_item_lots.deducted_at IS NULL
+  AND sales.status = 'pendiente_alistamiento';
 
 CREATE TABLE IF NOT EXISTS sale_blend_items (
   id SERIAL PRIMARY KEY,
@@ -421,6 +495,19 @@ CREATE TABLE IF NOT EXISTS sale_payments (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sale_payments_amount_check CHECK (amount > 0)
 );
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'coffee_processes_sale_id_fkey'
+  ) THEN
+    ALTER TABLE coffee_processes
+    ADD CONSTRAINT coffee_processes_sale_id_fkey
+    FOREIGN KEY (sale_id) REFERENCES sales(id);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS accounts_payable (
   id SERIAL PRIMARY KEY,
@@ -512,6 +599,7 @@ CREATE INDEX IF NOT EXISTS idx_coffee_lots_supplier_id ON coffee_lots(supplier_i
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_lot_id ON inventory_movements(lot_id);
 CREATE INDEX IF NOT EXISTS idx_coffee_processes_status ON coffee_processes(status);
 CREATE INDEX IF NOT EXISTS idx_coffee_processes_quote_id ON coffee_processes(quote_id);
+CREATE INDEX IF NOT EXISTS idx_coffee_processes_sale_id ON coffee_processes(sale_id);
 CREATE INDEX IF NOT EXISTS idx_coffee_process_inputs_process_id ON coffee_process_inputs(process_id);
 CREATE INDEX IF NOT EXISTS idx_coffee_process_inputs_lot_id ON coffee_process_inputs(lot_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_client_id ON quotes(client_id);
@@ -521,6 +609,8 @@ CREATE INDEX IF NOT EXISTS idx_quote_items_quote_id ON quote_items(quote_id);
 CREATE INDEX IF NOT EXISTS idx_sales_quote_id ON sales(quote_id);
 CREATE INDEX IF NOT EXISTS idx_sales_client_id ON sales(client_id);
 CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
+CREATE INDEX IF NOT EXISTS idx_sales_estimated_delivery_date ON sales(estimated_delivery_date);
+CREATE INDEX IF NOT EXISTS idx_sales_warehouse_priority ON sales(warehouse_priority);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_item_lots_sale_item_id ON sale_item_lots(sale_item_id);
 CREATE INDEX IF NOT EXISTS idx_sale_item_lots_lot_id ON sale_item_lots(lot_id);

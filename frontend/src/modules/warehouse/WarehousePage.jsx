@@ -29,6 +29,17 @@ const initialLot = {
   initialComment: "",
 };
 
+const activeWarehouseStatuses = [
+  "pendiente_alistamiento",
+  "pendiente_bodega",
+  "lote_asignado",
+  "proceso_solicitado",
+  "en_proceso",
+  "listo_para_ensamble",
+  "ensamble_definido",
+  "alistada",
+];
+
 const formatDate = (value) => {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("es-CO");
@@ -217,7 +228,9 @@ const WarehousePage = () => {
   const [pendingLots, setPendingLots] = useState([]);
   const [rejectedLots, setRejectedLots] = useState([]);
   const [pendingSales, setPendingSales] = useState([]);
+  const [availableLots, setAvailableLots] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [assignmentRows, setAssignmentRows] = useState([]);
   const [notes, setNotes] = useState("");
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [supplierForm, setSupplierForm] = useState(initialSupplier);
@@ -240,21 +253,23 @@ const WarehousePage = () => {
   }, [lotForm, selectedPackaging]);
 
   const loadData = async () => {
-    const [catalogData, supplierData, lotData, rejectedData, saleData] = await Promise.all([
+    const [catalogData, supplierData, lotData, rejectedData, saleData, inventoryData] = await Promise.all([
       apiRequest("/catalogs"),
       apiRequest("/suppliers"),
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/lots?status=rechazado"),
       apiRequest("/sales"),
+      apiRequest("/inventory/lots"),
     ]);
     setCatalogs(catalogData);
     setSuppliers(supplierData);
     setPendingLots(lotData);
     setRejectedLots(rejectedData);
-    setPendingSales(saleData.filter((sale) => ["pendiente_alistamiento", "alistada"].includes(sale.status)));
+    setPendingSales(saleData.filter((sale) => activeWarehouseStatuses.includes(sale.status)));
+    setAvailableLots(inventoryData);
 
     if (selectedSale) {
-      const stillExists = saleData.find((sale) => sale.id === selectedSale.id && ["pendiente_alistamiento", "alistada"].includes(sale.status));
+      const stillExists = saleData.find((sale) => sale.id === selectedSale.id && activeWarehouseStatuses.includes(sale.status));
       if (stillExists) {
         await loadSaleDetail(selectedSale.id, false);
       } else {
@@ -359,11 +374,105 @@ const WarehousePage = () => {
     try {
       const sale = await apiRequest(`/sales/${saleId}`);
       setSelectedSale(sale);
+      setAssignmentRows(
+        sale.deductedLots?.length
+          ? sale.deductedLots.map((lot) => ({
+              saleItemId: String(lot.sale_item_id),
+              lotId: String(lot.lot_id),
+              quantityKg: String(lot.quantity_kg),
+              notes: lot.notes || "",
+            }))
+          : [
+              {
+                saleItemId: sale.items?.[0]?.id ? String(sale.items[0].id) : "",
+                lotId: "",
+                quantityKg: "",
+                notes: "",
+              },
+            ]
+      );
       setNotes("");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setLoadingDetail(false);
+    }
+  };
+
+  const updateSalePriority = async (priority) => {
+    if (!selectedSale) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/${selectedSale.id}/priority`, {
+        method: "PUT",
+        body: JSON.stringify({ priority }),
+      });
+      setSelectedSale(response.data);
+      await loadData();
+      setMessage("Prioridad actualizada.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateAssignmentRow = (index, field, value) => {
+    setAssignmentRows((currentRows) =>
+      currentRows.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row))
+    );
+  };
+
+  const addAssignmentRow = () => {
+    setAssignmentRows((currentRows) => [
+      ...currentRows,
+      {
+        saleItemId: selectedSale?.items?.[0]?.id ? String(selectedSale.items[0].id) : "",
+        lotId: "",
+        quantityKg: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const removeAssignmentRow = (index) => {
+    setAssignmentRows((currentRows) => currentRows.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  const saveAssignments = async () => {
+    if (!selectedSale) return;
+
+    const confirmed = window.confirm("Confirmas guardar los lotes asignados a esta venta?");
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/${selectedSale.id}/lot-assignments`, {
+        method: "PUT",
+        body: JSON.stringify({
+          items: assignmentRows.map((row) => ({
+            saleItemId: Number(row.saleItemId),
+            lotId: Number(row.lotId),
+            quantityKg: Number(row.quantityKg),
+            notes: row.notes || null,
+          })),
+        }),
+      });
+      setSelectedSale(response.data);
+      await loadData();
+      setMessage("Lotes asignados correctamente. Se descontaran cuando la venta se marque como alistada.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -623,6 +732,8 @@ const WarehousePage = () => {
                   <tr>
                     <th className="px-3 py-2">Codigo</th>
                     <th className="px-3 py-2">Cliente</th>
+                    <th className="px-3 py-2">Entrega</th>
+                    <th className="px-3 py-2">Prioridad</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Accion</th>
                   </tr>
@@ -632,6 +743,12 @@ const WarehousePage = () => {
                     <tr key={sale.id}>
                       <td className="px-3 py-2 font-medium">{sale.code}</td>
                       <td className="px-3 py-2">{sale.client_name}</td>
+                      <td className="px-3 py-2">{formatDate(sale.estimated_delivery_date)}</td>
+                      <td className="px-3 py-2">
+                        <StatusBadge tone={sale.warehouse_priority === "alta" ? "danger" : sale.warehouse_priority === "media" ? "warning" : "neutral"}>
+                          {sale.warehouse_priority || "media"}
+                        </StatusBadge>
+                      </td>
                       <td className="px-3 py-2">
                         <StatusBadge tone={sale.status === "alistada" ? "success" : "warning"}>{sale.status}</StatusBadge>
                       </td>
@@ -667,9 +784,24 @@ const WarehousePage = () => {
                 <p className="font-semibold text-ink">{selectedSale.code}</p>
                 <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
                 <p className="text-sm text-slate-500">{selectedSale.client_address || "Sin direccion"}</p>
+                <p className="text-sm text-slate-500">Entrega: {formatDate(selectedSale.estimated_delivery_date)}</p>
                 <div className="mt-2">
                   <StatusBadge tone={selectedSale.status === "alistada" ? "success" : "warning"}>{selectedSale.status}</StatusBadge>
                 </div>
+              </div>
+
+              <div className="rounded border border-slate-200 p-3">
+                <label className="text-xs font-semibold uppercase text-slate-500">Prioridad de entrega</label>
+                <select
+                  className="mt-2 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={selectedSale.warehouse_priority || "media"}
+                  onChange={(event) => updateSalePriority(event.target.value)}
+                  disabled={saving}
+                >
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="baja">Baja</option>
+                </select>
               </div>
 
               <div className="space-y-2">
@@ -711,6 +843,83 @@ const WarehousePage = () => {
                 </div>
               )}
 
+              <div className="space-y-3 rounded border border-slate-200 p-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Asignar lotes de bodega</p>
+                  <p className="text-xs text-slate-500">Estos lotes se reservan operativamente y se descuentan al marcar la venta como alistada.</p>
+                </div>
+                {assignmentRows.map((row, index) => (
+                  <div key={`assignment-${index}`} className="rounded border border-slate-200 p-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <select
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={row.saleItemId}
+                        onChange={(event) => updateAssignmentRow(index, "saleItemId", event.target.value)}
+                      >
+                        <option value="">Producto vendido</option>
+                        {selectedSale.items?.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.quantity_kg} kg
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={row.lotId}
+                        onChange={(event) => updateAssignmentRow(index, "lotId", event.target.value)}
+                      >
+                        <option value="">Lote disponible</option>
+                        {availableLots.map((lot) => (
+                          <option key={lot.id} value={lot.id}>
+                            {lot.code} - {lot.commercial_classification || lot.coffee_profile_name || lot.coffee_type_name || "Cafe"} - {lot.available_weight_kg} kg
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Cantidad kg"
+                        type="number"
+                        min="0.001"
+                        step="0.001"
+                        value={row.quantityKg}
+                        onChange={(event) => updateAssignmentRow(index, "quantityKg", event.target.value)}
+                      />
+                      <input
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Observacion opcional"
+                        value={row.notes}
+                        onChange={(event) => updateAssignmentRow(index, "notes", event.target.value)}
+                      />
+                    </div>
+                    <button
+                      className="mt-2 rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      type="button"
+                      onClick={() => removeAssignmentRow(index)}
+                      disabled={assignmentRows.length === 1}
+                    >
+                      Quitar linea
+                    </button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    type="button"
+                    onClick={addAssignmentRow}
+                  >
+                    Agregar lote
+                  </button>
+                  <button
+                    className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    type="button"
+                    onClick={saveAssignments}
+                    disabled={saving || ["alistada", "despachada"].includes(selectedSale.status)}
+                  >
+                    Guardar asignacion
+                  </button>
+                </div>
+              </div>
+
               <button
                 className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 type="button"
@@ -730,7 +939,10 @@ const WarehousePage = () => {
               <div className="grid gap-2 sm:grid-cols-2">
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={saving || selectedSale.status !== "pendiente_alistamiento"}
+                  disabled={
+                    saving ||
+                    !["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status)
+                  }
                   type="button"
                   onClick={() => updateSaleStatus("prepare")}
                 >

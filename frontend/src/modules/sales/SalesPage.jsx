@@ -530,7 +530,10 @@ const SalesPage = () => {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                      disabled={saving || selectedSale.status !== "pendiente_alistamiento"}
+                      disabled={
+                        saving ||
+                        !["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status)
+                      }
                       onClick={() => updateStatus(selectedSale, "prepare")}
                     >
                       <PackageCheck size={16} />
