@@ -247,7 +247,7 @@ const SalesPage = () => {
       setNotes("");
       setPaymentForm({
         ...initialPayment,
-        amount: data.balance_due && Number(data.balance_due) > 0 ? String(data.balance_due) : "",
+        amount: "",
       });
     } catch (requestError) {
       setError(requestError.message);
@@ -264,6 +264,19 @@ const SalesPage = () => {
       return;
     }
 
+    const paymentAmount = Number(paymentForm.amount);
+    const balanceDue = Number(selectedSale.balance_due || 0);
+
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      setError("Ingrese un valor de abono mayor a cero.");
+      return;
+    }
+
+    if (paymentAmount > balanceDue) {
+      setError("El abono no puede ser mayor al saldo pendiente.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
     setError("");
@@ -273,7 +286,7 @@ const SalesPage = () => {
         method: "POST",
         body: JSON.stringify({
           ...paymentForm,
-          amount: Number(paymentForm.amount),
+          amount: paymentAmount,
           paymentMethodId: Number(paymentForm.paymentMethodId),
         }),
       });
@@ -572,10 +585,15 @@ const SalesPage = () => {
                   )}
 
                   <form className="space-y-3" onSubmit={registerPayment}>
+                    <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      Saldo pendiente para abonar: {formatMoney(selectedSale.currency, selectedSale.balance_due)}
+                    </p>
                     <input
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="Valor a registrar"
+                      placeholder="Valor del abono"
                       type="number"
+                      min="0.01"
+                      max={selectedSale.balance_due || undefined}
                       step="0.01"
                       value={paymentForm.amount}
                       onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })}
