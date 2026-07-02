@@ -18,7 +18,7 @@ const initialSample = {
   coffeeTypeId: "",
   coffeeProfileId: "",
   description: "",
-  quantityKg: "",
+  quantityGrams: "",
   currency: "COP",
   price: "",
   requestedAt: today,
@@ -146,7 +146,7 @@ const SamplesPage = () => {
           ...form,
           coffeeTypeId: form.coffeeTypeId ? Number(form.coffeeTypeId) : null,
           coffeeProfileId: form.coffeeProfileId ? Number(form.coffeeProfileId) : null,
-          quantityKg: Number(form.quantityKg),
+          quantityGrams: Number(form.quantityGrams),
           price: form.price === "" ? null : Number(form.price),
         }),
       });
@@ -295,15 +295,23 @@ const SamplesPage = () => {
                 value={form.description}
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
               />
-              <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Cantidad en gramos"
+                type="number"
+                step="1"
+                value={form.quantityGrams}
+                onChange={(event) => setForm({ ...form, quantityGrams: event.target.value })}
+                required
+              />
+              <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Cantidad kg"
+                  placeholder="Precio opcional. Vacio si es gratis"
                   type="number"
-                  step="0.001"
-                  value={form.quantityKg}
-                  onChange={(event) => setForm({ ...form, quantityKg: event.target.value })}
-                  required
+                  step="0.01"
+                  value={form.price}
+                  onChange={(event) => setForm({ ...form, price: event.target.value })}
                 />
                 <select
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -314,14 +322,6 @@ const SamplesPage = () => {
                   <option value="USD">USD</option>
                 </select>
               </div>
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Precio opcional. Vacio si es gratis"
-                type="number"
-                step="0.01"
-                value={form.price}
-                onChange={(event) => setForm({ ...form, price: event.target.value })}
-              />
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-medium text-slate-600">
                   Fecha solicitud
@@ -402,7 +402,7 @@ const SamplesPage = () => {
                       </p>
                     </div>
                     <div className="text-right text-sm text-slate-600">
-                      <p>{sample.quantity_kg} kg</p>
+                      <p>{sample.quantity_grams} g</p>
                       <p>{formatMoney(sample.currency, sample.price)}</p>
                     </div>
                   </div>

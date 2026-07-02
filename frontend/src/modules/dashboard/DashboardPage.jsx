@@ -34,14 +34,14 @@ const priorityTone = {
 
 const roleCounterOrder = {
   warehouse: ["salesToPrepare", "activeProcesses", "salesPendingBlend", "labPendingLots", "availableInventoryKg", "lowInventoryGroups"],
-  laboratory: ["labPendingLots", "activeProcesses", "salesPendingBlend", "salesToPrepare", "availableInventoryKg", "lowInventoryGroups"],
+  laboratory: ["labPendingLots", "activeProcesses"],
   accounting: ["overdueSales", "dispatchedSalesWithDebt", "pendingQuotes", "salesToPrepare", "overduePayables", "availableInventoryKg"],
   seller: ["pendingQuotes", "salesToPrepare", "salesPendingBlend", "dispatchedSalesWithDebt"],
 };
 
 const dashboardCopy = {
   warehouse: "Pendientes operativos de bodega, procesos y ventas por alistar.",
-  laboratory: "Lotes, procesos y mezclas que requieren revision tecnica.",
+  laboratory: "Lotes y procesos pendientes de examen tecnico.",
   accounting: "Cartera, ventas, cuentas y alertas financieras principales.",
   seller: "Cotizaciones, preventas y seguimiento comercial.",
 };
@@ -52,6 +52,12 @@ const formatValue = (key, value) => {
   }
 
   return Number(value || 0).toLocaleString("es-CO");
+};
+
+const formatDate = (value) => {
+  if (!value) return "Sin fecha";
+  const [year, month, day] = String(value).slice(0, 10).split("-");
+  return `${day}/${month}/${year}`;
 };
 
 const DashboardPage = () => {
@@ -142,6 +148,50 @@ const DashboardPage = () => {
           </div>
         ))}
       </div>
+
+      {["admin", "accounting", "warehouse"].includes(user?.role) && (
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Necesidades de cafe</h2>
+          </div>
+          {(data.inventoryNeeds || []).length === 0 ? (
+            <p className="px-4 py-6 text-sm text-slate-500">No hay ventas activas pendientes de inventario.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Entrega</th>
+                    <th className="px-3 py-2">Cafe</th>
+                    <th className="px-3 py-2">Variedad</th>
+                    <th className="px-3 py-2">Pedidos</th>
+                    <th className="px-3 py-2">Solicitado</th>
+                    <th className="px-3 py-2">Disponible</th>
+                    <th className="px-3 py-2">Por conseguir</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {data.inventoryNeeds.map((need, index) => (
+                    <tr key={`${need.product_form}-${need.process_type}-${need.variety || need.profile_name}-${index}`}>
+                      <td className="px-3 py-2">{formatDate(need.next_delivery_date)}</td>
+                      <td className="px-3 py-2 font-medium text-slate-800">
+                        {[need.product_form, need.process_type, need.profile_name].filter(Boolean).join(" · ") || "Sin definir"}
+                      </td>
+                      <td className="px-3 py-2">{need.variety || "-"}</td>
+                      <td className="px-3 py-2">{need.sales_count}</td>
+                      <td className="px-3 py-2">{Number(need.requested_kg).toLocaleString("es-CO")} kg</td>
+                      <td className="px-3 py-2">{Number(need.available_kg).toLocaleString("es-CO")} kg</td>
+                      <td className={`px-3 py-2 font-semibold ${Number(need.pending_kg) > 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                        {Number(need.pending_kg).toLocaleString("es-CO")} kg
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-3">
         {["alta", "media", "baja"].map((priority) => (

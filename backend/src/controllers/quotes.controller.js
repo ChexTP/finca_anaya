@@ -78,9 +78,9 @@ export const postQuote = async (req, res) => {
       items,
     } = req.body;
 
-    if (!clientId || !quoteType || !currency || !Array.isArray(items) || items.length === 0) {
+    if (!clientId || !quoteType || !currency || !estimatedDeliveryDate || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
-        message: "Cliente, tipo de cotizacion, moneda e items son obligatorios",
+        message: "Cliente, tipo de cotizacion, moneda, fecha de entrega e items son obligatorios",
       });
     }
 
@@ -107,6 +107,14 @@ export const postQuote = async (req, res) => {
     const cleanItems = [];
 
     for (const item of items) {
+      if (item.productForm && !["Excelso", "Pergamino"].includes(item.productForm)) {
+        return res.status(400).json({ message: "La presentacion debe ser Excelso o Pergamino" });
+      }
+
+      if (item.processType && !["Lavado", "Natural", "Semilavado"].includes(item.processType)) {
+        return res.status(400).json({ message: "El proceso debe ser Lavado, Natural o Semilavado" });
+      }
+
       const quantityKg = toNumber(item.quantityKg);
       const unitPrice = toNumber(item.unitPrice);
 
@@ -151,6 +159,9 @@ export const postQuote = async (req, res) => {
         coffeeTypeId: item.coffeeTypeId || null,
         coffeeProfileId: item.coffeeProfileId || null,
         description: item.description || null,
+        productForm: item.productForm || null,
+        processType: item.processType || null,
+        variety: item.variety || null,
         quantityKg,
         unitPrice,
         lineTotal: Number((quantityKg * unitPrice).toFixed(2)),
@@ -177,7 +188,7 @@ export const postQuote = async (req, res) => {
       paymentTerms: paymentTerms || null,
       deliveryTerms: deliveryTerms || null,
       shippingCost: shipping,
-      estimatedDeliveryDate: estimatedDeliveryDate || null,
+      estimatedDeliveryDate,
       notes: notes || null,
       subtotal,
       total,

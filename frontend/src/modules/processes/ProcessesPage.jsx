@@ -36,7 +36,7 @@ const ProcessesPage = () => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const canCreateProcess = ["admin", "warehouse", "laboratory"].includes(user?.role);
+  const canCreateProcess = ["admin", "warehouse"].includes(user?.role);
 
   const selectedInputs = useMemo(() => {
     return Object.entries(selectedLots)
@@ -122,7 +122,44 @@ const ProcessesPage = () => {
       setForm(initialProcess);
       setSelectedLots({});
       await loadData();
-      setMessage("Solicitud de proceso creada correctamente. Laboratorio debe confirmar el inicio.");
+      setMessage("Solicitud de proceso creada. Bodega debe confirmar cuando el cafe entre a procesamiento.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startProcess = async (process) => {
+    const estimatedReturnDate = window.prompt("Fecha estimada de regreso a bodega (AAAA-MM-DD)", "");
+    if (!estimatedReturnDate) return;
+    const processLocation = window.prompt("Ubicacion del proceso", process.process_location || "") ?? process.process_location;
+    if (!window.confirm(`Confirma iniciar el proceso ${process.code}?`)) return;
+
+    setSaving(true);
+    setError("");
+    try {
+      await apiRequest(`/processes/${process.id}/start`, {
+        method: "PUT",
+        body: JSON.stringify({ processLocation, estimatedReturnDate }),
+      });
+      await loadData();
+      setMessage("Proceso iniciado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendProcessToLaboratory = async (process) => {
+    if (!window.confirm(`Confirma que ${process.code} termino fisicamente y debe pasar a examen de laboratorio?`)) return;
+    setSaving(true);
+    setError("");
+    try {
+      await apiRequest(`/processes/${process.id}/pending-laboratory`, { method: "PUT", body: JSON.stringify({}) });
+      await loadData();
+      setMessage("Proceso enviado a laboratorio para examen.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -154,7 +191,7 @@ const ProcessesPage = () => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Solicitar proceso</h2>
-              <p className="text-sm text-slate-500">Seleccione los lotes y cantidades que se enviaran cuando laboratorio confirme el inicio.</p>
+              <p className="text-sm text-slate-500">Seleccione los lotes y cantidades. Bodega controlara el inicio y el cierre fisico.</p>
             </div>
             <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">
               Total: <span className="font-semibold text-ink">{totalSelectedKg} kg</span>
@@ -288,6 +325,28 @@ const ProcessesPage = () => {
                 </p>
               )}
               {process.notes && <p className="mt-2 text-sm text-slate-500">{process.notes}</p>}
+              {user?.role === "admin" && process.status === "pendiente" && (
+                <button
+                  className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => startProcess(process)}
+                >
+                  <Save size={16} />
+                  Iniciar proceso
+                </button>
+              )}
+              {user?.role === "admin" && process.status === "en_proceso" && (
+                <button
+                  className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => sendProcessToLaboratory(process)}
+                >
+                  <Save size={16} />
+                  Enviar a examen
+                </button>
+              )}
               {process.inputs?.length > 0 && (
                 <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-semibold uppercase text-slate-500">Mezcla del proceso</p>

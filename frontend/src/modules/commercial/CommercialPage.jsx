@@ -1,4 +1,4 @@
-import { Eye, Plus, RefreshCw, Save, UserPlus } from "lucide-react";
+import { Eye, Plus, RefreshCw, Save, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -23,6 +23,9 @@ const initialItem = {
   coffeeTypeId: "",
   coffeeProfileId: "",
   description: "",
+  productForm: "Excelso",
+  processType: "Lavado",
+  variety: "",
   quantityKg: "",
   unitPrice: "",
 };
@@ -69,6 +72,7 @@ const CommercialPage = () => {
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [quoteForm, setQuoteForm] = useState(initialQuote);
   const [itemForm, setItemForm] = useState(initialItem);
+  const [quoteItems, setQuoteItems] = useState([]);
   const [saleForm, setSaleForm] = useState(initialSale);
   const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
   const [showQuickClient, setShowQuickClient] = useState(false);
@@ -78,8 +82,9 @@ const CommercialPage = () => {
   const [saving, setSaving] = useState(false);
 
   const subtotal = useMemo(() => {
-    return Number(itemForm.quantityKg || 0) * Number(itemForm.unitPrice || 0);
-  }, [itemForm.quantityKg, itemForm.unitPrice]);
+    const savedItemsTotal = quoteItems.reduce((sum, item) => sum + Number(item.quantityKg) * Number(item.unitPrice), 0);
+    return savedItemsTotal + Number(itemForm.quantityKg || 0) * Number(itemForm.unitPrice || 0);
+  }, [itemForm.quantityKg, itemForm.unitPrice, quoteItems]);
 
   const total = useMemo(() => {
     return subtotal + Number(quoteForm.shippingCost || 0);
@@ -121,6 +126,10 @@ const CommercialPage = () => {
     setItemForm({
       ...initialItem,
       itemType,
+      productForm: itemForm.productForm,
+      processType: itemForm.processType,
+      variety: itemForm.variety,
+      description: itemForm.description,
       unitPrice: itemForm.unitPrice,
       quantityKg: itemForm.quantityKg,
     });
@@ -137,42 +146,56 @@ const CommercialPage = () => {
     });
   };
 
+  const buildItem = () => {
+    if (!itemForm.quantityKg || itemForm.unitPrice === "") {
+      throw new Error("Cada cafe debe tener cantidad y precio por kg.");
+    }
+
+    const item = {
+      quantityKg: Number(itemForm.quantityKg),
+      unitPrice: Number(itemForm.unitPrice),
+      description: itemForm.description || null,
+      productForm: itemForm.productForm,
+      processType: itemForm.processType,
+      variety: itemForm.variety || null,
+    };
+
+    if (itemForm.itemType === "type") item.coffeeTypeId = Number(itemForm.coffeeTypeId);
+    if (itemForm.itemType === "profile") item.coffeeProfileId = Number(itemForm.coffeeProfileId);
+    return item;
+  };
+
+  const addAnotherCoffee = () => {
+    try {
+      setQuoteItems((currentItems) => [...currentItems, buildItem()]);
+      setItemForm(initialItem);
+      setError("");
+    } catch (itemError) {
+      setError(itemError.message);
+    }
+  };
+
   const createQuote = async (event) => {
     event.preventDefault();
     setSaving(true);
     setMessage("");
     setError("");
 
-    const item = {
-      quantityKg: Number(itemForm.quantityKg),
-      unitPrice: Number(itemForm.unitPrice),
-      description: itemForm.description || null,
-    };
-
-    if (itemForm.itemType === "lot") {
-      item.lotId = Number(itemForm.lotId);
-    }
-
-    if (itemForm.itemType === "type") {
-      item.coffeeTypeId = Number(itemForm.coffeeTypeId);
-    }
-
-    if (itemForm.itemType === "profile") {
-      item.coffeeProfileId = Number(itemForm.coffeeProfileId);
-    }
-
     try {
+      const items = itemForm.quantityKg ? [...quoteItems, buildItem()] : quoteItems;
+      if (items.length === 0) throw new Error("Agregue al menos un cafe a la cotizacion.");
       await apiRequest("/quotes", {
         method: "POST",
         body: JSON.stringify({
           ...quoteForm,
           clientId: Number(quoteForm.clientId),
           shippingCost: Number(quoteForm.shippingCost || 0),
-          items: [item],
+          items,
         }),
       });
       setQuoteForm(initialQuote);
       setItemForm(initialItem);
+      setQuoteItems([]);
       await loadData();
       setMessage("Cotizacion creada correctamente.");
     } catch (requestError) {
@@ -371,6 +394,8 @@ const CommercialPage = () => {
                 type="date"
                 value={quoteForm.estimatedDeliveryDate}
                 onChange={(event) => setQuoteForm({ ...quoteForm, estimatedDeliveryDate: event.target.value })}
+                required
+                aria-label="Fecha de entrega"
               />
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -458,8 +483,25 @@ const CommercialPage = () => {
             )}
 
             <div className="mt-4 rounded border border-slate-200 p-3">
-              <h3 className="text-sm font-semibold text-slate-800">Producto</h3>
+              <h3 className="text-sm font-semibold text-slate-800">Cafe solicitado</h3>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={itemForm.productForm}
+                  onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value })}
+                >
+                  <option value="Excelso">Excelso</option>
+                  <option value="Pergamino">Pergamino</option>
+                </select>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={itemForm.processType}
+                  onChange={(event) => setItemForm({ ...itemForm, processType: event.target.value })}
+                >
+                  <option value="Lavado">Lavado</option>
+                  <option value="Natural">Natural</option>
+                  <option value="Semilavado">Semilavado</option>
+                </select>
                 <select
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                   value={itemForm.itemType}
@@ -502,9 +544,15 @@ const CommercialPage = () => {
 
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Descripcion"
+                  placeholder="Descripcion o nombre del perfil"
                   value={itemForm.description}
                   onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Variedad (opcional)"
+                  value={itemForm.variety}
+                  onChange={(event) => setItemForm({ ...itemForm, variety: event.target.value })}
                 />
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -523,6 +571,38 @@ const CommercialPage = () => {
                   onChange={(event) => setItemForm({ ...itemForm, unitPrice: event.target.value })}
                 />
               </div>
+              {quoteItems.length > 0 && (
+                <div className="mt-3 divide-y divide-slate-200 rounded border border-slate-200">
+                  {quoteItems.map((item, index) => (
+                    <div key={`${item.productForm}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                      <div>
+                        <p className="font-medium text-slate-800">
+                          Cafe {index + 1}: {item.productForm} · {item.processType}
+                        </p>
+                        <p className="text-slate-500">
+                          {item.description || item.variety || "Perfil seleccionado"} · {item.quantityKg} kg
+                        </p>
+                      </div>
+                      <button
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-300 text-slate-600"
+                        type="button"
+                        title="Quitar cafe"
+                        onClick={() => setQuoteItems((items) => items.filter((_, itemIndex) => itemIndex !== index))}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                className="mt-3 inline-flex items-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                type="button"
+                onClick={addAnotherCoffee}
+              >
+                <Plus size={16} />
+                Agregar otro cafe
+              </button>
               <div className="mt-3 rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 Subtotal: <span className="font-semibold text-ink">{formatMoney(quoteForm.currency, subtotal)}</span> · Total:{" "}
                 <span className="font-semibold text-ink">{formatMoney(quoteForm.currency, total)}</span>
@@ -632,7 +712,7 @@ const CommercialPage = () => {
                       {item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code}
                     </p>
                     <p className="text-slate-500">
-                      {item.quantity_kg} kg · {formatMoney(selectedQuote.currency, item.unit_price)}
+                      {[item.product_form, item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantity_kg} kg · {formatMoney(selectedQuote.currency, item.unit_price)}
                     </p>
                   </div>
                 ))}

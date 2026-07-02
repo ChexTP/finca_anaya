@@ -22,7 +22,7 @@ const buildDocumentHtml = (document) => {
       (item) => `
         <tr>
           <td>${item.lotCode || item.coffeeProfile || item.coffeeType || item.description || "-"}</td>
-          <td>${item.description || "-"}</td>
+          <td>${[item.productForm, item.processType, item.variety, item.description].filter(Boolean).join(" - ") || "-"}</td>
           <td>${item.quantityKg} kg</td>
           <td>${formatMoney(currency, item.unitPrice)}</td>
           <td>${formatMoney(currency, item.lineTotal)}</td>
@@ -347,7 +347,9 @@ const DocumentsPage = () => {
                 {selectedDocument.items.map((item, index) => (
                   <div key={`${item.description}-${index}`} className="rounded border border-slate-200 p-3 text-sm">
                     <p className="font-medium text-ink">{item.description || item.coffeeProfile || item.coffeeType || item.lotCode}</p>
-                    <p className="text-slate-500">{item.quantityKg} kg</p>
+                    <p className="text-slate-500">
+                      {[item.productForm, item.processType, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantityKg} kg
+                    </p>
                   </div>
                 ))}
               </div>

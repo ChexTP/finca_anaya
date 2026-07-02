@@ -75,7 +75,8 @@ export const postReceivedLot = async (req, res) => {
       innerBagQuantity,
       humidityPercent,
       performanceFactor,
-      visualStatus,
+      receivedAt,
+      coffeeVariety,
       visualDefectPercent,
       visualNotes,
       commercialClassification,
@@ -83,14 +84,10 @@ export const postReceivedLot = async (req, res) => {
       initialComment,
     } = req.body;
 
-    if (!supplierId || !coffeeTypeId || !grossWeightKg || !packagingTypeId || !visualStatus) {
+    if (!supplierId || !coffeeTypeId || !grossWeightKg || !packagingTypeId || !receivedAt || humidityPercent === undefined || performanceFactor === undefined) {
       return res.status(400).json({
-        message: "Proveedor, tipo de cafe, peso bruto, embalaje y examen visual son obligatorios",
+        message: "Proveedor, proceso, fecha de llegada, peso, embalaje, humedad y factor de rendimiento son obligatorios",
       });
-    }
-
-    if (!["aprobado", "rechazado"].includes(visualStatus)) {
-      return res.status(400).json({ message: "El examen visual debe ser aprobado o rechazado" });
     }
 
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
@@ -142,14 +139,14 @@ export const postReceivedLot = async (req, res) => {
     }
 
     const code = await getNextLotCode();
-    const status = visualStatus === "aprobado" ? "pendiente_laboratorio" : "rechazado";
+    const status = "pendiente_laboratorio";
     const humidity = toNumber(humidityPercent);
     const performance = toNumber(performanceFactor);
     const visualDefect = toNumber(visualDefectPercent);
 
     if (
-      (humidity !== null && !isValidNumber(humidity)) ||
-      (performance !== null && !isValidNumber(performance)) ||
+      !isValidNumber(humidity) ||
+      !isValidNumber(performance) ||
       (visualDefect !== null && !isValidNumber(visualDefect))
     ) {
       return res.status(400).json({
@@ -181,7 +178,9 @@ export const postReceivedLot = async (req, res) => {
       availableWeightKg: 0,
       humidityPercent: humidity,
       performanceFactor: performance,
-      visualStatus,
+      receivedAt,
+      coffeeVariety: coffeeVariety || null,
+      visualStatus: null,
       visualDefectPercent: visualDefect,
       visualNotes,
       commercialClassification: commercialClassification || null,
@@ -191,10 +190,7 @@ export const postReceivedLot = async (req, res) => {
     });
 
     res.status(201).json({
-      message:
-        visualStatus === "aprobado"
-          ? "Lote recibido y enviado a laboratorio"
-          : "Lote rechazado y guardado como historico",
+      message: "Lote recibido y enviado a laboratorio para evaluacion",
       data: lot,
     });
   } catch (error) {

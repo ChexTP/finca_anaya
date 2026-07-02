@@ -159,11 +159,14 @@ export const createQuote = async (quoteData) => {
           coffee_type_id,
           coffee_profile_id,
           description,
+          product_form,
+          process_type,
+          variety,
           quantity_kg,
           unit_price,
           line_total
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         `,
         [
           quote.id,
@@ -171,6 +174,9 @@ export const createQuote = async (quoteData) => {
           item.coffeeTypeId,
           item.coffeeProfileId,
           item.description,
+          item.productForm,
+          item.processType,
+          item.variety,
           item.quantityKg,
           item.unitPrice,
           item.lineTotal,

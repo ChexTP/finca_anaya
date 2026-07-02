@@ -15,6 +15,7 @@ export const getDashboardData = async ({ role, userId }) => {
     dispatchedSalesWithDebt,
     overdueSales,
     overduePayables,
+    inventoryNeeds,
   ] = await Promise.all([
     getInventorySummary(),
     getLabPendingLots(role),
@@ -27,6 +28,7 @@ export const getDashboardData = async ({ role, userId }) => {
     getDispatchedSalesWithDebt(role),
     getOverdueSales(role),
     getOverduePayables(role),
+    getInventoryNeeds(role),
   ]);
 
   return {
@@ -55,6 +57,7 @@ export const getDashboardData = async ({ role, userId }) => {
       overdueSales,
       overduePayables,
     }),
+    inventoryNeeds,
   };
 };
 
@@ -137,14 +140,21 @@ const buildAlerts = ({
     }));
   }
 
-  if (["admin", "laboratory", "warehouse"].includes(role)) {
+  if (["admin", "warehouse"].includes(role)) {
     addListAlerts(alerts, "proceso_en_curso", "media", activeProcesses, (process) => ({
       message: `Proceso ${process.code} en curso`,
       data: process,
     }));
   }
 
-  if (["admin", "laboratory"].includes(role)) {
+  if (role === "laboratory") {
+    addListAlerts(alerts, "proceso_pendiente_analisis", "alta", activeProcesses, (process) => ({
+      message: `Proceso ${process.code} pendiente de examen`,
+      data: process,
+    }));
+  }
+
+  if (role === "admin") {
     addListAlerts(alerts, "mezcla_pendiente", "alta", salesPendingBlend, (sale) => ({
       message: `Venta ${sale.code} tiene mezcla final pendiente`,
       data: sale,
@@ -290,21 +300,26 @@ const getActiveProcesses = async (role) => {
     return [];
   }
 
+  const statuses = role === "laboratory"
+    ? ["pendiente_laboratorio"]
+    : ["pendiente", "en_proceso", "pendiente_laboratorio"];
+
   const result = await pool.query(
     `
     SELECT id, code, status, process_location, estimated_return_date, total_input_kg, created_at
     FROM coffee_processes
-    WHERE status IN ('pendiente', 'en_proceso', 'pendiente_laboratorio')
+    WHERE status = ANY($1::varchar[])
     ORDER BY estimated_return_date ASC NULLS LAST, created_at ASC
     LIMIT 10
-    `
+    `,
+    [statuses]
   );
 
   return result.rows;
 };
 
 const getSalesPendingBlend = async (role) => {
-  if (!["admin", "laboratory"].includes(role)) {
+  if (role !== "admin") {
     return [];
   }
 
@@ -454,4 +469,63 @@ const getOverduePayables = async (role) => {
   );
 
   return result.rows;
+};
+
+const getInventoryNeeds = async (role) => {
+  if (!["admin", "accounting", "warehouse"].includes(role)) {
+    return [];
+  }
+
+  const result = await pool.query(
+    `
+    WITH demand AS (
+      SELECT
+        sale_items.product_form,
+        sale_items.process_type,
+        NULLIF(TRIM(sale_items.variety), '') AS variety,
+        sale_items.coffee_profile_id,
+        coffee_profiles.name AS profile_name,
+        SUM(sale_items.quantity_kg) AS requested_kg,
+        MIN(sales.estimated_delivery_date) AS next_delivery_date,
+        COUNT(DISTINCT sales.id) AS sales_count
+      FROM sale_items
+      INNER JOIN sales ON sales.id = sale_items.sale_id
+      LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
+      WHERE sales.status NOT IN ('despachada', 'anulada')
+      GROUP BY
+        sale_items.product_form,
+        sale_items.process_type,
+        NULLIF(TRIM(sale_items.variety), ''),
+        sale_items.coffee_profile_id,
+        coffee_profiles.name
+    )
+    SELECT
+      demand.*,
+      COALESCE(inventory.available_kg, 0) AS available_kg,
+      GREATEST(demand.requested_kg - COALESCE(inventory.available_kg, 0), 0) AS pending_kg
+    FROM demand
+    LEFT JOIN LATERAL (
+      SELECT SUM(coffee_lots.available_weight_kg) AS available_kg
+      FROM coffee_lots
+      LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+      WHERE coffee_lots.status IN ('disponible', 'vendido_parcial')
+        AND coffee_lots.available_weight_kg > 0
+        AND (
+          (demand.coffee_profile_id IS NOT NULL AND coffee_lots.coffee_profile_id = demand.coffee_profile_id)
+          OR
+          (demand.coffee_profile_id IS NULL AND coffee_types.name = demand.process_type)
+        )
+        AND (demand.variety IS NULL OR LOWER(COALESCE(coffee_lots.coffee_variety, '')) = LOWER(demand.variety))
+    ) inventory ON TRUE
+    ORDER BY demand.next_delivery_date ASC NULLS LAST, pending_kg DESC
+    `
+  );
+
+  return result.rows.map((item) => ({
+    ...item,
+    requested_kg: Number(item.requested_kg),
+    available_kg: Number(item.available_kg),
+    pending_kg: Number(item.pending_kg),
+    sales_count: Number(item.sales_count),
+  }));
 };

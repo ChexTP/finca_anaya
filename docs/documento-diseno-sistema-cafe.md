@@ -110,16 +110,16 @@ Responsable de consultar disponibilidad, crear cotizaciones y hacer seguimiento 
 
 Permisos principales:
 
-- Ver inventario disponible.
-- Ver alertas de bajo inventario.
 - Crear clientes.
 - Crear cotizaciones.
+- Cotizar por perfiles, tipos de cafe y productos comerciales definidos.
 - Definir precio negociado en cotizacion.
 - Generar PDF de cotizacion.
 - Consultar historial de cotizaciones propias.
 - Registrar informacion comercial inicial para revision de contabilidad.
 - Consultar estado de sus cotizaciones, preventas y ventas.
 - Consultar estado de despacho de sus ventas.
+- No asigna lotes ni decide mezclas internas.
 
 ### Contabilidad
 
@@ -169,36 +169,39 @@ Permisos principales:
 
 ### 4.2 Venta Directa Sin Procesamiento
 
-1. El cafe aceptado queda disponible en inventario.
-2. El vendedor o contabilidad selecciona cafe disponible para cotizar o vender.
-3. El sistema muestra cantidades disponibles por lote, tipo o perfil.
-4. Al confirmar la venta, el sistema descuenta la cantidad vendida.
-5. La salida queda registrada en el historial de movimientos.
+1. El vendedor crea la cotizacion o contabilidad/administrador registra la venta directa.
+2. La venta queda pendiente para bodega.
+3. Bodega revisa la disponibilidad real del cafe.
+4. Si el cafe esta disponible, bodega asigna los lotes especificos y cantidades.
+5. La asignacion de lotes no descuenta inventario todavia.
+6. Cuando bodega marca la venta como alistada, el sistema descuenta las cantidades asignadas.
+7. La salida queda registrada en el historial de movimientos.
 
 ### 4.3 Procesamiento Basico De Cafe
 
-1. Se crea un proceso de cafe, opcionalmente asociado a una preventa.
+1. Se crea una solicitud de proceso de cafe, normalmente asociada a una venta/preventa.
 2. Se seleccionan uno o varios lotes de entrada.
 3. El sistema muestra primero los lotes mas antiguos disponibles.
 4. El usuario indica la cantidad que se toma de cada lote.
-5. La cantidad asignada al proceso queda bloqueada para venta y otros procesos.
-6. El proceso puede quedar en estado pendiente, en_proceso o finalizado.
-7. Al finalizar, se registra cantidad total de entrada y cantidad total de salida; el sistema puede mostrar la diferencia como dato informativo.
-8. El proceso genera un nuevo lote procesado con codigo PROC-AAAA-0001.
-9. Laboratorio registra mediciones, catacion y perfil final del lote procesado.
-10. Si el proceso estaba asociado a una preventa, el lote PROC resultante queda bloqueado/sugerido para esa preventa.
-11. Contabilidad o administrador revisa cantidad final y confirma la asignacion a la preventa.
-12. Si existe excedente, queda disponible para venta general.
-13. Si el proceso no estaba asociado a preventa, el lote procesado queda disponible para venta general.
-14. Laboratorio no cambia preventas a lista_para_entrega; solo registra mediciones y finaliza el proceso.
+5. Crear la solicitud no descuenta inventario.
+6. Laboratorio confirma que el cafe entro a proceso, registra ubicacion y fecha estimada de regreso a bodega.
+7. Al confirmar inicio, el sistema descuenta los lotes origen y registra movimiento `proceso_salida`.
+8. El proceso queda en estado en_proceso.
+9. Cuando el proceso fisico termina, laboratorio lo marca como pendiente_laboratorio.
+10. Antes de devolverlo operativamente a bodega, laboratorio registra humedad final, catacion, score, cantidad final y perfil comercial.
+11. El proceso genera un nuevo lote procesado con codigo PROC-AAAA-0001.
+12. La venta asociada queda lista para ensamble cuando el proceso finaliza.
+13. Laboratorio define si la venta necesita mezcla final y registra porcentajes por lote/categoria.
+14. Si no requiere mezcla, el cafe puede pasar a alistamiento de bodega.
+15. Si queda excedente, queda disponible para venta general.
 
 ### 4.4 Cotizacion
 
 1. El vendedor crea una cotizacion.
 2. Selecciona cliente existente o crea uno nuevo.
-3. Selecciona cafes disponibles o crea una preventa por tipo/perfil requerido.
+3. Selecciona perfiles, tipos de cafe o productos comerciales definidos.
 4. Ingresa cantidades.
-5. El sistema valida disponibilidad cuando aplique.
+5. El sistema registra lo solicitado, pero el vendedor no asigna lotes.
 6. El vendedor define el precio negociado.
 7. El sistema calcula subtotales y total.
 8. El vendedor define moneda, condiciones de pago, condiciones de entrega, costo de envio tentativo, fecha estimada de entrega y prioridad si aplica.
@@ -209,37 +212,41 @@ Permisos principales:
 
 ### 4.5 Conversion De Cotizacion A Venta
 
-1. Contabilidad revisa la cotizacion/preventa aprobada o lista para entrega.
-2. El sistema genera una propuesta FIFO de lotes a descontar.
-3. Si la preventa tiene lotes asociados, se descuentan primero esos lotes.
-4. Si falta cantidad, el sistema completa con FIFO general de lotes compatibles.
-5. Un usuario autorizado confirma la propuesta de lotes.
-6. Contabilidad registra o ajusta referencia de factura externa, costos, envio y datos comerciales.
-7. El sistema descuenta inventario y guarda el detalle por lote.
-8. Se guarda historial de venta.
-9. La cotizacion queda marcada como convertida.
-10. La venta queda en estado de despacho pendiente_alistamiento.
+1. Contabilidad revisa la cotizacion aprobada.
+2. Contabilidad valida pago total, abono o condicion de pago pendiente.
+3. Contabilidad registra o ajusta referencia de factura externa, costos, envio y datos comerciales.
+4. La cotizacion queda marcada como convertida.
+5. Se crea la venta y queda en estado operativo pendiente_bodega.
+6. La venta aparece en la pantalla de pendientes de bodega.
+7. En este punto no se descuenta inventario.
+8. Bodega decide si la venta se atiende con lotes disponibles o si requiere proceso.
 
 ### 4.6 Registro De Venta Directa
 
 1. Contabilidad o administrador crea una venta sin cotizacion previa.
 2. Selecciona cliente.
-3. Selecciona cafe y cantidad.
-4. El sistema genera propuesta FIFO de lotes a descontar.
-5. Usuario autorizado confirma lotes y cantidades.
-6. Ingresa precios y datos comerciales.
-7. Registra referencia de factura externa si aplica.
-8. El sistema descuenta inventario.
-9. La venta queda en historial y pendiente_alistamiento.
+3. Selecciona perfil/tipo/producto y cantidad.
+4. Ingresa precios y datos comerciales.
+5. Registra referencia de factura externa si aplica.
+6. La venta queda en historial y pendiente_bodega.
+7. Bodega asigna lotes o solicita proceso segun disponibilidad real.
+8. El inventario solo se descuenta cuando bodega marca la venta como alistada o cuando laboratorio confirma inicio de proceso.
 
 ### 4.7 Flujo De Alistamiento Y Despacho
 
-1. Al convertir una cotizacion/preventa en venta, la venta queda pendiente_alistamiento.
-2. Bodega ve la venta en la lista de alistamiento con lotes y cantidades a sacar.
-3. Bodega ve el nombre del cliente solo como referencia operativa.
-4. Bodega prepara el cafe y marca la venta como alistado.
-5. Bodega, contabilidad o administrador pueden marcar la venta como despachado.
-6. En fase 1 no se manejara estado entregado.
+1. Al convertir una cotizacion en venta, la venta queda pendiente_bodega.
+2. Bodega ve la venta en la pantalla Pendientes, ordenada por urgencia, prioridad y fecha de entrega.
+3. Bodega clasifica la prioridad de entrega.
+4. Bodega decide si asigna lotes disponibles o solicita proceso.
+5. Si asigna lotes disponibles, guarda lotes y cantidades.
+6. Si solicita proceso, laboratorio confirma inicio, procesa, analiza y devuelve el lote PROC.
+7. Cuando el proceso finaliza, la venta queda lista para ensamble.
+8. Laboratorio define la mezcla final por porcentajes y lotes, si aplica.
+9. Bodega ve la orden de mezcla, puede imprimirla o guardarla como PDF.
+10. Bodega prepara el cafe y marca la venta como alistada.
+11. Al marcar alistada, el sistema descuenta el inventario de los lotes asignados.
+12. Bodega, contabilidad o administrador pueden marcar la venta como despachada.
+13. En fase 1 no se manejara estado entregado.
 
 ### 4.8 Carga Inicial De Inventario
 
@@ -493,20 +500,27 @@ Perfiles iniciales:
 
 Funciones:
 
-- Registrar procesamiento de uno o varios lotes.
+- Solicitar procesamiento de uno o varios lotes.
+- Confirmar inicio real del proceso.
+- Registrar ubicacion del proceso.
+- Registrar fecha estimada de regreso a bodega.
+- Marcar proceso fisico terminado y pendiente de laboratorio.
 - Registrar resultado del proceso.
 - Actualizar cantidad disponible.
 - Guardar factor de rendimiento y diferencia entre entrada/salida del proceso como dato informativo.
 - Agregar perfil comercial.
-- Asociar proceso a preventa, si aplica.
+- Asociar proceso a venta/preventa, si aplica.
 - Generar lote procesado con codigo PROC.
 
 Datos tentativos:
 
 - Lotes origen.
 - Cantidad tomada de cada lote origen.
-- Preventa asociada, si aplica.
-- Fecha de proceso.
+- Venta/preventa asociada, si aplica.
+- Fecha de solicitud.
+- Fecha de inicio real.
+- Fecha estimada de regreso a bodega.
+- Ubicacion del proceso.
 - Proceso aplicado como texto libre.
 - Estado del proceso.
 - Cantidad inicial.
@@ -523,13 +537,14 @@ Estados de proceso:
 
 - pendiente.
 - en_proceso.
+- pendiente_laboratorio.
 - finalizado.
 
 Reglas de anulacion de procesos:
 
 - Al crear un proceso, el sistema mostrara un popup de confirmacion con lotes, cantidades y preventa asociada si aplica.
 - Un proceso solo podra anularse en estado pendiente.
-- Si un proceso pendiente se anula, las cantidades asignadas vuelven automaticamente disponibles a sus lotes origen.
+- Si un proceso pendiente se anula, no hay devolucion de inventario porque la solicitud todavia no descuenta cantidades.
 - Si un proceso esta en_proceso o finalizado no podra anularse, porque el proceso fisico ya no puede retroceder.
 - La anulacion de procesos sera excepcional y solo podra hacerla administrador.
 - Las anulaciones comerciales no anulan procesos; solo liberan asignaciones de preventa o lotes asociados.
@@ -554,9 +569,14 @@ Reglas de laboratorio:
 - Estos campos tambien seran obligatorios para finalizar un lote procesado PROC.
 - La humedad final sera obligatoria para finalizar un proceso/lote PROC.
 - La diferencia entre entrada y salida se calculara automaticamente solo como dato informativo.
-- Laboratorio podra corregir cantidad de entrada o salida mientras el proceso este pendiente o en_proceso, con aviso de confirmacion.
+- Laboratorio confirma el inicio del proceso antes de que el inventario se descuente.
+- Laboratorio registra la fecha estimada de regreso a bodega al iniciar el proceso.
+- Cuando el proceso fisico termina, laboratorio debe marcarlo como pendiente_laboratorio.
+- Solo los procesos en estado pendiente_laboratorio pueden finalizarse y crear lote PROC.
+- Laboratorio podra corregir cantidad de salida antes de finalizar el proceso, con aviso de confirmacion.
 - Una vez el proceso quede finalizado, las cantidades quedan bloqueadas.
 - Solo administrador podra corregir cantidades de un proceso finalizado en caso excepcional.
+- Laboratorio puede definir la orden de mezcla final para una venta lista para ensamble, indicando lotes y porcentajes.
 
 ### 5.7 Clientes
 
@@ -619,24 +639,22 @@ Funciones:
 - Cambiar estado.
 - Consultar historial.
 - Crear preventa por perfil o tipo de cafe aun no disponible.
-- Asociar lotes LOT o PROC a una preventa cuando esten listos.
 - Registrar condiciones de pago como texto libre.
 - Registrar condiciones de entrega/envio como texto libre.
 - Registrar fecha estimada de entrega.
 - Registrar prioridad.
 - Registrar costo de envio tentativo.
 - Manejar varios productos/perfiles en una misma cotizacion.
-- Mostrar cantidad solicitada, cantidad asignada y cantidad faltante por asignar.
+- Registrar productos por perfil, tipo o descripcion comercial sin asignar lote.
+- Permitir que el vendedor haga seguimiento del estado sin ver detalles internos de lotes o mezclas.
 
 Estados sugeridos:
 
 - borrador.
 - enviada.
-- aprobada.
-- pendiente_produccion.
-- lista_para_entrega.
-- convertida_en_venta.
-- rechazada.
+- aceptada.
+- anulada.
+- convertida_en_venta, como estado interno o referencia historica cuando ya exista venta relacionada.
 
 Datos tentativos:
 
@@ -677,22 +695,14 @@ Detalle de cotizacion:
 
 Reglas de asignacion a preventa:
 
-- Una preventa puede recibir asignaciones parciales de uno o varios lotes.
-- Un lote puede asignar solo una parte de su cantidad a una preventa.
-- La cantidad restante del lote queda disponible si no esta asignada, vendida o en proceso.
-- La asignacion se manejara a nivel general de la preventa en fase 1, sin seguimiento detallado por producto individual.
-- Si una preventa tiene varios productos, mantendra un solo estado general.
-- No se mostrara avance interno por producto en fase 1.
-- El sistema podra mostrar cantidad solicitada, cantidad asignada y cantidad faltante de forma general para la preventa.
-- Cuando la cantidad asignada cubra lo solicitado, el sistema mostrara opcion para pasar a lista_para_entrega.
-- El paso a lista_para_entrega requiere confirmacion con popup.
-- Solo contabilidad y administrador podran confirmar asignacion final y pasar preventa a lista_para_entrega.
-- Si un proceso esta asociado a una preventa, el PROC resultante queda bloqueado/sugerido para esa preventa hasta confirmacion de contabilidad o administrador.
-- Contabilidad y administrador podran liberar asignaciones de lotes a preventas antes de convertirlas en venta.
-- Al liberar una asignacion, la cantidad vuelve automaticamente a disponibilidad general.
-- La liberacion de asignacion requiere popup de confirmacion.
-- La observacion o motivo de liberacion sera opcional.
-- Laboratorio finaliza proceso y registra datos tecnicos, pero no asigna lotes ni cambia preventas a lista_para_entrega.
+- En fase 1 la cotizacion/preventa no asigna lotes.
+- El vendedor no vera ni seleccionara lotes internos.
+- La disponibilidad real se decide despues, en bodega, cuando la cotizacion sea venta.
+- La cotizacion puede tener varios productos/perfiles en un mismo documento.
+- La venta resultante mantendra un estado operativo general.
+- Bodega decidira si cada venta se atiende con lotes disponibles o con proceso.
+- Laboratorio finaliza procesos y define mezclas, pero no convierte cotizaciones en ventas.
+- Contabilidad y administrador conservan el control de conversion de cotizacion a venta.
 
 Reglas de precio:
 
@@ -712,7 +722,10 @@ Funciones:
 - Convertir cotizacion en venta.
 - Registrar referencia de factura externa.
 - Registrar datos comerciales.
-- Descontar inventario.
+- Enviar venta a bodega para decision operativa.
+- Asignar lotes desde bodega.
+- Solicitar proceso desde bodega/laboratorio cuando no haya cafe listo o se requiera perfil especial.
+- Descontar inventario al alistar o al iniciar proceso, segun corresponda.
 - Consultar historial.
 - Filtrar por fecha, cliente, vendedor o estado.
 
@@ -757,7 +770,8 @@ Detalle de venta:
 - Unidad.
 - Precio unitario.
 - Subtotal.
-- Lotes descontados y cantidad tomada de cada lote.
+- Lotes asignados por bodega y cantidad tomada de cada lote.
+- Orden de mezcla final definida por laboratorio, si aplica.
 
 Estados de pago:
 
@@ -765,18 +779,47 @@ Estados de pago:
 - pago_parcial.
 - pendiente_pago.
 
-Estados de despacho:
+Estados operativos de venta/despacho:
 
 - pendiente_alistamiento.
-- alistado.
-- despachado.
+- pendiente_bodega.
+- lote_asignado.
+- proceso_solicitado.
+- en_proceso.
+- listo_para_ensamble.
+- ensamble_definido.
+- alistada.
+- despachada.
+- anulada.
+
+Siguientes acciones por estado:
+
+- pendiente_alistamiento / pendiente_bodega: bodega debe decidir si asigna lote o solicita proceso.
+- lote_asignado: bodega debe alistar el pedido.
+- proceso_solicitado: laboratorio debe confirmar inicio del proceso.
+- en_proceso: se espera finalizacion fisica y revision de laboratorio.
+- listo_para_ensamble: laboratorio debe definir mezcla o liberar para alistamiento.
+- ensamble_definido: bodega debe ensamblar y alistar.
+- alistada: bodega, contabilidad o administrador pueden despachar.
+- despachada: contabilidad revisa pago si queda saldo.
 
 Reglas de anulacion de ventas por despacho:
 
 - Una venta despachada no podra anularse, porque el cafe ya salio de bodega.
-- Una venta solo podra anularse antes de despacho, en estado pendiente_alistamiento o alistado.
+- Una venta solo podra anularse antes de despacho, en estados operativos activos.
 - Si una venta se anula antes de despacho, el inventario se devuelve a los lotes descontados.
 - La venta anulada saldra de las listas operativas de bodega.
+
+Reglas de bodega y despacho:
+
+- La pantalla principal de trabajo de bodega sera Pendientes.
+- Pendientes de bodega se ordenara por urgencia de fecha de entrega, prioridad y fecha.
+- Pendientes de bodega tendra filtros por tarea: Todo, Por decidir, Procesos, Ensamble, Alistar y Despachar.
+- Bodega podra cambiar prioridad de entrega.
+- Bodega podra asignar lotes y cantidades a la venta.
+- Bodega podra imprimir o guardar PDF de orden de alistamiento/mezcla.
+- Al marcar venta como alistada se descuenta inventario de los lotes asignados.
+- Al marcar venta como despachada el cafe ya no esta en bodega.
 
 Datos logisticos opcionales:
 
@@ -960,13 +1003,16 @@ Funciones:
 - Mostrar cafes agotados.
 - Mostrar cafes con bajo inventario.
 - Configurar umbral minimo.
-- Mostrar preventas pendientes de produccion.
-- Mostrar preventas listas para entrega.
-- Mostrar ventas pendientes de alistamiento.
+- Mostrar ventas pendientes por decidir en bodega.
+- Mostrar ventas en proceso.
+- Mostrar ventas pendientes de ensamble.
+- Mostrar ventas pendientes de alistamiento/despacho.
 - Mostrar ventas despachadas con pago pendiente o parcial.
 - Mostrar ventas con fecha estimada de pago cumplida y estado pendiente/parcial.
-- Mostrar preventas con fecha estimada de entrega cercana o vencida.
+- Mostrar ventas/cotizaciones con fecha estimada de entrega cercana o vencida.
 - Mostrar cuentas por pagar con fecha estimada de pago cumplida y estado pendiente/parcial.
+- Mostrar ventas por siguiente accion operativa.
+- Mostrar procesos por etapa de laboratorio.
 
 Datos tentativos:
 
@@ -990,6 +1036,9 @@ Reglas iniciales de alerta:
 - Cada rol vera sus alertas correspondientes.
 - Administrador vera todas las alertas inicialmente.
 - Alertas de fecha estimada de entrega/preventa visibles para vendedor, contabilidad y administrador.
+- Bodega vera pendientes agrupados por tarea operativa: por decidir, procesos, ensamble, alistar y despachar.
+- Laboratorio vera procesos agrupados por etapa: por iniciar, en curso, por analizar y todo.
+- Contabilidad y administracion veran en ventas la siguiente accion operativa para entender donde esta detenido cada pedido.
 - Laboratorio vera procesos pendientes/en curso ordenados por fecha estimada de entrega y prioridad, sin alertas extra de entrega.
 
 ### 5.14 Reportes
@@ -1079,21 +1128,20 @@ Graficas iniciales:
 - Recepcion registra datos fisicos; contabilidad o administrador registra precio de compra y pago al proveedor.
 - Una cotizacion/preventa no descuenta inventario.
 - Una preventa puede existir aunque no haya inventario suficiente.
-- Una preventa puede quedar pendiente_produccion mientras se consigue, prepara o procesa cafe.
-- Un proceso puede asociarse a una preventa.
-- Un lote PROC resultante de proceso asociado a preventa queda bloqueado/sugerido para esa preventa hasta confirmacion de contabilidad o administrador.
-- Las asignaciones a preventa pueden ser parciales y de varios lotes.
-- El sistema mostrara cantidad solicitada, asignada y faltante por asignar.
-- Contabilidad o administrador confirma asignacion final y cambio a lista_para_entrega.
-- Un lote asignado a preventa puede liberarse por contabilidad o administrador antes de convertir a venta.
-- Liberar asignacion devuelve la cantidad a disponibilidad general y requiere popup de confirmacion.
-- Motivo de liberacion sera opcional.
+- La cotizacion no asigna lotes; la asignacion operativa ocurre en bodega despues de crear la venta.
+- El vendedor cotiza por perfiles, tipos de cafe o productos comerciales, no por lotes internos.
+- Una preventa/venta puede existir aunque no haya inventario suficiente.
+- Un proceso puede asociarse a una venta/preventa.
+- Crear una solicitud de proceso no descuenta inventario.
+- El inventario de lotes origen se descuenta cuando laboratorio confirma inicio del proceso.
+- El proceso fisico terminado queda pendiente_laboratorio hasta registrar mediciones y catacion final.
+- Un lote PROC resultante de proceso asociado a venta queda disponible para ensamble/alistamiento de esa venta.
+- Laboratorio define la orden de mezcla por porcentajes cuando la venta queda lista para ensamble.
 - Las cotizaciones no tendran fecha de vencimiento en la primera version.
-- Una venta confirmada descuenta inventario.
-- El descuento de inventario se realizara unicamente cuando la cotizacion se convierta en venta o cuando se cree una venta directa.
-- Cuando una venta tome cafe de varios lotes del mismo perfil, el sistema propondra descontar primero desde el lote mas antiguo disponible.
-- La propuesta FIFO debe ser confirmada por usuario autorizado antes de registrar la venta.
-- Si una preventa tiene lotes asociados, se descuentan primero esos lotes; si falta cantidad, se completa con FIFO general.
+- Una venta confirmada no descuenta inventario automaticamente.
+- El descuento de inventario de ventas se realizara cuando bodega marque la venta como alistada.
+- Cuando bodega asigne cafe de varios lotes del mismo perfil, el sistema debe mostrar de primero los lotes mas antiguos para facilitar FIFO.
+- La asignacion de lotes debe ser confirmada por usuario autorizado antes de alistar.
 - La agrupacion para venta despues del procesamiento se hara por perfil comercial definido.
 - El cafe no procesado podra venderse por lote y, si se requiere, tambien podra agruparse por tipo de cafe.
 - Cuando un lote llegue a cantidad disponible cero, quedara como registro historico con sus datos, movimientos y procesos.
@@ -1119,8 +1167,8 @@ Graficas iniciales:
 - La utilidad/margen estimado se calcula solo sobre cafe, sin incluir envio.
 - El vendedor no puede ver costo de compra ni utilidad/margen.
 - Costo de compra y utilidad/margen solo son visibles para administrador y contabilidad.
-- Bodega y administrador pueden marcar una venta como alistado.
-- Bodega, contabilidad y administrador pueden marcar una venta como despachado.
+- Bodega y administrador pueden marcar una venta como alistada.
+- Bodega, contabilidad y administrador pueden marcar una venta como despachada.
 - Vendedor solo consulta estado de despacho.
 - No se eliminaran registros criticos ni maestros en fase 1; se usaran estados activo/inactivo o anulado.
 - Proveedores, clientes, vendedores, perfiles, variedades y tipos de cafe se inactivan en vez de eliminarse.
@@ -1130,8 +1178,7 @@ Graficas iniciales:
 - Los pagos de una venta anulada quedan en el historial; devoluciones de dinero se manejan por fuera del sistema.
 - El vendedor podra anular sus propias cotizaciones/preventas mientras no esten convertidas en venta.
 - Administrador y contabilidad podran anular cualquier cotizacion/preventa.
-- Si una preventa anulada tenia lotes asignados, esos lotes se liberan automaticamente para venta general.
-- Si una preventa asociada a un proceso se anula, el proceso no se anula; solo queda sin preventa asociada y el lote resultante quedara disponible general.
+- Si una venta/preventa asociada a un proceso se anula, el proceso no se anula; solo queda sin asociacion comercial y el lote resultante quedara disponible general si ya fue procesado.
 - No se almacenaran archivos PDF o Excel fisicos en fase 1; se generaran bajo demanda desde los datos.
 - El sistema sera responsive y permitira ejecutar acciones segun permisos desde movil y escritorio.
 
@@ -1159,6 +1206,7 @@ Entidades principales:
 - ventas.
 - venta_items.
 - venta_item_lotes.
+- venta_mezcla_items.
 - movimientos_inventario.
 - configuraciones_alertas.
 
@@ -1169,7 +1217,7 @@ Relaciones principales:
 - Un lote puede participar en cero o muchos procesos.
 - Un proceso puede tener uno o muchos lotes de entrada.
 - Un proceso puede generar un lote procesado.
-- Una preventa puede asociarse a uno o muchos lotes LOT o PROC.
+- Un proceso puede asociarse a una venta/preventa.
 - Un cliente puede tener muchas cotizaciones.
 - Un cliente puede tener muchas ventas.
 - Una cotizacion puede tener muchos items.
@@ -1177,7 +1225,9 @@ Relaciones principales:
 - Una venta puede tener muchos pagos.
 - Una preventa puede tener muchos pagos.
 - Una cuenta por pagar puede tener muchos pagos/abonos.
-- Una venta puede descontar cantidades de uno o varios lotes.
+- Una venta puede tener lotes asignados por bodega.
+- Una venta puede tener una orden de mezcla definida por laboratorio.
+- Una venta puede descontar cantidades de uno o varios lotes al alistarse.
 - Una cotizacion puede convertirse en una venta.
 - Un usuario puede crear cotizaciones, ventas, movimientos o procesos.
 
@@ -1210,14 +1260,13 @@ Relaciones principales:
 - Registrar entrada de cafe.
 - Lotes.
 - Detalle de lote.
-- Ventas pendientes de alistamiento.
-- Ventas alistadas pendientes de despacho.
+- Pendientes de bodega por tarea operativa.
+- Ventas por alistar, ensamblar o despachar.
 - Movimientos.
 
 ### Vendedor
 
 - Dashboard comercial.
-- Inventario disponible.
 - Clientes.
 - Crear cotizacion/preventa.
 - Historial de cotizaciones/preventas propias.
@@ -1228,9 +1277,9 @@ Relaciones principales:
 
 - Dashboard contable.
 - Cotizaciones aprobadas.
-- Preventas listas para entrega.
 - Crear venta.
 - Historial de ventas.
+- Seguimiento operativo de ventas por siguiente accion.
 - Referencias de facturas.
 - Pagos.
 - Cartera.
@@ -1241,9 +1290,10 @@ Relaciones principales:
 
 - Dashboard de laboratorio.
 - Lotes pendientes de laboratorio.
-- Procesos pendientes o en curso asociados a preventas.
+- Procesos por iniciar, en curso y por analizar.
 - Registro de catacion.
 - Registro de procesamiento.
+- Definicion de mezclas finales por venta.
 - Historico tecnico.
 
 ## 9. PDFs
@@ -1413,27 +1463,32 @@ No incluye:
 - Productores, fincas o intermediarios se manejaran como proveedores.
 - Embalajes iniciales: costal/saco de fique, tula/estopa y bolsa interna adicional.
 - Estados de lote: recibido, pendiente_laboratorio, rechazado, aprobado, disponible, en_proceso, procesado, vendido_parcial y agotado.
-- Estados de proceso: pendiente, en_proceso y finalizado.
+- Estados de proceso: pendiente, en_proceso, pendiente_laboratorio y finalizado.
 - Procesos solo se podran anular en estado pendiente.
 - Procesos en_proceso o finalizados no se podran anular.
-- Al anular un proceso pendiente, sus cantidades vuelven a los lotes origen.
-- Al crear proceso se mostrara confirmacion con lotes, cantidades y preventa asociada si aplica.
+- Al anular un proceso pendiente no se devuelven cantidades porque la solicitud aun no descuenta inventario.
+- Al crear proceso se mostrara confirmacion con lotes, cantidades y venta/preventa asociada si aplica.
+- Crear proceso solo genera una solicitud.
+- Laboratorio confirma inicio de proceso, ubicacion y fecha estimada de regreso.
+- Al confirmar inicio de proceso se descuenta el inventario de los lotes origen.
+- Al terminar fisicamente, el proceso queda pendiente_laboratorio antes de crear PROC.
 - Ubicacion general: bodega, finca_proceso, trilladora y otro.
 - Las cotizaciones/preventas no descuentan inventario.
 - Las cotizaciones no tienen fecha de vencimiento.
 - Preventas pueden crearse aunque no exista inventario suficiente.
-- Preventas usan estado pendiente_produccion cuando el cafe debe conseguirse, prepararse o procesarse.
-- Preventas pueden asociarse a lotes LOT o PROC, pero no es obligatorio.
-- Preventas pueden tener asignaciones parciales de uno o varios lotes.
-- La asignacion se manejara a nivel general de la preventa, sin avance por producto individual en fase 1.
-- Solo contabilidad y administrador podran confirmar que una preventa pasa a lista_para_entrega.
+- El vendedor no asigna lotes en la cotizacion/preventa.
+- La decision de lotes, procesos y ensamble se hace despues de crear la venta.
+- Bodega decide si la venta se atiende con lote disponible o con proceso.
+- Bodega puede asignar lotes y cantidades a una venta.
+- Laboratorio define mezcla final por lotes y porcentajes cuando la venta queda lista para ensamble.
 - Fecha estimada de entrega sera obligatoria en preventas.
 - Prioridad de preventa: baja, normal, alta y urgente.
 - Una cotizacion/preventa puede tener varios productos, pero tendra un solo estado general.
-- El inventario se descuenta cuando se confirma la venta.
-- El descuento por venta usara propuesta FIFO desde el lote mas antiguo disponible y requiere confirmacion.
+- El inventario no se descuenta cuando se confirma la venta.
+- El inventario de venta se descuenta cuando bodega marca la venta como alistada.
+- Bodega vera primero los lotes mas antiguos para facilitar FIFO, pero el usuario autorizado confirma lotes.
 - Vendedor no puede confirmar ni descontar lotes.
-- Contabilidad, administrador y bodega pueden confirmar lotes de venta.
+- Contabilidad, administrador y bodega pueden gestionar lotes de venta segun permisos.
 - Las ventas registraran referencia de factura externa, fecha, valor, costos, observaciones y datos del cliente.
 - Referencia de factura externa sera opcional en fase 1.
 - PDF de venta usara VEN como referencia principal y mostrara referencia externa si existe.
@@ -1488,12 +1543,15 @@ No incluye:
 - Cuenta por pagar pendiente/parcial debera tener fecha estimada de pago o proximo pago.
 - Cuenta por pagar con saldo cero pasara automaticamente a pagada.
 - Reporte de cuentas por pagar filtrara por estado, categoria, fechas, proveedor/tercero y lote relacionado cuando aplique.
-- Estados de despacho: pendiente_alistamiento, alistado y despachado.
-- Bodega y administrador pueden marcar alistado.
-- Bodega, contabilidad y administrador pueden marcar despachado.
+- Estados operativos de venta: pendiente_alistamiento, pendiente_bodega, lote_asignado, proceso_solicitado, en_proceso, listo_para_ensamble, ensamble_definido, alistada, despachada y anulada.
+- Bodega y administrador pueden marcar alistada.
+- Bodega, contabilidad y administrador pueden marcar despachada.
 - Vendedor solo consulta estado de despacho.
 - Ventas despachadas no podran anularse.
-- Ventas solo podran anularse antes de despacho, en estado pendiente_alistamiento o alistado.
+- Ventas solo podran anularse antes de despacho, en estados operativos activos.
+- Bodega trabajara desde la pantalla Pendientes, filtrando por Todo, Por decidir, Procesos, Ensamble, Alistar y Despachar.
+- Laboratorio trabajara procesos por etapa: Por iniciar, En curso, Por analizar y Todo.
+- Ventas mostrara una siguiente accion operativa para administracion y contabilidad.
 - Administrador y contabilidad podran hacer ajustes manuales de inventario.
 - Ajustes manuales modifican solo cantidad disponible actual en bodega, no cantidades vendidas ni en proceso.
 - No se eliminaran registros criticos ni maestros; se usaran activo/inactivo o anulado.
@@ -1502,8 +1560,7 @@ No incluye:
 - Pagos de ventas anuladas quedan en historial.
 - Vendedor podra anular sus propias cotizaciones/preventas si no estan convertidas en venta.
 - Administrador y contabilidad podran anular cualquier cotizacion/preventa.
-- Anular preventa libera lotes asignados.
-- Anulaciones comerciales no anulan procesos ya creados; solo liberan asignaciones.
+- Anular preventa/venta no anula procesos ya iniciados; el lote procesado queda disponible si ya fue generado.
 - Los reportes deberan poder exportarse a Excel.
 - PDFs y Excel se generaran bajo demanda y no se guardaran como archivos fisicos en fase 1.
 - Los lotes agotados se conservaran como historico.
@@ -1517,8 +1574,8 @@ No incluye:
 - Humedad final sera obligatoria para finalizar procesos/lotes PROC.
 - Proceso finalizado bloquea cantidades; solo administrador puede corregirlas excepcionalmente.
 - Examen visual de recepcion tendra aprobado/rechazado, porcentaje de defectos y observaciones en texto libre.
-- Alertas en dashboard: inventario menor a 500 kg, humedad fuera de rango, lote mas de 15 dias en bodega, preventas pendientes, preventas listas, ventas pendientes de alistamiento y ventas despachadas con pago pendiente/parcial.
-- Alertas de preventa/entrega: 2 dias antes de la fecha estimada, el mismo dia y despues de la fecha si no esta lista.
+- Alertas en dashboard: inventario menor a 500 kg, humedad fuera de rango, lote mas de 15 dias en bodega, ventas por accion operativa, procesos activos y ventas despachadas con pago pendiente/parcial.
+- Alertas de entrega: 2 dias antes de la fecha estimada, el mismo dia y despues de la fecha si la venta no esta despachada.
 - Alertas de fecha estimada de entrega visibles para vendedor, contabilidad y administrador.
 - Laboratorio vera procesos pendientes/en curso ordenados por fecha estimada y prioridad, sin alerta extra de entrega.
 - Alertas solo en pantalla/dashboard, sin correos ni mensajes automaticos.

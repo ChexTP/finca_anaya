@@ -206,9 +206,24 @@ Respuesta general:
       "message": "Inventario bajo: Perfil 1 tiene 80 kg disponibles",
       "data": {}
     }
+  ],
+  "inventoryNeeds": [
+    {
+      "product_form": "Excelso",
+      "process_type": "Lavado",
+      "variety": "Castillo",
+      "profile_name": null,
+      "requested_kg": 500,
+      "available_kg": 320,
+      "pending_kg": 180,
+      "next_delivery_date": "2026-07-10",
+      "sales_count": 2
+    }
   ]
 }
 ```
+
+`inventoryNeeds` se entrega a administrador, contabilidad y bodega. Compara pedidos activos con inventario compatible por proceso, perfil y variedad; no calcula rendimientos ni conversiones de produccion.
 
 Alertas iniciales:
 
@@ -404,6 +419,8 @@ Registrar lote recibido:
 {
   "supplierId": 1,
   "coffeeTypeId": 1,
+  "receivedAt": "2026-06-30",
+  "coffeeVariety": "Castillo",
   "grossWeightKg": 70,
   "packagingTypeId": 1,
   "packagingQuantity": 1,
@@ -411,9 +428,7 @@ Registrar lote recibido:
   "humidityPercent": 11.2,
   "performanceFactor": 92,
   "commercialClassification": "Regional",
-  "visualStatus": "aprobado",
-  "visualDefectPercent": 3,
-  "visualNotes": "Cafe recibido en buen estado visual",
+  "visualNotes": "Observaciones registradas durante la recepcion",
   "originZone": "Pitalito, Huila",
   "initialComment": "Pergamino seco para revision"
 }
@@ -426,11 +441,14 @@ Reglas implementadas:
 - Si `hasInnerBag` es `true`, se descuenta una bolsa interna de 0.05 kg por embalaje.
 - Tambien se puede enviar `innerBagQuantity` para indicar la cantidad exacta de bolsas internas.
 - El `performanceFactor` registra el factor de rendimiento medido en recepcion.
-- La `commercialClassification` permite clasificar el cafe como `Base`, `Regional`, `Varietal`, `Exotico` o `Procesado`.
-- Si el examen visual es `aprobado`, se genera codigo `LOT-AAAA-0001`.
-- Si el examen visual es `rechazado`, no entra a inventario disponible y queda como historico tecnico.
+- La humedad y el factor de rendimiento son obligatorios antes de enviar el lote a evaluacion sensorial.
+- Los tipos activos de recepcion representan el metodo de proceso: `Lavado`, `Natural` o `Semilavado`.
+- `receivedAt` guarda la fecha exacta de llegada a bodega y es obligatorio.
+- `coffeeVariety` es texto libre para registrar variedades o codigos como Castillo, Caturra o Pink Bourbon.
+- La `commercialClassification` de recepcion permite `Regional`, `Varietal` o `Exotico`.
+- Bodega no aprueba ni rechaza el cafe al recibirlo; siempre genera codigo `LOT-AAAA-0001` y lo envia a laboratorio.
 - Los lotes rechazados quedan pendientes de retiro hasta que bodega los marque como `retirado`.
-- Un lote recibido aprobado queda en estado `pendiente_laboratorio`.
+- Todo lote recibido queda inicialmente en estado `pendiente_laboratorio`.
 - La cantidad disponible inicia en `0` hasta que laboratorio y contabilidad completen el flujo.
 
 Marcar lote rechazado como retirado:
@@ -711,11 +729,12 @@ Finalizar proceso:
 
 Reglas implementadas:
 
-- Administrador, bodega y laboratorio pueden crear procesos.
+- Administrador y bodega pueden crear solicitudes de proceso.
 - Crear proceso genera una solicitud y no descuenta inventario todavia.
-- Laboratorio confirma el inicio del proceso y registra la fecha estimada de regreso a bodega.
+- Solo el administrador confirma el inicio del proceso y registra la fecha estimada de regreso a bodega.
 - Al confirmar el inicio del proceso, el sistema descuenta las cantidades seleccionadas de los lotes origen.
-- Cuando el proceso fisico termina, laboratorio lo marca como `pendiente_laboratorio`.
+- Solo el administrador marca el proceso fisico terminado como `pendiente_laboratorio`.
+- Laboratorio solamente recibe lotes y procesos pendientes de examen.
 - Solo despues del examen final de laboratorio se crea el lote `PROC`.
 - El proceso puede asociarse a una preventa usando `quoteId`.
 - El proceso tambien puede asociarse a una venta usando `saleId`.
@@ -760,6 +779,9 @@ Crear cotizacion de inventario disponible:
   "items": [
     {
       "lotId": 1,
+      "productForm": "Excelso",
+      "processType": "Lavado",
+      "variety": "Castillo",
       "quantityKg": 20,
       "unitPrice": 45000,
       "description": "Cafe disponible en bodega"
@@ -784,6 +806,9 @@ Crear preventa:
   "items": [
     {
       "coffeeProfileId": 1,
+      "productForm": "Excelso",
+      "processType": "Natural",
+      "variety": "Pink Bourbon",
       "quantityKg": 50,
       "unitPrice": 18,
       "description": "Perfil especial solicitado"
@@ -797,6 +822,9 @@ Reglas implementadas:
 - Las cotizaciones no descuentan inventario.
 - Pueden ser `inventario_disponible` o `preventa`.
 - Monedas permitidas: `COP` y `USD`.
+- La fecha estimada de entrega es obligatoria.
+- Una cotizacion puede contener varios items con caracteristicas diferentes.
+- Cada item puede registrar `Excelso` o `Pergamino`, metodo `Lavado`, `Natural` o `Semilavado`, y variedad en texto libre.
 - El vendedor define el precio final por item.
 - El sistema calcula subtotal y total sumando costo de envio.
 - Los items pueden referenciar lote, tipo de cafe, perfil comercial o descripcion libre.

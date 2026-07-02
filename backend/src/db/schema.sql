@@ -108,6 +108,8 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   available_weight_kg NUMERIC(12, 3) NOT NULL DEFAULT 0,
   humidity_percent NUMERIC(5, 2),
   performance_factor NUMERIC(8, 2),
+  received_at DATE NOT NULL DEFAULT CURRENT_DATE,
+  coffee_variety VARCHAR(120),
   visual_status VARCHAR(20),
   visual_defect_percent NUMERIC(5, 2),
   visual_notes TEXT,
@@ -199,6 +201,8 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_reference TEXT
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_paid_at TIMESTAMP;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_registered_by INTEGER REFERENCES users(id);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS performance_factor NUMERIC(8, 2);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS received_at DATE NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS coffee_variety VARCHAR(120);
 
 DO $$
 BEGIN
@@ -337,6 +341,9 @@ CREATE TABLE IF NOT EXISTS quote_items (
   coffee_type_id INTEGER REFERENCES coffee_types(id),
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   description TEXT,
+  product_form VARCHAR(20),
+  process_type VARCHAR(20),
+  variety TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
   unit_price NUMERIC(14, 2) NOT NULL,
   line_total NUMERIC(14, 2) NOT NULL,
@@ -344,6 +351,10 @@ CREATE TABLE IF NOT EXISTS quote_items (
   CONSTRAINT quote_items_quantity_check CHECK (quantity_kg > 0),
   CONSTRAINT quote_items_price_check CHECK (unit_price >= 0 AND line_total >= 0)
 );
+
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(20);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(20);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS variety TEXT;
 
 DO $$
 BEGIN
@@ -414,6 +425,9 @@ CREATE TABLE IF NOT EXISTS sale_items (
   coffee_type_id INTEGER REFERENCES coffee_types(id),
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   description TEXT,
+  product_form VARCHAR(20),
+  process_type VARCHAR(20),
+  variety TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
   unit_price NUMERIC(14, 2) NOT NULL,
   line_total NUMERIC(14, 2) NOT NULL,
@@ -421,6 +435,10 @@ CREATE TABLE IF NOT EXISTS sale_items (
   CONSTRAINT sale_items_quantity_check CHECK (quantity_kg > 0),
   CONSTRAINT sale_items_price_check CHECK (unit_price >= 0 AND line_total >= 0)
 );
+
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(20);
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(20);
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS variety TEXT;
 
 CREATE TABLE IF NOT EXISTS sale_item_lots (
   id SERIAL PRIMARY KEY,
@@ -573,6 +591,7 @@ CREATE TABLE IF NOT EXISTS sample_requests (
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   description TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
+  quantity_grams NUMERIC(12, 2),
   is_charged BOOLEAN NOT NULL DEFAULT FALSE,
   currency VARCHAR(3) NOT NULL DEFAULT 'COP',
   price NUMERIC(14, 2),
@@ -595,6 +614,19 @@ CREATE TABLE IF NOT EXISTS sample_requests (
     coffee_type_id IS NOT NULL OR coffee_profile_id IS NOT NULL OR description IS NOT NULL
   )
 );
+
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS quantity_grams NUMERIC(12, 2);
+UPDATE sample_requests
+SET quantity_grams = quantity_kg * 1000
+WHERE quantity_grams IS NULL;
+ALTER TABLE sample_requests ALTER COLUMN quantity_grams SET NOT NULL;
+
+-- Los tipos activos corresponden al beneficio con el que llega el cafe a bodega.
+INSERT INTO coffee_types (name) VALUES ('Lavado'), ('Natural'), ('Semilavado')
+ON CONFLICT (name) DO UPDATE SET is_active = TRUE;
+UPDATE coffee_types
+SET is_active = FALSE
+WHERE name IN ('Pergamino', 'Trillado', 'Procesado', 'Especial');
 
 CREATE TABLE IF NOT EXISTS backup_exports (
   id SERIAL PRIMARY KEY,

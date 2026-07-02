@@ -70,7 +70,7 @@ export const postSample = async (req, res) => {
       coffeeTypeId,
       coffeeProfileId,
       description,
-      quantityKg,
+      quantityGrams,
       currency = "COP",
       price,
       requestedAt,
@@ -78,7 +78,7 @@ export const postSample = async (req, res) => {
       notes,
     } = req.body;
 
-    if (!requesterName || !requesterPhone || !quantityKg || !requestedAt) {
+    if (!requesterName || !requesterPhone || !quantityGrams || !requestedAt) {
       return res.status(400).json({
         message: "Nombre, telefono, cantidad y fecha de solicitud son obligatorios",
       });
@@ -94,7 +94,7 @@ export const postSample = async (req, res) => {
       return res.status(400).json({ message: "La moneda debe ser COP o USD" });
     }
 
-    const quantity = toNumber(quantityKg);
+    const quantity = toNumber(quantityGrams);
     const priceValue = toNumber(price);
 
     if (!isValidNumber(quantity) || quantity <= 0) {
@@ -134,7 +134,7 @@ export const postSample = async (req, res) => {
       coffeeTypeId: coffeeTypeId || null,
       coffeeProfileId: coffeeProfileId || null,
       description,
-      quantityKg: quantity,
+      quantityGrams: quantity,
       isCharged: priceValue !== null && priceValue > 0,
       currency,
       price: priceValue,

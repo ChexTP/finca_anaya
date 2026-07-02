@@ -21,9 +21,9 @@ const initialLot = {
   hasInnerBag: false,
   humidityPercent: "",
   performanceFactor: "",
+  receivedAt: new Date().toISOString().slice(0, 10),
   commercialClassification: "",
-  visualStatus: "aprobado",
-  visualDefectPercent: "",
+  coffeeVariety: "",
   visualNotes: "",
   originZone: "",
   initialComment: "",
@@ -54,7 +54,10 @@ export const buildWarehouseOrderHtml = (sale) => {
     ?.map(
       (item) => `
         <tr>
-          <td>${item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "-"}</td>
+          <td>
+            ${item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "-"}
+            <br><small>${[item.product_form, item.process_type, item.variety].filter(Boolean).join(" - ")}</small>
+          </td>
           <td>${item.quantity_kg} kg</td>
         </tr>
       `
@@ -322,16 +325,11 @@ const WarehousePage = () => {
           humidityPercent: Number(lotForm.humidityPercent),
           performanceFactor: lotForm.performanceFactor === "" ? null : Number(lotForm.performanceFactor),
           commercialClassification: lotForm.commercialClassification || null,
-          visualDefectPercent: lotForm.visualDefectPercent === "" ? null : Number(lotForm.visualDefectPercent),
         }),
       });
       setLotForm(initialLot);
       await loadData();
-      setMessage(
-        lotForm.visualStatus === "aprobado"
-          ? "Cafe recibido correctamente. Quedo pendiente de laboratorio."
-          : "Cafe rechazado registrado correctamente con codigo de lote."
-      );
+      setMessage("Cafe recibido correctamente. Quedo pendiente de evaluacion en laboratorio.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -604,13 +602,23 @@ const WarehousePage = () => {
               value={lotForm.coffeeTypeId}
               onChange={(event) => setLotForm({ ...lotForm, coffeeTypeId: event.target.value })}
             >
-              <option value="">Tipo de cafe</option>
+              <option value="">Metodo de proceso</option>
               {catalogs?.coffeeTypes?.map((type) => (
                 <option key={type.id} value={type.id}>
                   {type.name}
                 </option>
               ))}
             </select>
+            <label className="text-xs font-medium text-slate-600">
+              Fecha de llegada a bodega
+              <input
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                type="date"
+                value={lotForm.receivedAt}
+                onChange={(event) => setLotForm({ ...lotForm, receivedAt: event.target.value })}
+                required
+              />
+            </label>
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Peso bruto kg"
@@ -653,6 +661,7 @@ const WarehousePage = () => {
               step="0.01"
               value={lotForm.humidityPercent}
               onChange={(event) => setLotForm({ ...lotForm, humidityPercent: event.target.value })}
+              required
             />
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -661,34 +670,23 @@ const WarehousePage = () => {
               step="0.01"
               value={lotForm.performanceFactor}
               onChange={(event) => setLotForm({ ...lotForm, performanceFactor: event.target.value })}
+              required
             />
-            <select
-              className="rounded border border-slate-300 px-3 py-2 text-sm"
-              value={lotForm.visualStatus}
-              onChange={(event) => setLotForm({ ...lotForm, visualStatus: event.target.value })}
-            >
-              <option value="aprobado">Visual aprobado</option>
-              <option value="rechazado">Visual rechazado</option>
-            </select>
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={lotForm.commercialClassification}
               onChange={(event) => setLotForm({ ...lotForm, commercialClassification: event.target.value })}
             >
-              <option value="">Clasificacion comercial</option>
-              <option value="Base">Base</option>
+              <option value="">Categoria</option>
               <option value="Regional">Regional</option>
               <option value="Varietal">Varietal</option>
               <option value="Exotico">Exotico</option>
-              <option value="Procesado">Procesado</option>
             </select>
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Defecto visual %"
-              type="number"
-              step="0.01"
-              value={lotForm.visualDefectPercent}
-              onChange={(event) => setLotForm({ ...lotForm, visualDefectPercent: event.target.value })}
+              placeholder="Clasificacion o codigo (ej. Castillo, Caturra, Pink Bourbon)"
+              value={lotForm.coffeeVariety}
+              onChange={(event) => setLotForm({ ...lotForm, coffeeVariety: event.target.value })}
             />
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -698,7 +696,7 @@ const WarehousePage = () => {
             />
             <textarea
               className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2"
-              placeholder="Observaciones visuales"
+              placeholder="Observaciones de recepcion"
               value={lotForm.visualNotes}
               onChange={(event) => setLotForm({ ...lotForm, visualNotes: event.target.value })}
             />
@@ -734,7 +732,9 @@ const WarehousePage = () => {
                   <th className="px-3 py-2">Peso neto</th>
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor rendimiento</th>
+                  <th className="px-3 py-2">Categoria</th>
                   <th className="px-3 py-2">Clasificacion</th>
+                  <th className="px-3 py-2">Llegada</th>
                   <th className="px-3 py-2">Estado</th>
                 </tr>
               </thead>
@@ -747,6 +747,8 @@ const WarehousePage = () => {
                     <td className="px-3 py-2">{lot.humidity_percent}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
+                    <td className="px-3 py-2">{lot.coffee_variety || "-"}</td>
+                    <td className="px-3 py-2">{formatDate(lot.received_at)}</td>
                     <td className="px-3 py-2">
                       <StatusBadge tone="warning">{lot.status}</StatusBadge>
                     </td>

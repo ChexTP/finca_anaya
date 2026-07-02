@@ -18,7 +18,7 @@ const initialUsers = [
   { name: "Muestras", username: "muestras", password: "muestras123", role: "samples" },
 ];
 
-const coffeeTypes = ["Pergamino", "Trillado", "Procesado", "Especial"];
+const coffeeTypes = ["Lavado", "Natural", "Semilavado"];
 const packagingTypes = [
   ["Costal o saco de fique", 0.7],
   ["Tula o estopa", 0.2],

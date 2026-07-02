@@ -97,6 +97,7 @@ export const createSampleRequest = async (sampleData) => {
       coffee_profile_id,
       description,
       quantity_kg,
+      quantity_grams,
       is_charged,
       currency,
       price,
@@ -107,7 +108,7 @@ export const createSampleRequest = async (sampleData) => {
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-      $11, $12, $13, $14, $15, $16, $17, $18, $19
+      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
     )
     RETURNING *
     `,
@@ -123,7 +124,8 @@ export const createSampleRequest = async (sampleData) => {
       sampleData.coffeeTypeId,
       sampleData.coffeeProfileId,
       sampleData.description,
-      sampleData.quantityKg,
+      sampleData.quantityGrams / 1000,
+      sampleData.quantityGrams,
       sampleData.isCharged,
       sampleData.currency,
       sampleData.price,

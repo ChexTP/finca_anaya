@@ -27,7 +27,7 @@ const navigation = [
   { label: "Pendientes", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse", "laboratory"] },
+  { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse"] },
   { label: "Comercial", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
   { label: "Ventas", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "warehouse", "seller"] },

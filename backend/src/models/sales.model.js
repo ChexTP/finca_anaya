@@ -535,11 +535,14 @@ export const convertQuoteToSale = async ({
           coffee_type_id,
           coffee_profile_id,
           description,
+          product_form,
+          process_type,
+          variety,
           quantity_kg,
           unit_price,
           line_total
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
         `,
         [
@@ -549,6 +552,9 @@ export const convertQuoteToSale = async ({
           item.coffee_type_id,
           item.coffee_profile_id,
           item.description,
+          item.product_form,
+          item.process_type,
+          item.variety,
           item.quantity_kg,
           item.unit_price,
           item.line_total,

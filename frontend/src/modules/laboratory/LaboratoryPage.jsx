@@ -1,4 +1,4 @@
-import { ClipboardCheck, FlaskConical, RefreshCw, Save, SlidersHorizontal } from "lucide-react";
+import { ClipboardCheck, FlaskConical, RefreshCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -63,10 +63,7 @@ const cuppingFields = [
 const commercialCategories = ["Procesado", "Base", "Regional", "Varietal", "Exotico"];
 
 const processFilters = [
-  { key: "pendiente", label: "Por iniciar" },
-  { key: "en_proceso", label: "En curso" },
   { key: "pendiente_laboratorio", label: "Por analizar" },
-  { key: "all", label: "Todo" },
 ];
 
 const formatInputLabel = (input) => {
@@ -83,7 +80,7 @@ const formatDate = (value) => {
 
 const LaboratoryPage = () => {
   const [activePanel, setActivePanel] = useState("lots");
-  const [processFilter, setProcessFilter] = useState("pendiente");
+  const [processFilter, setProcessFilter] = useState("pendiente_laboratorio");
   const [lots, setLots] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [sales, setSales] = useState([]);
@@ -110,7 +107,7 @@ const LaboratoryPage = () => {
     ]);
 
     setLots(lotData);
-    setProcesses(processData.filter((process) => ["pendiente", "en_proceso", "pendiente_laboratorio"].includes(process.status)));
+    setProcesses(processData.filter((process) => process.status === "pendiente_laboratorio"));
     setSales(saleData.filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
     setAvailableLots(availableLotData);
     setCatalogs(catalogData);
@@ -461,18 +458,6 @@ const LaboratoryPage = () => {
               Procesos
             </span>
             <span className="text-xs">{processes.length}</span>
-          </button>
-          <button
-            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
-              activePanel === "blends" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
-            }`}
-            onClick={() => setActivePanel("blends")}
-          >
-            <span className="inline-flex items-center gap-2 font-semibold">
-              <SlidersHorizontal size={16} />
-              Mezclas
-            </span>
-            <span className="text-xs">{sales.length}</span>
           </button>
         </aside>
 
