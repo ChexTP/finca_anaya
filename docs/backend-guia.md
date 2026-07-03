@@ -562,7 +562,7 @@ Reglas implementadas:
 - Para rechazar, se exige humedad y se permite dejar observaciones.
 - La humedad ideal definida es entre `10%` y `12%`.
 - Si la humedad queda por fuera de ese rango, el endpoint responde `humidityAlert: true`, pero no bloquea la decision.
-- Un lote aprobado por laboratorio queda en estado `aprobado`.
+- Un lote aprobado por laboratorio queda inmediatamente en estado `disponible`, con su peso neto habilitado en inventario aunque el proveedor aun no haya cobrado.
 - Un lote aprobado aun no queda disponible para venta o proceso; falta que contabilidad registre compra/pago.
 - Un lote rechazado queda como historico tecnico.
 
@@ -592,7 +592,7 @@ Reglas implementadas:
 
 - Solo se pueden comprar/pagar lotes en estado `aprobado`.
 - El total de compra se calcula automaticamente: `peso neto * precio por kg`.
-- Al registrar el pago, el lote pasa a estado `disponible`.
+- Registrar el pago solo completa los datos financieros de la compra; no cambia el estado ni vuelve a sumar kilos al inventario.
 - La cantidad disponible queda igual al peso neto del lote.
 - Se guarda metodo de pago, referencia y fecha de pago.
 - Se registra un movimiento de inventario `compra_pagada`.

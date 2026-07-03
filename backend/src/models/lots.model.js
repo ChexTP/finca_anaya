@@ -239,7 +239,8 @@ export const updateLotLabReview = async (id, reviewData) => {
       `
       UPDATE coffee_lots
       SET
-        status = $1,
+        status = CASE WHEN $1 = 'aprobado' THEN 'disponible' ELSE 'rechazado' END,
+        available_weight_kg = CASE WHEN $1 = 'aprobado' THEN net_weight_kg ELSE 0 END,
         humidity_percent = $2,
         lab_aroma = $3,
         lab_fragrance = $4,
@@ -288,10 +289,10 @@ export const updateLotLabReview = async (id, reviewData) => {
       `,
       [
         lot.id,
-        lot.status === "aprobado" ? "laboratorio_aprobado" : "laboratorio_rechazado",
+        reviewData.status === "aprobado" ? "laboratorio_aprobado" : "laboratorio_rechazado",
         lot.net_weight_kg,
-        lot.status === "aprobado"
-          ? "Lote aprobado por laboratorio, pendiente de compra/pago"
+        reviewData.status === "aprobado"
+          ? "Lote aprobado y disponible en inventario; pago pendiente"
           : "Lote rechazado por laboratorio",
         reviewData.reviewedBy,
       ]
@@ -393,7 +394,12 @@ export const registerLotPurchase = async (id, purchaseData) => {
       return null;
     }
 
-    if (currentLot.status !== "aprobado") {
+    const cannotRegisterPurchase =
+      !currentLot.lab_reviewed_at ||
+      currentLot.purchase_paid ||
+      ["pendiente_laboratorio", "rechazado", "retirado"].includes(currentLot.status);
+
+    if (cannotRegisterPurchase) {
       await client.query("ROLLBACK");
       return { invalidStatus: true, lot: currentLot };
     }
@@ -402,8 +408,6 @@ export const registerLotPurchase = async (id, purchaseData) => {
       `
       UPDATE coffee_lots
       SET
-        status = 'disponible',
-        available_weight_kg = net_weight_kg,
         purchase_price_per_kg = $1,
         purchase_total = $2,
         purchase_paid = TRUE,
@@ -436,8 +440,8 @@ export const registerLotPurchase = async (id, purchaseData) => {
       [
         lot.id,
         "compra_pagada",
-        lot.available_weight_kg,
-        "Lote comprado/pagado y disponible para venta o proceso",
+        0,
+        "Pago de compra registrado sin modificar la disponibilidad del lote",
         purchaseData.registeredBy,
       ]
     );

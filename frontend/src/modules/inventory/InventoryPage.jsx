@@ -15,7 +15,7 @@ const initialPurchase = {
 const InventoryPage = () => {
   const { user } = useAuth();
   const [lots, setLots] = useState([]);
-  const [approvedLots, setApprovedLots] = useState([]);
+  const [unpaidLots, setUnpaidLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
@@ -28,16 +28,23 @@ const InventoryPage = () => {
   const loadData = async () => {
     const requests = [
       apiRequest("/inventory/lots"),
-      apiRequest("/lots?status=aprobado"),
+      apiRequest("/lots"),
     ];
 
     if (canRegisterPurchase) {
       requests.push(apiRequest("/catalogs"));
     }
 
-    const [availableData, approvedData, catalogData] = await Promise.all(requests);
+    const [availableData, allLots, catalogData] = await Promise.all(requests);
     setLots(availableData);
-    setApprovedLots(approvedData);
+    setUnpaidLots(
+      allLots.filter(
+        (lot) =>
+          lot.lab_reviewed_at &&
+          !lot.purchase_paid &&
+          !["pendiente_laboratorio", "rechazado", "retirado"].includes(lot.status)
+      )
+    );
     setCatalogs(catalogData || null);
   };
 
@@ -56,7 +63,7 @@ const InventoryPage = () => {
     event.preventDefault();
 
     if (!selectedLot) {
-      setError("Seleccione un lote aprobado por laboratorio.");
+      setError("Seleccione un lote pendiente de pago.");
       return;
     }
 
@@ -77,7 +84,7 @@ const InventoryPage = () => {
       setSelectedLot(null);
       setPurchaseForm(initialPurchase);
       await loadData();
-      setMessage("Compra registrada. El lote ya quedo disponible en inventario.");
+      setMessage("Pago registrado sin modificar la disponibilidad del lote.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -112,11 +119,11 @@ const InventoryPage = () => {
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="rounded border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-semibold text-slate-800">Aprobados por laboratorio</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Lotes aprobados pendientes de pago</h2>
             </div>
-            {approvedLots.length === 0 ? (
+            {unpaidLots.length === 0 ? (
               <div className="p-4">
-                <EmptyState title="Sin compras pendientes" message="Los lotes aprobados por laboratorio apareceran aqui." />
+                <EmptyState title="Sin pagos pendientes" message="Los lotes aprobados que aun no se hayan pagado apareceran aqui." />
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -133,7 +140,7 @@ const InventoryPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {approvedLots.map((lot) => (
+                    {unpaidLots.map((lot) => (
                       <tr key={lot.id}>
                         <td className="px-3 py-2 font-medium">{lot.code}</td>
                         <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
@@ -146,7 +153,7 @@ const InventoryPage = () => {
                             className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
                             onClick={() => selectApprovedLot(lot)}
                           >
-                            Registrar compra
+                            Registrar pago
                           </button>
                         </td>
                       </tr>
@@ -160,7 +167,10 @@ const InventoryPage = () => {
           <form className="rounded border border-slate-200 bg-white p-4" onSubmit={registerPurchase}>
             <h2 className="text-sm font-semibold text-slate-800">Pago de lote</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {selectedLot ? `Lote seleccionado: ${selectedLot.code}` : "Seleccione un lote aprobado."}
+              {selectedLot ? `Lote seleccionado: ${selectedLot.code}` : "Seleccione un lote pendiente de pago."}
+            </p>
+            <p className="mt-2 rounded bg-sky-50 px-3 py-2 text-xs text-sky-700">
+              El lote ya esta disponible. Registrar el pago no modifica sus kilos en inventario.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -204,7 +214,7 @@ const InventoryPage = () => {
                 disabled={saving || !selectedLot}
               >
                 <Save size={16} />
-                Registrar pago y activar lote
+                Registrar pago
               </button>
             </div>
           </form>

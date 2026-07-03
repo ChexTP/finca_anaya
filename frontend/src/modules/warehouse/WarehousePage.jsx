@@ -237,6 +237,7 @@ const WarehousePage = () => {
   const [notes, setNotes] = useState("");
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [supplierForm, setSupplierForm] = useState(initialSupplier);
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [lotForm, setLotForm] = useState(initialLot);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -524,7 +525,7 @@ const WarehousePage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Bodega</h1>
+          <h1 className="text-xl font-bold text-ink">Recepcion de cafe</h1>
           <p className="text-sm text-slate-500">Recepcion de cafe y lotes pendientes de laboratorio.</p>
         </div>
         <button
@@ -541,8 +542,17 @@ const WarehousePage = () => {
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-5">
-          <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createSupplier}>
-            <h2 className="text-sm font-semibold text-slate-800">Proveedor rapido</h2>
+          <div className="rounded border border-slate-200 bg-white p-4">
+            <button
+              className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+              type="button"
+              onClick={() => setShowSupplierForm((current) => !current)}
+            >
+              {showSupplierForm ? "Cerrar nuevo proveedor" : "Agregar nuevo proveedor"}
+            </button>
+          {showSupplierForm && (
+          <form className="mt-4 border-t border-slate-200 pt-4" onSubmit={createSupplier}>
+            <h2 className="text-sm font-semibold text-slate-800">Nuevo proveedor</h2>
             <div className="mt-4 space-y-3">
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -574,6 +584,8 @@ const WarehousePage = () => {
               </button>
             </div>
           </form>
+          )}
+          </div>
 
           <div className="rounded border border-slate-200 bg-white p-4">
             <h2 className="text-sm font-semibold text-slate-800">Peso estimado</h2>

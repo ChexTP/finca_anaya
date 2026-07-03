@@ -1,5 +1,6 @@
 import { Eye, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
@@ -253,7 +254,7 @@ const WarehousePendingPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Pendientes de bodega</h1>
+          <h1 className="text-xl font-bold text-ink">Pedidos de bodega</h1>
           <p className="text-sm text-slate-500">Trabajo diario ordenado por urgencia, prioridad y fecha de entrega.</p>
         </div>
         <button
@@ -423,6 +424,7 @@ const WarehousePendingPage = () => {
                 </div>
               )}
 
+              {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado"].includes(selectedSale.status) && (
               <div className="space-y-3 rounded border border-slate-200 p-3">
                 <p className="text-xs font-semibold uppercase text-slate-500">Asignar lotes</p>
                 {assignmentRows.map((row, index) => (
@@ -496,6 +498,16 @@ const WarehousePendingPage = () => {
                   </button>
                 </div>
               </div>
+              )}
+
+              {["pendiente_alistamiento", "pendiente_bodega"].includes(selectedSale.status) && (
+                <Link
+                  className="inline-flex w-full items-center justify-center rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                  to={`/procesos?saleId=${selectedSale.id}`}
+                >
+                  Solicitar proceso para este pedido
+                </Link>
+              )}
 
               <button
                 className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -514,27 +526,28 @@ const WarehousePendingPage = () => {
               />
 
               <div className="grid gap-2 sm:grid-cols-2">
+                {["lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status) && (
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={
-                    saving ||
-                    !["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status)
-                  }
+                  disabled={saving}
                   type="button"
                   onClick={() => updateSaleStatus("prepare")}
                 >
                   <PackageCheck size={16} />
                   Alistada
                 </button>
+                )}
+                {selectedSale.status === "alistada" && (
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={saving || selectedSale.status !== "alistada"}
+                  disabled={saving}
                   type="button"
                   onClick={() => updateSaleStatus("dispatch")}
                 >
                   <Truck size={16} />
                   Despachada
                 </button>
+                )}
               </div>
             </div>
           )}

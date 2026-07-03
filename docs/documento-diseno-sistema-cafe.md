@@ -164,7 +164,7 @@ Permisos principales:
 15. Si laboratorio rechaza, el lote queda como historico tecnico.
 16. Si laboratorio aprueba, el lote queda aprobado.
 17. Contabilidad registra precio de compra, valor total y pago al proveedor.
-18. Solo despues de la compra/pago el lote queda disponible para venta o procesamiento.
+18. Al aprobarse en laboratorio, el lote queda disponible de inmediato para venta o procesamiento. El pago al proveedor puede registrarse despues y no modifica el inventario.
 19. Para que un lote pase a disponible, el pago al proveedor debe estar completo.
 
 ### 4.2 Venta Directa Sin Procesamiento
@@ -1114,7 +1114,7 @@ Graficas iniciales:
 - Un cafe rechazado no entra al inventario disponible.
 - Los cafes rechazados se guardaran como historico tecnico para analisis de proveedores, calidad y posibles oportunidades comerciales.
 - Un lote rechazado queda definitivamente rechazado y no se reactiva.
-- Un lote aprobado por laboratorio pero aun no comprado/pagado puede pasar a rechazado si la negociacion no se concreta.
+- La aprobacion de laboratorio habilita el lote en inventario aunque este pendiente de pago. El pago posterior es un registro financiero independiente y no cambia cantidades.
 - El rechazo posterior a aprobacion solo podra hacerlo contabilidad o administrador.
 - El rechazo posterior podra guardar observacion opcional.
 - Un lote disponible, ya comprado/pagado, no podra pasar a rechazado; solo podra ajustarse, procesarse o venderse.

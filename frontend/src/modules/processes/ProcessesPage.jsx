@@ -1,5 +1,6 @@
 import { Plus, RefreshCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -26,6 +27,7 @@ const formatDate = (value) => {
 
 const ProcessesPage = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [processes, setProcesses] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [quotes, setQuotes] = useState([]);
@@ -70,6 +72,11 @@ const ProcessesPage = () => {
   useEffect(() => {
     loadData().catch((requestError) => setError(requestError.message));
   }, []);
+
+  useEffect(() => {
+    const saleId = searchParams.get("saleId");
+    if (saleId) setForm((current) => ({ ...current, saleId, quoteId: "" }));
+  }, [searchParams]);
 
   const toggleLot = (lot) => {
     setSelectedLots((current) => ({
@@ -191,7 +198,7 @@ const ProcessesPage = () => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Solicitar proceso</h2>
-              <p className="text-sm text-slate-500">Seleccione los lotes y cantidades. Bodega controlara el inicio y el cierre fisico.</p>
+              <p className="text-sm text-slate-500">Seleccione la venta, los lotes y las cantidades. Administracion controla el inicio y el cierre fisico.</p>
             </div>
             <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">
               Total: <span className="font-semibold text-ink">{totalSelectedKg} kg</span>

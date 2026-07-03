@@ -23,14 +23,14 @@ import { roleLabels } from "../utils/roles";
 
 const navigation = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting", "warehouse", "laboratory", "seller"] },
-  { label: "Bodega", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
-  { label: "Pendientes", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
+  { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
+  { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse"] },
   { label: "Comercial", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
-  { label: "Ventas", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "warehouse", "seller"] },
+  { label: "Ventas", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
   { label: "Cuentas por pagar", path: "/cuentas-por-pagar", icon: CreditCard, roles: ["admin", "accounting"] },
   { label: "Clientes", path: "/clientes", icon: Users, roles: ["admin", "accounting", "seller"] },
   { label: "Reportes", path: "/reportes", icon: BarChart3, roles: ["admin", "accounting"] },

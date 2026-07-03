@@ -247,8 +247,8 @@ def build_document():
         "Contabilidad",
         "Contabilidad valida compras, pagos, ventas, cuentas por pagar, documentos y reportes financieros simples.",
         [
-            ("CON-01", "Inventario", "Seleccionar lote aprobado por laboratorio.", "Debe permitir registrar precio por kg y pago del lote.", ""),
-            ("CON-02", "Inventario", "Registrar compra/pago de lote.", "El lote pasa a disponible en inventario.", ""),
+            ("CON-01", "Inventario", "Seleccionar lote aprobado pendiente de pago.", "Debe permitir registrar precio por kg y pago del lote.", ""),
+            ("CON-02", "Inventario", "Registrar compra/pago de lote.", "El pago queda registrado sin cambiar los kilos disponibles.", ""),
             ("CON-03", "Comercial", "Revisar cotizacion aceptada.", "Debe poder convertirla en venta.", ""),
             ("CON-04", "Comercial", "Convertir cotizacion en venta con pago total.", "La venta queda pagada y lista para alistamiento.", ""),
             ("CON-05", "Comercial", "Convertir cotizacion con abono parcial.", "La venta queda con saldo pendiente y fecha estimada de pago.", ""),
@@ -340,7 +340,7 @@ def build_document():
         [
             (
                 "Cafe recibido a inventario",
-                "Bodega recibe cafe -> Laboratorio aprueba -> Contabilidad registra compra/pago -> Inventario queda disponible.",
+                "Bodega recibe cafe -> Laboratorio aprueba y el inventario queda disponible -> Contabilidad registra el pago cuando corresponda.",
                 "El lote pasa por estados correctos y conserva datos de trazabilidad.",
             ),
             (

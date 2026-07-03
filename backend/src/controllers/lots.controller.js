@@ -331,7 +331,7 @@ export const putLabReview = async (req, res) => {
     res.json({
       message:
         decision === "aprobado"
-          ? "Lote aprobado por laboratorio"
+          ? "Lote aprobado y disponible en inventario"
           : "Lote rechazado por laboratorio",
       humidityAlert,
       data: lot,
@@ -390,13 +390,13 @@ export const putPurchase = async (req, res) => {
 
     if (lot.invalidStatus) {
       return res.status(409).json({
-        message: "Solo se pueden comprar/pagar lotes aprobados por laboratorio",
+        message: "Solo se puede registrar el pago de lotes aprobados y pendientes de pago",
         data: lot.lot,
       });
     }
 
     res.json({
-      message: "Compra registrada y lote disponible",
+      message: "Pago de compra registrado sin modificar el inventario",
       data: lot,
     });
   } catch (error) {
