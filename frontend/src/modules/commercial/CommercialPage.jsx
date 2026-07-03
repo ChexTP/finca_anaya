@@ -151,6 +151,18 @@ const CommercialPage = () => {
       throw new Error("Cada cafe debe tener cantidad y precio por kg.");
     }
 
+    if (itemForm.itemType === "profile" && !itemForm.coffeeProfileId) {
+      throw new Error("Seleccione el perfil solicitado.");
+    }
+
+    if (["type", "description"].includes(itemForm.itemType) && !itemForm.description.trim()) {
+      throw new Error(
+        itemForm.itemType === "type"
+          ? "Seleccione el tipo de cafe solicitado."
+          : "Ingrese la descripcion del cafe solicitado."
+      );
+    }
+
     const item = {
       quantityKg: Number(itemForm.quantityKg),
       unitPrice: Number(itemForm.unitPrice),
@@ -160,7 +172,6 @@ const CommercialPage = () => {
       variety: itemForm.variety || null,
     };
 
-    if (itemForm.itemType === "type") item.coffeeTypeId = Number(itemForm.coffeeTypeId);
     if (itemForm.itemType === "profile") item.coffeeProfileId = Number(itemForm.coffeeProfileId);
     return item;
   };
@@ -530,24 +541,24 @@ const CommercialPage = () => {
                 {itemForm.itemType === "type" && (
                   <select
                     className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={itemForm.coffeeTypeId}
-                    onChange={(event) => setItemForm({ ...itemForm, coffeeTypeId: event.target.value })}
+                    value={itemForm.description}
+                    onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })}
                   >
                     <option value="">Tipo de cafe</option>
-                    {catalogs?.coffeeTypes?.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.name}
-                      </option>
-                    ))}
+                    <option value="Regional">Regional</option>
+                    <option value="Varietal">Varietal</option>
+                    <option value="Exotico">Exotico</option>
                   </select>
                 )}
 
+                {itemForm.itemType === "description" && (
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Descripcion o nombre del perfil"
+                  placeholder="Descripcion del cafe solicitado"
                   value={itemForm.description}
                   onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })}
                 />
+                )}
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                   placeholder="Variedad (opcional)"
