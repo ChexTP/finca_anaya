@@ -506,7 +506,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       await client.query(
         `
         UPDATE sales
-        SET status = 'listo_para_ensamble', updated_at = NOW()
+        SET status = 'listo_para_ensamble', blend_required = NULL, updated_at = NOW()
         WHERE id = $1
           AND status <> 'anulada'
         `,

@@ -41,12 +41,6 @@ const initialFinish = {
   initialComment: "",
 };
 
-const initialStartProcess = {
-  processLocation: "",
-  estimatedReturnDate: "",
-  notes: "",
-};
-
 const cuppingFields = [
   ["aroma", "Aroma"],
   ["fragrance", "Fragancia"],
@@ -92,7 +86,6 @@ const LaboratoryPage = () => {
   const [blendRows, setBlendRows] = useState([]);
   const [review, setReview] = useState(initialReview);
   const [finishForm, setFinishForm] = useState(initialFinish);
-  const [startForm, setStartForm] = useState(initialStartProcess);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -160,70 +153,8 @@ const LaboratoryPage = () => {
       ...initialFinish,
       outputWeightKg: process.output_weight_kg || "",
     });
-    setStartForm({
-      processLocation: process.process_location || "",
-      estimatedReturnDate: process.estimated_return_date ? String(process.estimated_return_date).slice(0, 10) : "",
-      notes: process.notes || "",
-    });
     setMessage("");
     setError("");
-  };
-
-  const startSelectedProcess = async () => {
-    if (!selectedProcess) {
-      setError("Seleccione un proceso para iniciar.");
-      return;
-    }
-
-    const confirmed = window.confirm("Confirma que este cafe ya entro a procesamiento?");
-    if (!confirmed) return;
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-    try {
-      await apiRequest(`/processes/${selectedProcess.id}/start`, {
-        method: "PUT",
-        body: JSON.stringify(startForm),
-      });
-      setSelectedProcess(null);
-      setStartForm(initialStartProcess);
-      await loadData();
-      setMessage("Proceso iniciado. Las cantidades quedaron descontadas y se guardo la fecha estimada de regreso.");
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const markSelectedProcessPendingLab = async () => {
-    if (!selectedProcess) {
-      setError("Seleccione un proceso.");
-      return;
-    }
-
-    const confirmed = window.confirm("Confirma que el proceso fisico termino y queda pendiente de examen?");
-    if (!confirmed) return;
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-    try {
-      await apiRequest(`/processes/${selectedProcess.id}/pending-laboratory`, {
-        method: "PUT",
-        body: JSON.stringify({ notes: startForm.notes || undefined }),
-      });
-      setSelectedProcess(null);
-      await loadData();
-      setMessage("Proceso marcado como pendiente de laboratorio.");
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setSaving(false);
-    }
   };
 
   const selectSaleForBlend = async (saleId) => {
@@ -329,6 +260,30 @@ const LaboratoryPage = () => {
       });
       await selectSaleForBlend(selectedSale.id);
       setMessage("Orden de mezcla guardada. Bodega ya puede imprimir el documento.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const releaseWithoutBlend = async () => {
+    if (!selectedSale) return;
+    if (!window.confirm("Confirma que esta venta no requiere mezcla y puede volver a bodega?")) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/without-blend`, {
+        method: "PUT",
+        body: JSON.stringify({}),
+      });
+      setSelectedSale(null);
+      setBlendRows([]);
+      await loadData();
+      setMessage("Venta liberada sin mezcla. Bodega ya puede asignar el lote procesado y alistar.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -665,57 +620,6 @@ const LaboratoryPage = () => {
               <div className="mt-4">
                 <EmptyState title="Sin proceso seleccionado" message="Seleccione un proceso de la lista." />
               </div>
-            ) : selectedProcess.status === "pendiente" ? (
-              <div className="mt-4 space-y-3">
-                <input
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Ubicacion del proceso"
-                  value={startForm.processLocation}
-                  onChange={(event) => setStartForm({ ...startForm, processLocation: event.target.value })}
-                />
-                <input
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  type="date"
-                  value={startForm.estimatedReturnDate}
-                  onChange={(event) => setStartForm({ ...startForm, estimatedReturnDate: event.target.value })}
-                />
-                <textarea
-                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Observaciones de inicio"
-                  value={startForm.notes}
-                  onChange={(event) => setStartForm({ ...startForm, notes: event.target.value })}
-                />
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  type="button"
-                  disabled={saving}
-                  onClick={startSelectedProcess}
-                >
-                  <Save size={16} />
-                  Confirmar inicio
-                </button>
-              </div>
-            ) : selectedProcess.status === "en_proceso" ? (
-              <div className="mt-4 space-y-3">
-                <p className="rounded bg-slate-50 p-3 text-sm text-slate-600">
-                  Cuando el proceso fisico termine, marque este proceso como pendiente de examen de laboratorio.
-                </p>
-                <textarea
-                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Observaciones del cierre fisico"
-                  value={startForm.notes}
-                  onChange={(event) => setStartForm({ ...startForm, notes: event.target.value })}
-                />
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  type="button"
-                  disabled={saving}
-                  onClick={markSelectedProcessPendingLab}
-                >
-                  <Save size={16} />
-                  Pendiente de examen
-                </button>
-              </div>
             ) : (
               <div className="mt-4 space-y-3">
                 <select
@@ -929,6 +833,16 @@ const LaboratoryPage = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    {selectedSale.status === "listo_para_ensamble" && (
+                    <button
+                      className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                      type="button"
+                      disabled={saving}
+                      onClick={releaseWithoutBlend}
+                    >
+                      No requiere mezcla
+                    </button>
+                    )}
                     <button
                       className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       type="button"

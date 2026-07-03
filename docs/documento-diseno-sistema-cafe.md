@@ -192,8 +192,9 @@ Permisos principales:
 11. El proceso genera un nuevo lote procesado con codigo PROC-AAAA-0001.
 12. La venta asociada queda lista para ensamble cuando el proceso finaliza.
 13. Laboratorio define si la venta necesita mezcla final y registra porcentajes por lote/categoria.
-14. Si no requiere mezcla, el cafe puede pasar a alistamiento de bodega.
-15. Si queda excedente, queda disponible para venta general.
+14. Si no requiere mezcla, laboratorio libera la venta para que bodega asigne el lote procesado y la aliste.
+15. Bodega puede consultar el proceso como solicitado, en proceso, pendiente de laboratorio o finalizado, pero no cambia esos estados internos.
+16. Si queda excedente, queda disponible para venta general.
 
 ### 4.4 Cotizacion
 

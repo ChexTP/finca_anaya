@@ -8,6 +8,7 @@ import {
   cancelSale,
   registerSalePayment,
   replaceSaleBlendOrder,
+  markSaleWithoutBlend,
   updateSaleWarehousePriority,
   replaceSaleLotAssignments,
 } from "../models/sales.model.js";
@@ -148,6 +149,34 @@ export const putSaleBlendOrder = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al guardar orden de mezcla",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleWithoutBlend = async (req, res) => {
+  try {
+    const result = await markSaleWithoutBlend({ saleId: req.params.id });
+
+    if (!result) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se puede liberar sin mezcla una venta pendiente de decision de laboratorio",
+        data: result.sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+    res.json({
+      message: "Venta liberada sin mezcla para asignacion y alistamiento en bodega",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al liberar la venta sin mezcla",
       error: error.message,
     });
   }

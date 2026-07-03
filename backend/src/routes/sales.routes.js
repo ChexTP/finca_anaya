@@ -9,6 +9,7 @@ import {
   postSalePayment,
   putSaleCancelled,
   putSaleBlendOrder,
+  putSaleWithoutBlend,
   putSalePriority,
   putSaleLotAssignments,
 } from "../controllers/sales.controller.js";
@@ -53,6 +54,12 @@ router.put(
   requireAuth,
   requireRoles("admin", "laboratory"),
   putSaleBlendOrder
+);
+router.put(
+  "/:id/without-blend",
+  requireAuth,
+  requireRoles("admin", "laboratory"),
+  putSaleWithoutBlend
 );
 router.put(
   "/:id/priority",

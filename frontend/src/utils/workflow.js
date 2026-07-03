@@ -19,6 +19,10 @@ export const processStatusLabels = {
 };
 
 export const getSaleNextAction = (sale) => {
+  if (sale?.status === "pendiente_bodega" && sale?.blend_required === false) {
+    return "Bodega debe asignar el lote procesado y alistar";
+  }
+
   const actions = {
     pendiente_alistamiento: "Bodega debe decidir si asigna lote o solicita proceso",
     pendiente_bodega: "Bodega debe asignar cafe o solicitar proceso",
@@ -26,7 +30,7 @@ export const getSaleNextAction = (sale) => {
     proceso_solicitado: "Administracion debe confirmar el inicio del proceso",
     en_proceso: "Esperando finalizacion para enviar a examen de laboratorio",
     listo_para_ensamble: "Bodega debe revisar la orden de mezcla o alistar",
-    ensamble_definido: "Bodega debe ensamblar y alistar",
+    ensamble_definido: "Bodega debe asignar lotes, ensamblar y alistar",
     alistada: "Bodega puede despachar",
     despachada: "Contabilidad debe revisar pago si queda saldo",
     anulada: "Sin accion operativa",
@@ -36,6 +40,7 @@ export const getSaleNextAction = (sale) => {
 };
 
 export const getSaleTaskKey = (sale) => {
+  if (sale.status === "pendiente_bodega" && sale.blend_required === false) return "prepare";
   if (["pendiente_alistamiento", "pendiente_bodega"].includes(sale.status)) return "decision";
   if (sale.status === "lote_asignado") return "prepare";
   if (["proceso_solicitado", "en_proceso"].includes(sale.status)) return "process";

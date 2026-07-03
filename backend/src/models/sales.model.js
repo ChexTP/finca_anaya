@@ -275,7 +275,7 @@ export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
     await client.query(
       `
       UPDATE sales
-      SET status = 'ensamble_definido', updated_at = NOW()
+      SET status = 'ensamble_definido', blend_required = TRUE, updated_at = NOW()
       WHERE id = $1
         AND status IN ('pendiente_bodega', 'lote_asignado', 'proceso_solicitado', 'en_proceso', 'listo_para_ensamble', 'ensamble_definido')
       `,
@@ -284,6 +284,45 @@ export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
 
     await client.query("COMMIT");
     return sale;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const markSaleWithoutBlend = async ({ saleId }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (sale.status !== "listo_para_ensamble") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, sale };
+    }
+
+    await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [saleId]);
+    const updateResult = await client.query(
+      `
+      UPDATE sales
+      SET status = 'pendiente_bodega', blend_required = FALSE, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [saleId]
+    );
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

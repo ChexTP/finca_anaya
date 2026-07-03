@@ -395,6 +395,14 @@ const WarehousePendingPage = () => {
                 ))}
               </div>
 
+              {selectedSale.blend_required !== null && selectedSale.blend_required !== undefined && (
+                <p className={`rounded px-3 py-2 text-sm font-semibold ${
+                  selectedSale.blend_required ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"
+                }`}>
+                  Laboratorio: {selectedSale.blend_required ? "requiere mezcla" : "no requiere mezcla"}.
+                </p>
+              )}
+
               {selectedSale.items?.some((item) => item.blend_items?.length > 0) && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase text-slate-500">Mezcla indicada por laboratorio</p>
@@ -424,7 +432,7 @@ const WarehousePendingPage = () => {
                 </div>
               )}
 
-              {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado"].includes(selectedSale.status) && (
+              {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
               <div className="space-y-3 rounded border border-slate-200 p-3">
                 <p className="text-xs font-semibold uppercase text-slate-500">Asignar lotes</p>
                 {assignmentRows.map((row, index) => (
@@ -526,7 +534,7 @@ const WarehousePendingPage = () => {
               />
 
               <div className="grid gap-2 sm:grid-cols-2">
-                {["lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status) && (
+                {selectedSale.status === "lote_asignado" && (
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={saving}

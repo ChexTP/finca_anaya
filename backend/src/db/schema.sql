@@ -454,6 +454,7 @@ CREATE TABLE IF NOT EXISTS sale_item_lots (
 
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS warehouse_priority VARCHAR(20) NOT NULL DEFAULT 'media';
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS estimated_delivery_date DATE;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS blend_required BOOLEAN;
 ALTER TABLE sales ALTER COLUMN status SET DEFAULT 'pendiente_bodega';
 ALTER TABLE sales ALTER COLUMN warehouse_priority SET DEFAULT 'media';
 ALTER TABLE sale_item_lots ADD COLUMN IF NOT EXISTS deducted_at TIMESTAMP;

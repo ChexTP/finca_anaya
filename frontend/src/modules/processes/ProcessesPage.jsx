@@ -5,6 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
 const initialProcess = {
   quoteId: "",
@@ -314,7 +315,9 @@ const ProcessesPage = () => {
                         : "Sin venta o preventa asociada"}
                   </p>
                 </div>
-                <StatusBadge tone={process.status === "finalizado" ? "success" : "warning"}>{process.status}</StatusBadge>
+                <StatusBadge tone={getProcessStatusTone(process)}>
+                  {processStatusLabels[process.status] || process.status}
+                </StatusBadge>
               </div>
               <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
                 <p>{process.total_input_kg} kg de entrada</p>
