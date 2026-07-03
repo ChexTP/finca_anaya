@@ -90,8 +90,8 @@ const CoffeeProfilesPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Perfiles de cafe</h1>
-          <p className="text-sm text-slate-500">Administracion de perfiles comerciales, codigos internos y precios base.</p>
+          <h1 className="text-xl font-bold text-ink">Cafes comerciales</h1>
+          <p className="text-sm text-slate-500">Administracion de cafes regionales, varietales y exoticos.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -187,12 +187,17 @@ const CoffeeProfilesPage = () => {
               value={form.code}
               onChange={(event) => setForm({ ...form, code: event.target.value })}
             />
-            <input
+            <select
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Categoria opcional: Exotico, Regional, Varietal..."
               value={form.category}
               onChange={(event) => setForm({ ...form, category: event.target.value })}
-            />
+              required
+            >
+              <option value="">Categoria</option>
+              <option value="Regional">Regional</option>
+              <option value="Varietal">Varietal</option>
+              <option value="Exotico">Exotico</option>
+            </select>
             <div className="grid gap-3 sm:grid-cols-2">
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"

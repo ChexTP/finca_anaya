@@ -199,7 +199,7 @@ Permisos principales:
 
 1. El vendedor crea una cotizacion.
 2. Selecciona cliente existente o crea uno nuevo.
-3. Selecciona perfiles, tipos de cafe o productos comerciales definidos.
+3. Selecciona la categoria Regional, Varietal o Exotico y luego el cafe comercial correspondiente; tambien puede usar descripcion libre.
 4. Ingresa cantidades.
 5. El sistema registra lo solicitado, pero el vendedor no asigna lotes.
 6. El vendedor define el precio negociado.
@@ -478,18 +478,12 @@ Datos tentativos:
 - Descripcion.
 - Estado.
 
-Tipos iniciales de cafe:
+Catalogo comercial inicial:
 
-- Pergamino.
-- Trillado.
-- Especial.
-- Pasilla.
-
-Perfiles iniciales:
-
-- La empresa maneja 17 perfiles comerciales despues del procesamiento del cafe.
-- Los perfiles se configuraran como catalogo editable.
-- Mientras se recibe la lista real, se cargaran perfiles provisionales desde Perfil 1 hasta Perfil 17.
+- Cinco cafes regionales provisionales: Regional 1 a Regional 5.
+- Cinco cafes varietales provisionales: Varietal 1 a Varietal 5.
+- Diecisiete cafes exoticos provisionales: Perfil 1 a Perfil 17.
+- El administrador puede crear, editar, cambiar de categoria o desactivar estos cafes desde una sola pantalla.
 - Antes de procesar el cafe, el lote tendra un comentario libre para describir como se recibe o como se guarda.
 - Despues del procesamiento, se asignara uno de los perfiles definidos.
 - El comentario inicial quedara en el historial del lote y no sera el criterio principal de agrupacion para venta.

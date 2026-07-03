@@ -14,6 +14,8 @@ const allowedCatalogs = {
   payableCategories: "payable_categories",
 };
 
+const allowedCoffeeProfileCategories = ["Regional", "Varietal", "Exotico"];
+
 export const getCatalogs = async (req, res) => {
   try {
     const catalogs = {};
@@ -62,8 +64,8 @@ export const putCoffeeProfile = async (req, res) => {
       isActive = true,
     } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ message: "El nombre del perfil es obligatorio" });
+    if (!name || !allowedCoffeeProfileCategories.includes(category)) {
+      return res.status(400).json({ message: "Nombre y categoria del cafe son obligatorios" });
     }
 
     const priceCop = toNumber(basePriceCop);
@@ -116,8 +118,8 @@ export const postCoffeeProfile = async (req, res) => {
       basePriceUsd = 0,
     } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ message: "El nombre del perfil es obligatorio" });
+    if (!name || !allowedCoffeeProfileCategories.includes(category)) {
+      return res.status(400).json({ message: "Nombre y categoria del cafe son obligatorios" });
     }
 
     const priceCop = toNumber(basePriceCop);

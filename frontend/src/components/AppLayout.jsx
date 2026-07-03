@@ -36,7 +36,7 @@ const navigation = [
   { label: "Reportes", path: "/reportes", icon: BarChart3, roles: ["admin", "accounting"] },
   { label: "Documentos", path: "/documentos", icon: FileText, roles: ["admin", "accounting", "seller"] },
   { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },
-  { label: "Perfiles cafe", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin"] },
+  { label: "Cafes comerciales", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin"] },
   { label: "Usuarios", path: "/usuarios", icon: UserCog, roles: ["admin"] },
 ];
 

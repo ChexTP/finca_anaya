@@ -54,12 +54,26 @@ const runSeed = async () => {
     for (let index = 1; index <= 17; index += 1) {
       await pool.query(
         `
-        INSERT INTO coffee_profiles (name)
-        VALUES ($1)
-        ON CONFLICT (name) DO NOTHING
+        INSERT INTO coffee_profiles (name, category)
+        VALUES ($1, 'Exotico')
+        ON CONFLICT (name) DO UPDATE
+        SET category = COALESCE(coffee_profiles.category, EXCLUDED.category)
         `,
         [`Perfil ${index}`]
       );
+    }
+
+    for (const category of ["Regional", "Varietal"]) {
+      for (let index = 1; index <= 5; index += 1) {
+        await pool.query(
+          `
+          INSERT INTO coffee_profiles (name, category)
+          VALUES ($1, $2)
+          ON CONFLICT (name) DO NOTHING
+          `,
+          [`${category} ${index}`, category]
+        );
+      }
     }
 
     for (const user of initialUsers) {

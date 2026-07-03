@@ -628,6 +628,25 @@ UPDATE coffee_types
 SET is_active = FALSE
 WHERE name IN ('Pergamino', 'Trillado', 'Procesado', 'Especial');
 
+-- Catalogo comercial inicial. Los 17 perfiles actuales corresponden a cafes exoticos.
+UPDATE coffee_profiles
+SET category = 'Exotico'
+WHERE category IS NULL AND name ~ '^Perfil ([1-9]|1[0-7])$';
+
+INSERT INTO coffee_profiles (name, category)
+VALUES
+  ('Regional 1', 'Regional'),
+  ('Regional 2', 'Regional'),
+  ('Regional 3', 'Regional'),
+  ('Regional 4', 'Regional'),
+  ('Regional 5', 'Regional'),
+  ('Varietal 1', 'Varietal'),
+  ('Varietal 2', 'Varietal'),
+  ('Varietal 3', 'Varietal'),
+  ('Varietal 4', 'Varietal'),
+  ('Varietal 5', 'Varietal')
+ON CONFLICT (name) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS backup_exports (
   id SERIAL PRIMARY KEY,
   module_name VARCHAR(80) NOT NULL,

@@ -18,7 +18,7 @@ const initialQuote = {
 };
 
 const initialItem = {
-  itemType: "profile",
+  itemType: "Exotico",
   lotId: "",
   coffeeTypeId: "",
   coffeeProfileId: "",
@@ -151,16 +151,12 @@ const CommercialPage = () => {
       throw new Error("Cada cafe debe tener cantidad y precio por kg.");
     }
 
-    if (itemForm.itemType === "profile" && !itemForm.coffeeProfileId) {
-      throw new Error("Seleccione el perfil solicitado.");
+    if (itemForm.itemType !== "description" && !itemForm.coffeeProfileId) {
+      throw new Error("Seleccione el cafe solicitado.");
     }
 
-    if (["type", "description"].includes(itemForm.itemType) && !itemForm.description.trim()) {
-      throw new Error(
-        itemForm.itemType === "type"
-          ? "Seleccione el tipo de cafe solicitado."
-          : "Ingrese la descripcion del cafe solicitado."
-      );
+    if (itemForm.itemType === "description" && !itemForm.description.trim()) {
+      throw new Error("Ingrese la descripcion del cafe solicitado.");
     }
 
     const item = {
@@ -172,7 +168,7 @@ const CommercialPage = () => {
       variety: itemForm.variety || null,
     };
 
-    if (itemForm.itemType === "profile") item.coffeeProfileId = Number(itemForm.coffeeProfileId);
+    if (itemForm.itemType !== "description") item.coffeeProfileId = Number(itemForm.coffeeProfileId);
     return item;
   };
 
@@ -518,36 +514,26 @@ const CommercialPage = () => {
                   value={itemForm.itemType}
                   onChange={(event) => updateItemType(event.target.value)}
                 >
-                  <option value="profile">Perfil</option>
-                  <option value="type">Tipo de cafe</option>
+                  <option value="Regional">Regional</option>
+                  <option value="Varietal">Varietal</option>
+                  <option value="Exotico">Exotico</option>
                   <option value="description">Descripcion libre</option>
                 </select>
 
-                {itemForm.itemType === "profile" && (
+                {itemForm.itemType !== "description" && (
                   <select
                     className="rounded border border-slate-300 px-3 py-2 text-sm"
                     value={itemForm.coffeeProfileId}
                     onChange={(event) => selectProfile(event.target.value)}
                   >
-                    <option value="">Perfil comercial</option>
-                    {catalogs?.coffeeProfiles?.map((profile) => (
+                    <option value="">Cafe {itemForm.itemType.toLowerCase()}</option>
+                    {catalogs?.coffeeProfiles
+                      ?.filter((profile) => profile.category === itemForm.itemType)
+                      .map((profile) => (
                       <option key={profile.id} value={profile.id}>
                         {profile.name}
                       </option>
-                    ))}
-                  </select>
-                )}
-
-                {itemForm.itemType === "type" && (
-                  <select
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={itemForm.description}
-                    onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })}
-                  >
-                    <option value="">Tipo de cafe</option>
-                    <option value="Regional">Regional</option>
-                    <option value="Varietal">Varietal</option>
-                    <option value="Exotico">Exotico</option>
+                      ))}
                   </select>
                 )}
 
