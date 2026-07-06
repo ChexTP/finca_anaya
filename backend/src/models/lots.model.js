@@ -310,6 +310,25 @@ export const updateLotLabReview = async (id, reviewData) => {
   }
 };
 
+export const updateLotPhysicalReview = async (id, reviewData) => {
+  const result = await pool.query(
+    `
+    UPDATE coffee_lots
+    SET
+      humidity_percent = $1,
+      performance_factor = $2,
+      status = 'pendiente_laboratorio',
+      updated_at = NOW()
+    WHERE id = $3
+      AND status = 'pendiente_revision_fisica'
+    RETURNING *
+    `,
+    [reviewData.humidityPercent, reviewData.performanceFactor, id]
+  );
+
+  return result.rows[0];
+};
+
 export const markRejectedLotAsWithdrawn = async ({ id, notes, withdrawnBy }) => {
   const client = await pool.connect();
 

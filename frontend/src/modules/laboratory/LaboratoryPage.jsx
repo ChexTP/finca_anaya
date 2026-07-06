@@ -8,8 +8,6 @@ import { getProcessNextAction, getProcessStatusTone, processStatusLabels } from 
 
 const initialReview = {
   decision: "aprobado",
-  humidityPercent: "",
-  performanceFactor: "",
   aroma: "",
   fragrance: "",
   flavor: "",
@@ -26,9 +24,6 @@ const initialReview = {
 
 const initialFinish = {
   coffeeProfileId: "",
-  outputWeightKg: "",
-  humidityPercent: "",
-  performanceFactor: "",
   aroma: "",
   fragrance: "",
   flavor: "",
@@ -143,8 +138,6 @@ const LaboratoryPage = () => {
     setSelectedLot(lot);
     setReview({
       ...initialReview,
-      humidityPercent: lot.humidity_percent ?? "",
-      performanceFactor: lot.performance_factor ?? "",
     });
     setMessage("");
     setError("");
@@ -155,7 +148,6 @@ const LaboratoryPage = () => {
     setSelectedProcess(process);
     setFinishForm({
       ...initialFinish,
-      outputWeightKg: process.output_weight_kg || "",
     });
     setMessage("");
     setError("");
@@ -318,8 +310,6 @@ const LaboratoryPage = () => {
         method: "PUT",
         body: JSON.stringify({
           ...review,
-          humidityPercent: review.humidityPercent === "" ? null : Number(review.humidityPercent),
-          performanceFactor: review.performanceFactor === "" ? null : Number(review.performanceFactor),
           score: review.score === "" ? null : Number(review.score),
         }),
       });
@@ -358,9 +348,6 @@ const LaboratoryPage = () => {
         body: JSON.stringify({
           ...finishForm,
           coffeeProfileId: Number(finishForm.coffeeProfileId),
-          outputWeightKg: Number(finishForm.outputWeightKg),
-          humidityPercent: Number(finishForm.humidityPercent),
-          performanceFactor: Number(finishForm.performanceFactor),
           score: Number(finishForm.score),
         }),
       });
@@ -480,25 +467,11 @@ const LaboratoryPage = () => {
                 <option value="aprobado">Aprobado</option>
                 <option value="rechazado">Rechazado</option>
               </select>
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Humedad %"
-                type="number"
-                step="0.01"
-                value={review.humidityPercent}
-                onChange={(event) => setReview({ ...review, humidityPercent: event.target.value })}
-                required={review.decision === "aprobado"}
-              />
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Factor de rendimiento"
-                type="number"
-                min="0"
-                step="0.01"
-                value={review.performanceFactor}
-                onChange={(event) => setReview({ ...review, performanceFactor: event.target.value })}
-                required={review.decision === "aprobado"}
-              />
+              {selectedLot && (
+                <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  Revision fisica de Bodega: humedad {selectedLot.humidity_percent}%, factor {selectedLot.performance_factor}.
+                </div>
+              )}
 
               {review.decision === "aprobado" && (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -653,35 +626,8 @@ const LaboratoryPage = () => {
                     </option>
                   ))}
                 </select>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Cantidad final kg"
-                    type="number"
-                    step="0.001"
-                    max={selectedProcess?.total_input_kg || undefined}
-                    value={finishForm.outputWeightKg}
-                    onChange={(event) => setFinishForm({ ...finishForm, outputWeightKg: event.target.value })}
-                  />
-                  <input
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Humedad final %"
-                    type="number"
-                    step="0.01"
-                    value={finishForm.humidityPercent}
-                    onChange={(event) => setFinishForm({ ...finishForm, humidityPercent: event.target.value })}
-                    required
-                  />
-                  <input
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Factor de rendimiento final"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={finishForm.performanceFactor}
-                    onChange={(event) => setFinishForm({ ...finishForm, performanceFactor: event.target.value })}
-                    required
-                  />
+                <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  Revision fisica de Bodega: {selectedProcess.output_weight_kg} kg, humedad {selectedProcess.physical_humidity_percent}%, factor {selectedProcess.physical_performance_factor}.
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

@@ -5,6 +5,7 @@ import {
   postReceivedLot,
   postInitialLoad,
   putLabReview,
+  putPhysicalReview,
   putPurchase,
   putRejectedLotWithdrawal,
 } from "../controllers/lots.controller.js";
@@ -17,6 +18,7 @@ router.get("/:id", requireAuth, getLot);
 router.post("/received", requireAuth, requireRoles("admin", "warehouse"), postReceivedLot);
 router.post("/initial-load", requireAuth, requireRoles("admin"), postInitialLoad);
 router.put("/:id/lab-review", requireAuth, requireRoles("admin", "laboratory"), putLabReview);
+router.put("/:id/physical-review", requireAuth, requireRoles("admin", "warehouse"), putPhysicalReview);
 router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting"), putPurchase);
 router.put("/:id/withdraw-rejected", requireAuth, requireRoles("admin", "warehouse"), putRejectedLotWithdrawal);
 

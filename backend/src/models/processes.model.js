@@ -374,9 +374,8 @@ export const markProcessPendingLaboratory = async ({ processId, notes }) => {
       `
       UPDATE coffee_processes
       SET
-        status = 'pendiente_laboratorio',
+        status = 'pendiente_revision_fisica',
         notes = COALESCE($1, notes),
-        lab_pending_at = NOW(),
         updated_at = NOW()
       WHERE id = $2
       RETURNING *
@@ -392,6 +391,36 @@ export const markProcessPendingLaboratory = async ({ processId, notes }) => {
   } finally {
     client.release();
   }
+};
+
+export const completeProcessPhysicalReview = async ({
+  processId,
+  outputWeightKg,
+  humidityPercent,
+  performanceFactor,
+  reviewedBy,
+}) => {
+  const result = await pool.query(
+    `
+    UPDATE coffee_processes
+    SET
+      status = 'pendiente_laboratorio',
+      output_weight_kg = $1,
+      physical_humidity_percent = $2,
+      physical_performance_factor = $3,
+      physical_reviewed_by = $4,
+      physical_reviewed_at = NOW(),
+      lab_pending_at = NOW(),
+      updated_at = NOW()
+    WHERE id = $5
+      AND status = 'pendiente_revision_fisica'
+      AND $1 <= total_input_kg
+    RETURNING *
+    `,
+    [outputWeightKg, humidityPercent, performanceFactor, reviewedBy, processId]
+  );
+
+  return result.rows[0];
 };
 
 export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
@@ -421,9 +450,13 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       return { invalidStatus: true, process };
     }
 
-    if (outputLot.weightKg > Number(process.total_input_kg)) {
+    if (
+      !process.output_weight_kg ||
+      process.physical_humidity_percent === null ||
+      process.physical_performance_factor === null
+    ) {
       await client.query("ROLLBACK");
-      return { invalidWeight: true, process };
+      return { missingPhysicalReview: true, process };
     }
 
     const outputResult = await client.query(
@@ -467,8 +500,8 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       [
         outputLot.code,
         outputLot.coffeeProfileId,
-        outputLot.weightKg,
-        outputLot.humidityPercent,
+        process.output_weight_kg,
+        process.physical_humidity_percent,
         outputLot.aroma,
         outputLot.fragrance,
         outputLot.flavor,
@@ -483,7 +516,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         outputLot.notes,
         finalizedBy,
         outputLot.initialComment,
-        outputLot.performanceFactor,
+        process.physical_performance_factor,
       ]
     );
     const newLot = outputResult.rows[0];
@@ -501,7 +534,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       WHERE id = $4
       RETURNING *
       `,
-      [newLot.id, outputLot.weightKg, finalizedBy, processId]
+      [newLot.id, process.output_weight_kg, finalizedBy, processId]
     );
 
     if (process.sale_id) {
@@ -535,7 +568,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
       VALUES ($1, 'proceso_entrada', $2, $3, $4)
       `,
-      [newLot.id, outputLot.weightKg, `Lote generado por proceso ${process.code}`, finalizedBy]
+      [newLot.id, process.output_weight_kg, `Lote generado por proceso ${process.code}`, finalizedBy]
     );
 
     await client.query("COMMIT");

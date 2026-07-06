@@ -14,6 +14,7 @@ export const saleStatusLabels = {
 export const processStatusLabels = {
   pendiente: "Por iniciar",
   en_proceso: "En proceso",
+  pendiente_revision_fisica: "Revision fisica en bodega",
   pendiente_laboratorio: "Por analizar",
   finalizado: "Finalizado",
 };
@@ -61,6 +62,7 @@ export const getProcessNextAction = (process) => {
   const actions = {
     pendiente: "Confirmar inicio y fecha estimada de regreso",
     en_proceso: "Marcar pendiente de examen cuando termine fisicamente",
+    pendiente_revision_fisica: "Bodega debe registrar cantidad final, humedad y factor",
     pendiente_laboratorio: "Registrar mediciones y crear lote PROC",
     finalizado: "Proceso cerrado",
   };

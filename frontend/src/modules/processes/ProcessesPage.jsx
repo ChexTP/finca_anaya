@@ -161,13 +161,42 @@ const ProcessesPage = () => {
   };
 
   const sendProcessToLaboratory = async (process) => {
-    if (!window.confirm(`Confirma que ${process.code} termino fisicamente y debe pasar a examen de laboratorio?`)) return;
+    if (!window.confirm(`Confirma que ${process.code} regreso a bodega para revision fisica?`)) return;
     setSaving(true);
     setError("");
     try {
       await apiRequest(`/processes/${process.id}/pending-laboratory`, { method: "PUT", body: JSON.stringify({}) });
       await loadData();
-      setMessage("Proceso enviado a laboratorio para examen.");
+      setMessage("Proceso recibido. Bodega debe completar la revision fisica.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const completePhysicalReview = async (process) => {
+    const outputWeightKg = window.prompt("Cantidad final recibida en kg", process.output_weight_kg || "");
+    if (!outputWeightKg) return;
+    const humidityPercent = window.prompt("Humedad medida (%)", process.physical_humidity_percent || "");
+    if (!humidityPercent) return;
+    const performanceFactor = window.prompt("Factor de rendimiento", process.physical_performance_factor || "");
+    if (!performanceFactor) return;
+    if (!window.confirm(`Confirma la revision fisica de ${process.code}?`)) return;
+
+    setSaving(true);
+    setError("");
+    try {
+      await apiRequest(`/processes/${process.id}/physical-review`, {
+        method: "PUT",
+        body: JSON.stringify({
+          outputWeightKg: Number(outputWeightKg),
+          humidityPercent: Number(humidityPercent),
+          performanceFactor: Number(performanceFactor),
+        }),
+      });
+      await loadData();
+      setMessage("Revision fisica guardada. El proceso ya aparece en Laboratorio.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -354,7 +383,18 @@ const ProcessesPage = () => {
                   onClick={() => sendProcessToLaboratory(process)}
                 >
                   <Save size={16} />
-                  Enviar a examen
+                  Recibir para revision fisica
+                </button>
+              )}
+              {["admin", "warehouse"].includes(user?.role) && process.status === "pendiente_revision_fisica" && (
+                <button
+                  className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => completePhysicalReview(process)}
+                >
+                  <Save size={16} />
+                  Registrar revision fisica
                 </button>
               )}
               {process.inputs?.length > 0 && (

@@ -184,17 +184,18 @@ Permisos principales:
 3. El sistema muestra primero los lotes mas antiguos disponibles.
 4. El usuario indica la cantidad que se toma de cada lote.
 5. Crear la solicitud no descuenta inventario.
-6. Laboratorio confirma que el cafe entro a proceso, registra ubicacion y fecha estimada de regreso a bodega.
+6. Administracion confirma que el cafe entro a proceso, registra ubicacion y fecha estimada de regreso a bodega.
 7. Al confirmar inicio, el sistema descuenta los lotes origen y registra movimiento `proceso_salida`.
 8. El proceso queda en estado en_proceso.
-9. Cuando el proceso fisico termina, laboratorio lo marca como pendiente_laboratorio.
-10. Antes de devolverlo operativamente a bodega, laboratorio registra humedad final, catacion, score, cantidad final y perfil comercial.
-11. El proceso genera un nuevo lote procesado con codigo PROC-AAAA-0001.
-12. La venta asociada queda lista para ensamble cuando el proceso finaliza.
-13. Laboratorio define si la venta necesita mezcla final y registra porcentajes por lote/categoria.
-14. Si no requiere mezcla, laboratorio libera la venta para que bodega asigne el lote procesado y la aliste.
-15. Bodega puede consultar el proceso como solicitado, en proceso, pendiente de laboratorio o finalizado, pero no cambia esos estados internos.
-16. Si queda excedente, queda disponible para venta general.
+9. Cuando el proceso fisico termina, administracion registra su regreso y queda pendiente de revision fisica en bodega.
+10. Bodega registra cantidad final, humedad y factor; despues pasa a pendiente_laboratorio.
+11. Laboratorio registra catacion, score y perfil comercial.
+12. El proceso genera un nuevo lote procesado con codigo PROC-AAAA-0001.
+13. La venta asociada queda lista para ensamble cuando el proceso finaliza.
+14. Laboratorio define si la venta necesita mezcla final y registra porcentajes por lote/categoria.
+15. Si no requiere mezcla, laboratorio libera la venta para que bodega asigne el lote procesado y la aliste.
+16. Bodega puede consultar el proceso como solicitado, en proceso, revision fisica, pendiente de laboratorio o finalizado.
+17. Si queda excedente, queda disponible para venta general.
 
 ### 4.4 Cotizacion
 
@@ -377,7 +378,8 @@ Datos tentativos del lote:
 - Unidad principal en kilogramos.
 - Humedad inicial.
 - La humedad y el factor de rendimiento pueden quedar pendientes durante la recepcion si no es posible medirlos de inmediato.
-- Laboratorio debe completar humedad y factor de rendimiento antes de aprobar el lote.
+- Bodega debe completar humedad y factor de rendimiento antes de enviar el lote a Laboratorio.
+- Laboratorio registra catacion, score y decision de aprobacion o rechazo.
 - Examen visual.
 - Estado de aceptacion: aceptado.
 - Cantidad disponible.
@@ -569,7 +571,8 @@ Reglas de laboratorio:
 - La diferencia entre entrada y salida se calculara automaticamente solo como dato informativo.
 - Laboratorio confirma el inicio del proceso antes de que el inventario se descuente.
 - Laboratorio registra la fecha estimada de regreso a bodega al iniciar el proceso.
-- Cuando el proceso fisico termina, laboratorio debe marcarlo como pendiente_laboratorio.
+- Cuando el proceso regresa, queda pendiente_revision_fisica hasta que Bodega registre cantidad final, humedad y factor.
+- Despues de la revision fisica pasa a pendiente_laboratorio para perfil, catacion y score.
 - Solo los procesos en estado pendiente_laboratorio pueden finalizarse y crear lote PROC.
 - Laboratorio podra corregir cantidad de salida antes de finalizar el proceso, con aviso de confirmacion.
 - Una vez el proceso quede finalizado, las cantidades quedan bloqueadas.
@@ -1460,8 +1463,8 @@ No incluye:
 - Proveedor tendra nombre, telefono unico y direccion como campos obligatorios; correo y observaciones opcionales.
 - Productores, fincas o intermediarios se manejaran como proveedores.
 - Embalajes iniciales: costal/saco de fique, tula/estopa y bolsa interna adicional.
-- Estados de lote: recibido, pendiente_laboratorio, rechazado, aprobado, disponible, en_proceso, procesado, vendido_parcial y agotado.
-- Estados de proceso: pendiente, en_proceso, pendiente_laboratorio y finalizado.
+- Estados de lote: recibido, pendiente_revision_fisica, pendiente_laboratorio, rechazado, aprobado, disponible, en_proceso, procesado, vendido_parcial y agotado.
+- Estados de proceso: pendiente, en_proceso, pendiente_revision_fisica, pendiente_laboratorio y finalizado.
 - Procesos solo se podran anular en estado pendiente.
 - Procesos en_proceso o finalizados no se podran anular.
 - Al anular un proceso pendiente no se devuelven cantidades porque la solicitud aun no descuenta inventario.
@@ -1469,7 +1472,14 @@ No incluye:
 - Crear proceso solo genera una solicitud.
 - Laboratorio confirma inicio de proceso, ubicacion y fecha estimada de regreso.
 - Al confirmar inicio de proceso se descuenta el inventario de los lotes origen.
-- Al terminar fisicamente, el proceso queda pendiente_laboratorio antes de crear PROC.
+- Al regresar, el proceso pasa primero por revision fisica de Bodega y despues por analisis sensorial de Laboratorio antes de crear PROC.
+
+### Solicitudes De Muestras
+
+- Una solicitud puede contener varios tipos o perfiles de cafe.
+- Cada renglon registra el cafe, cantidad en gramos y precio opcional.
+- Los datos del solicitante, moneda, fechas de solicitud y entrega, notas y estado pertenecen a la solicitud general.
+- Las solicitudes antiguas de una sola muestra se conservan como solicitudes con un renglon.
 - Ubicacion general: bodega, finca_proceso, trilladora y otro.
 - Las cotizaciones/preventas no descuentan inventario.
 - Las cotizaciones no tienen fecha de vencimiento.

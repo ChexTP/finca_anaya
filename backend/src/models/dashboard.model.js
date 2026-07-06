@@ -302,7 +302,7 @@ const getActiveProcesses = async (role) => {
 
   const statuses = role === "laboratory"
     ? ["pendiente_laboratorio"]
-    : ["pendiente", "en_proceso", "pendiente_laboratorio"];
+    : ["pendiente", "en_proceso", "pendiente_revision_fisica", "pendiente_laboratorio"];
 
   const result = await pool.query(
     `

@@ -67,26 +67,16 @@ export const postSample = async (req, res) => {
       requesterAddress,
       requesterCity,
       requesterCountry,
-      coffeeTypeId,
-      coffeeProfileId,
-      description,
-      quantityGrams,
+      items,
       currency = "COP",
-      price,
       requestedAt,
       tentativeDeliveryDate,
       notes,
     } = req.body;
 
-    if (!requesterName || !requesterPhone || !quantityGrams || !requestedAt) {
+    if (!requesterName || !requesterPhone || !requestedAt || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
-        message: "Nombre, telefono, cantidad y fecha de solicitud son obligatorios",
-      });
-    }
-
-    if (!coffeeTypeId && !coffeeProfileId && !description) {
-      return res.status(400).json({
-        message: "Debe indicar tipo de cafe, perfil o descripcion de la muestra",
+        message: "Nombre, telefono, fecha y al menos una muestra son obligatorios",
       });
     }
 
@@ -94,31 +84,46 @@ export const postSample = async (req, res) => {
       return res.status(400).json({ message: "La moneda debe ser COP o USD" });
     }
 
-    const quantity = toNumber(quantityGrams);
-    const priceValue = toNumber(price);
+    const cleanItems = [];
+    for (const item of items) {
+      const coffeeTypeId = item.coffeeTypeId ? Number(item.coffeeTypeId) : null;
+      const coffeeProfileId = item.coffeeProfileId ? Number(item.coffeeProfileId) : null;
+      const quantityGrams = toNumber(item.quantityGrams);
+      const price = toNumber(item.price);
 
-    if (!isValidNumber(quantity) || quantity <= 0) {
-      return res.status(400).json({ message: "La cantidad de muestra debe ser mayor a cero" });
-    }
-
-    if (priceValue !== null && (!isValidNumber(priceValue) || priceValue < 0)) {
-      return res.status(400).json({ message: "El precio debe ser un numero valido mayor o igual a cero" });
-    }
-
-    if (coffeeTypeId) {
-      const coffeeType = await findCoffeeTypeById(coffeeTypeId);
-
-      if (!coffeeType || !coffeeType.is_active) {
-        return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+      if (!coffeeTypeId && !coffeeProfileId && !item.description) {
+        return res.status(400).json({ message: "Cada muestra debe indicar tipo, perfil o descripcion" });
       }
-    }
-
-    if (coffeeProfileId) {
-      const coffeeProfile = await findCoffeeProfileById(coffeeProfileId);
-
-      if (!coffeeProfile || !coffeeProfile.is_active) {
-        return res.status(404).json({ message: "Perfil de cafe no encontrado o inactivo" });
+      if (!isValidNumber(quantityGrams) || quantityGrams <= 0) {
+        return res.status(400).json({ message: "La cantidad de cada muestra debe ser mayor a cero" });
       }
+      if (price !== null && (!isValidNumber(price) || price < 0)) {
+        return res.status(400).json({ message: "El precio de cada muestra no puede ser negativo" });
+      }
+
+      if (coffeeTypeId) {
+        const coffeeType = await findCoffeeTypeById(coffeeTypeId);
+
+        if (!coffeeType || !coffeeType.is_active) {
+          return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+        }
+      }
+
+      if (coffeeProfileId) {
+        const coffeeProfile = await findCoffeeProfileById(coffeeProfileId);
+
+        if (!coffeeProfile || !coffeeProfile.is_active) {
+          return res.status(404).json({ message: "Perfil de cafe no encontrado o inactivo" });
+        }
+      }
+
+      cleanItems.push({
+        coffeeTypeId,
+        coffeeProfileId,
+        description: item.description || null,
+        quantityGrams,
+        price,
+      });
     }
 
     const code = await getNextSampleCode();
@@ -131,13 +136,8 @@ export const postSample = async (req, res) => {
       requesterAddress,
       requesterCity,
       requesterCountry,
-      coffeeTypeId: coffeeTypeId || null,
-      coffeeProfileId: coffeeProfileId || null,
-      description,
-      quantityGrams: quantity,
-      isCharged: priceValue !== null && priceValue > 0,
+      items: cleanItems,
       currency,
-      price: priceValue,
       requestedAt,
       tentativeDeliveryDate: tentativeDeliveryDate || null,
       notes,

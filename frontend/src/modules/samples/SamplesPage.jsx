@@ -1,4 +1,4 @@
-import { FlaskConical, RefreshCw, Save } from "lucide-react";
+import { FlaskConical, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -24,6 +24,14 @@ const initialSample = {
   requestedAt: today,
   tentativeDeliveryDate: "",
   notes: "",
+};
+
+const emptySampleItem = {
+  coffeeTypeId: "",
+  coffeeProfileId: "",
+  description: "",
+  quantityGrams: "",
+  price: "",
 };
 
 const statusLabels = {
@@ -79,6 +87,7 @@ const SamplesPage = () => {
   const [samples, setSamples] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [form, setForm] = useState(initialSample);
+  const [sampleItems, setSampleItems] = useState([]);
   const [statusNotes, setStatusNotes] = useState({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -140,17 +149,25 @@ const SamplesPage = () => {
     setError("");
 
     try {
+      const currentItem = {
+        coffeeTypeId: form.coffeeTypeId ? Number(form.coffeeTypeId) : null,
+        coffeeProfileId: form.coffeeProfileId ? Number(form.coffeeProfileId) : null,
+        description: form.description || null,
+        quantityGrams: Number(form.quantityGrams),
+        price: form.price === "" ? null : Number(form.price),
+      };
+      const items = form.quantityGrams ? [...sampleItems, currentItem] : sampleItems;
+      if (items.length === 0) throw new Error("Agregue al menos una muestra.");
+
       await apiRequest("/samples", {
         method: "POST",
         body: JSON.stringify({
           ...form,
-          coffeeTypeId: form.coffeeTypeId ? Number(form.coffeeTypeId) : null,
-          coffeeProfileId: form.coffeeProfileId ? Number(form.coffeeProfileId) : null,
-          quantityGrams: Number(form.quantityGrams),
-          price: form.price === "" ? null : Number(form.price),
+          items,
         }),
       });
       setForm(initialSample);
+      setSampleItems([]);
       await loadData();
       setMessage("Solicitud de muestra creada correctamente.");
     } catch (requestError) {
@@ -158,6 +175,30 @@ const SamplesPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const addSampleItem = () => {
+    if ((!form.coffeeTypeId && !form.coffeeProfileId && !form.description.trim()) || !form.quantityGrams) {
+      setError("Seleccione o describa el cafe e indique la cantidad en gramos.");
+      return;
+    }
+
+    setSampleItems((current) => [
+      ...current,
+      {
+        coffeeTypeId: form.coffeeTypeId ? Number(form.coffeeTypeId) : null,
+        coffeeProfileId: form.coffeeProfileId ? Number(form.coffeeProfileId) : null,
+        description: form.description || null,
+        coffeeName:
+          catalogs?.coffeeProfiles?.find((profile) => String(profile.id) === String(form.coffeeProfileId))?.name ||
+          catalogs?.coffeeTypes?.find((type) => String(type.id) === String(form.coffeeTypeId))?.name ||
+          form.description,
+        quantityGrams: Number(form.quantityGrams),
+        price: form.price === "" ? null : Number(form.price),
+      },
+    ]);
+    setForm((current) => ({ ...current, ...emptySampleItem }));
+    setError("");
   };
 
   const updateStatus = async (sample, status) => {
@@ -302,7 +343,7 @@ const SamplesPage = () => {
                 step="1"
                 value={form.quantityGrams}
                 onChange={(event) => setForm({ ...form, quantityGrams: event.target.value })}
-                required
+                required={sampleItems.length === 0}
               />
               <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
                 <input
@@ -322,6 +363,34 @@ const SamplesPage = () => {
                   <option value="USD">USD</option>
                 </select>
               </div>
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                type="button"
+                onClick={addSampleItem}
+              >
+                <Plus size={16} />
+                Agregar otra muestra
+              </button>
+              {sampleItems.length > 0 && (
+                <div className="divide-y divide-slate-100 rounded border border-slate-200">
+                  {sampleItems.map((item, index) => (
+                    <div key={`${item.coffeeName}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                      <div>
+                        <p className="font-medium text-ink">{item.coffeeName}</p>
+                        <p className="text-slate-500">{item.quantityGrams} g - {formatMoney(form.currency, item.price)}</p>
+                      </div>
+                      <button
+                        className="rounded p-2 text-rose-600 hover:bg-rose-50"
+                        type="button"
+                        aria-label="Quitar muestra"
+                        onClick={() => setSampleItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-medium text-slate-600">
                   Fecha solicitud
@@ -408,10 +477,16 @@ const SamplesPage = () => {
                   </div>
 
                   <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
-                    <p>
-                      <span className="font-medium text-slate-800">Cafe:</span>{" "}
-                      {sample.coffee_profile_name || sample.coffee_type_name || sample.description}
-                    </p>
+                    <div>
+                      <span className="font-medium text-slate-800">Muestras:</span>
+                      <div className="mt-1 space-y-1">
+                        {(sample.items || []).map((item) => (
+                          <p key={item.id}>
+                            {item.coffee_profile_name || item.coffee_type_name || item.description} - {item.quantity_grams} g
+                          </p>
+                        ))}
+                      </div>
+                    </div>
                     <p>
                       <span className="font-medium text-slate-800">Solicitada:</span>{" "}
                       {formatDate(sample.requested_at)}

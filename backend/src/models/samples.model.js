@@ -55,7 +55,7 @@ export const listSampleRequests = async ({ createdBy, status }) => {
     params
   );
 
-  return result.rows;
+  return attachSampleItems(result.rows);
 };
 
 export const findSampleRequestById = async (id) => {
@@ -78,11 +78,43 @@ export const findSampleRequestById = async (id) => {
     [id]
   );
 
-  return result.rows[0];
+  const [sample] = await attachSampleItems(result.rows);
+  return sample;
+};
+
+const attachSampleItems = async (samples) => {
+  if (samples.length === 0) return samples;
+
+  const result = await pool.query(
+    `
+    SELECT
+      sample_request_items.*,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name
+    FROM sample_request_items
+    LEFT JOIN coffee_types ON coffee_types.id = sample_request_items.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = sample_request_items.coffee_profile_id
+    WHERE sample_request_items.sample_request_id = ANY($1::int[])
+    ORDER BY sample_request_items.id ASC
+    `,
+    [samples.map((sample) => sample.id)]
+  );
+
+  return samples.map((sample) => ({
+    ...sample,
+    items: result.rows.filter((item) => item.sample_request_id === sample.id),
+  }));
 };
 
 export const createSampleRequest = async (sampleData) => {
-  const result = await pool.query(
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const firstItem = sampleData.items[0];
+    const totalGrams = sampleData.items.reduce((total, item) => total + item.quantityGrams, 0);
+    const totalPrice = sampleData.items.reduce((total, item) => total + (item.price || 0), 0);
+    const result = await client.query(
     `
     INSERT INTO sample_requests (
       code,
@@ -121,22 +153,41 @@ export const createSampleRequest = async (sampleData) => {
       sampleData.requesterAddress,
       sampleData.requesterCity,
       sampleData.requesterCountry,
-      sampleData.coffeeTypeId,
-      sampleData.coffeeProfileId,
-      sampleData.description,
-      sampleData.quantityGrams / 1000,
-      sampleData.quantityGrams,
-      sampleData.isCharged,
+      firstItem.coffeeTypeId,
+      firstItem.coffeeProfileId,
+      firstItem.description,
+      totalGrams / 1000,
+      totalGrams,
+      totalPrice > 0,
       sampleData.currency,
-      sampleData.price,
+      totalPrice > 0 ? totalPrice : null,
       sampleData.requestedAt,
       sampleData.tentativeDeliveryDate,
       sampleData.notes,
       sampleData.createdBy,
     ]
-  );
+    );
 
-  return result.rows[0];
+    const sample = result.rows[0];
+    for (const item of sampleData.items) {
+      await client.query(
+        `
+        INSERT INTO sample_request_items (
+          sample_request_id, coffee_type_id, coffee_profile_id, description, quantity_grams, price
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [sample.id, item.coffeeTypeId, item.coffeeProfileId, item.description, item.quantityGrams, item.price]
+      );
+    }
+
+    await client.query("COMMIT");
+    return sample;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const updateSampleRequestStatus = async ({ id, status, notes, handledBy }) => {

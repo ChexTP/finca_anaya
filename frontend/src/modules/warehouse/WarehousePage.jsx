@@ -229,6 +229,7 @@ const WarehousePage = () => {
   const [catalogs, setCatalogs] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [pendingLots, setPendingLots] = useState([]);
+  const [physicalReviewLots, setPhysicalReviewLots] = useState([]);
   const [rejectedLots, setRejectedLots] = useState([]);
   const [pendingSales, setPendingSales] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
@@ -257,10 +258,11 @@ const WarehousePage = () => {
   }, [lotForm, selectedPackaging]);
 
   const loadData = async () => {
-    const [catalogData, supplierData, lotData, rejectedData, saleData, inventoryData] = await Promise.all([
+    const [catalogData, supplierData, lotData, physicalData, rejectedData, saleData, inventoryData] = await Promise.all([
       apiRequest("/catalogs"),
       apiRequest("/suppliers"),
       apiRequest("/lots?status=pendiente_laboratorio"),
+      apiRequest("/lots?status=pendiente_revision_fisica"),
       apiRequest("/lots?status=rechazado"),
       apiRequest("/sales"),
       apiRequest("/inventory/lots"),
@@ -268,6 +270,7 @@ const WarehousePage = () => {
     setCatalogs(catalogData);
     setSuppliers(supplierData);
     setPendingLots(lotData);
+    setPhysicalReviewLots(physicalData);
     setRejectedLots(rejectedData);
     setPendingSales(saleData.filter((sale) => activeWarehouseStatuses.includes(sale.status)));
     setAvailableLots(inventoryData);
@@ -314,7 +317,7 @@ const WarehousePage = () => {
     setSaving(true);
 
     try {
-      await apiRequest("/lots/received", {
+      const response = await apiRequest("/lots/received", {
         method: "POST",
         body: JSON.stringify({
           ...lotForm,
@@ -330,7 +333,38 @@ const WarehousePage = () => {
       });
       setLotForm(initialLot);
       await loadData();
-      setMessage("Cafe recibido correctamente. Quedo pendiente de evaluacion en laboratorio.");
+      setMessage(
+        response.data.status === "pendiente_revision_fisica"
+          ? "Cafe recibido. Quedo pendiente de revision fisica en bodega."
+          : "Cafe recibido. Quedo pendiente de analisis sensorial en laboratorio."
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const completeLotPhysicalReview = async (lot) => {
+    const humidityPercent = window.prompt("Humedad medida (%)", lot.humidity_percent ?? "");
+    if (!humidityPercent) return;
+    const performanceFactor = window.prompt("Factor de rendimiento", lot.performance_factor ?? "");
+    if (!performanceFactor) return;
+    if (!window.confirm(`Confirma la revision fisica de ${lot.code}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      await apiRequest(`/lots/${lot.id}/physical-review`, {
+        method: "PUT",
+        body: JSON.stringify({
+          humidityPercent: Number(humidityPercent),
+          performanceFactor: Number(performanceFactor),
+        }),
+      });
+      await loadData();
+      setMessage("Revision fisica guardada. El lote paso a Laboratorio.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -722,6 +756,39 @@ const WarehousePage = () => {
             Registrar cafe
           </button>
         </form>
+      </div>
+
+      <div className="rounded border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-sm font-semibold text-slate-800">Pendientes de revision fisica</h2>
+        </div>
+        {physicalReviewLots.length === 0 ? (
+          <div className="p-4">
+            <EmptyState title="Sin revisiones pendientes" message="Los lotes recibidos sin humedad o factor apareceran aqui." />
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {physicalReviewLots.map((lot) => (
+              <div key={lot.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="font-semibold text-ink">{lot.code}</p>
+                  <p className="text-sm text-slate-500">{lot.supplier_name || "Sin proveedor"} - {lot.net_weight_kg} kg</p>
+                  <p className="text-sm text-slate-500">
+                    Humedad: {lot.humidity_percent ?? "pendiente"} - Factor: {lot.performance_factor ?? "pendiente"}
+                  </p>
+                </div>
+                <button
+                  className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => completeLotPhysicalReview(lot)}
+                >
+                  Registrar revision fisica
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded border border-slate-200 bg-white">

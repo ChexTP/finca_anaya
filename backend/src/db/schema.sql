@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT coffee_lots_status_check CHECK (
     status IN (
+      'pendiente_revision_fisica',
       'pendiente_laboratorio',
       'rechazado',
       'retirado',
@@ -210,6 +211,7 @@ BEGIN
   ALTER TABLE coffee_lots
   ADD CONSTRAINT coffee_lots_status_check CHECK (
     status IN (
+      'pendiente_revision_fisica',
       'pendiente_laboratorio',
       'rechazado',
       'retirado',
@@ -271,6 +273,10 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
   total_input_kg NUMERIC(12, 3) NOT NULL DEFAULT 0,
   output_lot_id INTEGER REFERENCES coffee_lots(id),
   output_weight_kg NUMERIC(12, 3),
+  physical_humidity_percent NUMERIC(5, 2),
+  physical_performance_factor NUMERIC(8, 2),
+  physical_reviewed_by INTEGER REFERENCES users(id),
+  physical_reviewed_at TIMESTAMP,
   created_by INTEGER REFERENCES users(id),
   finalized_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -279,7 +285,7 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
   finalized_at TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT coffee_processes_status_check CHECK (
-    status IN ('pendiente', 'en_proceso', 'pendiente_laboratorio', 'finalizado')
+    status IN ('pendiente', 'en_proceso', 'pendiente_revision_fisica', 'pendiente_laboratorio', 'finalizado')
   ),
   CONSTRAINT coffee_processes_weight_check CHECK (
     total_input_kg >= 0 AND (output_weight_kg IS NULL OR output_weight_kg >= 0)
@@ -291,6 +297,10 @@ ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS sale_id INTEGER;
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS estimated_return_date DATE;
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS lab_pending_at TIMESTAMP;
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS physical_humidity_percent NUMERIC(5, 2);
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS physical_performance_factor NUMERIC(8, 2);
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS physical_reviewed_by INTEGER REFERENCES users(id);
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS physical_reviewed_at TIMESTAMP;
 ALTER TABLE coffee_processes ALTER COLUMN status SET DEFAULT 'pendiente';
 
 DO $$
@@ -298,7 +308,7 @@ BEGIN
   ALTER TABLE coffee_processes DROP CONSTRAINT IF EXISTS coffee_processes_status_check;
   ALTER TABLE coffee_processes
   ADD CONSTRAINT coffee_processes_status_check CHECK (
-    status IN ('pendiente', 'en_proceso', 'pendiente_laboratorio', 'finalizado')
+    status IN ('pendiente', 'en_proceso', 'pendiente_revision_fisica', 'pendiente_laboratorio', 'finalizado')
   );
 END $$;
 
@@ -621,6 +631,31 @@ UPDATE sample_requests
 SET quantity_grams = quantity_kg * 1000
 WHERE quantity_grams IS NULL;
 ALTER TABLE sample_requests ALTER COLUMN quantity_grams SET NOT NULL;
+
+CREATE TABLE IF NOT EXISTS sample_request_items (
+  id SERIAL PRIMARY KEY,
+  sample_request_id INTEGER NOT NULL REFERENCES sample_requests(id) ON DELETE CASCADE,
+  coffee_type_id INTEGER REFERENCES coffee_types(id),
+  coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
+  description TEXT,
+  quantity_grams NUMERIC(12, 2) NOT NULL,
+  price NUMERIC(14, 2),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sample_request_items_quantity_check CHECK (quantity_grams > 0),
+  CONSTRAINT sample_request_items_price_check CHECK (price IS NULL OR price >= 0),
+  CONSTRAINT sample_request_items_reference_check CHECK (
+    coffee_type_id IS NOT NULL OR coffee_profile_id IS NOT NULL OR description IS NOT NULL
+  )
+);
+
+INSERT INTO sample_request_items (
+  sample_request_id, coffee_type_id, coffee_profile_id, description, quantity_grams, price
+)
+SELECT id, coffee_type_id, coffee_profile_id, description, quantity_grams, price
+FROM sample_requests
+WHERE NOT EXISTS (
+  SELECT 1 FROM sample_request_items WHERE sample_request_items.sample_request_id = sample_requests.id
+);
 
 -- Los tipos activos corresponden al beneficio con el que llega el cafe a bodega.
 INSERT INTO coffee_types (name) VALUES ('Lavado'), ('Natural'), ('Semilavado')

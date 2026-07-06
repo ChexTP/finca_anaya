@@ -5,6 +5,7 @@ import {
   createProcess,
   startProcess,
   markProcessPendingLaboratory,
+  completeProcessPhysicalReview,
   finishProcess,
 } from "../models/processes.model.js";
 import {
@@ -196,7 +197,7 @@ export const putProcessPendingLaboratory = async (req, res) => {
     }
 
     res.json({
-      message: "Proceso marcado como pendiente de laboratorio",
+      message: "Proceso recibido y pendiente de revision fisica en bodega",
       data: result,
     });
   } catch (error) {
@@ -207,13 +208,46 @@ export const putProcessPendingLaboratory = async (req, res) => {
   }
 };
 
+export const putProcessPhysicalReview = async (req, res) => {
+  try {
+    const outputWeight = toNumber(req.body.outputWeightKg);
+    const humidity = toNumber(req.body.humidityPercent);
+    const performance = toNumber(req.body.performanceFactor);
+
+    if (!Number.isFinite(outputWeight) || outputWeight <= 0) {
+      return res.status(400).json({ message: "La cantidad final debe ser mayor a cero" });
+    }
+    if (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {
+      return res.status(400).json({ message: "La humedad debe estar entre 0 y 100" });
+    }
+    if (!Number.isFinite(performance) || performance < 0) {
+      return res.status(400).json({ message: "El factor de rendimiento es obligatorio" });
+    }
+
+    const process = await completeProcessPhysicalReview({
+      processId: req.params.id,
+      outputWeightKg: outputWeight,
+      humidityPercent: humidity,
+      performanceFactor: performance,
+      reviewedBy: req.user.id,
+    });
+
+    if (!process) {
+      return res.status(409).json({
+        message: "El proceso no esta pendiente de revision fisica o la cantidad supera la entrada",
+      });
+    }
+
+    res.json({ message: "Revision fisica guardada. El proceso paso a laboratorio", data: process });
+  } catch (error) {
+    res.status(500).json({ message: "Error al guardar revision fisica del proceso", error: error.message });
+  }
+};
+
 export const putFinishProcess = async (req, res) => {
   try {
     const {
       coffeeProfileId,
-      outputWeightKg,
-      humidityPercent,
-      performanceFactor,
       aroma,
       fragrance,
       flavor,
@@ -239,22 +273,7 @@ export const putFinishProcess = async (req, res) => {
       return res.status(404).json({ message: "Perfil comercial no encontrado o inactivo" });
     }
 
-    const outputWeight = toNumber(outputWeightKg);
-    const humidity = toNumber(humidityPercent);
-    const performance = toNumber(performanceFactor);
     const scoreValue = toNumber(score);
-
-    if (!Number.isFinite(outputWeight) || outputWeight <= 0) {
-      return res.status(400).json({ message: "La cantidad final debe ser mayor a cero" });
-    }
-
-    if (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {
-      return res.status(400).json({ message: "La humedad final debe estar entre 0 y 100" });
-    }
-
-    if (!Number.isFinite(performance) || performance < 0) {
-      return res.status(400).json({ message: "El factor de rendimiento final es obligatorio" });
-    }
 
     const missingField = requiredCuppingFields.find((field) => !req.body[field]);
 
@@ -271,9 +290,6 @@ export const putFinishProcess = async (req, res) => {
       outputLot: {
         code,
         coffeeProfileId,
-        weightKg: outputWeight,
-        humidityPercent: humidity,
-        performanceFactor: performance,
         aroma,
         fragrance,
         flavor,
@@ -301,9 +317,9 @@ export const putFinishProcess = async (req, res) => {
       });
     }
 
-    if (result.invalidWeight) {
+    if (result.missingPhysicalReview) {
       return res.status(409).json({
-        message: "La cantidad final no puede ser mayor que la cantidad de entrada",
+        message: "La revision fisica de bodega debe completarse antes del analisis sensorial",
         data: result.process,
       });
     }

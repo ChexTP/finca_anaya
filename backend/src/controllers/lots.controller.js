@@ -11,6 +11,7 @@ import {
   createReceivedLot,
   markRejectedLotAsWithdrawn,
   updateLotLabReview,
+  updateLotPhysicalReview,
   registerLotPurchase,
   createInitialInventoryLot,
 } from "../models/lots.model.js";
@@ -139,9 +140,11 @@ export const postReceivedLot = async (req, res) => {
     }
 
     const code = await getNextLotCode();
-    const status = "pendiente_laboratorio";
     const humidity = toNumber(humidityPercent);
     const performance = toNumber(performanceFactor);
+    const status = humidity === null || performance === null
+      ? "pendiente_revision_fisica"
+      : "pendiente_laboratorio";
     const visualDefect = toNumber(visualDefectPercent);
 
     if (
@@ -201,6 +204,37 @@ export const postReceivedLot = async (req, res) => {
   }
 };
 
+export const putPhysicalReview = async (req, res) => {
+  try {
+    const humidity = toNumber(req.body.humidityPercent);
+    const performance = toNumber(req.body.performanceFactor);
+
+    if (!isValidNumber(humidity) || humidity < 0 || humidity > 100) {
+      return res.status(400).json({ message: "La humedad debe estar entre 0 y 100" });
+    }
+
+    if (!isValidNumber(performance) || performance < 0) {
+      return res.status(400).json({ message: "El factor de rendimiento debe ser mayor o igual a cero" });
+    }
+
+    const lot = await updateLotPhysicalReview(req.params.id, {
+      humidityPercent: humidity,
+      performanceFactor: performance,
+    });
+
+    if (!lot) {
+      return res.status(409).json({ message: "El lote no esta pendiente de revision fisica" });
+    }
+
+    res.json({
+      message: "Revision fisica guardada. El lote paso a laboratorio",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error al guardar revision fisica", error: error.message });
+  }
+};
+
 export const putRejectedLotWithdrawal = async (req, res) => {
   try {
     const { notes } = req.body;
@@ -250,8 +284,6 @@ export const putLabReview = async (req, res) => {
   try {
     const {
       decision,
-      humidityPercent,
-      performanceFactor,
       aroma,
       fragrance,
       flavor,
@@ -272,8 +304,13 @@ export const putLabReview = async (req, res) => {
       });
     }
 
-    const humidity = toNumber(humidityPercent);
-    const performance = toNumber(performanceFactor);
+    const currentLot = await findLotById(req.params.id);
+    if (!currentLot) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    const humidity = toNumber(currentLot.humidity_percent);
+    const performance = toNumber(currentLot.performance_factor);
     const scoreValue = toNumber(score);
 
     if (decision === "aprobado" && (!isValidNumber(humidity) || !isValidNumber(performance))) {
