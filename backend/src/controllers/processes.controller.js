@@ -213,6 +213,7 @@ export const putFinishProcess = async (req, res) => {
       coffeeProfileId,
       outputWeightKg,
       humidityPercent,
+      performanceFactor,
       aroma,
       fragrance,
       flavor,
@@ -240,6 +241,7 @@ export const putFinishProcess = async (req, res) => {
 
     const outputWeight = toNumber(outputWeightKg);
     const humidity = toNumber(humidityPercent);
+    const performance = toNumber(performanceFactor);
     const scoreValue = toNumber(score);
 
     if (!Number.isFinite(outputWeight) || outputWeight <= 0) {
@@ -248,6 +250,10 @@ export const putFinishProcess = async (req, res) => {
 
     if (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {
       return res.status(400).json({ message: "La humedad final debe estar entre 0 y 100" });
+    }
+
+    if (!Number.isFinite(performance) || performance < 0) {
+      return res.status(400).json({ message: "El factor de rendimiento final es obligatorio" });
     }
 
     const missingField = requiredCuppingFields.find((field) => !req.body[field]);
@@ -267,6 +273,7 @@ export const putFinishProcess = async (req, res) => {
         coffeeProfileId,
         weightKg: outputWeight,
         humidityPercent: humidity,
+        performanceFactor: performance,
         aroma,
         fragrance,
         flavor,

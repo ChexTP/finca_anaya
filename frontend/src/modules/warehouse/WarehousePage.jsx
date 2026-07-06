@@ -323,7 +323,7 @@ const WarehousePage = () => {
           grossWeightKg: Number(lotForm.grossWeightKg),
           packagingTypeId: Number(lotForm.packagingTypeId),
           packagingQuantity: Number(lotForm.packagingQuantity),
-          humidityPercent: Number(lotForm.humidityPercent),
+          humidityPercent: lotForm.humidityPercent === "" ? null : Number(lotForm.humidityPercent),
           performanceFactor: lotForm.performanceFactor === "" ? null : Number(lotForm.performanceFactor),
           commercialClassification: lotForm.commercialClassification || null,
         }),
@@ -668,21 +668,19 @@ const WarehousePage = () => {
             </label>
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Humedad %"
+              placeholder="Humedad % (opcional)"
               type="number"
               step="0.01"
               value={lotForm.humidityPercent}
               onChange={(event) => setLotForm({ ...lotForm, humidityPercent: event.target.value })}
-              required
             />
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Factor de rendimiento"
+              placeholder="Factor de rendimiento (opcional)"
               type="number"
               step="0.01"
               value={lotForm.performanceFactor}
               onChange={(event) => setLotForm({ ...lotForm, performanceFactor: event.target.value })}
-              required
             />
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"

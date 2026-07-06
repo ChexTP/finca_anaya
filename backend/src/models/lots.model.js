@@ -242,6 +242,7 @@ export const updateLotLabReview = async (id, reviewData) => {
         status = CASE WHEN $1 = 'aprobado' THEN 'disponible' ELSE 'rechazado' END,
         available_weight_kg = CASE WHEN $1 = 'aprobado' THEN net_weight_kg ELSE 0 END,
         humidity_percent = $2,
+        performance_factor = $16,
         lab_aroma = $3,
         lab_fragrance = $4,
         lab_flavor = $5,
@@ -257,7 +258,7 @@ export const updateLotLabReview = async (id, reviewData) => {
         lab_reviewed_by = $15,
         lab_reviewed_at = NOW(),
         updated_at = NOW()
-      WHERE id = $16
+      WHERE id = $17
       RETURNING *
       `,
       [
@@ -276,6 +277,7 @@ export const updateLotLabReview = async (id, reviewData) => {
         reviewData.score,
         reviewData.notes,
         reviewData.reviewedBy,
+        reviewData.performanceFactor,
         id,
       ]
     );

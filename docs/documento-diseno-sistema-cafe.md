@@ -376,6 +376,8 @@ Datos tentativos del lote:
 - Peso neto.
 - Unidad principal en kilogramos.
 - Humedad inicial.
+- La humedad y el factor de rendimiento pueden quedar pendientes durante la recepcion si no es posible medirlos de inmediato.
+- Laboratorio debe completar humedad y factor de rendimiento antes de aprobar el lote.
 - Examen visual.
 - Estado de aceptacion: aceptado.
 - Cantidad disponible.
@@ -523,6 +525,7 @@ Datos tentativos:
 - Diferencia entre entrada y salida del proceso.
 - Porcentaje informativo de diferencia entre entrada y salida.
 - Humedad final.
+- Factor de rendimiento final obligatorio.
 - Perfil comercial.
 - Notas sensoriales.
 - Observaciones opcionales.

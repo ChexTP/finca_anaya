@@ -84,9 +84,9 @@ export const postReceivedLot = async (req, res) => {
       initialComment,
     } = req.body;
 
-    if (!supplierId || !coffeeTypeId || !grossWeightKg || !packagingTypeId || !receivedAt || humidityPercent === undefined || performanceFactor === undefined) {
+    if (!supplierId || !coffeeTypeId || !grossWeightKg || !packagingTypeId || !receivedAt) {
       return res.status(400).json({
-        message: "Proveedor, proceso, fecha de llegada, peso, embalaje, humedad y factor de rendimiento son obligatorios",
+        message: "Proveedor, proceso, fecha de llegada, peso y embalaje son obligatorios",
       });
     }
 
@@ -145,8 +145,8 @@ export const postReceivedLot = async (req, res) => {
     const visualDefect = toNumber(visualDefectPercent);
 
     if (
-      !isValidNumber(humidity) ||
-      !isValidNumber(performance) ||
+      (humidity !== null && !isValidNumber(humidity)) ||
+      (performance !== null && !isValidNumber(performance)) ||
       (visualDefect !== null && !isValidNumber(visualDefect))
     ) {
       return res.status(400).json({
@@ -251,6 +251,7 @@ export const putLabReview = async (req, res) => {
     const {
       decision,
       humidityPercent,
+      performanceFactor,
       aroma,
       fragrance,
       flavor,
@@ -272,14 +273,21 @@ export const putLabReview = async (req, res) => {
     }
 
     const humidity = toNumber(humidityPercent);
+    const performance = toNumber(performanceFactor);
     const scoreValue = toNumber(score);
 
-    if (!isValidNumber(humidity)) {
-      return res.status(400).json({ message: "La humedad de laboratorio es obligatoria" });
+    if (decision === "aprobado" && (!isValidNumber(humidity) || !isValidNumber(performance))) {
+      return res.status(400).json({
+        message: "La humedad y el factor de rendimiento son obligatorios para aprobar",
+      });
     }
 
-    if (humidity < 0 || humidity > 100) {
+    if (humidity !== null && (!isValidNumber(humidity) || humidity < 0 || humidity > 100)) {
       return res.status(400).json({ message: "La humedad debe estar entre 0 y 100" });
+    }
+
+    if (performance !== null && (!isValidNumber(performance) || performance < 0)) {
+      return res.status(400).json({ message: "El factor de rendimiento debe ser mayor o igual a cero" });
     }
 
     if (decision === "aprobado") {
@@ -297,11 +305,12 @@ export const putLabReview = async (req, res) => {
     }
 
     // El rango ideal definido por el cliente es 10% a 12%; se alerta, pero no bloquea la decision.
-    const humidityAlert = humidity < 10 || humidity > 12;
+    const humidityAlert = humidity !== null && (humidity < 10 || humidity > 12);
 
     const lot = await updateLotLabReview(req.params.id, {
       status: decision,
       humidityPercent: humidity,
+      performanceFactor: performance,
       aroma,
       fragrance,
       flavor,

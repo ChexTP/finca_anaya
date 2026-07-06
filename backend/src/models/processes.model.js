@@ -453,13 +453,14 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         lab_notes,
         lab_reviewed_by,
         lab_reviewed_at,
+        performance_factor,
         initial_comment,
         created_by
       )
       VALUES (
         $1, $2, 'disponible', 'PROC', 'Procesado', $3, 0, $3, $3, $4,
         $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-        $15, $16, $17, NOW(), $18, $17
+        $15, $16, $17, NOW(), $19, $18, $17
       )
       RETURNING *
       `,
@@ -482,6 +483,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         outputLot.notes,
         finalizedBy,
         outputLot.initialComment,
+        outputLot.performanceFactor,
       ]
     );
     const newLot = outputResult.rows[0];

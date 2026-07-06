@@ -8,6 +8,7 @@ import { getProcessNextAction, getProcessStatusTone, processStatusLabels } from 
 const initialReview = {
   decision: "aprobado",
   humidityPercent: "",
+  performanceFactor: "",
   aroma: "",
   fragrance: "",
   flavor: "",
@@ -26,6 +27,7 @@ const initialFinish = {
   coffeeProfileId: "",
   outputWeightKg: "",
   humidityPercent: "",
+  performanceFactor: "",
   aroma: "",
   fragrance: "",
   flavor: "",
@@ -140,7 +142,8 @@ const LaboratoryPage = () => {
     setSelectedLot(lot);
     setReview({
       ...initialReview,
-      humidityPercent: lot.humidity_percent || "",
+      humidityPercent: lot.humidity_percent ?? "",
+      performanceFactor: lot.performance_factor ?? "",
     });
     setMessage("");
     setError("");
@@ -314,7 +317,8 @@ const LaboratoryPage = () => {
         method: "PUT",
         body: JSON.stringify({
           ...review,
-          humidityPercent: Number(review.humidityPercent),
+          humidityPercent: review.humidityPercent === "" ? null : Number(review.humidityPercent),
+          performanceFactor: review.performanceFactor === "" ? null : Number(review.performanceFactor),
           score: review.score === "" ? null : Number(review.score),
         }),
       });
@@ -355,6 +359,7 @@ const LaboratoryPage = () => {
           coffeeProfileId: Number(finishForm.coffeeProfileId),
           outputWeightKg: Number(finishForm.outputWeightKg),
           humidityPercent: Number(finishForm.humidityPercent),
+          performanceFactor: Number(finishForm.performanceFactor),
           score: Number(finishForm.score),
         }),
       });
@@ -441,7 +446,9 @@ const LaboratoryPage = () => {
                           <p className="font-semibold text-ink">{lot.code}</p>
                           <p className="text-sm text-slate-500">{lot.supplier_name || "Sin proveedor"}</p>
                         </div>
-                        <StatusBadge tone="warning">{lot.humidity_percent}% humedad</StatusBadge>
+                        <StatusBadge tone="warning">
+                          {lot.humidity_percent === null ? "Humedad pendiente" : `${lot.humidity_percent}% humedad`}
+                        </StatusBadge>
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{lot.net_weight_kg} kg netos</p>
                       <p className="text-sm text-slate-500">
@@ -479,6 +486,17 @@ const LaboratoryPage = () => {
                 step="0.01"
                 value={review.humidityPercent}
                 onChange={(event) => setReview({ ...review, humidityPercent: event.target.value })}
+                required={review.decision === "aprobado"}
+              />
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Factor de rendimiento"
+                type="number"
+                min="0"
+                step="0.01"
+                value={review.performanceFactor}
+                onChange={(event) => setReview({ ...review, performanceFactor: event.target.value })}
+                required={review.decision === "aprobado"}
               />
 
               {review.decision === "aprobado" && (
@@ -651,6 +669,17 @@ const LaboratoryPage = () => {
                     step="0.01"
                     value={finishForm.humidityPercent}
                     onChange={(event) => setFinishForm({ ...finishForm, humidityPercent: event.target.value })}
+                    required
+                  />
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Factor de rendimiento final"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={finishForm.performanceFactor}
+                    onChange={(event) => setFinishForm({ ...finishForm, performanceFactor: event.target.value })}
+                    required
                   />
                 </div>
 
