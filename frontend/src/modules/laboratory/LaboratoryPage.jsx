@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
+import { formatCoffeeLotOption } from "../../utils/coffeeLots";
 import { getProcessNextAction, getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
@@ -825,8 +826,7 @@ const LaboratoryPage = () => {
                               <option value="">Lote de la categoria</option>
                               {filteredLots.map((lot) => (
                                 <option key={lot.id} value={lot.id}>
-                                  {lot.code} - {lot.commercial_classification || "Sin categoria"} -{" "}
-                                  {lot.coffee_profile_name || lot.coffee_type_name || "Cafe"} - {lot.available_weight_kg} kg
+                                  {formatCoffeeLotOption(lot)}
                                 </option>
                               ))}
                             </select>
