@@ -76,9 +76,9 @@ export const postSample = async (req, res) => {
       notes,
     } = req.body;
 
-    if (!requesterName || !requesterPhone || !requestedAt || !Array.isArray(items) || items.length === 0) {
+    if (!requesterName || !requestedAt || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
-        message: "Nombre, telefono, fecha y al menos una muestra son obligatorios",
+        message: "Nombre, fecha y al menos una muestra son obligatorios",
       });
     }
 
@@ -132,7 +132,7 @@ export const postSample = async (req, res) => {
     const sample = await createSampleRequest({
       code,
       requesterName,
-      requesterPhone,
+      requesterPhone: requesterPhone || null,
       requesterEmail,
       requesterCompany,
       requesterAddress,

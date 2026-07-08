@@ -627,6 +627,7 @@ CREATE TABLE IF NOT EXISTS sample_requests (
 );
 
 ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS quantity_grams NUMERIC(12, 2);
+ALTER TABLE sample_requests ALTER COLUMN requester_phone DROP NOT NULL;
 UPDATE sample_requests
 SET quantity_grams = quantity_kg * 1000
 WHERE quantity_grams IS NULL;

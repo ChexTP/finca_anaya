@@ -331,7 +331,6 @@ const SamplesPage = () => {
                 placeholder="Telefono"
                 value={form.requesterPhone}
                 onChange={(event) => setForm({ ...form, requesterPhone: event.target.value })}
-                required
               />
               <div className="grid gap-3 sm:grid-cols-2">
                 <input
