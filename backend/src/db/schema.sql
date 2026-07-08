@@ -657,6 +657,17 @@ WHERE NOT EXISTS (
   SELECT 1 FROM sample_request_items WHERE sample_request_items.sample_request_id = sample_requests.id
 );
 
+CREATE TABLE IF NOT EXISTS sample_item_blends (
+  id SERIAL PRIMARY KEY,
+  sample_request_item_id INTEGER NOT NULL REFERENCES sample_request_items(id) ON DELETE CASCADE,
+  lot_id INTEGER NOT NULL REFERENCES coffee_lots(id),
+  percentage NUMERIC(5, 2) NOT NULL,
+  notes TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT sample_item_blends_percentage_check CHECK (percentage > 0 AND percentage <= 100)
+);
+
 -- Los tipos activos corresponden al beneficio con el que llega el cafe a bodega.
 INSERT INTO coffee_types (name) VALUES ('Lavado'), ('Natural'), ('Semilavado')
 ON CONFLICT (name) DO UPDATE SET is_active = TRUE;

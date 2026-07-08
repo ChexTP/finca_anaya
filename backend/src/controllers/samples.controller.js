@@ -5,6 +5,8 @@ import {
   getNextSampleCode,
   listSampleRequests,
   updateSampleRequestStatus,
+  replaceSampleBlend,
+  hasCompleteSampleBlend,
 } from "../models/samples.model.js";
 
 const toNumber = (value) => {
@@ -164,6 +166,12 @@ export const putSampleStatus = async (req, res) => {
       return res.status(400).json({ message: "Estado de muestra no valido" });
     }
 
+    if (["lista", "entregada"].includes(status) && !(await hasCompleteSampleBlend(req.params.id))) {
+      return res.status(409).json({
+        message: "Cada cafe de la solicitud debe tener un ensamble registrado que sume 100%",
+      });
+    }
+
     const sample = await updateSampleRequestStatus({
       id: req.params.id,
       status,
@@ -184,5 +192,48 @@ export const putSampleStatus = async (req, res) => {
       message: "Error al actualizar estado de muestra",
       error: error.message,
     });
+  }
+};
+
+export const putSampleBlend = async (req, res) => {
+  try {
+    if (!Array.isArray(req.body.items) || req.body.items.length === 0) {
+      return res.status(400).json({ message: "Debe registrar al menos una linea de ensamble" });
+    }
+
+    const sample = await findSampleRequestById(req.params.id);
+    if (!sample) return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+
+    const items = req.body.items.map((item) => ({
+      sampleItemId: Number(item.sampleItemId),
+      lotId: Number(item.lotId),
+      percentage: toNumber(item.percentage),
+      notes: item.notes || null,
+    }));
+
+    const invalid = items.some(
+      (item) =>
+        !Number.isInteger(item.sampleItemId) ||
+        !Number.isInteger(item.lotId) ||
+        !isValidNumber(item.percentage) ||
+        item.percentage <= 0 ||
+        item.percentage > 100
+    );
+    if (invalid) return res.status(400).json({ message: "Cafe, lote y porcentaje son obligatorios" });
+
+    const totals = items.reduce((result, item) => {
+      result[item.sampleItemId] = Number(((result[item.sampleItemId] || 0) + item.percentage).toFixed(2));
+      return result;
+    }, {});
+    const allComplete = sample.items.every((item) => totals[item.id] === 100);
+    if (!allComplete || Object.values(totals).some((total) => total !== 100)) {
+      return res.status(400).json({ message: "El ensamble de cada cafe debe sumar exactamente 100%" });
+    }
+
+    await replaceSampleBlend({ sampleId: sample.id, items, createdBy: req.user.id });
+    const updatedSample = await findSampleRequestById(sample.id);
+    res.json({ message: "Ensamble de muestras guardado correctamente", data: updatedSample });
+  } catch (error) {
+    res.status(500).json({ message: "Error al guardar ensamble de muestras", error: error.message });
   }
 };

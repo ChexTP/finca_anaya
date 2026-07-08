@@ -1480,6 +1480,10 @@ No incluye:
 - Cada renglon registra el cafe, cantidad en gramos y precio opcional.
 - Los datos del solicitante, moneda, fechas de solicitud y entrega, notas y estado pertenecen a la solicitud general.
 - Las solicitudes antiguas de una sola muestra se conservan como solicitudes con un renglon.
+- Cada cafe de la solicitud debe tener una formula de ensamble estructurada por lote y porcentaje.
+- Los porcentajes de cada cafe deben sumar exactamente 100%; un cafe sin mezcla se registra con un lote al 100%.
+- El sistema calcula los gramos correspondientes a cada componente del ensamble.
+- Una solicitud no puede pasar a Lista ni Entregada mientras algun cafe no tenga su ensamble completo.
 - Ubicacion general: bodega, finca_proceso, trilladora y otro.
 - Las cotizaciones/preventas no descuentan inventario.
 - Las cotizaciones no tienen fecha de vencimiento.

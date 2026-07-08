@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { formatCoffeeLotOption } from "../../utils/coffeeLots";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -86,6 +87,7 @@ const SamplesPage = () => {
   const { user } = useAuth();
   const [samples, setSamples] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
+  const [availableLots, setAvailableLots] = useState([]);
   const [form, setForm] = useState(initialSample);
   const [sampleItems, setSampleItems] = useState([]);
   const [statusNotes, setStatusNotes] = useState({});
@@ -93,6 +95,8 @@ const SamplesPage = () => {
   const [error, setError] = useState("");
   const [sampleFilter, setSampleFilter] = useState("all");
   const [saving, setSaving] = useState(false);
+  const [blendSampleId, setBlendSampleId] = useState(null);
+  const [blendRows, setBlendRows] = useState([]);
 
   const canCreate = ["admin", "accounting", "seller"].includes(user?.role);
   const canUpdateStatus = ["admin", "accounting", "samples"].includes(user?.role);
@@ -122,12 +126,14 @@ const SamplesPage = () => {
   }, [samples, sampleFilter]);
 
   const loadData = async () => {
-    const [sampleData, catalogData] = await Promise.all([
+    const [sampleData, catalogData, inventoryData] = await Promise.all([
       apiRequest("/samples"),
       apiRequest("/catalogs"),
+      apiRequest("/inventory/lots"),
     ]);
     setSamples(sampleData);
     setCatalogs(catalogData);
+    setAvailableLots(inventoryData);
   };
 
   useEffect(() => {
@@ -221,6 +227,57 @@ const SamplesPage = () => {
       setStatusNotes({ ...statusNotes, [sample.id]: "" });
       await loadData();
       setMessage("Estado de muestra actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openBlendEditor = (sample) => {
+    const existingRows = sample.items.flatMap((item) =>
+      item.blend_items.map((blend) => ({
+        sampleItemId: String(item.id),
+        lotId: String(blend.lot_id),
+        percentage: String(blend.percentage),
+        notes: blend.notes || "",
+      }))
+    );
+    setBlendSampleId(sample.id);
+    setBlendRows(
+      existingRows.length > 0
+        ? existingRows
+        : sample.items.map((item) => ({
+            sampleItemId: String(item.id), lotId: "", percentage: "", notes: "",
+          }))
+    );
+  };
+
+  const updateBlendRow = (index, field, value) => {
+    setBlendRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
+  };
+
+  const saveBlend = async (sample) => {
+    if (!window.confirm(`Confirma guardar el ensamble de ${sample.code}?`)) return;
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      await apiRequest(`/samples/${sample.id}/blend`, {
+        method: "PUT",
+        body: JSON.stringify({
+          items: blendRows.map((row) => ({
+            sampleItemId: Number(row.sampleItemId),
+            lotId: Number(row.lotId),
+            percentage: Number(row.percentage),
+            notes: row.notes || null,
+          })),
+        }),
+      });
+      setBlendSampleId(null);
+      setBlendRows([]);
+      await loadData();
+      setMessage("Ensamble de muestras guardado correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -505,6 +562,114 @@ const SamplesPage = () => {
                     Creada por {sample.created_by_name || "usuario"}.
                     {sample.handled_by_name ? ` Ultima gestion: ${sample.handled_by_name}.` : ""}
                   </p>
+
+                  {sample.items?.some((item) => item.blend_items?.length > 0) && (
+                    <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs font-semibold uppercase text-amber-800">Ensamble registrado</p>
+                      <div className="mt-2 space-y-3">
+                        {sample.items.map((item) => (
+                          <div key={`formula-${item.id}`}>
+                            <p className="text-sm font-semibold text-ink">
+                              {item.coffee_profile_name || item.coffee_type_name || item.description}
+                            </p>
+                            {item.blend_items.map((blend) => (
+                              <p key={blend.id} className="text-sm text-slate-700">
+                                {blend.lot_code} - {blend.coffee_profile_name || blend.coffee_type_name || blend.commercial_classification || "Cafe"}: {blend.percentage}% ({blend.calculated_grams} g)
+                              </p>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {canUpdateStatus && (
+                    <button
+                      className="mt-3 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                      type="button"
+                      onClick={() => openBlendEditor(sample)}
+                    >
+                      Definir ensamble
+                    </button>
+                  )}
+
+                  {canUpdateStatus && blendSampleId === sample.id && (
+                    <div className="mt-3 space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Formula por cafe</p>
+                      {blendRows.map((row, index) => {
+                        const sampleItem = sample.items.find((item) => String(item.id) === String(row.sampleItemId));
+                        const calculatedGrams = sampleItem && row.percentage
+                          ? Number((Number(sampleItem.quantity_grams) * Number(row.percentage) / 100).toFixed(2))
+                          : 0;
+                        return (
+                          <div key={`blend-row-${index}`} className="rounded border border-slate-200 bg-white p-3">
+                            <div className="grid gap-2 md:grid-cols-3">
+                              <select
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                value={row.sampleItemId}
+                                onChange={(event) => updateBlendRow(index, "sampleItemId", event.target.value)}
+                              >
+                                <option value="">Cafe de la solicitud</option>
+                                {sample.items.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.coffee_profile_name || item.coffee_type_name || item.description} - {item.quantity_grams} g
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                value={row.lotId}
+                                onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
+                              >
+                                <option value="">Lote utilizado</option>
+                                {availableLots.map((lot) => (
+                                  <option key={lot.id} value={lot.id}>{formatCoffeeLotOption(lot)}</option>
+                                ))}
+                              </select>
+                              <input
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder="Porcentaje %"
+                                type="number"
+                                min="0.01"
+                                max="100"
+                                step="0.01"
+                                value={row.percentage}
+                                onChange={(event) => updateBlendRow(index, "percentage", event.target.value)}
+                              />
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                              <p className="text-xs text-slate-500">Cantidad calculada: {calculatedGrams} g</p>
+                              <button
+                                className="rounded p-1.5 text-rose-600 hover:bg-rose-50"
+                                type="button"
+                                aria-label="Quitar linea de ensamble"
+                                onClick={() => setBlendRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                          type="button"
+                          onClick={() => setBlendRows((rows) => [...rows, { sampleItemId: String(sample.items[0]?.id || ""), lotId: "", percentage: "", notes: "" }])}
+                        >
+                          Agregar lote
+                        </button>
+                        <button
+                          className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                          type="button"
+                          disabled={saving || blendRows.length === 0}
+                          onClick={() => saveBlend(sample)}
+                        >
+                          Guardar ensamble
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {canUpdateStatus && (
                     <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">

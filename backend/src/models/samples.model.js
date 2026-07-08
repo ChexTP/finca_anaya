@@ -100,10 +100,108 @@ const attachSampleItems = async (samples) => {
     [samples.map((sample) => sample.id)]
   );
 
+  const blendResult = await pool.query(
+    `
+    SELECT
+      sample_item_blends.*,
+      coffee_lots.code AS lot_code,
+      coffee_lots.lot_kind,
+      coffee_lots.commercial_classification,
+      coffee_lots.coffee_variety,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name
+    FROM sample_item_blends
+    JOIN coffee_lots ON coffee_lots.id = sample_item_blends.lot_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    WHERE sample_item_blends.sample_request_item_id = ANY($1::int[])
+    ORDER BY sample_item_blends.id ASC
+    `,
+    [result.rows.map((item) => item.id)]
+  );
+
   return samples.map((sample) => ({
     ...sample,
-    items: result.rows.filter((item) => item.sample_request_id === sample.id),
+    items: result.rows
+      .filter((item) => item.sample_request_id === sample.id)
+      .map((item) => ({
+        ...item,
+        blend_items: blendResult.rows
+          .filter((blend) => blend.sample_request_item_id === item.id)
+          .map((blend) => ({
+            ...blend,
+            calculated_grams: Number((Number(item.quantity_grams) * Number(blend.percentage) / 100).toFixed(2)),
+          })),
+      })),
   }));
+};
+
+export const replaceSampleBlend = async ({ sampleId, items, createdBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const requestItems = await client.query(
+      "SELECT id FROM sample_request_items WHERE sample_request_id = $1 ORDER BY id",
+      [sampleId]
+    );
+
+    if (requestItems.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const validIds = new Set(requestItems.rows.map((item) => item.id));
+    if (items.some((item) => !validIds.has(item.sampleItemId))) {
+      throw new Error("Uno de los cafes no pertenece a esta solicitud de muestras");
+    }
+
+    await client.query(
+      "DELETE FROM sample_item_blends WHERE sample_request_item_id = ANY($1::int[])",
+      [[...validIds]]
+    );
+
+    for (const item of items) {
+      const lotResult = await client.query(
+        "SELECT id FROM coffee_lots WHERE id = $1 AND status IN ('disponible', 'vendido_parcial') AND available_weight_kg > 0",
+        [item.lotId]
+      );
+      if (!lotResult.rows[0]) throw new Error("Uno de los lotes del ensamble no esta disponible");
+
+      await client.query(
+        `INSERT INTO sample_item_blends
+          (sample_request_item_id, lot_id, percentage, notes, created_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [item.sampleItemId, item.lotId, item.percentage, item.notes, createdBy]
+      );
+    }
+
+    await client.query("COMMIT");
+    return true;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const hasCompleteSampleBlend = async (sampleId) => {
+  const result = await pool.query(
+    `
+    SELECT COUNT(*)::int AS incomplete_count
+    FROM sample_request_items item
+    WHERE item.sample_request_id = $1
+      AND COALESCE((
+        SELECT SUM(blend.percentage)
+        FROM sample_item_blends blend
+        WHERE blend.sample_request_item_id = item.id
+      ), 0) <> 100
+    `,
+    [sampleId]
+  );
+
+  return result.rows[0].incomplete_count === 0;
 };
 
 export const createSampleRequest = async (sampleData) => {
