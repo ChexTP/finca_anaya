@@ -1478,6 +1478,7 @@ No incluye:
 
 - Una solicitud puede contener varios tipos o perfiles de cafe.
 - Cada renglon registra el cafe, cantidad en gramos y precio opcional.
+- Cada renglon puede guardar simultaneamente el proceso del cafe (Lavado, Natural o Semilavado) y el perfil o cafe comercial; seleccionar uno no borra el otro.
 - Los datos del solicitante, moneda, fechas de solicitud y entrega, notas y estado pertenecen a la solicitud general.
 - Las solicitudes antiguas de una sola muestra se conservan como solicitudes con un renglon.
 - Cada cafe de la solicitud debe tener una formula de ensamble estructurada por lote y porcentaje.

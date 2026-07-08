@@ -83,6 +83,11 @@ const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
 
+const formatRequestedCoffee = (item) => {
+  const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
+  return [...new Set(details)].join(" - ") || "Cafe sin especificar";
+};
+
 const SamplesPage = () => {
   const { user } = useAuth();
   const [samples, setSamples] = useState([]);
@@ -141,11 +146,11 @@ const SamplesPage = () => {
   }, []);
 
   const updateCoffeeType = (coffeeTypeId) => {
-    setForm({ ...form, coffeeTypeId, coffeeProfileId: "" });
+    setForm({ ...form, coffeeTypeId });
   };
 
   const updateCoffeeProfile = (coffeeProfileId) => {
-    setForm({ ...form, coffeeProfileId, coffeeTypeId: "" });
+    setForm({ ...form, coffeeProfileId });
   };
 
   const createSample = async (event) => {
@@ -195,10 +200,11 @@ const SamplesPage = () => {
         coffeeTypeId: form.coffeeTypeId ? Number(form.coffeeTypeId) : null,
         coffeeProfileId: form.coffeeProfileId ? Number(form.coffeeProfileId) : null,
         description: form.description || null,
-        coffeeName:
-          catalogs?.coffeeProfiles?.find((profile) => String(profile.id) === String(form.coffeeProfileId))?.name ||
-          catalogs?.coffeeTypes?.find((type) => String(type.id) === String(form.coffeeTypeId))?.name ||
+        coffeeName: [
+          catalogs?.coffeeTypes?.find((type) => String(type.id) === String(form.coffeeTypeId))?.name,
+          catalogs?.coffeeProfiles?.find((profile) => String(profile.id) === String(form.coffeeProfileId))?.name,
           form.description,
+        ].filter(Boolean).join(" - "),
         quantityGrams: Number(form.quantityGrams),
         price: form.price === "" ? null : Number(form.price),
       },
@@ -367,7 +373,7 @@ const SamplesPage = () => {
                   value={form.coffeeTypeId}
                   onChange={(event) => updateCoffeeType(event.target.value)}
                 >
-                  <option value="">Tipo de cafe</option>
+                  <option value="">Proceso del cafe</option>
                   {catalogs?.coffeeTypes?.map((type) => (
                     <option key={type.id} value={type.id}>
                       {type.name}
@@ -379,7 +385,7 @@ const SamplesPage = () => {
                   value={form.coffeeProfileId}
                   onChange={(event) => updateCoffeeProfile(event.target.value)}
                 >
-                  <option value="">Perfil</option>
+                  <option value="">Perfil o cafe comercial</option>
                   {catalogs?.coffeeProfiles?.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.name}
@@ -539,7 +545,7 @@ const SamplesPage = () => {
                       <div className="mt-1 space-y-1">
                         {(sample.items || []).map((item) => (
                           <p key={item.id}>
-                            {item.coffee_profile_name || item.coffee_type_name || item.description} - {item.quantity_grams} g
+                            {formatRequestedCoffee(item)} - {item.quantity_grams} g
                           </p>
                         ))}
                       </div>
@@ -570,7 +576,7 @@ const SamplesPage = () => {
                         {sample.items.map((item) => (
                           <div key={`formula-${item.id}`}>
                             <p className="text-sm font-semibold text-ink">
-                              {item.coffee_profile_name || item.coffee_type_name || item.description}
+                              {formatRequestedCoffee(item)}
                             </p>
                             {item.blend_items.map((blend) => (
                               <p key={blend.id} className="text-sm text-slate-700">
@@ -612,7 +618,7 @@ const SamplesPage = () => {
                                 <option value="">Cafe de la solicitud</option>
                                 {sample.items.map((item) => (
                                   <option key={item.id} value={item.id}>
-                                    {item.coffee_profile_name || item.coffee_type_name || item.description} - {item.quantity_grams} g
+                                    {formatRequestedCoffee(item)} - {item.quantity_grams} g
                                   </option>
                                 ))}
                               </select>
