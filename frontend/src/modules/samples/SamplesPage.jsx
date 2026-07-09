@@ -1,9 +1,10 @@
-import { FlaskConical, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { FlaskConical, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { formatCoffeeLotOption } from "../../utils/coffeeLots";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -86,6 +87,124 @@ const formatMoney = (currency, value) => {
 const formatRequestedCoffee = (item) => {
   const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
   return [...new Set(details)].join(" - ") || "Cafe sin especificar";
+};
+
+const buildSampleOrderHtml = (sample) => {
+  const rows = (sample.items || [])
+    .map(
+      (item) => `
+        <tr>
+          <td>${formatRequestedCoffee(item)}</td>
+          <td>${item.coffee_type_name || "-"}</td>
+          <td>${item.quantity_grams} g</td>
+          <td></td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const blendRows = (sample.items || [])
+    .filter((item) => item.blend_items?.length > 0)
+    .map(
+      (item) => `
+        <section class="lot-block">
+          <h2>${formatRequestedCoffee(item)}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>DESCRIPCION</th>
+                <th>PROCESO PREPARACION</th>
+                <th>G</th>
+                <th>CHECK</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${item.blend_items
+                .map(
+                  (blend) => `
+                    <tr>
+                      <td>${blend.lot_code || "-"} - ${blend.coffee_profile_name || blend.commercial_classification || "Cafe"} (${blend.percentage}%)</td>
+                      <td>${blend.coffee_type_name || "-"}</td>
+                      <td>${blend.calculated_grams}</td>
+                      <td></td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </section>
+      `
+    )
+    .join("");
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Orden de muestra ${sample.code}</title>
+        <style>
+          body { color: #111827; font-family: Arial, sans-serif; margin: 26px; }
+          header { align-items: flex-start; display: flex; justify-content: space-between; gap: 24px; }
+          h1 { font-size: 16px; margin: 0 0 14px; text-transform: uppercase; }
+          h2 { font-size: 13px; margin: 22px 0 8px; text-transform: uppercase; }
+          p { font-size: 12px; margin: 4px 0; }
+          table { border-collapse: collapse; margin-top: 10px; width: 100%; }
+          th, td { border: 1px solid #111827; font-size: 12px; padding: 8px; text-align: left; vertical-align: middle; }
+          th { background: #f2f2f2; font-weight: 700; text-align: center; }
+          td:nth-child(3), td:nth-child(4) { text-align: center; width: 90px; }
+          .logo { border-radius: 3px; height: 54px; object-fit: cover; width: 92px; }
+          .lot-block { margin-top: 16px; page-break-inside: avoid; }
+          .instructions { margin-top: 18px; }
+          .instructions p { font-size: 12px; margin: 6px 0; }
+          .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 54px; }
+          .line { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; text-align: center; }
+          @media print { body { margin: 18px; } }
+        </style>
+      </head>
+      <body>
+        <header>
+          <div>
+            <h1>ORDEN DE MUESTRA - ${sample.code}</h1>
+            <p><strong>Fecha de Inicio orden:</strong> ${formatDate(sample.requested_at)}</p>
+            <p><strong>Categoria:</strong> ${sample.items?.[0]?.coffee_type_name || sample.coffee_type_name || "CAFE"}</p>
+            <p><strong>Cliente:</strong> ${sample.requester_company || sample.requester_name || "-"}</p>
+            <p><strong>Dia estimado de despacho:</strong> ${formatDate(sample.tentative_delivery_date)}</p>
+          </div>
+          <div>
+            <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
+            <p><strong>${companyBrand.legalName}</strong></p>
+          </div>
+        </header>
+
+        <table>
+          <thead>
+            <tr>
+              <th>DESCRIPCION</th>
+              <th>PROCESO PREPARACION</th>
+              <th>G</th>
+              <th>CHECK</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+
+        ${blendRows}
+
+        <section class="instructions">
+          <p>- Hacer registro fotografico.</p>
+          <p>- Perfilar lotes.</p>
+          <p>- Entregar con esta hoja las muestras en una bolsa o caja.</p>
+        </section>
+
+        <section class="signature">
+          <p class="line">RESPONSABLE</p>
+          <p class="line">DESPACHA</p>
+        </section>
+      </body>
+    </html>
+  `;
 };
 
 const SamplesPage = () => {
@@ -289,6 +408,20 @@ const SamplesPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const printSampleOrder = (sample) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setError("El navegador bloqueo la ventana de impresion.");
+      return;
+    }
+
+    printWindow.document.write(buildSampleOrderHtml(sample));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    setMessage("Orden de muestra abierta para imprimir o guardar como PDF.");
   };
 
   return (
@@ -589,13 +722,23 @@ const SamplesPage = () => {
                   )}
 
                   {canUpdateStatus && (
-                    <button
-                      className="mt-3 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
-                      type="button"
-                      onClick={() => openBlendEditor(sample)}
-                    >
-                      Definir ensamble
-                    </button>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                        type="button"
+                        onClick={() => openBlendEditor(sample)}
+                      >
+                        Definir ensamble
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        type="button"
+                        onClick={() => printSampleOrder(sample)}
+                      >
+                        <Printer size={16} />
+                        Imprimir orden
+                      </button>
+                    </div>
                   )}
 
                   {canUpdateStatus && blendSampleId === sample.id && (

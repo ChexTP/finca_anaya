@@ -5,6 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
+import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
 
 const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
@@ -428,7 +429,7 @@ const SalesPage = () => {
       return;
     }
 
-    printWindow.document.write(buildWarehouseOrderHtml(selectedSale));
+    printWindow.document.write(buildWarehouseOrderDocumentHtml(selectedSale));
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();

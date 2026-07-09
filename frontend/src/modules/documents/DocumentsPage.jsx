@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { companyBrand, getPrintableLogo } from "../../utils/brand";
 
 const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
@@ -17,15 +18,16 @@ const formatDate = (value) => {
 
 const buildDocumentHtml = (document) => {
   const currency = document.totals?.currency || "COP";
+  const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
   const rows = document.items
     .map(
       (item) => `
         <tr>
-          <td>${item.lotCode || item.coffeeProfile || item.coffeeType || item.description || "-"}</td>
-          <td>${[item.productForm, item.processType, item.variety, item.description].filter(Boolean).join(" - ") || "-"}</td>
-          <td>${item.quantityKg} kg</td>
+          <td>Anaya</td>
+          <td>${item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-"}</td>
+          <td>${item.processType || "-"}</td>
           <td>${formatMoney(currency, item.unitPrice)}</td>
-          <td>${formatMoney(currency, item.lineTotal)}</td>
+          <td>${item.quantityKg}</td>
         </tr>
       `
     )
@@ -72,55 +74,81 @@ const buildDocumentHtml = (document) => {
         <meta charset="utf-8" />
         <title>${document.code}</title>
         <style>
-          body { color: #17201a; font-family: Arial, sans-serif; margin: 32px; }
-          header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 1px solid #d8ded8; padding-bottom: 16px; }
-          h1 { font-size: 22px; margin: 0 0 6px; }
-          h2 { font-size: 16px; margin: 24px 0 8px; }
+          body { color: #111827; font-family: Arial, sans-serif; margin: 32px; }
+          header { align-items: flex-start; display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+          h1 { font-size: 18px; margin: 0 0 6px; }
+          h2 { font-size: 15px; margin: 24px 0 8px; }
           h3 { font-size: 14px; margin: 18px 0 8px; }
           p { font-size: 12px; margin: 3px 0; }
           table { border-collapse: collapse; margin-top: 14px; width: 100%; }
-          th, td { border: 1px solid #d8ded8; font-size: 12px; padding: 8px; text-align: left; }
-          th { background: #f3f6f3; }
+          th, td { border: 1px solid #111827; font-size: 12px; padding: 7px; text-align: center; vertical-align: middle; }
+          th { background: #f2f2f2; font-weight: 700; }
+          td:nth-child(2) { text-align: left; }
+          .logo { border-radius: 3px; height: 58px; object-fit: cover; width: 98px; }
+          .company { text-align: right; }
+          .recipient { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 12px 0 16px; }
+          .intro { margin: 16px 0 8px; }
           .totals { margin-left: auto; margin-top: 16px; width: 280px; }
           .totals p { display: flex; justify-content: space-between; }
-          .total { border-top: 1px solid #17201a; font-weight: 700; padding-top: 6px; }
+          .total { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; }
+          .terms { margin-top: 18px; width: 420px; }
+          .terms td { text-align: left; }
           @media print { button { display: none; } body { margin: 18px; } }
         </style>
       </head>
       <body>
         <header>
           <div>
-            <h1>${document.title}</h1>
-            <p><strong>Codigo:</strong> ${document.code}</p>
-            <p><strong>Estado:</strong> ${document.status || document.paymentStatus || "-"}</p>
-            ${document.externalInvoiceReference ? `<p><strong>Factura externa:</strong> ${document.externalInvoiceReference}</p>` : ""}
+            <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
           </div>
-          <div>
-            <p><strong>${document.company?.name || "Finca Anaya"}</strong></p>
-            <p>${document.company?.phone || ""}</p>
-            <p>${document.company?.email || ""}</p>
-            <p>${document.company?.address || ""}</p>
+          <div class="company">
+            <p><strong>${companyBrand.legalName}</strong></p>
+            <p>NIT: ${companyBrand.nit}</p>
+            <p>${companyBrand.address}</p>
+            <p>Tel: ${companyBrand.phone}</p>
+            <p>Email: ${companyBrand.email}</p>
+            <p>Instagram: ${companyBrand.instagram}</p>
           </div>
         </header>
 
-        <h2>Cliente</h2>
-        <p><strong>Nombre:</strong> ${document.client?.name || "-"}</p>
-        <p><strong>Telefono:</strong> ${document.client?.phone || "-"}</p>
-        <p><strong>Direccion:</strong> ${document.client?.address || "-"}</p>
-        <p><strong>Vendedor:</strong> ${document.seller?.name || "-"}</p>
-        <p><strong>Fecha:</strong> ${formatDate(document.dates?.createdAt)}</p>
+        <section class="recipient">
+          <div>
+            <p>Mr,</p>
+            <p>${document.client?.name || "-"}</p>
+            <p>${document.client?.address || ""}</p>
+          </div>
+          <div class="company">
+            <p>Date: ${formatDate(document.dates?.createdAt)}</p>
+            <p>${isQuote ? "Quotation" : "Invoice"} ${document.code}</p>
+            ${document.externalInvoiceReference ? `<p>Factura externa: ${document.externalInvoiceReference}</p>` : ""}
+          </div>
+        </section>
+
+        <p class="intro">${isQuote ? "Tenemos el placer de compartirle la siguiente oferta:" : "Detalle interno de venta:"}</p>
 
         <table>
           <thead>
             <tr>
-              <th>Producto</th>
-              <th>Descripcion</th>
-              <th>Cantidad</th>
-              <th>Precio kg</th>
-              <th>Total</th>
+              <th>FARM</th>
+              <th>VARIETY</th>
+              <th>PROCESS</th>
+              <th>KG-CPS</th>
+              <th>QTY (Kg)</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
+        </table>
+
+        <table class="terms">
+          <tbody>
+            <tr><td><strong>Anticipo:</strong></td><td>${document.terms?.paymentTerms || "-"}</td></tr>
+            <tr><td><strong>Tiempo de entrega:</strong></td><td>${formatDate(document.dates?.estimatedDeliveryDate || document.dates?.estimatedPaymentDate)}</td></tr>
+            <tr><td><strong>Empaque:</strong></td><td>${document.terms?.deliveryTerms || "-"}</td></tr>
+            <tr><td><strong>Pago:</strong></td><td>${document.paymentStatus || document.status || "-"}</td></tr>
+            <tr><td><strong>Datos Bancarios:</strong></td><td>Bancolombia - Ahorros - 453 0000 6876</td></tr>
+            <tr><td><strong>Empresa:</strong></td><td>${companyBrand.legalName}</td></tr>
+            <tr><td><strong>Nit:</strong></td><td>${companyBrand.nit}</td></tr>
+          </tbody>
         </table>
 
         <div class="totals">

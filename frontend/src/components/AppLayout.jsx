@@ -19,6 +19,7 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { companyBrand } from "../utils/brand";
 import { roleLabels } from "../utils/roles";
 
 const navigation = [
@@ -58,7 +59,10 @@ const AppLayout = () => {
               <Menu size={18} />
             </button>
             <div>
-              <p className="text-sm font-bold text-ink">Finca Anaya</p>
+              <div className="flex items-center gap-2">
+                <img className="h-8 w-12 rounded object-cover" src={companyBrand.logo} alt="Anaya Coffee" />
+                <p className="text-sm font-bold text-ink">Finca Anaya</p>
+              </div>
               <p className="text-xs text-slate-500">{roleLabels[user?.role] || user?.role}</p>
             </div>
           </div>
