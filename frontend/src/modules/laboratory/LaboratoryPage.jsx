@@ -4,7 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotOption } from "../../utils/coffeeLots";
-import { getProcessNextAction, getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
+import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
   decision: "aprobado",
@@ -407,6 +407,18 @@ const LaboratoryPage = () => {
             </span>
             <span className="text-xs">{processes.length}</span>
           </button>
+          <button
+            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
+              activePanel === "blends" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+            }`}
+            onClick={() => setActivePanel("blends")}
+          >
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <FlaskConical size={16} />
+              Mezclas
+            </span>
+            <span className="text-xs">{sales.length}</span>
+          </button>
         </aside>
 
         {activePanel === "lots" ? (
@@ -700,7 +712,7 @@ const LaboratoryPage = () => {
                             {sale.quote_code ? `${sale.quote_code} - ${sale.client_name}` : sale.client_name}
                           </p>
                         </div>
-                        <StatusBadge tone="warning">{sale.status}</StatusBadge>
+                        <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </div>
                     </button>
                   ))}

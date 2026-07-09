@@ -19,6 +19,40 @@ export const processStatusLabels = {
   finalizado: "Finalizado",
 };
 
+export const lotStatusLabels = {
+  pendiente_revision_fisica: "Revision fisica",
+  pendiente_laboratorio: "Pendiente laboratorio",
+  disponible: "Disponible",
+  vendido_parcial: "Disponible parcial",
+  agotado: "Agotado",
+  rechazado: "Rechazado",
+  retirado: "Retirado",
+};
+
+export const paymentStatusLabels = {
+  pendiente_pago: "Pendiente",
+  pago_parcial: "Pago parcial",
+  pagada: "Pagada",
+};
+
+export const quoteStatusLabels = {
+  borrador: "Borrador",
+  enviada: "Enviada",
+  aceptada: "Aceptada",
+  anulada: "Anulada",
+};
+
+export const getQuoteNextAction = (quote) => {
+  const actions = {
+    borrador: "Comercial debe revisar y enviar al cliente",
+    enviada: "Esperar respuesta del cliente",
+    aceptada: "Contabilidad debe convertirla en venta",
+    anulada: "Sin accion comercial",
+  };
+
+  return actions[quote?.status] || "Revisar cotizacion";
+};
+
 export const getSaleNextAction = (sale) => {
   if (sale?.status === "pendiente_bodega" && sale?.blend_required === false) {
     return "Bodega debe asignar el lote procesado y alistar";

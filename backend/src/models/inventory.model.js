@@ -1,12 +1,14 @@
 import { pool } from "../db.js";
 
-export const listAvailableLots = async ({ status = "disponible", coffeeTypeId, coffeeProfileId }) => {
+export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId }) => {
   const params = [];
   const conditions = ["coffee_lots.available_weight_kg > 0"];
 
   if (status) {
     params.push(status);
     conditions.push(`coffee_lots.status = $${params.length}`);
+  } else {
+    conditions.push("coffee_lots.status IN ('disponible', 'vendido_parcial')");
   }
 
   if (coffeeTypeId) {
@@ -73,7 +75,7 @@ export const getGroupedInventory = async () => {
     FROM coffee_lots
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
-    WHERE coffee_lots.status = 'disponible'
+    WHERE coffee_lots.status IN ('disponible', 'vendido_parcial')
       AND coffee_lots.available_weight_kg > 0
     GROUP BY group_type, group_id, group_name
     ORDER BY group_type ASC, group_name ASC

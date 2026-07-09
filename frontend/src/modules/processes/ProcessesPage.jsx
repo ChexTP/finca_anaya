@@ -14,6 +14,17 @@ const initialProcess = {
   notes: "",
 };
 
+const initialStartForm = {
+  processLocation: "",
+  estimatedReturnDate: "",
+};
+
+const initialPhysicalReviewForm = {
+  outputWeightKg: "",
+  humidityPercent: "",
+  performanceFactor: "",
+};
+
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
@@ -35,6 +46,10 @@ const ProcessesPage = () => {
   const [sales, setSales] = useState([]);
   const [form, setForm] = useState(initialProcess);
   const [selectedLots, setSelectedLots] = useState({});
+  const [startProcessId, setStartProcessId] = useState(null);
+  const [startForm, setStartForm] = useState(initialStartForm);
+  const [physicalReviewProcessId, setPhysicalReviewProcessId] = useState(null);
+  const [physicalReviewForm, setPhysicalReviewForm] = useState(initialPhysicalReviewForm);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -138,10 +153,37 @@ const ProcessesPage = () => {
     }
   };
 
-  const startProcess = async (process) => {
-    const estimatedReturnDate = window.prompt("Fecha estimada de regreso a bodega (AAAA-MM-DD)", "");
-    if (!estimatedReturnDate) return;
-    const processLocation = window.prompt("Ubicacion del proceso", process.process_location || "") ?? process.process_location;
+  const openStartForm = (process) => {
+    setStartProcessId(process.id);
+    setStartForm({
+      processLocation: process.process_location || "",
+      estimatedReturnDate: process.estimated_return_date ? String(process.estimated_return_date).slice(0, 10) : "",
+    });
+    setPhysicalReviewProcessId(null);
+    setError("");
+    setMessage("");
+  };
+
+  const openPhysicalReviewForm = (process) => {
+    setPhysicalReviewProcessId(process.id);
+    setPhysicalReviewForm({
+      outputWeightKg: process.output_weight_kg || "",
+      humidityPercent: process.physical_humidity_percent || "",
+      performanceFactor: process.physical_performance_factor || "",
+    });
+    setStartProcessId(null);
+    setError("");
+    setMessage("");
+  };
+
+  const startProcess = async (event, process) => {
+    event.preventDefault();
+
+    if (!startForm.estimatedReturnDate) {
+      setError("La fecha estimada de regreso a bodega es obligatoria.");
+      return;
+    }
+
     if (!window.confirm(`Confirma iniciar el proceso ${process.code}?`)) return;
 
     setSaving(true);
@@ -149,8 +191,13 @@ const ProcessesPage = () => {
     try {
       await apiRequest(`/processes/${process.id}/start`, {
         method: "PUT",
-        body: JSON.stringify({ processLocation, estimatedReturnDate }),
+        body: JSON.stringify({
+          processLocation: startForm.processLocation,
+          estimatedReturnDate: startForm.estimatedReturnDate,
+        }),
       });
+      setStartProcessId(null);
+      setStartForm(initialStartForm);
       await loadData();
       setMessage("Proceso iniciado correctamente.");
     } catch (requestError) {
@@ -175,13 +222,14 @@ const ProcessesPage = () => {
     }
   };
 
-  const completePhysicalReview = async (process) => {
-    const outputWeightKg = window.prompt("Cantidad final recibida en kg", process.output_weight_kg || "");
-    if (!outputWeightKg) return;
-    const humidityPercent = window.prompt("Humedad medida (%)", process.physical_humidity_percent || "");
-    if (!humidityPercent) return;
-    const performanceFactor = window.prompt("Factor de rendimiento", process.physical_performance_factor || "");
-    if (!performanceFactor) return;
+  const completePhysicalReview = async (event, process) => {
+    event.preventDefault();
+
+    if (!physicalReviewForm.outputWeightKg || !physicalReviewForm.humidityPercent || !physicalReviewForm.performanceFactor) {
+      setError("Cantidad final, humedad y factor son obligatorios para la revision fisica.");
+      return;
+    }
+
     if (!window.confirm(`Confirma la revision fisica de ${process.code}?`)) return;
 
     setSaving(true);
@@ -190,11 +238,13 @@ const ProcessesPage = () => {
       await apiRequest(`/processes/${process.id}/physical-review`, {
         method: "PUT",
         body: JSON.stringify({
-          outputWeightKg: Number(outputWeightKg),
-          humidityPercent: Number(humidityPercent),
-          performanceFactor: Number(performanceFactor),
+          outputWeightKg: Number(physicalReviewForm.outputWeightKg),
+          humidityPercent: Number(physicalReviewForm.humidityPercent),
+          performanceFactor: Number(physicalReviewForm.performanceFactor),
         }),
       });
+      setPhysicalReviewProcessId(null);
+      setPhysicalReviewForm(initialPhysicalReviewForm);
       await loadData();
       setMessage("Revision fisica guardada. El proceso ya aparece en Laboratorio.");
     } catch (requestError) {
@@ -228,7 +278,7 @@ const ProcessesPage = () => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Solicitar proceso</h2>
-              <p className="text-sm text-slate-500">Seleccione la venta, los lotes y las cantidades. Administracion controla el inicio y el cierre fisico.</p>
+              <p className="text-sm text-slate-500">Seleccione la venta, los lotes y las cantidades. Bodega o administracion controlan el inicio y el regreso fisico.</p>
             </div>
             <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">
               Total: <span className="font-semibold text-ink">{totalSelectedKg} kg</span>
@@ -364,18 +414,46 @@ const ProcessesPage = () => {
                 </p>
               )}
               {process.notes && <p className="mt-2 text-sm text-slate-500">{process.notes}</p>}
-              {user?.role === "admin" && process.status === "pendiente" && (
+              {["admin", "warehouse"].includes(user?.role) && process.status === "pendiente" && (
                 <button
                   className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   type="button"
                   disabled={saving}
-                  onClick={() => startProcess(process)}
+                  onClick={() => openStartForm(process)}
                 >
                   <Save size={16} />
                   Iniciar proceso
                 </button>
               )}
-              {user?.role === "admin" && process.status === "en_proceso" && (
+              {startProcessId === process.id && (
+                <form className="mt-3 grid gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-[1fr_1fr_auto]" onSubmit={(event) => startProcess(event, process)}>
+                  <label className="text-xs font-medium text-slate-600">
+                    Fecha estimada de regreso
+                    <input
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      type="date"
+                      value={startForm.estimatedReturnDate}
+                      onChange={(event) => setStartForm({ ...startForm, estimatedReturnDate: event.target.value })}
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Ubicacion del proceso
+                    <input
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Finca, bodega o lugar"
+                      value={startForm.processLocation}
+                      onChange={(event) => setStartForm({ ...startForm, processLocation: event.target.value })}
+                    />
+                  </label>
+                  <button
+                    className="self-end rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={saving}
+                  >
+                    Confirmar inicio
+                  </button>
+                </form>
+              )}
+              {["admin", "warehouse"].includes(user?.role) && process.status === "en_proceso" && (
                 <button
                   className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   type="button"
@@ -391,11 +469,55 @@ const ProcessesPage = () => {
                   className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   type="button"
                   disabled={saving}
-                  onClick={() => completePhysicalReview(process)}
+                  onClick={() => openPhysicalReviewForm(process)}
                 >
                   <Save size={16} />
                   Registrar revision fisica
                 </button>
+              )}
+              {physicalReviewProcessId === process.id && (
+                <form className="mt-3 grid gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={(event) => completePhysicalReview(event, process)}>
+                  <label className="text-xs font-medium text-slate-600">
+                    Cantidad final kg
+                    <input
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      value={physicalReviewForm.outputWeightKg}
+                      onChange={(event) => setPhysicalReviewForm({ ...physicalReviewForm, outputWeightKg: event.target.value })}
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Humedad %
+                    <input
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={physicalReviewForm.humidityPercent}
+                      onChange={(event) => setPhysicalReviewForm({ ...physicalReviewForm, humidityPercent: event.target.value })}
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Factor rendimiento
+                    <input
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={physicalReviewForm.performanceFactor}
+                      onChange={(event) => setPhysicalReviewForm({ ...physicalReviewForm, performanceFactor: event.target.value })}
+                    />
+                  </label>
+                  <button
+                    className="self-end rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={saving}
+                  >
+                    Guardar revision
+                  </button>
+                </form>
               )}
               {process.inputs?.length > 0 && (
                 <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">

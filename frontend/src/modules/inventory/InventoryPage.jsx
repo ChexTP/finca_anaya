@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { lotStatusLabels } from "../../utils/workflow";
 
 const initialPurchase = {
   purchasePricePerKg: "",
@@ -170,7 +171,7 @@ const InventoryPage = () => {
               {selectedLot ? `Lote seleccionado: ${selectedLot.code}` : "Seleccione un lote pendiente de pago."}
             </p>
             <p className="mt-2 rounded bg-sky-50 px-3 py-2 text-xs text-sky-700">
-              El lote ya esta disponible. Registrar el pago no modifica sus kilos en inventario.
+              El lote aprobado por laboratorio ya esta disponible operativamente. Registrar el pago solo completa la informacion financiera.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -259,7 +260,7 @@ const InventoryPage = () => {
                     <td className="px-3 py-2">{lot.humidity_percent || "-"}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                     <td className="px-3 py-2">
-                      <StatusBadge>{lot.status}</StatusBadge>
+                      <StatusBadge>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
                     </td>
                   </tr>
                 ))}

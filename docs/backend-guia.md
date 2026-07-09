@@ -449,7 +449,7 @@ Reglas implementadas:
 - Bodega no aprueba ni rechaza el cafe al recibirlo; siempre genera codigo `LOT-AAAA-0001` y lo envia a laboratorio.
 - Los lotes rechazados quedan pendientes de retiro hasta que bodega los marque como `retirado`.
 - Todo lote recibido queda inicialmente en estado `pendiente_laboratorio`.
-- La cantidad disponible inicia en `0` hasta que laboratorio y contabilidad completen el flujo.
+- La cantidad disponible se habilita cuando laboratorio aprueba el lote. El pago a proveedor es un registro financiero posterior y no modifica los kilos disponibles.
 
 Marcar lote rechazado como retirado:
 
@@ -563,7 +563,7 @@ Reglas implementadas:
 - La humedad ideal definida es entre `10%` y `12%`.
 - Si la humedad queda por fuera de ese rango, el endpoint responde `humidityAlert: true`, pero no bloquea la decision.
 - Un lote aprobado por laboratorio queda inmediatamente en estado `disponible`, con su peso neto habilitado en inventario aunque el proveedor aun no haya cobrado.
-- Un lote aprobado aun no queda disponible para venta o proceso; falta que contabilidad registre compra/pago.
+- El pago de compra no bloquea venta ni proceso; solo completa el control financiero del lote.
 - Un lote rechazado queda como historico tecnico.
 
 ### Compra Y Disponibilidad Del Lote
@@ -640,7 +640,7 @@ Ajuste manual:
 Reglas implementadas:
 
 - La vista por lotes muestra lotes con cantidad disponible mayor a cero.
-- Por defecto muestra lotes en estado `disponible`.
+- Por defecto muestra lotes con cantidad disponible en estados `disponible` o `vendido_parcial`.
 - La vista agrupada suma cantidades disponibles.
 - Los lotes `LOT` se agrupan por tipo de cafe.
 - Los lotes `PROC` se agrupan por perfil comercial.
@@ -733,7 +733,7 @@ Reglas implementadas:
 - Crear proceso genera una solicitud y no descuenta inventario todavia.
 - Solo el administrador confirma el inicio del proceso y registra la fecha estimada de regreso a bodega.
 - Al confirmar el inicio del proceso, el sistema descuenta las cantidades seleccionadas de los lotes origen.
-- Solo el administrador marca el proceso fisico terminado como `pendiente_laboratorio`.
+- Bodega o administracion pueden marcar el proceso fisico terminado para iniciar la revision fisica antes de laboratorio.
 - Laboratorio solamente recibe lotes y procesos pendientes de examen.
 - Solo despues del examen final de laboratorio se crea el lote `PROC`.
 - El proceso puede asociarse a una preventa usando `quoteId`.

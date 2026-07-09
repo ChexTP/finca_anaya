@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
 const initialQuote = {
   clientId: "",
@@ -651,6 +652,7 @@ const CommercialPage = () => {
                       <th className="px-3 py-2">Cliente</th>
                       <th className="px-3 py-2">Tipo</th>
                       <th className="px-3 py-2">Estado</th>
+                      <th className="px-3 py-2">Siguiente paso</th>
                       <th className="px-3 py-2">Total</th>
                       <th className="px-3 py-2">Accion</th>
                     </tr>
@@ -662,8 +664,9 @@ const CommercialPage = () => {
                         <td className="px-3 py-2">{quote.client_name}</td>
                         <td className="px-3 py-2">{quote.quote_type}</td>
                         <td className="px-3 py-2">
-                          <StatusBadge>{quote.status}</StatusBadge>
+                          <StatusBadge>{quoteStatusLabels[quote.status] || quote.status}</StatusBadge>
                         </td>
+                        <td className="px-3 py-2 text-slate-600">{getQuoteNextAction(quote)}</td>
                         <td className="px-3 py-2">{formatMoney(quote.currency, quote.total)}</td>
                         <td className="px-3 py-2">
                           <button
@@ -695,6 +698,9 @@ const CommercialPage = () => {
                 <p className="font-semibold text-ink">{selectedQuote.code}</p>
                 <p className="text-sm text-slate-500">{selectedQuote.client_name}</p>
                 <p className="text-sm text-slate-500">{selectedQuote.client_phone || "Sin telefono"}</p>
+                <p className="mt-2 rounded bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                  {getQuoteNextAction(selectedQuote)}
+                </p>
               </div>
               <div className="rounded bg-slate-50 p-3 text-sm">
                 <p className="text-slate-500">Subtotal: {formatMoney(selectedQuote.currency, selectedQuote.subtotal)}</p>

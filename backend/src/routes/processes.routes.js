@@ -15,8 +15,8 @@ const router = Router();
 router.get("/", requireAuth, getProcesses);
 router.get("/:id", requireAuth, getProcess);
 router.post("/", requireAuth, requireRoles("admin", "warehouse"), postProcess);
-router.put("/:id/start", requireAuth, requireRoles("admin"), putStartProcess);
-router.put("/:id/pending-laboratory", requireAuth, requireRoles("admin"), putProcessPendingLaboratory);
+router.put("/:id/start", requireAuth, requireRoles("admin", "warehouse"), putStartProcess);
+router.put("/:id/pending-laboratory", requireAuth, requireRoles("admin", "warehouse"), putProcessPendingLaboratory);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "warehouse"), putProcessPhysicalReview);
 router.put("/:id/finish", requireAuth, requireRoles("admin", "laboratory"), putFinishProcess);
 

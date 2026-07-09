@@ -4,7 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { getSaleNextAction, getSaleStatusTone, saleStatusLabels } from "../../utils/workflow";
+import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
 const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
@@ -516,7 +516,7 @@ const SalesPage = () => {
                         <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </td>
                       <td className="px-3 py-2 text-slate-600">{getSaleNextAction(sale)}</td>
-                      {showFinancialData && <td className="px-3 py-2">{sale.payment_status}</td>}
+                      {showFinancialData && <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>}
                       {showFinancialData && <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>}
                       <td className="px-3 py-2">
                         <button

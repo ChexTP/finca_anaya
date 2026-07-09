@@ -9,7 +9,7 @@ import { findLotById } from "../models/lots.model.js";
 export const getInventoryLots = async (req, res) => {
   try {
     const lots = await listAvailableLots({
-      status: req.query.status || "disponible",
+      status: req.query.status,
       coffeeTypeId: req.query.coffeeTypeId,
       coffeeProfileId: req.query.coffeeProfileId,
     });

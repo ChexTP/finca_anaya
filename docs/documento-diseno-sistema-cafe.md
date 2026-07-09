@@ -165,7 +165,7 @@ Permisos principales:
 16. Si laboratorio aprueba, el lote queda aprobado.
 17. Contabilidad registra precio de compra, valor total y pago al proveedor.
 18. Al aprobarse en laboratorio, el lote queda disponible de inmediato para venta o procesamiento. El pago al proveedor puede registrarse despues y no modifica el inventario.
-19. Para que un lote pase a disponible, el pago al proveedor debe estar completo.
+19. El pago al proveedor queda como control financiero independiente; no bloquea la disponibilidad operativa del lote aprobado.
 
 ### 4.2 Venta Directa Sin Procesamiento
 
@@ -232,7 +232,7 @@ Permisos principales:
 5. Registra referencia de factura externa si aplica.
 6. La venta queda en historial y pendiente_bodega.
 7. Bodega asigna lotes o solicita proceso segun disponibilidad real.
-8. El inventario solo se descuenta cuando bodega marca la venta como alistada o cuando laboratorio confirma inicio de proceso.
+8. El inventario solo se descuenta cuando bodega marca la venta como alistada o cuando bodega/administracion confirma inicio de proceso.
 
 ### 4.7 Flujo De Alistamiento Y Despacho
 
@@ -241,7 +241,7 @@ Permisos principales:
 3. Bodega clasifica la prioridad de entrega.
 4. Bodega decide si asigna lotes disponibles o solicita proceso.
 5. Si asigna lotes disponibles, guarda lotes y cantidades.
-6. Si solicita proceso, laboratorio confirma inicio, procesa, analiza y devuelve el lote PROC.
+6. Si solicita proceso, bodega/administracion confirma inicio; despues el proceso regresa, bodega registra revision fisica y laboratorio analiza para crear el lote PROC.
 7. Cuando el proceso finaliza, la venta queda lista para ensamble.
 8. Laboratorio define la mezcla final por porcentajes y lotes, si aplica.
 9. Bodega ve la orden de mezcla, puede imprimirla o guardarla como PDF.
@@ -569,7 +569,7 @@ Reglas de laboratorio:
 - Estos campos tambien seran obligatorios para finalizar un lote procesado PROC.
 - La humedad final sera obligatoria para finalizar un proceso/lote PROC.
 - La diferencia entre entrada y salida se calculara automaticamente solo como dato informativo.
-- Laboratorio confirma el inicio del proceso antes de que el inventario se descuente.
+- Bodega o administracion confirman el inicio del proceso antes de que el inventario se descuente.
 - Laboratorio registra la fecha estimada de regreso a bodega al iniciar el proceso.
 - Cuando el proceso regresa, queda pendiente_revision_fisica hasta que Bodega registre cantidad final, humedad y factor.
 - Despues de la revision fisica pasa a pendiente_laboratorio para perfil, catacion y score.
@@ -1134,7 +1134,7 @@ Graficas iniciales:
 - Una preventa/venta puede existir aunque no haya inventario suficiente.
 - Un proceso puede asociarse a una venta/preventa.
 - Crear una solicitud de proceso no descuenta inventario.
-- El inventario de lotes origen se descuenta cuando laboratorio confirma inicio del proceso.
+- El inventario de lotes origen se descuenta cuando bodega o administracion confirman el inicio del proceso.
 - El proceso fisico terminado queda pendiente_laboratorio hasta registrar mediciones y catacion final.
 - Un lote PROC resultante de proceso asociado a venta queda disponible para ensamble/alistamiento de esa venta.
 - Laboratorio define la orden de mezcla por porcentajes cuando la venta queda lista para ensamble.
@@ -1539,8 +1539,8 @@ No incluye:
 - Reporte de ventas por vendedor sera visible solo para administrador y contabilidad.
 - Vendedor no tendra resumen de rendimiento propio en fase 1.
 - Recepcion registra datos fisicos y contabilidad/admin completa precio de compra y pago del lote.
-- Un lote aprobado no puede venderse/procesarse hasta quedar comprado/pagado y disponible.
-- Para pasar un lote a disponible, el pago al proveedor debe estar completo.
+- Un lote aprobado por laboratorio puede venderse o procesarse aunque el pago al proveedor quede pendiente.
+- Registrar el pago al proveedor completa el control financiero y no modifica la disponibilidad del lote.
 - Cuentas por pagar podran registrar gastos de cafe, transporte, empaque, servicios y otros.
 - Cuentas por pagar tendran categorias fijas: cafe, transporte, empaque, servicios y otro.
 - Si la categoria de cuenta por pagar es cafe, lote relacionado sera obligatorio.
