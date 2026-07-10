@@ -12,6 +12,7 @@ import DashboardPage from "./modules/dashboard/DashboardPage";
 import DocumentsPage from "./modules/documents/DocumentsPage";
 import InventoryPage from "./modules/inventory/InventoryPage";
 import LaboratoryPage from "./modules/laboratory/LaboratoryPage";
+import ManagementPage from "./modules/management/ManagementPage";
 import PayablesPage from "./modules/payables/PayablesPage";
 import ProcessesPage from "./modules/processes/ProcessesPage";
 import ReportsPage from "./modules/reports/ReportsPage";
@@ -42,8 +43,16 @@ const App = () => {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory", "seller"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory", "seller", "management"]}>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gerencia"
+          element={
+            <ProtectedRoute roles={["admin", "accounting", "management"]}>
+              <ManagementPage />
             </ProtectedRoute>
           }
         />

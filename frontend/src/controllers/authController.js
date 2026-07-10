@@ -15,5 +15,9 @@ export const getInitialRouteByRole = (role) => {
     return "/muestras";
   }
 
+  if (role === "management") {
+    return "/gerencia";
+  }
+
   return "/dashboard";
 };

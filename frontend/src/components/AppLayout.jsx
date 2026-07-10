@@ -23,7 +23,8 @@ import { companyBrand } from "../utils/brand";
 import { roleLabels } from "../utils/roles";
 
 const navigation = [
-  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting", "warehouse", "laboratory", "seller"] },
+  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting", "warehouse", "laboratory", "seller", "management"] },
+  { label: "Gerencia", path: "/gerencia", icon: BarChart3, roles: ["admin", "accounting", "management"] },
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },

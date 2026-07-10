@@ -676,6 +676,21 @@ UPDATE coffee_types
 SET is_active = FALSE
 WHERE name IN ('Pergamino', 'Trillado', 'Procesado', 'Especial');
 
+-- Rol gerencial para consultar informes de produccion y necesidades de cafe.
+INSERT INTO roles (name, label)
+VALUES ('management', 'Gerencia')
+ON CONFLICT (name) DO UPDATE SET label = EXCLUDED.label;
+
+INSERT INTO users (name, username, password_hash, role_id)
+SELECT
+  'Gerencia',
+  'gerencia',
+  '$2a$10$ks0Z89gbyBCha0zY1ZIR1OY06dYnmnXrI/Zm1eKQNzqrRLQdddboC',
+  roles.id
+FROM roles
+WHERE roles.name = 'management'
+ON CONFLICT (username) DO NOTHING;
+
 -- Catalogo comercial inicial. Los 17 perfiles actuales corresponden a cafes exoticos.
 UPDATE coffee_profiles
 SET category = 'Exotico'

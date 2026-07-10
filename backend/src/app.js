@@ -21,6 +21,7 @@ import dashboardRoutes from "./routes/dashboard.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
 import backupsRoutes from "./routes/backups.routes.js";
 import documentsRoutes from "./routes/documents.routes.js";
+import managementRoutes from "./routes/management.routes.js";
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use("/api/payables", payablesRoutes);
 app.use("/api/samples", samplesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/management", managementRoutes);
 app.use("/api/backups", backupsRoutes);
 app.use("/api/documents", documentsRoutes);
 
