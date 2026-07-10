@@ -1,4 +1,4 @@
-import { AlertTriangle, BarChart3, ClipboardList, RefreshCw, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, ClipboardList, Coffee, RefreshCw, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -30,11 +30,30 @@ const priorityTone = {
   baja: "neutral",
 };
 
+const saleStatusLabels = {
+  pendiente_alistamiento: "Pendiente de decision",
+  pendiente_bodega: "Pendiente de bodega",
+  lote_asignado: "Con lote asignado",
+  proceso_solicitado: "Proceso solicitado",
+  en_proceso: "En proceso",
+  listo_para_ensamble: "Listo para ensamble",
+  ensamble_definido: "Ensamble definido",
+  alistada: "Alistada",
+};
+
+const processStatusLabels = {
+  pendiente: "Por iniciar",
+  en_proceso: "En proceso",
+  pendiente_revision_fisica: "Revision fisica",
+  pendiente_laboratorio: "Laboratorio",
+};
+
 const kpiCards = [
   ["active_items", "Items en produccion", ClipboardList],
   ["high_priority_items", "Pedidos prioridad alta", AlertTriangle],
   ["ready_orders", "Ordenes listas", BarChart3],
   ["active_samples", "Muestras activas", ClipboardList],
+  ["active_processes", "Procesos activos", Coffee],
   ["total_requested_kg", "Kg del pedido", BarChart3],
   ["total_required_kg", "Kg a procesar/comprar", BarChart3],
 ];
@@ -59,7 +78,7 @@ const DeficitTable = ({ title, rows, tone }) => {
                 <th className="px-3 py-2">Componente</th>
                 <th className="px-3 py-2">Kg del pedido</th>
                 <th className="px-3 py-2">Kg a procesar/comprar</th>
-                <th className="px-3 py-2">Pedidos</th>
+                <th className="px-3 py-2">Detalle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -70,7 +89,20 @@ const DeficitTable = ({ title, rows, tone }) => {
                   <td className="px-3 py-2">{row.component_type}</td>
                   <td className="px-3 py-2 text-blue-700">{formatKg(row.requested_kg)}</td>
                   <td className="px-3 py-2 font-semibold text-rose-700">{formatKg(row.required_kg)}</td>
-                  <td className="px-3 py-2">{row.orders.length}</td>
+                  <td className="px-3 py-2">
+                    <details>
+                      <summary className="cursor-pointer text-leaf">{row.orders.length} pedidos</summary>
+                      <div className="mt-2 space-y-2">
+                        {row.orders.map((order, index) => (
+                          <div key={`${order.sale_code}-${index}`} className="rounded bg-slate-50 p-2 text-xs text-slate-600">
+                            <p className="font-semibold text-slate-800">{order.sale_code} - {order.client_name}</p>
+                            <p>{order.seller_name} · {saleStatusLabels[order.status] || order.status}</p>
+                            <p>Entrega: {formatDate(order.estimated_delivery_date)} · {formatKg(order.requested_kg)} del pedido</p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -154,6 +186,67 @@ const ManagementPage = () => {
         ))}
       </div>
 
+      <div className="grid gap-5 xl:grid-cols-3">
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Estados de pedidos activos</h2>
+          </div>
+          {(report.statusSummary || []).length === 0 ? (
+            <p className="px-4 py-6 text-sm text-slate-500">Sin pedidos activos.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {report.statusSummary.map((item) => (
+                <div key={item.status} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{item.label}</p>
+                    <p className="text-xs text-slate-500">Proxima entrega: {formatDate(item.next_delivery_date)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-ink">{item.orders_count}</p>
+                    {Number(item.high_priority_count) > 0 && <p className="text-xs text-rose-600">{item.high_priority_count} alta</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Kg pendientes por cliente</h2>
+          </div>
+          {(report.clientPendingKg || []).length === 0 ? (
+            <p className="px-4 py-6 text-sm text-slate-500">Sin kg pendientes por cliente.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {report.clientPendingKg.map((client) => (
+                <div key={client.client_name} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{client.client_name}</p>
+                    <p className="text-xs text-slate-500">{client.orders_count} pedidos · entrega {formatDate(client.next_delivery_date)}</p>
+                  </div>
+                  <p className="text-sm font-bold text-rose-700">{formatKg(client.pending_kg)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Prioridad general</h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {(report.prioritySummary || []).map((item) => (
+              <div key={item.priority} className="flex items-center justify-between gap-3 px-4 py-3">
+                <StatusBadge tone={priorityTone[item.priority] || "neutral"}>{item.priority}</StatusBadge>
+                <p className="text-lg font-bold text-ink">{item.orders_count}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-5 2xl:grid-cols-2">
         <DeficitTable title="Deficit - Cafe Excelso" rows={report.deficit.excelso || []} tone="danger" />
         <DeficitTable title="Deficit - Cafe Pergamino" rows={report.deficit.pergamino || []} tone="warning" />
@@ -202,6 +295,29 @@ const ManagementPage = () => {
                   <p className="mt-1 text-sm text-slate-500">
                     {seller.orders_count} pedidos / {seller.items_count} items
                   </p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-sm text-leaf">Ver pedidos</summary>
+                    <div className="mt-2 space-y-2">
+                      {seller.orders.map((order) => (
+                        <div key={order.sale_code} className="rounded bg-slate-50 p-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-slate-800">{order.sale_code} - {order.client_name}</p>
+                            <StatusBadge tone={priorityTone[order.priority] || "neutral"}>{order.priority}</StatusBadge>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            {saleStatusLabels[order.status] || order.status} · entrega {formatDate(order.estimated_delivery_date)}
+                          </p>
+                          <div className="mt-2 space-y-1">
+                            {order.items.map((item, index) => (
+                              <p key={`${order.sale_code}-${index}`} className="text-xs text-slate-600">
+                                {item.name} · {item.product_form || "-"} · {item.benefit || "-"} · {formatKg(item.quantity_kg)}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 </div>
               ))}
             </div>
@@ -265,6 +381,46 @@ const ManagementPage = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="rounded border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-sm font-semibold text-slate-800">Procesos activos</h2>
+        </div>
+        {(report.processes || []).length === 0 ? (
+          <p className="px-4 py-6 text-sm text-slate-500">Sin procesos activos.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-100 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2">Proceso</th>
+                  <th className="px-3 py-2">Venta</th>
+                  <th className="px-3 py-2">Cliente</th>
+                  <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Entrada</th>
+                  <th className="px-3 py-2">Salida</th>
+                  <th className="px-3 py-2">Regreso estimado</th>
+                  <th className="px-3 py-2">Ubicacion</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {report.processes.map((process) => (
+                  <tr key={process.id}>
+                    <td className="px-3 py-2 font-medium text-slate-800">{process.code}</td>
+                    <td className="px-3 py-2">{process.sale_code || "-"}</td>
+                    <td className="px-3 py-2">{process.client_name || "-"}</td>
+                    <td className="px-3 py-2">{processStatusLabels[process.status] || process.status}</td>
+                    <td className="px-3 py-2">{formatKg(process.total_input_kg)}</td>
+                    <td className="px-3 py-2">{process.output_weight_kg ? formatKg(process.output_weight_kg) : "-"}</td>
+                    <td className="px-3 py-2">{formatDate(process.estimated_return_date)}</td>
+                    <td className="px-3 py-2">{process.process_location || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {(report.deficit.captureErrors || []).length > 0 && (

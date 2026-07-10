@@ -160,6 +160,32 @@ const getActiveSamples = async () => {
   return result.rows;
 };
 
+const getActiveProcesses = async () => {
+  const result = await pool.query(
+    `
+    SELECT
+      coffee_processes.id,
+      coffee_processes.code,
+      coffee_processes.status,
+      coffee_processes.process_location,
+      coffee_processes.estimated_return_date,
+      coffee_processes.total_input_kg,
+      coffee_processes.output_weight_kg,
+      sales.code AS sale_code,
+      clients.name AS client_name,
+      output_lot.code AS output_lot_code
+    FROM coffee_processes
+    LEFT JOIN sales ON sales.id = coffee_processes.sale_id
+    LEFT JOIN clients ON clients.id = sales.client_id
+    LEFT JOIN coffee_lots output_lot ON output_lot.id = coffee_processes.output_lot_id
+    WHERE coffee_processes.status <> 'finalizado'
+    ORDER BY coffee_processes.estimated_return_date ASC NULLS LAST, coffee_processes.created_at ASC
+    `
+  );
+
+  return result.rows;
+};
+
 const groupBy = (rows, keyGetter) => {
   return rows.reduce((groups, row) => {
     const key = keyGetter(row);
@@ -372,18 +398,102 @@ const buildReadyOrders = (sales, saleItems) => {
     }));
 };
 
+const buildStatusSummary = (sales) => {
+  const labels = {
+    pendiente_alistamiento: "Pendiente de decision",
+    pendiente_bodega: "Pendiente de bodega",
+    lote_asignado: "Con lote asignado",
+    proceso_solicitado: "Proceso solicitado",
+    en_proceso: "En proceso",
+    listo_para_ensamble: "Listo para ensamble",
+    ensamble_definido: "Ensamble definido",
+    alistada: "Alistada",
+  };
+
+  const grouped = sales.reduce((summary, sale) => {
+    summary[sale.status] = summary[sale.status] || {
+      status: sale.status,
+      label: labels[sale.status] || sale.status,
+      orders_count: 0,
+      high_priority_count: 0,
+      next_delivery_date: null,
+    };
+
+    summary[sale.status].orders_count += 1;
+    if (sale.warehouse_priority === "alta") summary[sale.status].high_priority_count += 1;
+
+    if (
+      sale.estimated_delivery_date &&
+      (!summary[sale.status].next_delivery_date || sale.estimated_delivery_date < summary[sale.status].next_delivery_date)
+    ) {
+      summary[sale.status].next_delivery_date = sale.estimated_delivery_date;
+    }
+
+    return summary;
+  }, {});
+
+  return Object.values(grouped).sort((a, b) => b.orders_count - a.orders_count);
+};
+
+const buildClientPendingKg = (sales, saleItems) => {
+  const salesById = groupBy(sales, (sale) => sale.id);
+  const clients = {};
+
+  for (const item of saleItems) {
+    const sale = salesById[item.sale_id]?.[0];
+    if (!sale || sale.status === "alistada") continue;
+
+    const clientName = sale.client_name || "Sin cliente";
+    clients[clientName] = clients[clientName] || {
+      client_name: clientName,
+      orders_count: 0,
+      pending_kg: 0,
+      next_delivery_date: null,
+    };
+
+    clients[clientName].pending_kg = round3(clients[clientName].pending_kg + Number(item.quantity_kg || 0));
+
+    if (!clients[clientName].orderCodes) clients[clientName].orderCodes = new Set();
+    clients[clientName].orderCodes.add(sale.code);
+    clients[clientName].orders_count = clients[clientName].orderCodes.size;
+
+    if (
+      sale.estimated_delivery_date &&
+      (!clients[clientName].next_delivery_date || sale.estimated_delivery_date < clients[clientName].next_delivery_date)
+    ) {
+      clients[clientName].next_delivery_date = sale.estimated_delivery_date;
+    }
+  }
+
+  return Object.values(clients)
+    .map(({ orderCodes, ...client }) => client)
+    .sort((a, b) => b.pending_kg - a.pending_kg)
+    .slice(0, 12);
+};
+
+const buildPrioritySummary = (sales) => {
+  return ["alta", "media", "baja"].map((priority) => ({
+    priority,
+    orders_count: sales.filter((sale) => sale.warehouse_priority === priority).length,
+  }));
+};
+
 export const getManagementProductionReport = async () => {
-  const [sales, saleItems, blendItems, samples] = await Promise.all([
+  const [sales, saleItems, blendItems, samples, processes] = await Promise.all([
     getActiveSales(),
     getActiveSaleItems(),
     getSaleBlendItems(),
     getActiveSamples(),
+    getActiveProcesses(),
   ]);
 
   const deficit = buildDeficitReport({ sales, saleItems, blendItems });
   const urgentSales = buildUrgentSales(sales, saleItems);
   const sellerLoad = buildSellerLoad(sales, saleItems);
   const readyOrders = buildReadyOrders(sales, saleItems);
+  const statusSummary = buildStatusSummary(sales);
+  const clientPendingKg = buildClientPendingKg(sales, saleItems);
+  const prioritySummary = buildPrioritySummary(sales);
 
   return {
     generated_at: new Date().toISOString(),
@@ -393,12 +503,17 @@ export const getManagementProductionReport = async () => {
       ready_orders: readyOrders.length,
       active_orders: sales.length,
       active_samples: samples.length,
+      active_processes: processes.length,
       total_requested_kg: deficit.totalRequestedKg,
       total_required_kg: deficit.totalRequiredKg,
     },
     deficit,
     urgentSales,
     sellerLoad,
+    statusSummary,
+    prioritySummary,
+    clientPendingKg,
+    processes,
     samples,
     readyOrders,
   };
