@@ -1,8 +1,10 @@
-import { AlertTriangle, BarChart3, ClipboardList, Coffee, RefreshCw, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, ClipboardList, Coffee, Download, Printer, RefreshCw, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
-import { apiRequest } from "../../utils/api";
+import { apiRequest, getToken } from "../../utils/api";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 const formatKg = (value, decimals = 2) => {
   return `${Number(value || 0).toLocaleString("es-CO", {
@@ -54,9 +56,43 @@ const kpiCards = [
   ["ready_orders", "Ordenes listas", BarChart3],
   ["active_samples", "Muestras activas", ClipboardList],
   ["active_processes", "Procesos activos", Coffee],
+  ["alerts_count", "Alertas gerenciales", AlertTriangle],
   ["total_requested_kg", "Kg del pedido", BarChart3],
   ["total_required_kg", "Kg a procesar/comprar", BarChart3],
+  ["total_missing_kg", "Kg faltantes", AlertTriangle],
 ];
+
+const SimpleBarChart = ({ title, rows, valueKey, labelKey, colorClass = "bg-leaf" }) => {
+  const topRows = rows.slice(0, 8);
+  const maxValue = Math.max(...topRows.map((row) => Number(row[valueKey] || 0)), 1);
+
+  return (
+    <div className="rounded border border-slate-200 bg-white p-4">
+      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+      {topRows.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">Sin datos para graficar.</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {topRows.map((row) => {
+            const value = Number(row[valueKey] || 0);
+            const width = Math.max((value / maxValue) * 100, 3);
+            return (
+              <div key={`${title}-${row[labelKey] || row.name}`} className="space-y-1">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="truncate font-medium text-slate-700">{row[labelKey] || row.name}</span>
+                  <span className="shrink-0 text-slate-500">{formatKg(value)}</span>
+                </div>
+                <div className="h-3 rounded bg-slate-100">
+                  <div className={`h-3 rounded ${colorClass}`} style={{ width: `${width}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const DeficitTable = ({ title, rows, tone }) => {
   return (
@@ -78,6 +114,10 @@ const DeficitTable = ({ title, rows, tone }) => {
                 <th className="px-3 py-2">Componente</th>
                 <th className="px-3 py-2">Kg del pedido</th>
                 <th className="px-3 py-2">Kg a procesar/comprar</th>
+                <th className="px-3 py-2">Disponible</th>
+                <th className="px-3 py-2">Asignado</th>
+                <th className="px-3 py-2">En proceso</th>
+                <th className="px-3 py-2">Faltante</th>
                 <th className="px-3 py-2">Detalle</th>
               </tr>
             </thead>
@@ -89,6 +129,12 @@ const DeficitTable = ({ title, rows, tone }) => {
                   <td className="px-3 py-2">{row.component_type}</td>
                   <td className="px-3 py-2 text-blue-700">{formatKg(row.requested_kg)}</td>
                   <td className="px-3 py-2 font-semibold text-rose-700">{formatKg(row.required_kg)}</td>
+                  <td className="px-3 py-2 text-emerald-700">{formatKg(row.available_kg)}</td>
+                  <td className="px-3 py-2 text-slate-600">{formatKg(row.assigned_kg)}</td>
+                  <td className="px-3 py-2 text-slate-600">{formatKg(row.in_process_kg)}</td>
+                  <td className={`px-3 py-2 font-semibold ${Number(row.missing_kg) > 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                    {formatKg(row.missing_kg)}
+                  </td>
                   <td className="px-3 py-2">
                     <details>
                       <summary className="cursor-pointer text-leaf">{row.orders.length} pedidos</summary>
@@ -132,6 +178,19 @@ const ManagementPage = () => {
     }
   };
 
+  const downloadCsv = async () => {
+    const response = await fetch(`${API_URL}/management/production-report?format=csv`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "informe-gerencial-produccion.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     loadReport();
   }, []);
@@ -166,6 +225,20 @@ const ManagementPage = () => {
           <RefreshCw size={16} />
           {loading ? "Actualizando..." : "Actualizar informe"}
         </button>
+        <button
+          className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+          onClick={downloadCsv}
+        >
+          <Download size={16} />
+          Descargar CSV
+        </button>
+        <button
+          className="inline-flex items-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white"
+          onClick={() => window.print()}
+        >
+          <Printer size={16} />
+          Imprimir / PDF
+        </button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -184,6 +257,42 @@ const ManagementPage = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {(report.alerts || []).length > 0 && (
+        <div className="rounded border border-rose-200 bg-rose-50">
+          <div className="border-b border-rose-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-rose-900">Alertas gerenciales</h2>
+          </div>
+          <div className="grid gap-3 p-4 lg:grid-cols-2">
+            {report.alerts.map((alert, index) => (
+              <div key={`${alert.type}-${index}`} className="rounded border border-rose-100 bg-white p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase text-rose-700">{alert.type}</p>
+                  <StatusBadge tone={priorityTone[alert.priority] || "warning"}>{alert.priority}</StatusBadge>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{alert.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <SimpleBarChart
+          title="Grafica - Faltante estimado por insumo"
+          rows={[...(report.deficit.excelso || []), ...(report.deficit.pergamino || [])].filter((row) => Number(row.missing_kg) > 0)}
+          valueKey="missing_kg"
+          labelKey="name"
+          colorClass="bg-rose-500"
+        />
+        <SimpleBarChart
+          title="Grafica - Kg pendientes por cliente"
+          rows={report.clientPendingKg || []}
+          valueKey="pending_kg"
+          labelKey="client_name"
+          colorClass="bg-leaf"
+        />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-3">

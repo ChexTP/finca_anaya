@@ -28,3 +28,23 @@ select,
 textarea {
   font: inherit;
 }
+
+@media print {
+  header,
+  aside,
+  button {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .rounded {
+    border-radius: 0 !important;
+  }
+}
