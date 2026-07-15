@@ -47,13 +47,15 @@ Para despliegue se contempla:
 
 ## 3. Usuarios Y Roles
 
-La primera version manejara cinco roles:
+La primera version manejara roles internos por area, manteniendo permisos simples y enfocados en lo que cada persona necesita ver.
 
 - Administrador.
-- Recepcion / Inventario.
+- Bodega / Recepcion / Inventario.
 - Laboratorio.
 - Vendedor.
 - Contabilidad.
+- Muestras.
+- Gerencia.
 
 ### Administrador
 
@@ -72,13 +74,14 @@ Permisos principales:
 - Ver reportes y graficas.
 - Editar informacion sensible cuando sea necesario.
 
-### Recepcion / Inventario
+### Bodega / Recepcion / Inventario
 
 Responsable de registrar cafes recibidos y movimientos basicos de inventario.
 
 Permisos principales:
 
 - Registrar entrada de cafe.
+- Registrar entradas rapidas de pasillas y recuperaciones.
 - Registrar proveedor o persona que entrega el cafe.
 - Registrar procedencia.
 - Registrar peso bruto, embalaje, descuento y peso neto.
@@ -87,6 +90,8 @@ Permisos principales:
 - Aceptar o rechazar cafe.
 - Generar lote si el cafe es aceptado.
 - Consultar inventario.
+- Filtrar inventario por categorias operativas.
+- Ajustar salidas o ingresos especiales de stock cuando aplique.
 - Registrar procesamiento basico, si el administrador lo permite.
 
 ### Laboratorio
@@ -143,6 +148,28 @@ Permisos principales:
 - Registrar fecha estimada de pago cuando una venta queda pendiente o parcial.
 - Gestionar cuentas por pagar de proveedores y otros gastos.
 
+### Muestras
+
+Responsable de recibir solicitudes de muestras, alistarlas y registrar ensambles cuando aplique.
+
+Permisos principales:
+
+- Ver solicitudes de muestras.
+- Cambiar estado de muestra: solicitada, en preparacion, lista, entregada o cancelada.
+- Registrar ensamble por item de muestra con lotes y porcentajes.
+- Imprimir orden de muestra si se requiere.
+
+### Gerencia
+
+Responsable de consultar informacion operativa agregada para toma de decisiones.
+
+Permisos principales:
+
+- Ver informe de necesidades de cafe por pedidos.
+- Ver disponibilidad agrupada.
+- Ver procesos activos y pendientes.
+- Exportar o imprimir reportes gerenciales.
+
 ## 4. Flujo Principal Del Sistema
 
 ### 4.1 Ingreso De Cafe
@@ -157,14 +184,14 @@ Permisos principales:
 8. Se registra humedad.
 9. Se registra examen visual.
 10. Se define si el cafe se acepta o se rechaza.
-11. Si se rechaza, se guarda el registro como historico tecnico y no entra al inventario disponible.
-12. Si se acepta en recepcion, el sistema genera un codigo unico de lote.
-13. El lote queda en estado pendiente de laboratorio.
-14. Laboratorio registra datos tecnicos, catacion y decision final.
-15. Si laboratorio rechaza, el lote queda como historico tecnico.
-16. Si laboratorio aprueba, el lote queda aprobado.
-17. Contabilidad registra precio de compra, valor total y pago al proveedor.
-18. Al aprobarse en laboratorio, el lote queda disponible de inmediato para venta o procesamiento. El pago al proveedor puede registrarse despues y no modifica el inventario.
+11. Para cafe Regional, Varietal o Exotico se debe registrar clasificacion, variedad, nombre o codigo exacto.
+12. Si se rechaza, se guarda el registro como historico tecnico y no entra al inventario disponible.
+13. Si se acepta en recepcion, el sistema genera un codigo unico de lote.
+14. El lote queda en estado pendiente de laboratorio.
+15. Laboratorio registra datos tecnicos, catacion y decision final.
+16. Si laboratorio rechaza, el lote queda como historico tecnico.
+17. Si laboratorio aprueba, el lote queda disponible de inmediato para venta o procesamiento.
+18. Contabilidad registra precio de compra, valor total y pago al proveedor cuando corresponda.
 19. El pago al proveedor queda como control financiero independiente; no bloquea la disponibilidad operativa del lote aprobado.
 
 ### 4.2 Venta Directa Sin Procesamiento
@@ -172,7 +199,7 @@ Permisos principales:
 1. El vendedor crea la cotizacion o contabilidad/administrador registra la venta directa.
 2. La venta queda pendiente para bodega.
 3. Bodega revisa la disponibilidad real del cafe.
-4. Si el cafe esta disponible, bodega asigna los lotes especificos y cantidades.
+4. Si el cafe esta disponible, bodega asigna los lotes especificos y cantidades usando selectores agrupados por categoria/proceso.
 5. La asignacion de lotes no descuenta inventario todavia.
 6. Cuando bodega marca la venta como alistada, el sistema descuenta las cantidades asignadas.
 7. La salida queda registrada en el historial de movimientos.
@@ -249,6 +276,15 @@ Permisos principales:
 11. Al marcar alistada, el sistema descuenta el inventario de los lotes asignados.
 12. Bodega, contabilidad o administrador pueden marcar la venta como despachada.
 13. En fase 1 no se manejara estado entregado.
+
+Reglas de seleccion de lotes en bodega:
+
+- El vendedor no ve ni asigna lotes internos.
+- Bodega ve lotes disponibles agrupados por categoria operativa para buscar rapidamente.
+- Las opciones deben mostrar codigo, tipo/categoria/perfil y kg disponibles.
+- Los grupos deben incluir lotes normales, procesados, pasillas y recuperaciones.
+- La asignacion de lotes solo reserva la informacion operativa; el descuento real ocurre al marcar la venta como alistada.
+- La misma agrupacion debe usarse en ensambles de muestras para evitar errores de seleccion.
 
 ### 4.8 Carga Inicial De Inventario
 
@@ -332,6 +368,8 @@ Reglas de proveedores:
 Funciones:
 
 - Registrar entrada.
+- Registrar entradas rapidas de pasillas.
+- Registrar entradas rapidas de recuperaciones.
 - Registrar carga inicial de inventario.
 - Aceptar o rechazar cafe.
 - Generar codigo unico de lote.
@@ -342,6 +380,7 @@ Funciones:
 - Ver inventario por lote.
 - Registrar movimientos.
 - Consultar historial.
+- Ajustar entradas o salidas especiales de inventario con razon obligatoria.
 
 Carga inicial de inventario:
 
@@ -355,9 +394,12 @@ Carga inicial de inventario:
 Vistas de inventario:
 
 - Vista por lote: muestra cada LOT o PROC individual.
-- Vista agrupada: resume inventario por tipo/perfil.
-- Los lotes LOT sin procesar se agruparan por tipo de cafe.
+- Vista agrupada: resume inventario por categoria operativa y proceso.
+- La vista principal mostrara cajitas/filtros seleccionables con cantidad de lotes y kg disponibles.
+- Los lotes LOT sin procesar se agruparan por categoria comercial y metodo de proceso.
 - Los lotes PROC procesados se agruparan por perfil comercial.
+- Las pasillas se agruparan como Pasillas Lavado y Pasillas Natural.
+- Las recuperaciones se agruparan como Recuperaciones Regional, Recuperaciones Varietal o Recuperaciones Exotico.
 - Ambas vistas mostraran cantidades disponibles, asignadas a preventa y en proceso.
 - La vista por lote mostrara un indicador simple de estado: disponible, en proceso, asignado a preventa, agotado u otros estados definidos.
 - Cantidad historica vendida se consultara en reportes, no en la vista principal de inventario.
@@ -395,6 +437,33 @@ Datos tentativos del lote:
 - Cantidad en proceso.
 - Cantidad vendida/agotada.
 - Observaciones.
+
+Reglas de identificacion:
+
+- Si el lote entra como Regional, Varietal o Exotico, el sistema debe exigir clasificacion, variedad, nombre o codigo exacto.
+- No se debe permitir crear un lote Exotico, Varietal o Regional sin saber exactamente de que cafe se trata.
+- La identificacion exacta se guardara en el campo de clasificacion/codigo del lote y se mostrara en inventario y selectores de bodega.
+
+Pasillas:
+
+- Se manejan como stock especial porque son recurrentes y deben poder sumarse o restarse rapidamente.
+- Solo se diferencian en fase 1 como Pasilla Lavado o Pasilla Natural.
+- Se registran desde una entrada rapida en bodega/recepcion.
+- Quedan disponibles inmediatamente en inventario.
+- Pueden asociarse a ventas o ensambles igual que otros lotes disponibles.
+- Si se requiere retirar pasilla por un caso especial, se usa ajuste de inventario con razon obligatoria.
+- Codigo sugerido: PAS-AAAA-0001.
+
+Recuperaciones:
+
+- Se manejan como stock especial de cafe Excelso recuperado.
+- Siempre requieren categoria comercial: Regional, Varietal o Exotico.
+- Siempre requieren identificacion exacta del cafe: variedad, perfil, nombre o codigo.
+- Pueden tener proceso Lavado, Natural o Semilavado.
+- Quedan disponibles inmediatamente en inventario.
+- Pueden asociarse a ventas o ensambles igual que otros lotes disponibles.
+- Si una recuperacion se dana o debe retirarse, se registra una salida o ajuste de inventario con razon obligatoria.
+- Codigo sugerido: REC-AAAA-0001.
 
 Rango de humedad definido:
 
@@ -1760,7 +1829,82 @@ Estas decisiones deben resolverse antes o durante el diseno detallado:
 83. Tienen categorias de cafe ya definidas?
 84. Tienen tipos de embalaje y pesos de descuento ya definidos?
 
-## 15. Riesgos Y Controles
+## 15. Cambios Operativos Implementados En Julio 2026
+
+### Identificacion obligatoria de cafe
+
+- Al recibir cafe con categoria Regional, Varietal o Exotico, el sistema exige clasificacion, variedad, nombre o codigo exacto.
+- Esta regla aplica desde frontend y backend.
+- El objetivo es evitar lotes utiles solo a medias, por ejemplo un lote Exotico sin saber cual exotico es.
+
+### Pasillas
+
+- Se agrego una entrada rapida de stock en Bodega/Recepcion.
+- Se registran como lotes especiales con codigo PAS-AAAA-0001.
+- Solo se clasifican como Pasilla Lavado o Pasilla Natural.
+- Quedan disponibles de inmediato en inventario.
+- Pueden asignarse a ventas, ensambles y salidas especiales.
+
+### Recuperaciones
+
+- Se agrego una entrada rapida de stock en Bodega/Recepcion.
+- Se registran como lotes especiales con codigo REC-AAAA-0001.
+- Siempre deben indicar categoria: Regional, Varietal o Exotico.
+- Siempre deben indicar identificacion exacta.
+- Quedan disponibles de inmediato en inventario.
+- Si se deterioran o se retiran, se registra ajuste de inventario con razon.
+
+### Inventario agrupado
+
+- El inventario disponible muestra filtros/cajitas seleccionables.
+- Cada cajita muestra cantidad de lotes y kg disponibles.
+- Los grupos ayudan a revisar rapidamente inventario como Regional Lavado, Varietal Natural, Exotico Semilavado, Procesados, Pasillas y Recuperaciones.
+
+### Seleccion de lotes en operaciones
+
+- Bodega selecciona lotes agrupados por categoria/proceso al asignar lotes a una venta.
+- Muestras usa la misma agrupacion para registrar ensambles.
+- Las opciones muestran codigo, descripcion del cafe y kg disponibles.
+
+### Ajustes de inventario
+
+- Administrador, Contabilidad y Bodega pueden registrar ajustes de inventario.
+- Todo ajuste exige cantidad, tipo de ajuste y razon.
+- Este mecanismo cubre salidas especiales de pasillas, recuperaciones u otros lotes disponibles.
+
+## 16. Pruebas Recomendadas Para Estos Cambios
+
+1. Ingresar un cafe Regional sin clasificacion exacta.
+   - Resultado esperado: el sistema debe impedir el registro.
+
+2. Ingresar un cafe Exotico con clasificacion exacta.
+   - Resultado esperado: el lote queda registrado y pasa al flujo normal de revision fisica o laboratorio.
+
+3. Crear una Pasilla Lavado desde entrada rapida.
+   - Resultado esperado: se crea un codigo PAS y aparece disponible en inventario.
+
+4. Crear una Pasilla Natural desde entrada rapida.
+   - Resultado esperado: aparece en inventario agrupada como Pasillas Natural.
+
+5. Crear una Recuperacion Varietal sin nombre exacto.
+   - Resultado esperado: el sistema debe impedir el registro.
+
+6. Crear una Recuperacion Exotico con nombre exacto.
+   - Resultado esperado: se crea un codigo REC y aparece disponible en inventario.
+
+7. Abrir Inventario y seleccionar cada cajita/filtro.
+   - Resultado esperado: la tabla muestra solo los lotes del grupo seleccionado y conserva la opcion Todo.
+
+8. En Bodega, abrir una venta pendiente y asignar lotes.
+   - Resultado esperado: el selector de lotes aparece agrupado por categoria/proceso.
+
+9. En Muestras, definir ensamble.
+   - Resultado esperado: el selector de lotes tambien aparece agrupado.
+
+10. Realizar un ajuste de inventario sobre una pasilla.
+    - Resultado esperado: el stock disminuye o aumenta y el cambio queda reflejado en inventario.
+
+## 17. Riesgos Y Controles
 
 ### Riesgo: cambios de alcance
 
@@ -1782,7 +1926,7 @@ Control: todos los movimientos deben quedar registrados y auditables.
 
 Control: dejar claro que el sistema solo registra referencias de facturas emitidas en otro sistema.
 
-## 16. Proxima Accion Recomendada
+## 18. Proxima Accion Recomendada
 
 Antes de empezar el desarrollo, se debe responder primero un bloque minimo de preguntas:
 

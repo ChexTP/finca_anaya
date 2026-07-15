@@ -73,6 +73,7 @@ Usuarios iniciales:
 | Bodega | `bodega` | `bodega123` |
 | Laboratorio | `laboratorio` | `laboratorio123` |
 | Contabilidad | `contabilidad` | `contabilidad123` |
+| Gerencia | `gerencia` | `gerencia123` |
 
 El administrador podra crear vendedores desde el sistema.
 
@@ -175,6 +176,77 @@ Reglas implementadas:
 - Los precios base COP y USD no pueden ser negativos.
 - El precio base sirve como referencia para cotizaciones.
 - El vendedor puede cambiar el precio negociado en la cotizacion sin modificar el precio base del perfil.
+
+### Lotes E Inventario
+
+Registrar cafe recibido desde bodega:
+
+```http
+POST /api/lots/received
+```
+
+Reglas principales:
+
+- `supplierId`, `coffeeTypeId`, `grossWeightKg`, `packagingTypeId` y `receivedAt` son obligatorios.
+- Si `commercialClassification` es `Regional`, `Varietal` o `Exotico`, `coffeeVariety` tambien es obligatorio.
+- Si faltan humedad o factor de rendimiento, el lote queda en `pendiente_revision_fisica`.
+- Si ambos datos estan completos, el lote queda en `pendiente_laboratorio`.
+
+Entrada rapida de pasillas o recuperaciones:
+
+```http
+POST /api/lots/stock-entry
+```
+
+Ejemplo pasilla:
+
+```json
+{
+  "lotKind": "PASILLA",
+  "coffeeTypeId": 1,
+  "weightKg": 120,
+  "humidityPercent": 11.5,
+  "receivedAt": "2026-07-15",
+  "initialComment": "Entrada de pasilla lavada"
+}
+```
+
+Ejemplo recuperacion:
+
+```json
+{
+  "lotKind": "RECUPERACION",
+  "coffeeTypeId": 1,
+  "commercialClassification": "Varietal",
+  "coffeeVariety": "Pink Bourbon recuperado",
+  "weightKg": 80,
+  "humidityPercent": 10.8,
+  "receivedAt": "2026-07-15"
+}
+```
+
+Reglas implementadas:
+
+- Solo `admin` y `warehouse` pueden crear entradas rapidas.
+- Pasillas solo aceptan proceso `Lavado` o `Natural`.
+- Recuperaciones aceptan `Regional`, `Varietal` o `Exotico`.
+- Recuperaciones siempre requieren nombre, variedad o codigo exacto.
+- Las entradas rapidas quedan disponibles inmediatamente en inventario.
+- Los codigos usan prefijos `PAS-AAAA-0001` y `REC-AAAA-0001`.
+
+Ajustes de inventario:
+
+```http
+POST /api/inventory/lots/:lotId/adjustments
+```
+
+Reglas implementadas:
+
+- Pueden ajustar `admin`, `accounting` y `warehouse`.
+- `adjustmentType` debe ser `increase` o `decrease`.
+- `quantityKg` debe ser mayor a cero.
+- `reason` es obligatorio.
+- El ajuste no puede dejar inventario negativo.
 
 ### Dashboard Y Alertas
 
