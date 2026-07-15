@@ -25,6 +25,7 @@ export const lotStatusLabels = {
   disponible: "Disponible",
   vendido_parcial: "Disponible parcial",
   agotado: "Agotado",
+  danado: "Danado",
   rechazado: "Rechazado",
   retirado: "Retirado",
 };

@@ -150,12 +150,13 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
       'en_proceso',
       'procesado',
       'vendido_parcial',
-      'agotado'
+      'agotado',
+      'danado'
     )
   ),
-  CONSTRAINT coffee_lots_kind_check CHECK (lot_kind IN ('LOT', 'PROC')),
+  CONSTRAINT coffee_lots_kind_check CHECK (lot_kind IN ('LOT', 'PROC', 'PASILLA', 'RECUPERACION')),
   CONSTRAINT coffee_lots_commercial_classification_check CHECK (
-    commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado')
+    commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado', 'Pasilla', 'Recuperacion')
   ),
   CONSTRAINT coffee_lots_visual_status_check CHECK (
     visual_status IS NULL OR visual_status IN ('aprobado', 'rechazado')
@@ -220,24 +221,25 @@ BEGIN
       'en_proceso',
       'procesado',
       'vendido_parcial',
-      'agotado'
+      'agotado',
+      'danado'
     )
   );
 END $$;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'coffee_lots_commercial_classification_check'
-  ) THEN
-    ALTER TABLE coffee_lots
-    ADD CONSTRAINT coffee_lots_commercial_classification_check
-    CHECK (
-      commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado')
-    );
-  END IF;
+  ALTER TABLE coffee_lots DROP CONSTRAINT IF EXISTS coffee_lots_kind_check;
+  ALTER TABLE coffee_lots
+  ADD CONSTRAINT coffee_lots_kind_check
+  CHECK (lot_kind IN ('LOT', 'PROC', 'PASILLA', 'RECUPERACION'));
+
+  ALTER TABLE coffee_lots DROP CONSTRAINT IF EXISTS coffee_lots_commercial_classification_check;
+  ALTER TABLE coffee_lots
+  ADD CONSTRAINT coffee_lots_commercial_classification_check
+  CHECK (
+    commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado', 'Pasilla', 'Recuperacion')
+  );
 
   IF NOT EXISTS (
     SELECT 1

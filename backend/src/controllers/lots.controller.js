@@ -28,7 +28,8 @@ const roundKg = (value) => Number(value.toFixed(3));
 
 const isValidNumber = (value) => Number.isFinite(value);
 
-const commercialClassifications = ["Base", "Regional", "Varietal", "Exotico", "Procesado"];
+const commercialClassifications = ["Base", "Regional", "Varietal", "Exotico", "Procesado", "Pasilla", "Recuperacion"];
+const regularCategoriesThatNeedExactName = ["Regional", "Varietal", "Exotico"];
 
 export const getLots = async (req, res) => {
   try {
@@ -93,6 +94,15 @@ export const postReceivedLot = async (req, res) => {
 
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
       return res.status(400).json({ message: "La clasificacion comercial no es valida" });
+    }
+
+    if (
+      regularCategoriesThatNeedExactName.includes(commercialClassification) &&
+      !String(coffeeVariety || "").trim()
+    ) {
+      return res.status(400).json({
+        message: "La clasificacion o codigo exacto del cafe es obligatorio para Regional, Varietal y Exotico",
+      });
     }
 
     const supplier = await findSupplierById(supplierId);
@@ -453,6 +463,88 @@ export const putPurchase = async (req, res) => {
   }
 };
 
+export const postStockEntry = async (req, res) => {
+  try {
+    const {
+      lotKind,
+      coffeeTypeId,
+      commercialClassification,
+      coffeeVariety,
+      weightKg,
+      humidityPercent,
+      receivedAt,
+      originZone,
+      initialComment,
+    } = req.body;
+
+    if (!["PASILLA", "RECUPERACION"].includes(lotKind)) {
+      return res.status(400).json({ message: "La entrada rapida debe ser PASILLA o RECUPERACION" });
+    }
+
+    const weight = toNumber(weightKg);
+    const humidity = toNumber(humidityPercent);
+
+    if (!coffeeTypeId || !isValidNumber(weight) || weight <= 0) {
+      return res.status(400).json({ message: "Tipo de cafe y cantidad en kg son obligatorios" });
+    }
+
+    if (humidity !== null && (!isValidNumber(humidity) || humidity < 0 || humidity > 100)) {
+      return res.status(400).json({ message: "La humedad debe estar entre 0 y 100" });
+    }
+
+    const coffeeType = await findCoffeeTypeById(coffeeTypeId);
+
+    if (!coffeeType || !coffeeType.is_active) {
+      return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+    }
+
+    if (lotKind === "PASILLA" && !["Lavado", "Natural"].includes(coffeeType.name)) {
+      return res.status(400).json({ message: "Las pasillas solo se registran como Lavado o Natural" });
+    }
+
+    if (lotKind === "RECUPERACION") {
+      if (!regularCategoriesThatNeedExactName.includes(commercialClassification)) {
+        return res.status(400).json({ message: "La recuperacion debe ser Regional, Varietal o Exotico" });
+      }
+
+      if (!String(coffeeVariety || "").trim()) {
+        return res.status(400).json({ message: "La recuperacion necesita nombre, variedad o codigo exacto" });
+      }
+    }
+
+    const code = await getNextLotCode(lotKind);
+    const lot = await createInitialInventoryLot({
+      code,
+      lotKind,
+      supplierId: null,
+      coffeeTypeId,
+      coffeeProfileId: null,
+      weightKg: weight,
+      humidityPercent: humidity,
+      score: null,
+      receivedAt: receivedAt || new Date(),
+      coffeeVariety: coffeeVariety || null,
+      originZone,
+      initialComment,
+      commercialClassification: lotKind === "PASILLA" ? "Pasilla" : commercialClassification,
+      purchasePricePerKg: null,
+      purchaseTotal: null,
+      purchasePaid: false,
+      createdBy: req.user.id,
+    });
+
+    res.status(201).json({
+      message: lotKind === "PASILLA" ? "Pasilla agregada al inventario" : "Recuperacion agregada al inventario",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al crear entrada rapida de inventario",
+      error: error.message,
+    });
+  }
+};
+
 export const postInitialLoad = async (req, res) => {
   try {
     const {
@@ -470,8 +562,8 @@ export const postInitialLoad = async (req, res) => {
       purchasePaid = false,
     } = req.body;
 
-    if (!["LOT", "PROC"].includes(lotKind)) {
-      return res.status(400).json({ message: "El tipo de lote debe ser LOT o PROC" });
+    if (!["LOT", "PROC", "PASILLA", "RECUPERACION"].includes(lotKind)) {
+      return res.status(400).json({ message: "El tipo de lote debe ser LOT, PROC, PASILLA o RECUPERACION" });
     }
 
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
@@ -530,7 +622,7 @@ export const postInitialLoad = async (req, res) => {
       });
     }
 
-    const code = lotKind === "PROC" ? await getNextProcessedLotCode() : await getNextLotCode();
+    const code = lotKind === "PROC" ? await getNextProcessedLotCode() : await getNextLotCode(lotKind);
     const purchaseTotal = purchasePrice !== null ? Number((weight * purchasePrice).toFixed(2)) : null;
 
     const lot = await createInitialInventoryLot({
@@ -545,6 +637,8 @@ export const postInitialLoad = async (req, res) => {
       originZone,
       initialComment,
       commercialClassification: lotKind === "PROC" ? "Procesado" : commercialClassification || null,
+      receivedAt: req.body.receivedAt || new Date(),
+      coffeeVariety: req.body.coffeeVariety || null,
       purchasePricePerKg: purchasePrice,
       purchaseTotal,
       purchasePaid,

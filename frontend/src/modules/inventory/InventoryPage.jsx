@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
 import { lotStatusLabels } from "../../utils/workflow";
 
 const initialPurchase = {
@@ -20,11 +21,13 @@ const InventoryPage = () => {
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
+  const [selectedGroup, setSelectedGroup] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const canRegisterPurchase = ["admin", "accounting"].includes(user?.role);
+  const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
 
   const loadData = async () => {
     const requests = [
@@ -93,9 +96,50 @@ const InventoryPage = () => {
     }
   };
 
+  const adjustInventory = async (lot) => {
+    const action = window.prompt(`Ajuste para ${lot.code}: escriba + para sumar o - para restar`, "-");
+    if (!["+", "-"].includes(action)) return;
+
+    const quantity = window.prompt("Cantidad kg", "");
+    if (!quantity) return;
+
+    const reason = window.prompt("Razon del ajuste", action === "-" ? "Salida especial de inventario" : "Ingreso adicional de inventario");
+    if (!reason) return;
+
+    if (!window.confirm(`Confirma ajustar ${lot.code} en ${action}${quantity} kg?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/inventory/lots/${lot.id}/adjustments`, {
+        method: "POST",
+        body: JSON.stringify({
+          adjustmentType: action === "+" ? "increase" : "decrease",
+          quantityKg: Number(quantity),
+          reason,
+        }),
+      });
+      await loadData();
+      setMessage("Ajuste de inventario registrado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
     ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
+
+  const inventoryGroups = groupCoffeeLots(lots);
+  const groupCards = Object.values(inventoryGroups).sort((left, right) => left.name.localeCompare(right.name));
+  const filteredLots = selectedGroup === "all"
+    ? lots
+    : lots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
+  const totalAvailableKg = lots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0);
 
   return (
     <section className="space-y-5">
@@ -222,6 +266,36 @@ const InventoryPage = () => {
         </div>
       )}
 
+      {lots.length > 0 && (
+        <div className="rounded border border-slate-200 bg-white p-4">
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={`rounded border px-3 py-2 text-left text-sm ${
+                selectedGroup === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+              }`}
+              type="button"
+              onClick={() => setSelectedGroup("all")}
+            >
+              <span className="block font-semibold">Todo</span>
+              <span className="text-xs">{lots.length} lotes - {totalAvailableKg.toFixed(3)} kg</span>
+            </button>
+            {groupCards.map((group) => (
+              <button
+                key={group.name}
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  selectedGroup === group.name ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => setSelectedGroup(group.name)}
+              >
+                <span className="block font-semibold">{group.name}</span>
+                <span className="text-xs">{group.count} lotes - {group.kg.toFixed(3)} kg</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="rounded border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-800">Inventario disponible</h2>
@@ -245,10 +319,11 @@ const InventoryPage = () => {
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor</th>
                   <th className="px-3 py-2">Estado</th>
+                  {canAdjustInventory && <th className="px-3 py-2">Ajuste</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {lots.map((lot) => (
+                {filteredLots.map((lot) => (
                   <tr key={lot.id}>
                     <td className="px-3 py-2 font-medium">{lot.code}</td>
                     <td className="px-3 py-2">{lot.coffee_type_name || "-"}</td>
@@ -262,6 +337,18 @@ const InventoryPage = () => {
                     <td className="px-3 py-2">
                       <StatusBadge>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
                     </td>
+                    {canAdjustInventory && (
+                      <td className="px-3 py-2">
+                        <button
+                          className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                          type="button"
+                          onClick={() => adjustInventory(lot)}
+                          disabled={saving}
+                        >
+                          Ajustar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

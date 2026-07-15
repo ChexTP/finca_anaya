@@ -20,8 +20,14 @@ export const findPaymentMethodById = async (id) => {
   return result.rows[0];
 };
 
-export const getNextLotCode = async () => {
-  return getNextCodeByPrefix("LOT");
+export const getNextLotCode = async (lotKind = "LOT") => {
+  const prefixes = {
+    LOT: "LOT",
+    PASILLA: "PAS",
+    RECUPERACION: "REC",
+  };
+
+  return getNextCodeByPrefix(prefixes[lotKind] || "LOT");
 };
 
 export const getNextProcessedLotCode = async () => {
@@ -499,6 +505,8 @@ export const createInitialInventoryLot = async (lotData) => {
         available_weight_kg,
         humidity_percent,
         lab_score,
+        received_at,
+        coffee_variety,
         origin_zone,
         initial_comment,
         purchase_price_per_kg,
@@ -508,7 +516,7 @@ export const createInitialInventoryLot = async (lotData) => {
       )
       VALUES (
         $1, $2, $3, $4, 'disponible', $5, $6, $7, 0, $7, $7,
-        $8, $9, $10, $11, $12, $13, $14, $15
+        $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
       )
       RETURNING *
       `,
@@ -522,6 +530,8 @@ export const createInitialInventoryLot = async (lotData) => {
         lotData.weightKg,
         lotData.humidityPercent,
         lotData.score,
+        lotData.receivedAt,
+        lotData.coffeeVariety,
         lotData.originZone,
         lotData.initialComment,
         lotData.purchasePricePerKg,

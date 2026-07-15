@@ -15,7 +15,7 @@ router.get("/lots/:lotId/movements", requireAuth, getInventoryMovements);
 router.post(
   "/lots/:lotId/adjustments",
   requireAuth,
-  requireRoles("admin", "accounting"),
+  requireRoles("admin", "accounting", "warehouse"),
   postInventoryAdjustment
 );
 

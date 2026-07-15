@@ -5,7 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
-import { formatCoffeeLotOption } from "../../utils/coffeeLots";
+import { formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -248,6 +248,10 @@ const SamplesPage = () => {
         return String(leftDate).localeCompare(String(rightDate));
       });
   }, [samples, sampleFilter]);
+
+  const availableLotGroups = useMemo(() => {
+    return Object.values(groupCoffeeLots(availableLots)).sort((left, right) => left.name.localeCompare(right.name));
+  }, [availableLots]);
 
   const loadData = async () => {
     const [sampleData, catalogData, inventoryData] = await Promise.all([
@@ -770,8 +774,12 @@ const SamplesPage = () => {
                                 onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
                               >
                                 <option value="">Lote utilizado</option>
-                                {availableLots.map((lot) => (
-                                  <option key={lot.id} value={lot.id}>{formatCoffeeLotOption(lot)}</option>
+                                {availableLotGroups.map((group) => (
+                                  <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
+                                    {group.lots.map((lot) => (
+                                      <option key={lot.id} value={lot.id}>{formatCoffeeLotOption(lot)}</option>
+                                    ))}
+                                  </optgroup>
                                 ))}
                               </select>
                               <input

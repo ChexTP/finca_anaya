@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
-import { formatCoffeeLotOption } from "../../utils/coffeeLots";
+import { formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import {
   getSaleNextAction,
   getSaleStatusTone,
@@ -76,6 +76,10 @@ const WarehousePendingPage = () => {
         return leftDate - rightDate;
       });
   }, [sales, taskFilter]);
+
+  const availableLotGroups = useMemo(() => {
+    return Object.values(groupCoffeeLots(availableLots)).sort((left, right) => left.name.localeCompare(right.name));
+  }, [availableLots]);
 
   const loadData = async () => {
     const [saleData, inventoryData] = await Promise.all([
@@ -457,10 +461,14 @@ const WarehousePendingPage = () => {
                         onChange={(event) => updateAssignmentRow(index, "lotId", event.target.value)}
                       >
                         <option value="">Lote disponible</option>
-                        {availableLots.map((lot) => (
-                          <option key={lot.id} value={lot.id}>
-                            {formatCoffeeLotOption(lot)}
-                          </option>
+                        {availableLotGroups.map((group) => (
+                          <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
+                            {group.lots.map((lot) => (
+                              <option key={lot.id} value={lot.id}>
+                                {formatCoffeeLotOption(lot)}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                       <input
