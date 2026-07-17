@@ -71,7 +71,7 @@ router.put(
 router.put(
   "/:id/order-assignee",
   requireAuth,
-  requireRoles("admin", "warehouse"),
+  requireRoles("admin", "warehouse", "accounting"),
   putSaleOrderAssignee
 );
 router.put(

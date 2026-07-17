@@ -106,6 +106,7 @@ Permisos principales:
 - Registrar datos de catacion.
 - Registrar score.
 - Aprobar o rechazar lotes segun criterios tecnicos.
+- Cambiar la clasificacion final de un lote antes de aprobarlo, dejando nota interna obligatoria.
 - Registrar datos de trilla, procesamiento, factor de rendimiento y perfil comercial.
 - Consultar historico tecnico de lotes.
 
@@ -145,6 +146,8 @@ Permisos principales:
 - Consultar cartera y cuentas por cobrar.
 - Ajustar costos de envio en ventas.
 - Ver estado de alistamiento y despacho.
+- Asignar o cambiar el encargado de pedido cuando sea necesario.
+- Consultar historial de cambios del encargado de pedido.
 - Registrar fecha estimada de pago cuando una venta queda pendiente o parcial.
 - Gestionar cuentas por pagar de proveedores y otros gastos.
 
@@ -190,9 +193,11 @@ Permisos principales:
 14. El lote queda en estado pendiente de laboratorio.
 15. Laboratorio registra datos tecnicos, catacion y decision final.
 16. Si laboratorio rechaza, el lote queda como historico tecnico.
-17. Si laboratorio aprueba, el lote queda disponible de inmediato para venta o procesamiento.
-18. Contabilidad registra precio de compra, valor total y pago al proveedor cuando corresponda.
-19. El pago al proveedor queda como control financiero independiente; no bloquea la disponibilidad operativa del lote aprobado.
+17. Si el cafe no cumple la categoria inicial pero sirve para otra categoria, laboratorio puede reclasificarlo antes de aprobarlo.
+18. Toda reclasificacion debe guardar una nota interna en el historial del lote.
+19. Si laboratorio aprueba, el lote queda disponible de inmediato para venta o procesamiento.
+20. Contabilidad registra precio de compra, valor total y pago al proveedor cuando corresponda.
+21. El pago al proveedor queda como control financiero independiente; no bloquea la disponibilidad operativa del lote aprobado.
 
 ### 4.2 Venta Directa Sin Procesamiento
 
@@ -281,10 +286,14 @@ Reglas de seleccion de lotes en bodega:
 
 - El vendedor no ve ni asigna lotes internos.
 - Bodega ve lotes disponibles agrupados por categoria operativa para buscar rapidamente.
+- Bodega puede filtrar pedidos por encargado de pedido.
 - Las opciones deben mostrar codigo, tipo/categoria/perfil y kg disponibles.
 - Los grupos deben incluir lotes normales, procesados, pasillas y recuperaciones.
 - La asignacion de lotes solo reserva la informacion operativa; el descuento real ocurre al marcar la venta como alistada.
 - La misma agrupacion debe usarse en ensambles de muestras para evitar errores de seleccion.
+- El encargado de pedido es texto libre y puede cambiarse desde Bodega, Contabilidad o Administracion.
+- Cada cambio de encargado queda en historial con encargado anterior, encargado nuevo, usuario y fecha.
+- Gerencia puede ver el encargado de pedido en los reportes operativos.
 
 ### 4.8 Carga Inicial De Inventario
 

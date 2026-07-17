@@ -203,6 +203,19 @@ export const findSaleById = async (id) => {
     [id]
   );
 
+  const assigneeHistoryResult = await pool.query(
+    `
+    SELECT
+      sale_order_assignee_history.*,
+      users.name AS changed_by_name
+    FROM sale_order_assignee_history
+    LEFT JOIN users ON users.id = sale_order_assignee_history.changed_by
+    WHERE sale_order_assignee_history.sale_id = $1
+    ORDER BY sale_order_assignee_history.created_at DESC
+    `,
+    [id]
+  );
+
   const blendItemsBySaleItem = blendResult.rows.reduce((groups, blendItem) => {
     const key = blendItem.sale_item_id;
     groups[key] = groups[key] || [];
@@ -219,6 +232,7 @@ export const findSaleById = async (id) => {
     deductedLots: lotsResult.rows,
     blendItems: blendResult.rows,
     payments: paymentsResult.rows,
+    assigneeHistory: assigneeHistoryResult.rows,
   };
 };
 
@@ -346,19 +360,51 @@ export const updateSaleWarehousePriority = async ({ saleId, priority }) => {
   return result.rows[0];
 };
 
-export const updateSaleOrderAssignee = async ({ saleId, assignee }) => {
-  const result = await pool.query(
-    `
-    UPDATE sales
-    SET order_assignee = $1, updated_at = NOW()
-    WHERE id = $2
-      AND status <> 'anulada'
-    RETURNING *
-    `,
-    [assignee || null, saleId]
-  );
+export const updateSaleOrderAssignee = async ({ saleId, assignee, changedBy }) => {
+  const client = await pool.connect();
 
-  return result.rows[0];
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const currentSale = currentResult.rows[0];
+
+    if (!currentSale || currentSale.status === "anulada") {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const normalizedAssignee = assignee || null;
+    const previousAssignee = currentSale.order_assignee || null;
+
+    const result = await client.query(
+      `
+      UPDATE sales
+      SET order_assignee = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+      `,
+      [normalizedAssignee, saleId]
+    );
+
+    if ((previousAssignee || "") !== (normalizedAssignee || "")) {
+      await client.query(
+        `
+        INSERT INTO sale_order_assignee_history (sale_id, previous_assignee, new_assignee, changed_by)
+        VALUES ($1, $2, $3, $4)
+        `,
+        [saleId, previousAssignee, normalizedAssignee, changedBy]
+      );
+    }
+
+    await client.query("COMMIT");
+    return result.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) => {

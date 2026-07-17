@@ -263,8 +263,10 @@ export const updateLotLabReview = async (id, reviewData) => {
         lab_notes = $14,
         lab_reviewed_by = $15,
         lab_reviewed_at = NOW(),
+        commercial_classification = $17,
+        coffee_variety = $18,
         updated_at = NOW()
-      WHERE id = $17
+      WHERE id = $19
       RETURNING *
       `,
       [
@@ -284,6 +286,8 @@ export const updateLotLabReview = async (id, reviewData) => {
         reviewData.notes,
         reviewData.reviewedBy,
         reviewData.performanceFactor,
+        reviewData.commercialClassification,
+        reviewData.coffeeVariety,
         id,
       ]
     );
@@ -305,6 +309,21 @@ export const updateLotLabReview = async (id, reviewData) => {
         reviewData.reviewedBy,
       ]
     );
+
+    if (reviewData.classificationChanged) {
+      await client.query(
+        `
+        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+        VALUES ($1, 'laboratorio_reclasificacion', $2, $3, $4)
+        `,
+        [
+          lot.id,
+          lot.net_weight_kg,
+          `Reclasificacion de laboratorio: ${currentLot.commercial_classification || "-"} / ${currentLot.coffee_variety || "-"} -> ${lot.commercial_classification || "-"} / ${lot.coffee_variety || "-"}. Nota: ${reviewData.classificationChangeNote}`,
+          reviewData.reviewedBy,
+        ]
+      );
+    }
 
     await client.query("COMMIT");
     return lot;

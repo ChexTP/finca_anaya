@@ -42,6 +42,7 @@ const sanitizeSaleForSeller = (sale) => {
     balance_due: _balanceDue,
     payments: _payments,
     deductedLots: _deductedLots,
+    assigneeHistory: _assigneeHistory,
     ...safeSale
   } = sale;
 
@@ -225,6 +226,7 @@ export const putSaleOrderAssignee = async (req, res) => {
     const sale = await updateSaleOrderAssignee({
       saleId: req.params.id,
       assignee: assignee || null,
+      changedBy: req.user.id,
     });
 
     if (!sale) {

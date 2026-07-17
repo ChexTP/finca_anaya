@@ -60,6 +60,7 @@ const getActiveSales = async () => {
       sales.code,
       sales.status,
       sales.warehouse_priority,
+      sales.order_assignee,
       sales.estimated_delivery_date,
       sales.created_at,
       clients.name AS client_name,
@@ -294,6 +295,7 @@ const addDeficit = (groups, item) => {
     sale_code: item.sale.code,
     client_name: item.sale.client_name,
     seller_name: item.sale.seller_name,
+    order_assignee: item.sale.order_assignee,
     priority: item.sale.warehouse_priority,
     status: item.sale.status,
     requested_kg: item.requestedKg,
@@ -471,6 +473,7 @@ const buildUrgentSales = (sales, saleItems) => {
       sale_code: sale.code,
       client_name: sale.client_name,
       seller_name: sale.seller_name,
+      order_assignee: sale.order_assignee,
       status: sale.status,
       estimated_delivery_date: sale.estimated_delivery_date,
       detail: (itemsBySale[sale.id] || [])
@@ -507,6 +510,7 @@ const buildSellerLoad = (sales, saleItems) => {
       sale_code: sale.code,
       client_name: sale.client_name,
       priority: sale.warehouse_priority,
+      order_assignee: sale.order_assignee,
       status: sale.status,
       estimated_delivery_date: sale.estimated_delivery_date,
       items: saleItemsForSale.map((item) => ({
@@ -531,6 +535,7 @@ const buildReadyOrders = (sales, saleItems) => {
       client_name: sale.client_name,
       seller_name: sale.seller_name,
       priority: sale.warehouse_priority,
+      order_assignee: sale.order_assignee,
       estimated_delivery_date: sale.estimated_delivery_date,
       detail: (itemsBySale[sale.id] || [])
         .map((item) => `${getSaleItemName(item)} | ${Number(item.quantity_kg).toLocaleString("es-CO")} kg`)
@@ -689,7 +694,7 @@ export const flattenManagementReport = (report) => {
       kg_asignado: row.assigned_kg,
       kg_en_proceso: row.in_process_kg,
       kg_faltante: row.missing_kg,
-      detalle: `${row.orders.length} pedidos`,
+      detalle: `${row.orders.length} pedidos | Encargados: ${[...new Set(row.orders.map((order) => order.order_assignee || "Sin encargado"))].join(", ")}`,
     })),
     ...report.deficit.pergamino.map((row) => ({
       seccion: "Deficit Pergamino",
@@ -702,7 +707,7 @@ export const flattenManagementReport = (report) => {
       kg_asignado: row.assigned_kg,
       kg_en_proceso: row.in_process_kg,
       kg_faltante: row.missing_kg,
-      detalle: `${row.orders.length} pedidos`,
+      detalle: `${row.orders.length} pedidos | Encargados: ${[...new Set(row.orders.map((order) => order.order_assignee || "Sin encargado"))].join(", ")}`,
     })),
     ...report.alerts.map((alert) => ({
       seccion: "Alertas",

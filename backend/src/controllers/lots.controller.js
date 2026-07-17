@@ -306,6 +306,9 @@ export const putLabReview = async (req, res) => {
       cleanCup,
       score,
       notes,
+      commercialClassification,
+      coffeeVariety,
+      classificationChangeNote,
     } = req.body;
 
     if (!["aprobado", "rechazado"].includes(decision)) {
@@ -351,6 +354,32 @@ export const putLabReview = async (req, res) => {
       return res.status(400).json({ message: "El score debe ser un numero valido" });
     }
 
+    if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
+      return res.status(400).json({ message: "La clasificacion comercial no es valida" });
+    }
+
+    const finalClassification = commercialClassification || currentLot.commercial_classification;
+    const finalVariety = coffeeVariety !== undefined ? String(coffeeVariety || "").trim() : currentLot.coffee_variety;
+    const classificationChanged =
+      (currentLot.commercial_classification || "") !== (finalClassification || "") ||
+      (currentLot.coffee_variety || "") !== (finalVariety || "");
+
+    if (
+      decision === "aprobado" &&
+      regularCategoriesThatNeedExactName.includes(finalClassification) &&
+      !String(finalVariety || "").trim()
+    ) {
+      return res.status(400).json({
+        message: "La clasificacion o codigo exacto del cafe es obligatorio para Regional, Varietal y Exotico",
+      });
+    }
+
+    if (classificationChanged && !String(classificationChangeNote || "").trim()) {
+      return res.status(400).json({
+        message: "Debe escribir una nota interna explicando el cambio de clasificacion",
+      });
+    }
+
     // El rango ideal definido por el cliente es 10% a 12%; se alerta, pero no bloquea la decision.
     const humidityAlert = humidity !== null && (humidity < 10 || humidity > 12);
 
@@ -370,6 +399,10 @@ export const putLabReview = async (req, res) => {
       cleanCup,
       score: scoreValue,
       notes,
+      commercialClassification: finalClassification || null,
+      coffeeVariety: finalVariety || null,
+      classificationChangeNote,
+      classificationChanged,
       reviewedBy: req.user.id,
     });
 

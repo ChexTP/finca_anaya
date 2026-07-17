@@ -143,6 +143,7 @@ const DeficitTable = ({ title, rows, tone }) => {
                           <div key={`${order.sale_code}-${index}`} className="rounded bg-slate-50 p-2 text-xs text-slate-600">
                             <p className="font-semibold text-slate-800">{order.sale_code} - {order.client_name}</p>
                             <p>{order.seller_name} · {saleStatusLabels[order.status] || order.status}</p>
+                            <p>Encargado: {order.order_assignee || "Sin encargado"}</p>
                             <p>Entrega: {formatDate(order.estimated_delivery_date)} · {formatKg(order.requested_kg)} del pedido</p>
                           </div>
                         ))}
@@ -377,6 +378,7 @@ const ManagementPage = () => {
                     <StatusBadge tone="danger">Alta</StatusBadge>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">Entrega: {formatDate(sale.estimated_delivery_date)}</p>
+                  <p className="mt-1 text-sm text-slate-600">Encargado: {sale.order_assignee || "Sin encargado"}</p>
                   <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{sale.detail || "Sin detalle"}</p>
                 </div>
               ))}
@@ -416,6 +418,7 @@ const ManagementPage = () => {
                           <p className="text-xs text-slate-500">
                             {saleStatusLabels[order.status] || order.status} · entrega {formatDate(order.estimated_delivery_date)}
                           </p>
+                          <p className="text-xs text-slate-500">Encargado: {order.order_assignee || "Sin encargado"}</p>
                           <div className="mt-2 space-y-1">
                             {order.items.map((item, index) => (
                               <p key={`${order.sale_code}-${index}`} className="text-xs text-slate-600">
@@ -484,6 +487,7 @@ const ManagementPage = () => {
                     <StatusBadge tone={priorityTone[sale.priority] || "neutral"}>{sale.priority}</StatusBadge>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">Entrega: {formatDate(sale.estimated_delivery_date)}</p>
+                  <p className="mt-1 text-sm text-slate-600">Encargado: {sale.order_assignee || "Sin encargado"}</p>
                   <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{sale.detail}</p>
                 </div>
               ))}

@@ -39,6 +39,7 @@ const WarehousePendingPage = () => {
   const [availableLots, setAvailableLots] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [taskFilter, setTaskFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
@@ -64,6 +65,7 @@ const WarehousePendingPage = () => {
   const sortedSales = useMemo(() => {
     return sales
       .filter((sale) => taskFilter === "all" || getSaleTaskKey(sale) === taskFilter)
+      .filter((sale) => assigneeFilter === "all" || (sale.order_assignee || "Sin encargado") === assigneeFilter)
       .sort((left, right) => {
         const leftDue = isDeliveryDueSoon(left.estimated_delivery_date) ? 0 : 1;
         const rightDue = isDeliveryDueSoon(right.estimated_delivery_date) ? 0 : 1;
@@ -76,7 +78,13 @@ const WarehousePendingPage = () => {
         const rightDate = right.estimated_delivery_date ? new Date(right.estimated_delivery_date).getTime() : Number.MAX_SAFE_INTEGER;
         return leftDate - rightDate;
       });
-  }, [sales, taskFilter]);
+  }, [sales, taskFilter, assigneeFilter]);
+
+  const assigneeOptions = useMemo(() => {
+    return [...new Set(sales.map((sale) => sale.order_assignee || "Sin encargado"))].sort((left, right) =>
+      left.localeCompare(right)
+    );
+  }, [sales]);
 
   const availableLotGroups = useMemo(() => {
     return Object.values(groupCoffeeLots(availableLots)).sort((left, right) => left.name.localeCompare(right.name));
@@ -314,6 +322,22 @@ const WarehousePendingPage = () => {
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-white p-3">
+        <label className="text-xs font-semibold uppercase text-slate-500">Encargado</label>
+        <select
+          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          value={assigneeFilter}
+          onChange={(event) => setAssigneeFilter(event.target.value)}
+        >
+          <option value="all">Todos</option>
+          {assigneeOptions.map((assignee) => (
+            <option key={assignee} value={assignee}>
+              {assignee}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_460px]">
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
@@ -437,6 +461,18 @@ const WarehousePendingPage = () => {
                     Guardar
                   </button>
                 </div>
+                {selectedSale.assigneeHistory?.length > 0 && (
+                  <details className="mt-3 text-xs text-slate-500">
+                    <summary className="cursor-pointer text-leaf">Ver historial de encargado</summary>
+                    <div className="mt-2 space-y-1">
+                      {selectedSale.assigneeHistory.map((entry) => (
+                        <p key={entry.id}>
+                          {entry.previous_assignee || "Sin encargado"} a {entry.new_assignee || "Sin encargado"} · {entry.changed_by_name || "-"} · {formatDate(entry.created_at)}
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
 
               <div className="space-y-2">

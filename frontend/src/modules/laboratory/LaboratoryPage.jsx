@@ -20,6 +20,9 @@ const initialReview = {
   cleanCup: "",
   score: "",
   notes: "",
+  commercialClassification: "",
+  coffeeVariety: "",
+  classificationChangeNote: "",
 };
 
 const initialFinish = {
@@ -138,6 +141,8 @@ const LaboratoryPage = () => {
     setSelectedLot(lot);
     setReview({
       ...initialReview,
+      commercialClassification: lot.commercial_classification || "",
+      coffeeVariety: lot.coffee_variety || "",
     });
     setMessage("");
     setError("");
@@ -306,6 +311,14 @@ const LaboratoryPage = () => {
     setError("");
 
     try {
+      const classificationChanged =
+        (selectedLot.commercial_classification || "") !== (review.commercialClassification || "") ||
+        (selectedLot.coffee_variety || "") !== (review.coffeeVariety || "");
+
+      if (classificationChanged && !review.classificationChangeNote.trim()) {
+        throw new Error("Debe escribir una nota interna explicando el cambio de clasificacion.");
+      }
+
       await apiRequest(`/lots/${selectedLot.id}/lab-review`, {
         method: "PUT",
         body: JSON.stringify({
@@ -482,6 +495,40 @@ const LaboratoryPage = () => {
               {selectedLot && (
                 <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
                   Revision fisica de Bodega: humedad {selectedLot.humidity_percent}%, factor {selectedLot.performance_factor}.
+                </div>
+              )}
+
+              {selectedLot && (
+                <div className="rounded border border-slate-200 p-3">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Clasificacion final del cafe</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      value={review.commercialClassification}
+                      onChange={(event) => setReview({ ...review, commercialClassification: event.target.value })}
+                    >
+                      <option value="">Sin categoria</option>
+                      <option value="Regional">Regional</option>
+                      <option value="Varietal">Varietal</option>
+                      <option value="Exotico">Exotico</option>
+                    </select>
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Variedad, nombre o codigo exacto"
+                      value={review.coffeeVariety}
+                      onChange={(event) => setReview({ ...review, coffeeVariety: event.target.value })}
+                    />
+                  </div>
+                  {((selectedLot.commercial_classification || "") !== (review.commercialClassification || "") ||
+                    (selectedLot.coffee_variety || "") !== (review.coffeeVariety || "")) && (
+                    <textarea
+                      className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Nota interna del cambio, ej. Pasa a regional por no cumplir perfil varietal"
+                      value={review.classificationChangeNote}
+                      onChange={(event) => setReview({ ...review, classificationChangeNote: event.target.value })}
+                      required
+                    />
+                  )}
                 </div>
               )}
 

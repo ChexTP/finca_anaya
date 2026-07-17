@@ -252,12 +252,14 @@ const SalesPage = () => {
   const [sales, setSales] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
   const [paymentForm, setPaymentForm] = useState(initialPayment);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -296,9 +298,16 @@ const SalesPage = () => {
     return sales.filter((sale) => {
       const matchesStatus = statusFilter === "all" || getOperationalFilterKey(sale.status) === statusFilter;
       const matchesPayment = paymentFilter === "all" || sale.payment_status === paymentFilter;
-      return matchesStatus && matchesPayment;
+      const matchesAssignee = assigneeFilter === "all" || (sale.order_assignee || "Sin encargado") === assigneeFilter;
+      return matchesStatus && matchesPayment && matchesAssignee;
     });
-  }, [sales, statusFilter, paymentFilter]);
+  }, [sales, statusFilter, paymentFilter, assigneeFilter]);
+
+  const assigneeOptions = useMemo(() => {
+    return [...new Set(sales.map((sale) => sale.order_assignee || "Sin encargado"))].sort((left, right) =>
+      left.localeCompare(right)
+    );
+  }, [sales]);
 
   const loadSales = async () => {
     const requests = [apiRequest("/sales")];
@@ -329,6 +338,7 @@ const SalesPage = () => {
     try {
       const data = await apiRequest(`/sales/${saleId}`);
       setSelectedSale(data);
+      setOrderAssignee(data.order_assignee || "");
       setNotes("");
       setPaymentForm({
         ...initialPayment,
@@ -378,6 +388,29 @@ const SalesPage = () => {
       await loadSales();
       await loadSaleDetail(selectedSale.id, false);
       setMessage("Pago registrado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateOrderAssignee = async () => {
+    if (!selectedSale) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/${selectedSale.id}/order-assignee`, {
+        method: "PUT",
+        body: JSON.stringify({ assignee: orderAssignee.trim() || null }),
+      });
+      setSelectedSale(response.data);
+      setOrderAssignee(response.data.order_assignee || "");
+      await loadSales();
+      setMessage("Encargado de pedido actualizado.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -489,6 +522,23 @@ const SalesPage = () => {
                 ))}
               </div>
             )}
+            {showFinancialData && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase text-slate-500">Encargado</span>
+                <select
+                  className="rounded border border-slate-300 px-3 py-1.5 text-xs"
+                  value={assigneeFilter}
+                  onChange={(event) => setAssigneeFilter(event.target.value)}
+                >
+                  <option value="all">Todos</option>
+                  {assigneeOptions.map((assignee) => (
+                    <option key={assignee} value={assignee}>
+                      {assignee}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           {filteredSales.length === 0 ? (
             <div className="p-4">
@@ -503,6 +553,7 @@ const SalesPage = () => {
                     <th className="px-3 py-2">Cliente</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Siguiente accion</th>
+                    {showFinancialData && <th className="px-3 py-2">Encargado</th>}
                     {showFinancialData && <th className="px-3 py-2">Pago</th>}
                     {showFinancialData && <th className="px-3 py-2">Total</th>}
                     <th className="px-3 py-2">Accion</th>
@@ -517,6 +568,7 @@ const SalesPage = () => {
                         <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </td>
                       <td className="px-3 py-2 text-slate-600">{getSaleNextAction(sale)}</td>
+                      {showFinancialData && <td className="px-3 py-2">{sale.order_assignee || "-"}</td>}
                       {showFinancialData && <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>}
                       {showFinancialData && <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>}
                       <td className="px-3 py-2">
@@ -554,6 +606,42 @@ const SalesPage = () => {
                   {getSaleNextAction(selectedSale)}
                 </p>
               </div>
+
+              {showFinancialData && (
+                <div className="rounded border border-slate-200 p-3">
+                  <label className="text-xs font-semibold uppercase text-slate-500">Encargado de pedido</label>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      className="min-w-0 flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Nombre de la persona"
+                      value={orderAssignee}
+                      maxLength={120}
+                      onChange={(event) => setOrderAssignee(event.target.value)}
+                      disabled={saving}
+                    />
+                    <button
+                      className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      type="button"
+                      onClick={updateOrderAssignee}
+                      disabled={saving}
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                  {selectedSale.assigneeHistory?.length > 0 && (
+                    <details className="mt-3 text-xs text-slate-500">
+                      <summary className="cursor-pointer text-leaf">Ver historial de encargado</summary>
+                      <div className="mt-2 space-y-1">
+                        {selectedSale.assigneeHistory.map((entry) => (
+                          <p key={entry.id}>
+                            {entry.previous_assignee || "Sin encargado"} a {entry.new_assignee || "Sin encargado"} · {entry.changed_by_name || "-"} · {formatDate(entry.created_at)}
+                          </p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
 
               {showFinancialData && (
                 <div className="rounded bg-slate-50 p-3 text-sm">

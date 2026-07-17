@@ -532,6 +532,15 @@ CREATE TABLE IF NOT EXISTS sale_blend_items (
   CONSTRAINT sale_blend_items_percentage_check CHECK (percentage > 0 AND percentage <= 100)
 );
 
+CREATE TABLE IF NOT EXISTS sale_order_assignee_history (
+  id SERIAL PRIMARY KEY,
+  sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  previous_assignee VARCHAR(120),
+  new_assignee VARCHAR(120),
+  changed_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS sale_payments (
   id SERIAL PRIMARY KEY,
   sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
@@ -745,6 +754,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_client_id ON sales(client_id);
 CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
 CREATE INDEX IF NOT EXISTS idx_sales_estimated_delivery_date ON sales(estimated_delivery_date);
 CREATE INDEX IF NOT EXISTS idx_sales_warehouse_priority ON sales(warehouse_priority);
+CREATE INDEX IF NOT EXISTS idx_sale_order_assignee_history_sale_id ON sale_order_assignee_history(sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_item_lots_sale_item_id ON sale_item_lots(sale_item_id);
 CREATE INDEX IF NOT EXISTS idx_sale_item_lots_lot_id ON sale_item_lots(lot_id);

@@ -613,6 +613,9 @@ Aprobar lote:
   "residual": "Texto libre de residual",
   "cleanCup": "Texto libre de taza limpia",
   "score": 86.5,
+  "commercialClassification": "Regional",
+  "coffeeVariety": "Castillo",
+  "classificationChangeNote": "Pasa por regional porque no cumple el perfil varietal",
   "notes": "Lote apto para compra"
 }
 ```
@@ -633,6 +636,9 @@ Reglas implementadas:
 - Para aprobar, la catacion completa y el `score` son obligatorios.
 - Para rechazar, se exige humedad y se permite dejar observaciones.
 - La humedad ideal definida es entre `10%` y `12%`.
+- Laboratorio puede cambiar `commercialClassification` y `coffeeVariety` antes de aprobar o rechazar.
+- Si cambia categoria o identificacion exacta, `classificationChangeNote` es obligatoria.
+- La reclasificacion queda registrada en `inventory_movements` como `laboratorio_reclasificacion`.
 - Si la humedad queda por fuera de ese rango, el endpoint responde `humidityAlert: true`, pero no bloquea la decision.
 - Un lote aprobado por laboratorio queda inmediatamente en estado `disponible`, con su peso neto habilitado en inventario aunque el proveedor aun no haya cobrado.
 - El pago de compra no bloquea venta ni proceso; solo completa el control financiero del lote.
@@ -938,6 +944,7 @@ POST /api/sales/direct
 PUT /api/sales/:id/prepare
 PUT /api/sales/:id/dispatch
 PUT /api/sales/:id/cancel
+PUT /api/sales/:id/order-assignee
 ```
 
 Convertir cotizacion aceptada en venta pagada:
@@ -975,6 +982,9 @@ Reglas implementadas:
 - La venta queda para gestion de bodega con estado `pendiente_bodega` y prioridad inicial `media`.
 - La fecha estimada de entrega de la cotizacion se copia a la venta.
 - Bodega define la prioridad real de entrega: `alta`, `media` o `baja`.
+- Bodega, contabilidad y administrador pueden asignar `Encargado de pedido` como texto libre.
+- Cada cambio de encargado queda en `sale_order_assignee_history`.
+- El detalle de venta devuelve `assigneeHistory` para roles internos.
 - Bodega decide si asigna lote disponible o si crea un proceso asociado a esa venta.
 - Los lotes asignados por bodega quedan guardados en la venta, pero solo se descuentan cuando bodega marca la venta como `alistada`.
 - Estados de pago: `pagada`, `pago_parcial`, `pendiente_pago`.
