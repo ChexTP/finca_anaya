@@ -199,6 +199,7 @@ export const buildWarehouseOrderHtml = (sale) => {
             <p><strong>Fecha de Inicio orden:</strong> ${formatDate(new Date())}</p>
             <p><strong>Categoria:</strong> ${sale.items?.[0]?.product_form || "CAFE"}</p>
             <p><strong>Cliente:</strong> ${sale.client_name || "-"}</p>
+            <p><strong>Encargado de pedido:</strong> ${sale.order_assignee || "-"}</p>
             <p><strong>Dia estimado de despacho:</strong> ${formatDate(sale.estimated_delivery_date)}</p>
           </div>
           <div>
@@ -233,7 +234,7 @@ export const buildWarehouseOrderHtml = (sale) => {
         </section>
 
         <section class="signature">
-          <p class="line">RESPONSABLE</p>
+          <p class="line">${sale.order_assignee || "ENCARGADO DE PEDIDO"}</p>
           <p class="line">DESPACHA</p>
         </section>
       </body>
