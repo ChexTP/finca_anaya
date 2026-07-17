@@ -322,7 +322,7 @@ def build_document():
             ),
             (
                 "L4",
-                "Aprobar un lote con humedad y datos de catacion completos: aroma, fragancia, sabor, acidez, dulzor, cuerpo, balance, uniformidad, residual, taza limpia y score.",
+                "Aprobar un lote con humedad y datos de catacion completos: aroma, fragancia, sabor, dulzor, cuerpo, residual, taza limpia y score.",
                 "El lote cambia a aprobado y queda pendiente para que contabilidad registre la compra/pago.",
                 "",
             ),

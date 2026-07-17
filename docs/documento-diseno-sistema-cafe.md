@@ -632,14 +632,12 @@ Datos de catacion/laboratorio:
 - Aroma: texto libre.
 - Fragancia: texto libre.
 - Sabor: texto libre.
-- Acidez: texto libre.
 - Dulzor: texto libre.
 - Cuerpo: texto libre.
-- Balance: texto libre.
-- Uniformidad: texto libre.
 - Residual: texto libre.
 - Taza limpia: texto libre.
 - Score: numero decimal sin rango minimo/maximo definido en fase 1.
+- Acidez, balance y uniformidad quedan fuera del flujo actual porque laboratorio no toma esos datos.
 
 Reglas de laboratorio:
 
@@ -1233,7 +1231,7 @@ Graficas iniciales:
 - Las cotizaciones y ventas podran manejar moneda COP o USD sin conversion automatica.
 - Cantidades comerciales se manejaran en kg.
 - La referencia de factura externa es informativa; el sistema no reemplaza la facturacion oficial.
-- Para aprobar un lote recibido de proveedor o finalizar un lote procesado PROC, laboratorio debera registrar la catacion con aroma, fragancia, sabor, acidez, dulzor, cuerpo, balance, uniformidad, residual, taza limpia y score.
+- Para aprobar un lote recibido de proveedor o finalizar un lote procesado PROC, laboratorio debera registrar la catacion con aroma, fragancia, sabor, dulzor, cuerpo, residual, taza limpia y score.
 - Campos de catacion seran texto libre, excepto score que sera numerico decimal sin rango definido en fase 1.
 - Humedad final sera obligatoria para finalizar un proceso/lote PROC.
 - Diferencia entre entrada y salida se calculara automaticamente como referencia.
@@ -1660,7 +1658,7 @@ No incluye:
 - Lotes rechazados no podran reactivarse.
 - Lotes aprobados pero no comprados/pagados podran rechazarse por contabilidad o administrador si no se concreta la negociacion.
 - Lotes disponibles no podran pasar a rechazados.
-- Campos de catacion definidos: aroma, fragancia, sabor, acidez, dulzor, cuerpo, balance, uniformidad, residual, taza limpia y score.
+- Campos de catacion definidos: aroma, fragancia, sabor, dulzor, cuerpo, residual, taza limpia y score.
 - Campos de catacion seran texto libre, excepto score decimal.
 - Catacion sera obligatoria para aprobar lotes recibidos y finalizar lotes procesados PROC.
 - Humedad final sera obligatoria para finalizar procesos/lotes PROC.
