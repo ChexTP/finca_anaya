@@ -10,6 +10,7 @@ import {
   replaceSaleBlendOrder,
   markSaleWithoutBlend,
   updateSaleWarehousePriority,
+  updateSaleOrderAssignee,
   replaceSaleLotAssignments,
 } from "../models/sales.model.js";
 import { logControllerError } from "../utils/logger.js";
@@ -208,6 +209,37 @@ export const putSalePriority = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al actualizar prioridad",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleOrderAssignee = async (req, res) => {
+  try {
+    const assignee = String(req.body.assignee || "").trim();
+
+    if (assignee.length > 120) {
+      return res.status(400).json({ message: "El encargado del pedido no puede superar 120 caracteres" });
+    }
+
+    const sale = await updateSaleOrderAssignee({
+      saleId: req.params.id,
+      assignee: assignee || null,
+    });
+
+    if (!sale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Encargado de pedido actualizado correctamente",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar encargado de pedido",
       error: error.message,
     });
   }

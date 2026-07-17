@@ -346,6 +346,21 @@ export const updateSaleWarehousePriority = async ({ saleId, priority }) => {
   return result.rows[0];
 };
 
+export const updateSaleOrderAssignee = async ({ saleId, assignee }) => {
+  const result = await pool.query(
+    `
+    UPDATE sales
+    SET order_assignee = $1, updated_at = NOW()
+    WHERE id = $2
+      AND status <> 'anulada'
+    RETURNING *
+    `,
+    [assignee || null, saleId]
+  );
+
+  return result.rows[0];
+};
+
 export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) => {
   const client = await pool.connect();
 

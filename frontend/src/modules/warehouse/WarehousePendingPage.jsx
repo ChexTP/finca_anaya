@@ -40,6 +40,7 @@ const WarehousePendingPage = () => {
   const [selectedSale, setSelectedSale] = useState(null);
   const [taskFilter, setTaskFilter] = useState("all");
   const [assignmentRows, setAssignmentRows] = useState([]);
+  const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -110,6 +111,7 @@ const WarehousePendingPage = () => {
     try {
       const sale = await apiRequest(`/sales/${saleId}`);
       setSelectedSale(sale);
+      setOrderAssignee(sale.order_assignee || "");
       setAssignmentRows(
         sale.deductedLots?.length
           ? sale.deductedLots.map((lot) => ({
@@ -150,6 +152,29 @@ const WarehousePendingPage = () => {
       setSelectedSale(response.data);
       await loadData();
       setMessage("Prioridad actualizada.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateOrderAssignee = async () => {
+    if (!selectedSale) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/${selectedSale.id}/order-assignee`, {
+        method: "PUT",
+        body: JSON.stringify({ assignee: orderAssignee.trim() || null }),
+      });
+      setSelectedSale(response.data);
+      setOrderAssignee(response.data.order_assignee || "");
+      await loadData();
+      setMessage("Encargado de pedido actualizado.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -307,6 +332,7 @@ const WarehousePendingPage = () => {
                     <th className="px-3 py-2">Cliente</th>
                     <th className="px-3 py-2">Entrega</th>
                     <th className="px-3 py-2">Prioridad</th>
+                    <th className="px-3 py-2">Encargado</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Siguiente accion</th>
                     <th className="px-3 py-2">Accion</th>
@@ -330,6 +356,7 @@ const WarehousePendingPage = () => {
                           {sale.warehouse_priority || "media"}
                         </StatusBadge>
                       </td>
+                      <td className="px-3 py-2 text-slate-600">{sale.order_assignee || "-"}</td>
                       <td className="px-3 py-2">
                         <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </td>
@@ -388,6 +415,28 @@ const WarehousePendingPage = () => {
                   <option value="media">Media</option>
                   <option value="baja">Baja</option>
                 </select>
+              </div>
+
+              <div className="rounded border border-slate-200 p-3">
+                <label className="text-xs font-semibold uppercase text-slate-500">Encargado de pedido</label>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    className="min-w-0 flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Nombre de la persona"
+                    value={orderAssignee}
+                    maxLength={120}
+                    onChange={(event) => setOrderAssignee(event.target.value)}
+                    disabled={saving}
+                  />
+                  <button
+                    className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    type="button"
+                    onClick={updateOrderAssignee}
+                    disabled={saving}
+                  >
+                    Guardar
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2">

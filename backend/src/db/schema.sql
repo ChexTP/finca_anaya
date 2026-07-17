@@ -389,6 +389,7 @@ CREATE TABLE IF NOT EXISTS sales (
   seller_id INTEGER NOT NULL REFERENCES users(id),
   status VARCHAR(40) NOT NULL DEFAULT 'pendiente_bodega',
   warehouse_priority VARCHAR(20) NOT NULL DEFAULT 'media',
+  order_assignee VARCHAR(120),
   payment_status VARCHAR(30) NOT NULL,
   currency VARCHAR(3) NOT NULL,
   subtotal NUMERIC(14, 2) NOT NULL,
@@ -465,6 +466,7 @@ CREATE TABLE IF NOT EXISTS sale_item_lots (
 );
 
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS warehouse_priority VARCHAR(20) NOT NULL DEFAULT 'media';
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS order_assignee VARCHAR(120);
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS estimated_delivery_date DATE;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS blend_required BOOLEAN;
 ALTER TABLE sales ALTER COLUMN status SET DEFAULT 'pendiente_bodega';

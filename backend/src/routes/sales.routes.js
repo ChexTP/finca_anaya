@@ -11,6 +11,7 @@ import {
   putSaleBlendOrder,
   putSaleWithoutBlend,
   putSalePriority,
+  putSaleOrderAssignee,
   putSaleLotAssignments,
 } from "../controllers/sales.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
@@ -66,6 +67,12 @@ router.put(
   requireAuth,
   requireRoles("admin", "warehouse"),
   putSalePriority
+);
+router.put(
+  "/:id/order-assignee",
+  requireAuth,
+  requireRoles("admin", "warehouse"),
+  putSaleOrderAssignee
 );
 router.put(
   "/:id/lot-assignments",
