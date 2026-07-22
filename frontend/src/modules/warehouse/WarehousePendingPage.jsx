@@ -1,9 +1,10 @@
-import { Eye, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
+import { AlertTriangle, Eye, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
+import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import {
   getSaleNextAction,
@@ -34,6 +35,52 @@ const taskFilters = [
   { key: "dispatch", label: "Despachar" },
 ];
 
+const buildInitialBlendRows = (sale) => {
+  const existingRows = sale.items?.flatMap((item) =>
+    item.blend_items?.map((blend) => ({
+      saleItemId: String(item.id),
+      lotId: String(blend.lot_id),
+      percentage: String(blend.percentage),
+      notes: blend.notes || "",
+    })) || []
+  );
+
+  if (existingRows?.length) return existingRows;
+
+  return (sale.items || [])
+    .filter((item) => item.coffee_profile_category === "Exotico")
+    .flatMap((item) => {
+      const rows = [];
+
+      if (item.process_percentage) {
+        rows.push({
+          saleItemId: String(item.id),
+          lotId: "",
+          percentage: String(item.process_percentage),
+          notes: `Proceso: ${item.process_purchase_coffee_name || ""}`.trim(),
+        });
+      }
+
+      if (item.base_percentage) {
+        rows.push({
+          saleItemId: String(item.id),
+          lotId: "",
+          percentage: String(item.base_percentage),
+          notes: `Base: ${item.base_purchase_coffee_name || ""}`.trim(),
+        });
+      }
+
+      return rows.length
+        ? rows
+        : [{
+            saleItemId: String(item.id),
+            lotId: "",
+            percentage: "",
+            notes: "",
+          }];
+    });
+};
+
 const WarehousePendingPage = () => {
   const [sales, setSales] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
@@ -41,6 +88,7 @@ const WarehousePendingPage = () => {
   const [taskFilter, setTaskFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [assignmentRows, setAssignmentRows] = useState([]);
+  const [blendRows, setBlendRows] = useState([]);
   const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
@@ -137,6 +185,7 @@ const WarehousePendingPage = () => {
               },
             ]
       );
+      setBlendRows(buildInitialBlendRows(sale));
       setNotes("");
     } catch (requestError) {
       setError(requestError.message);
@@ -237,6 +286,100 @@ const WarehousePendingPage = () => {
       setSelectedSale(response.data);
       await loadData();
       setMessage("Lotes asignados correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateBlendRow = (index, field, value) => {
+    setBlendRows((currentRows) =>
+      currentRows.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row))
+    );
+  };
+
+  const addBlendRow = (saleItemId) => {
+    setBlendRows((currentRows) => [
+      ...currentRows,
+      {
+        saleItemId: String(saleItemId),
+        lotId: "",
+        percentage: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const removeBlendRow = (index) => {
+    setBlendRows((currentRows) => currentRows.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  const saveBlendOrder = async () => {
+    if (!selectedSale) return;
+
+    const rowsToSave = blendRows.filter((row) => row.saleItemId && row.lotId && Number(row.percentage) > 0);
+
+    if (rowsToSave.length === 0) {
+      setError("Debe seleccionar al menos un lote con porcentaje para guardar el ensamble.");
+      return;
+    }
+
+    if (!window.confirm("Confirmas guardar la orden de ensamble para esta venta?")) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/${selectedSale.id}/blend-order`, {
+        method: "PUT",
+        body: JSON.stringify({
+          items: rowsToSave.map((row) => ({
+            saleItemId: Number(row.saleItemId),
+            lotId: Number(row.lotId),
+            percentage: Number(row.percentage),
+            notes: row.notes || null,
+          })),
+        }),
+      });
+      setSelectedSale(response.data);
+      setBlendRows(buildInitialBlendRows(response.data));
+      await loadData();
+      setMessage("Orden de ensamble guardada.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleItemShortage = async (item) => {
+    if (!selectedSale) return;
+
+    const nextMarked = !item.shortage_marked;
+    const notes = nextMarked
+      ? window.prompt("Observacion para gerencia sobre este faltante", item.shortage_notes || "")
+      : item.shortage_notes || "";
+
+    if (notes === null) return;
+    if (!window.confirm(nextMarked ? "Confirmas marcar este producto como faltante?" : "Confirmas quitar la marca de faltante?")) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/${selectedSale.id}/items/${item.id}/shortage`, {
+        method: "PUT",
+        body: JSON.stringify({
+          shortageMarked: nextMarked,
+          notes,
+        }),
+      });
+      setSelectedSale(response.data);
+      await loadData();
+      setMessage(nextMarked ? "Producto marcado como faltante." : "Marca de faltante retirada.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -479,11 +622,150 @@ const WarehousePendingPage = () => {
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
                 {selectedSale.items?.map((item) => (
                   <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
-                    <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name}</p>
-                    <p className="text-slate-500">{item.quantity_kg} kg</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name}</p>
+                      <button
+                        className={`inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
+                          item.shortage_marked
+                            ? "border-amber-300 bg-amber-50 text-amber-700"
+                            : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                        }`}
+                        type="button"
+                        onClick={() => toggleItemShortage(item)}
+                        disabled={saving}
+                      >
+                        <AlertTriangle size={13} />
+                        {item.shortage_marked ? "Faltante" : "No hay"}
+                      </button>
+                    </div>
+                    <p className="text-slate-500">
+                      Pedido: {formatOperationalKg(item.quantity_kg)}
+                      {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) && (
+                        <> · Operativo bodega: {formatOperationalKg(item.operational_weight_kg)}</>
+                      )}
+                    </p>
+                    {item.shortage_marked && item.shortage_notes && (
+                      <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                        Faltante: {item.shortage_notes}
+                      </p>
+                    )}
+                    {item.coffee_profile_category === "Exotico" && (item.process_purchase_coffee_name || item.base_purchase_coffee_name) && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Ensamble sugerido: {item.process_purchase_coffee_name || "-"} {item.process_percentage || "-"}% / {item.base_purchase_coffee_name || "-"} {item.base_percentage || "-"}%
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
+
+              {(selectedSale.items || []).some(
+                (item) => item.coffee_profile_category === "Exotico" || blendRows.some((row) => String(row.saleItemId) === String(item.id))
+              ) && (
+                <div className="space-y-3 rounded border border-amber-200 bg-amber-50 p-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-amber-800">Ensamble del pedido</p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      Seleccione los lotes y porcentajes que deben mezclarse para cada cafe exotico. Cada producto guardado debe sumar 100%.
+                    </p>
+                  </div>
+
+                  {selectedSale.items
+                    ?.filter(
+                      (item) =>
+                        item.coffee_profile_category === "Exotico" ||
+                        blendRows.some((row) => String(row.saleItemId) === String(item.id))
+                    )
+                    .map((item) => {
+                      const itemRows = blendRows
+                        .map((row, index) => ({ ...row, index }))
+                        .filter((row) => String(row.saleItemId) === String(item.id));
+                      const rowTotal = itemRows.reduce((total, row) => total + Number(row.percentage || 0), 0);
+                      const baseKg = Number(item.operational_weight_kg || item.quantity_kg || 0);
+
+                      return (
+                        <div key={`blend-form-${item.id}`} className="rounded border border-amber-200 bg-white p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="font-semibold text-ink">
+                                {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Base calculo: {formatOperationalKg(baseKg)} · Total mezcla: {rowTotal.toFixed(2)}%
+                              </p>
+                            </div>
+                            <button
+                              className="rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                              type="button"
+                              onClick={() => addBlendRow(item.id)}
+                            >
+                              Agregar componente
+                            </button>
+                          </div>
+
+                          <div className="mt-3 space-y-2">
+                            {itemRows.map((row) => {
+                              const calculatedKg = baseKg * Number(row.percentage || 0) / 100;
+
+                              return (
+                                <div key={`blend-row-${row.index}`} className="grid gap-2 md:grid-cols-[1fr_90px_1fr_auto]">
+                                  <select
+                                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                    value={row.lotId}
+                                    onChange={(event) => updateBlendRow(row.index, "lotId", event.target.value)}
+                                  >
+                                    <option value="">Lote para ensamble</option>
+                                    {availableLotGroups.map((group) => (
+                                      <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
+                                        {group.lots.map((lot) => (
+                                          <option key={lot.id} value={lot.id}>
+                                            {formatCoffeeLotOption(lot)}
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                    ))}
+                                  </select>
+                                  <input
+                                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                    type="number"
+                                    min="0.01"
+                                    max="100"
+                                    step="0.01"
+                                    placeholder="%"
+                                    value={row.percentage}
+                                    onChange={(event) => updateBlendRow(row.index, "percentage", event.target.value)}
+                                  />
+                                  <input
+                                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                    placeholder={`Kg aprox. ${formatOperationalKg(calculatedKg)}`}
+                                    value={row.notes}
+                                    onChange={(event) => updateBlendRow(row.index, "notes", event.target.value)}
+                                  />
+                                  <button
+                                    className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                    type="button"
+                                    onClick={() => removeBlendRow(row.index)}
+                                  >
+                                    Quitar
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    type="button"
+                    onClick={saveBlendOrder}
+                    disabled={saving || blendRows.length === 0}
+                  >
+                    <Save size={16} />
+                    Guardar ensamble
+                  </button>
+                </div>
+              )}
 
               {selectedSale.blend_required !== null && selectedSale.blend_required !== undefined && (
                 <p className={`rounded px-3 py-2 text-sm font-semibold ${
@@ -512,7 +794,9 @@ const WarehousePendingPage = () => {
                               </div>
                               <p className="text-right text-slate-700">
                                 {blend.percentage}%<br />
-                                <span className="text-xs text-slate-500">{blend.calculated_quantity_kg} kg estimados</span>
+                                <span className="text-xs text-slate-500">
+                                  {blend.calculated_operational_kg || blend.calculated_quantity_kg} kg estimados
+                                </span>
                               </p>
                             </div>
                           ))}
@@ -536,7 +820,7 @@ const WarehousePendingPage = () => {
                         <option value="">Producto vendido</option>
                         {selectedSale.items?.map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.quantity_kg} kg
+                            {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.operational_weight_kg || item.quantity_kg} kg operativos
                           </option>
                         ))}
                       </select>

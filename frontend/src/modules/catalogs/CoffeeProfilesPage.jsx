@@ -8,6 +8,10 @@ const initialProfile = {
   name: "",
   code: "",
   category: "",
+  processPurchaseCoffeeId: "",
+  basePurchaseCoffeeId: "",
+  processPercentage: "",
+  basePercentage: "",
   basePriceCop: "0",
   basePriceUsd: "0",
   isActive: true,
@@ -15,6 +19,7 @@ const initialProfile = {
 
 const CoffeeProfilesPage = () => {
   const [profiles, setProfiles] = useState([]);
+  const [catalogs, setCatalogs] = useState(null);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [form, setForm] = useState(initialProfile);
   const [message, setMessage] = useState("");
@@ -22,8 +27,12 @@ const CoffeeProfilesPage = () => {
   const [saving, setSaving] = useState(false);
 
   const loadProfiles = async () => {
-    const data = await apiRequest("/catalogs/coffee-profiles");
+    const [data, catalogData] = await Promise.all([
+      apiRequest("/catalogs/coffee-profiles"),
+      apiRequest("/catalogs"),
+    ]);
     setProfiles(data);
+    setCatalogs(catalogData);
   };
 
   useEffect(() => {
@@ -36,6 +45,10 @@ const CoffeeProfilesPage = () => {
       name: profile.name || "",
       code: profile.internal_code || "",
       category: profile.category || "",
+      processPurchaseCoffeeId: profile.process_purchase_coffee_id || "",
+      basePurchaseCoffeeId: profile.base_purchase_coffee_id || "",
+      processPercentage: profile.process_percentage || "",
+      basePercentage: profile.base_percentage || "",
       basePriceCop: profile.base_price_cop || "0",
       basePriceUsd: profile.base_price_usd || "0",
       isActive: profile.is_active,
@@ -123,6 +136,7 @@ const CoffeeProfilesPage = () => {
                     <th className="px-4 py-3">Perfil</th>
                     <th className="px-4 py-3">Codigo</th>
                     <th className="px-4 py-3">Categoria</th>
+                    <th className="px-4 py-3">Proceso/Base</th>
                     <th className="px-4 py-3">COP</th>
                     <th className="px-4 py-3">USD</th>
                     <th className="px-4 py-3">Estado</th>
@@ -135,6 +149,11 @@ const CoffeeProfilesPage = () => {
                       <td className="px-4 py-3 font-medium text-ink">{profile.name}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.internal_code || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.category || "-"}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {profile.process_purchase_coffee_name || profile.base_purchase_coffee_name
+                          ? `${profile.process_purchase_coffee_name || "-"} / ${profile.base_purchase_coffee_name || "-"}`
+                          : "-"}
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_cop || 0).toLocaleString("es-CO")}</td>
                       <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_usd || 0).toLocaleString("es-CO")}</td>
                       <td className="px-4 py-3">
@@ -216,6 +235,59 @@ const CoffeeProfilesPage = () => {
                 onChange={(event) => setForm({ ...form, basePriceUsd: event.target.value })}
               />
             </div>
+            {form.category === "Exotico" && (
+              <div className="rounded border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs font-semibold uppercase text-amber-900">Receta sugerida para ensamble</p>
+                <div className="mt-3 grid gap-3">
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={form.processPurchaseCoffeeId}
+                    onChange={(event) => setForm({ ...form, processPurchaseCoffeeId: event.target.value })}
+                  >
+                    <option value="">Cafe usado para proceso</option>
+                    {catalogs?.purchaseCoffees?.map((coffee) => (
+                      <option key={coffee.id} value={coffee.id}>
+                        {coffee.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={form.basePurchaseCoffeeId}
+                    onChange={(event) => setForm({ ...form, basePurchaseCoffeeId: event.target.value })}
+                  >
+                    <option value="">Cafe usado como base</option>
+                    {catalogs?.purchaseCoffees?.map((coffee) => (
+                      <option key={coffee.id} value={coffee.id}>
+                        {coffee.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="% Proceso"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={form.processPercentage}
+                      onChange={(event) => setForm({ ...form, processPercentage: event.target.value })}
+                    />
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="% Base"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={form.basePercentage}
+                      onChange={(event) => setForm({ ...form, basePercentage: event.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"

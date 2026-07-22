@@ -45,7 +45,7 @@ const calculateExcelsoRequiredKg = ({ requestedKg, benefit, productForm }) => {
     return round2(kg * 140 / 70);
   }
 
-  if (normalizedBenefit.includes("LAVADO") || normalizedBenefit.includes("SEMI")) {
+  if (normalizedBenefit.includes("LAVADO")) {
     return round2(kg * 94 / 70);
   }
 
@@ -95,12 +95,22 @@ const getActiveSaleItems = async () => {
       sale_items.process_type,
       sale_items.variety,
       sale_items.quantity_kg,
+      sale_items.operational_weight_kg,
+      sale_items.shortage_marked,
+      sale_items.shortage_notes,
+      coffee_profiles.category AS coffee_profile_category,
+      process_purchase.name AS process_purchase_coffee_name,
+      base_purchase.name AS base_purchase_coffee_name,
+      coffee_profiles.process_percentage,
+      coffee_profiles.base_percentage,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name
     FROM sale_items
     INNER JOIN sales ON sales.id = sale_items.sale_id
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
+    LEFT JOIN purchase_coffees process_purchase ON process_purchase.id = coffee_profiles.process_purchase_coffee_id
+    LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
     WHERE sales.status NOT IN ('despachada', 'anulada')
     ORDER BY sale_items.sale_id ASC, sale_items.id ASC
     `
@@ -301,6 +311,8 @@ const addDeficit = (groups, item) => {
     requested_kg: item.requestedKg,
     required_kg: item.requiredKg,
     estimated_delivery_date: item.sale.estimated_delivery_date,
+    shortage_marked: Boolean(item.shortageMarked),
+    shortage_notes: item.shortageNotes || null,
   });
 };
 
@@ -364,7 +376,9 @@ const enrichDeficitRows = ({ rows, availableLots, pendingAssignments, activeProc
       })
       .reduce((total, process) => total + Number(process.output_weight_kg || process.total_input_kg || 0), 0);
 
-    const missingKg = Math.max(Number(row.required_kg || 0) - availableKg - assignedKg - inProcessKg, 0);
+    const hasManualShortage = row.orders.some((order) => order.shortage_marked);
+    const effectiveAvailableKg = hasManualShortage ? 0 : availableKg;
+    const missingKg = Math.max(Number(row.required_kg || 0) - effectiveAvailableKg - assignedKg - inProcessKg, 0);
 
     return {
       ...row,
@@ -372,6 +386,7 @@ const enrichDeficitRows = ({ rows, availableLots, pendingAssignments, activeProc
       assigned_kg: round3(assignedKg),
       in_process_kg: round3(inProcessKg),
       missing_kg: round3(missingKg),
+      manual_shortage: hasManualShortage,
     };
   });
 };
@@ -390,6 +405,11 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
     const productForm = item.product_form || "Pergamino";
     const itemBenefit = item.process_type || item.coffee_type_name || "";
     const requestedKg = Number(item.quantity_kg || 0);
+    const operationalKg = Number(item.operational_weight_kg || 0) || calculateExcelsoRequiredKg({
+      requestedKg,
+      benefit: itemBenefit,
+      productForm,
+    });
 
     if (itemBlends.length > 0) {
       const percentageTotal = round2(itemBlends.reduce((total, blend) => total + Number(blend.percentage || 0), 0));
@@ -407,6 +427,7 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
 
       for (const blend of itemBlends) {
         const componentRequestedKg = round3(requestedKg * Number(blend.percentage || 0) / 100);
+        const componentRequiredKg = round3(operationalKg * Number(blend.percentage || 0) / 100);
         const benefit = blend.coffee_type_name || parseBenefitFromName(getBlendComponentName(blend)) || itemBenefit;
         const componentName = getBlendComponentName(blend) || getSaleItemName(item);
 
@@ -418,13 +439,48 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
           componentType: blend.lot_kind === "PROC" ? "Proceso" : "Base",
           lotCode: blend.lot_code,
           requestedKg: componentRequestedKg,
-          requiredKg: calculateExcelsoRequiredKg({
-            requestedKg: componentRequestedKg,
-            benefit,
-            productForm,
-          }),
+          requiredKg: componentRequiredKg,
+          shortageMarked: item.shortage_marked,
+          shortageNotes: item.shortage_notes,
         });
       }
+
+      continue;
+    }
+
+    if (
+      item.coffee_profile_category === "Exotico" &&
+      item.process_purchase_coffee_name &&
+      item.base_purchase_coffee_name &&
+      Number(item.process_percentage || 0) > 0 &&
+      Number(item.base_percentage || 0) > 0
+    ) {
+      const processKg = round3(operationalKg * Number(item.process_percentage) / 100);
+      const baseKg = round3(operationalKg * Number(item.base_percentage) / 100);
+
+      addDeficit(groups, {
+        sale,
+        productForm,
+        benefit: itemBenefit,
+        name: item.process_purchase_coffee_name,
+        componentType: "Proceso sugerido",
+        requestedKg: round3(requestedKg * Number(item.process_percentage) / 100),
+        requiredKg: processKg,
+        shortageMarked: item.shortage_marked,
+        shortageNotes: item.shortage_notes,
+      });
+
+      addDeficit(groups, {
+        sale,
+        productForm,
+        benefit: itemBenefit,
+        name: item.base_purchase_coffee_name,
+        componentType: "Base sugerida",
+        requestedKg: round3(requestedKg * Number(item.base_percentage) / 100),
+        requiredKg: baseKg,
+        shortageMarked: item.shortage_marked,
+        shortageNotes: item.shortage_notes,
+      });
 
       continue;
     }
@@ -438,7 +494,9 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
       name: getSaleItemName(item),
       componentType: "Puro",
       requestedKg,
-      requiredKg: calculateExcelsoRequiredKg({ requestedKg, benefit, productForm }),
+      requiredKg: operationalKg,
+      shortageMarked: item.shortage_marked,
+      shortageNotes: item.shortage_notes,
     });
   }
 

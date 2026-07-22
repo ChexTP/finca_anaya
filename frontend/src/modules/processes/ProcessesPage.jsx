@@ -50,6 +50,7 @@ const ProcessesPage = () => {
   const [startForm, setStartForm] = useState(initialStartForm);
   const [physicalReviewProcessId, setPhysicalReviewProcessId] = useState(null);
   const [physicalReviewForm, setPhysicalReviewForm] = useState(initialPhysicalReviewForm);
+  const [processSearch, setProcessSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -68,6 +69,35 @@ const ProcessesPage = () => {
   const totalSelectedKg = useMemo(() => {
     return selectedInputs.reduce((total, input) => total + input.quantityKg, 0).toFixed(3);
   }, [selectedInputs]);
+
+  const filteredProcesses = useMemo(() => {
+    const search = processSearch.trim().toLowerCase();
+    if (!search) return processes;
+
+    return processes.filter((process) => {
+      const text = [
+        process.code,
+        process.sale_code,
+        process.sale_client_name,
+        process.quote_code,
+        process.quote_client_name,
+        process.process_location,
+        process.output_lot_code,
+        process.notes,
+        ...(process.inputs || []).flatMap((input) => [
+          input.lot_code,
+          input.coffee_profile_name,
+          input.coffee_type_name,
+          input.commercial_classification,
+        ]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return text.includes(search);
+    });
+  }, [processes, processSearch]);
 
   const loadData = async () => {
     const requests = [apiRequest("/processes")];
@@ -273,6 +303,15 @@ const ProcessesPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
+      <div className="rounded border border-slate-200 bg-white p-3">
+        <input
+          className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          placeholder="Buscar proceso por perfil, lote, cliente, venta o ubicacion"
+          value={processSearch}
+          onChange={(event) => setProcessSearch(event.target.value)}
+        />
+      </div>
+
       {canCreateProcess && (
         <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createProcess}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -377,11 +416,11 @@ const ProcessesPage = () => {
         </form>
       )}
 
-      {processes.length === 0 ? (
+      {filteredProcesses.length === 0 ? (
         <EmptyState title="Sin procesos" message="Los procesos creados desde bodega apareceran aqui." />
       ) : (
         <div className="grid gap-3">
-          {processes.map((process) => (
+          {filteredProcesses.map((process) => (
             <div key={process.id} className="rounded border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>

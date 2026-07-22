@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
 const initialQuote = {
@@ -91,6 +92,14 @@ const CommercialPage = () => {
     return subtotal + Number(quoteForm.shippingCost || 0);
   }, [subtotal, quoteForm.shippingCost]);
 
+  const itemOperationalKg = useMemo(() => {
+    return calculateOperationalKg({
+      quantityKg: itemForm.quantityKg,
+      productForm: itemForm.productForm,
+      processType: itemForm.processType,
+    });
+  }, [itemForm.quantityKg, itemForm.productForm, itemForm.processType]);
+
   const canConvertToSale = ["admin", "accounting"].includes(user?.role);
 
   const quoteCounts = useMemo(() => {
@@ -162,6 +171,11 @@ const CommercialPage = () => {
 
     const item = {
       quantityKg: Number(itemForm.quantityKg),
+      operationalWeightKg: calculateOperationalKg({
+        quantityKg: itemForm.quantityKg,
+        productForm: itemForm.productForm,
+        processType: itemForm.processType,
+      }),
       unitPrice: Number(itemForm.unitPrice),
       description: itemForm.description || null,
       productForm: itemForm.productForm,
@@ -569,6 +583,17 @@ const CommercialPage = () => {
                   onChange={(event) => setItemForm({ ...itemForm, unitPrice: event.target.value })}
                 />
               </div>
+              {Number(itemForm.quantityKg || 0) > 0 && (
+                <div className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  Bodega vera como referencia operativa:{" "}
+                  <span className="font-semibold">{formatOperationalKg(itemOperationalKg)}</span>
+                  {itemForm.productForm === "Excelso" && itemForm.processType === "Semilavado" && (
+                    <span className="ml-1 text-xs text-amber-700">
+                      (semilavado sin factor confirmado; se mantiene igual por ahora)
+                    </span>
+                  )}
+                </div>
+              )}
               {quoteItems.length > 0 && (
                 <div className="mt-3 divide-y divide-slate-200 rounded border border-slate-200">
                   {quoteItems.map((item, index) => (
@@ -579,6 +604,9 @@ const CommercialPage = () => {
                         </p>
                         <p className="text-slate-500">
                           {item.description || item.variety || "Perfil seleccionado"} · {item.quantityKg} kg
+                          {item.operationalWeightKg && item.operationalWeightKg !== item.quantityKg
+                            ? ` · ${item.operationalWeightKg} kg operativos`
+                            : ""}
                         </p>
                       </div>
                       <button
@@ -716,7 +744,15 @@ const CommercialPage = () => {
                     </p>
                     <p className="text-slate-500">
                       {[item.product_form, item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantity_kg} kg · {formatMoney(selectedQuote.currency, item.unit_price)}
+                      {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg)
+                        ? ` · ${item.operational_weight_kg} kg operativos`
+                        : ""}
                     </p>
+                    {item.coffee_profile_category === "Exotico" && (item.process_purchase_coffee_name || item.base_purchase_coffee_name) && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Ensamble sugerido: {item.process_purchase_coffee_name || "-"} {item.process_percentage || "-"}% / {item.base_purchase_coffee_name || "-"} {item.base_percentage || "-"}%
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

@@ -17,6 +17,7 @@ import PayablesPage from "./modules/payables/PayablesPage";
 import ProcessesPage from "./modules/processes/ProcessesPage";
 import ReportsPage from "./modules/reports/ReportsPage";
 import SalesPage from "./modules/sales/SalesPage";
+import SamplesHistoryPage from "./modules/samples/SamplesHistoryPage";
 import SamplesPage from "./modules/samples/SamplesPage";
 import UsersPage from "./modules/users/UsersPage";
 import WarehousePage from "./modules/warehouse/WarehousePage";
@@ -109,6 +110,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin", "accounting", "seller", "samples"]}>
               <SamplesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/muestras/historico"
+          element={
+            <ProtectedRoute roles={["admin", "samples"]}>
+              <SamplesHistoryPage />
             </ProtectedRoute>
           }
         />

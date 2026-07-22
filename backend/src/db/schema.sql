@@ -26,11 +26,27 @@ CREATE TABLE IF NOT EXISTS coffee_types (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS purchase_coffees (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) UNIQUE NOT NULL,
+  family VARCHAR(40) NOT NULL,
+  process_type VARCHAR(20) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT purchase_coffees_family_check CHECK (family IN ('Regional', 'Varietal')),
+  CONSTRAINT purchase_coffees_process_type_check CHECK (process_type IN ('Lavado', 'Natural'))
+);
+
 CREATE TABLE IF NOT EXISTS coffee_profiles (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL,
   internal_code VARCHAR(30),
   category VARCHAR(80),
+  process_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id),
+  base_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id),
+  process_percentage NUMERIC(5, 2),
+  base_percentage NUMERIC(5, 2),
   base_price_cop NUMERIC(14, 2) NOT NULL DEFAULT 0,
   base_price_usd NUMERIC(14, 2) NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -198,6 +214,10 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_reviewed_at TIMESTAMP;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS commercial_classification VARCHAR(30);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS internal_code VARCHAR(30);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS category VARCHAR(80);
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id);
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id);
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_percentage NUMERIC(5, 2);
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_percentage NUMERIC(5, 2);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_method_id INTEGER REFERENCES payment_methods(id);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_reference TEXT;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_paid_at TIMESTAMP;
@@ -357,6 +377,11 @@ CREATE TABLE IF NOT EXISTS quote_items (
   process_type VARCHAR(20),
   variety TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
+  operational_weight_kg NUMERIC(12, 3),
+  shortage_marked BOOLEAN NOT NULL DEFAULT FALSE,
+  shortage_notes TEXT,
+  shortage_marked_by INTEGER REFERENCES users(id),
+  shortage_marked_at TIMESTAMP,
   unit_price NUMERIC(14, 2) NOT NULL,
   line_total NUMERIC(14, 2) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -367,6 +392,7 @@ CREATE TABLE IF NOT EXISTS quote_items (
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(20);
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(20);
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS variety TEXT;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS operational_weight_kg NUMERIC(12, 3);
 
 DO $$
 BEGIN
@@ -442,6 +468,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
   process_type VARCHAR(20),
   variety TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
+  operational_weight_kg NUMERIC(12, 3),
   unit_price NUMERIC(14, 2) NOT NULL,
   line_total NUMERIC(14, 2) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -452,6 +479,11 @@ CREATE TABLE IF NOT EXISTS sale_items (
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(20);
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(20);
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS variety TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS operational_weight_kg NUMERIC(12, 3);
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS shortage_marked BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS shortage_notes TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS shortage_marked_by INTEGER REFERENCES users(id);
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS shortage_marked_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS sale_item_lots (
   id SERIAL PRIMARY KEY,
@@ -689,6 +721,21 @@ UPDATE coffee_types
 SET is_active = FALSE
 WHERE name IN ('Pergamino', 'Trillado', 'Procesado', 'Especial');
 
+INSERT INTO purchase_coffees (name, family, process_type)
+VALUES
+  ('Regional Lavado', 'Regional', 'Lavado'),
+  ('Regional Natural', 'Regional', 'Natural'),
+  ('Rosado Lavado', 'Varietal', 'Lavado'),
+  ('Rosado Natural', 'Varietal', 'Natural'),
+  ('Desco Lavado', 'Varietal', 'Lavado'),
+  ('Geisha Lavado', 'Varietal', 'Lavado'),
+  ('Geisha Natural', 'Varietal', 'Natural')
+ON CONFLICT (name) DO UPDATE
+SET family = EXCLUDED.family,
+    process_type = EXCLUDED.process_type,
+    is_active = TRUE,
+    updated_at = NOW();
+
 -- Rol gerencial para consultar informes de produccion y necesidades de cafe.
 INSERT INTO roles (name, label)
 VALUES ('management', 'Gerencia')
@@ -723,6 +770,22 @@ VALUES
   ('Varietal 5', 'Varietal')
 ON CONFLICT (name) DO NOTHING;
 
+UPDATE quote_items
+SET operational_weight_kg = CASE
+  WHEN product_form = 'Excelso' AND process_type = 'Natural' THEN ROUND((quantity_kg * 140 / 70)::numeric, 3)
+  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN ROUND((quantity_kg * 94 / 70)::numeric, 3)
+  ELSE quantity_kg
+END
+WHERE operational_weight_kg IS NULL;
+
+UPDATE sale_items
+SET operational_weight_kg = CASE
+  WHEN product_form = 'Excelso' AND process_type = 'Natural' THEN ROUND((quantity_kg * 140 / 70)::numeric, 3)
+  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN ROUND((quantity_kg * 94 / 70)::numeric, 3)
+  ELSE quantity_kg
+END
+WHERE operational_weight_kg IS NULL;
+
 CREATE TABLE IF NOT EXISTS backup_exports (
   id SERIAL PRIMARY KEY,
   module_name VARCHAR(80) NOT NULL,
@@ -732,6 +795,7 @@ CREATE TABLE IF NOT EXISTS backup_exports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_coffees_name ON purchase_coffees(name);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_suppliers_phone ON suppliers(phone);
 CREATE INDEX IF NOT EXISTS idx_clients_phone ON clients(phone);

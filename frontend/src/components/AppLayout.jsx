@@ -32,6 +32,7 @@ const navigation = [
   { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse"] },
   { label: "Comercial", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
+  { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
   { label: "Ventas", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
   { label: "Cuentas por pagar", path: "/cuentas-por-pagar", icon: CreditCard, roles: ["admin", "accounting"] },
   { label: "Clientes", path: "/clientes", icon: Users, roles: ["admin", "accounting", "seller"] },
@@ -96,7 +97,7 @@ const AppLayout = () => {
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  end={item.path === "/bodega"}
+                  end={["/bodega", "/muestras"].includes(item.path)}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded px-3 py-2 text-sm font-medium ${

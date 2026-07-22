@@ -13,6 +13,7 @@ import {
   quoteHasSale,
   quoteHasProcess,
 } from "../models/quotes.model.js";
+import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 
 const toNumber = (value) => {
   if (value === undefined || value === null || value === "") {
@@ -163,6 +164,11 @@ export const postQuote = async (req, res) => {
         processType: item.processType || null,
         variety: item.variety || null,
         quantityKg,
+        operationalWeightKg: calculateOperationalKg({
+          quantityKg,
+          productForm: item.productForm,
+          processType: item.processType,
+        }),
         unitPrice,
         lineTotal: Number((quantityKg * unitPrice).toFixed(2)),
       });

@@ -124,7 +124,14 @@ const DeficitTable = ({ title, rows, tone }) => {
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => (
                 <tr key={`${row.product_form}-${row.benefit}-${row.name}`}>
-                  <td className="px-3 py-2 font-medium text-slate-800">{row.name}</td>
+                  <td className="px-3 py-2 font-medium text-slate-800">
+                    <div className="space-y-1">
+                      <span>{row.name}</span>
+                      {row.manual_shortage && (
+                        <StatusBadge tone="danger">Marcado sin stock</StatusBadge>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2">{row.benefit}</td>
                   <td className="px-3 py-2">{row.component_type}</td>
                   <td className="px-3 py-2 text-blue-700">{formatKg(row.requested_kg)}</td>
@@ -145,6 +152,11 @@ const DeficitTable = ({ title, rows, tone }) => {
                             <p>{order.seller_name} · {saleStatusLabels[order.status] || order.status}</p>
                             <p>Encargado: {order.order_assignee || "Sin encargado"}</p>
                             <p>Entrega: {formatDate(order.estimated_delivery_date)} · {formatKg(order.requested_kg)} del pedido</p>
+                            {order.shortage_marked && (
+                              <p className="mt-1 font-semibold text-rose-700">
+                                Sin stock confirmado{order.shortage_notes ? `: ${order.shortage_notes}` : ""}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>

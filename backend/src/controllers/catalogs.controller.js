@@ -9,6 +9,7 @@ import { findCoffeeProfileById } from "../models/lots.model.js";
 const allowedCatalogs = {
   coffeeTypes: "coffee_types",
   coffeeProfiles: "coffee_profiles",
+  purchaseCoffees: "purchase_coffees",
   packagingTypes: "packaging_types",
   paymentMethods: "payment_methods",
   payableCategories: "payable_categories",
@@ -59,6 +60,10 @@ export const putCoffeeProfile = async (req, res) => {
       name,
       code,
       category,
+      processPurchaseCoffeeId,
+      basePurchaseCoffeeId,
+      processPercentage,
+      basePercentage,
       basePriceCop = 0,
       basePriceUsd = 0,
       isActive = true,
@@ -70,11 +75,24 @@ export const putCoffeeProfile = async (req, res) => {
 
     const priceCop = toNumber(basePriceCop);
     const priceUsd = toNumber(basePriceUsd);
+    const processPct = toNumber(processPercentage);
+    const basePct = toNumber(basePercentage);
 
     if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
         message: "Los precios base deben ser valores validos mayores o iguales a cero",
       });
+    }
+
+    if (
+      (processPct !== null && (!Number.isFinite(processPct) || processPct < 0 || processPct > 100)) ||
+      (basePct !== null && (!Number.isFinite(basePct) || basePct < 0 || basePct > 100))
+    ) {
+      return res.status(400).json({ message: "Los porcentajes de ensamble deben estar entre 0 y 100" });
+    }
+
+    if (category === "Exotico" && processPct !== null && basePct !== null && Number((processPct + basePct).toFixed(2)) !== 100) {
+      return res.status(400).json({ message: "En un exotico, los porcentajes de proceso y base deben sumar 100" });
     }
 
     const profile = await findCoffeeProfileById(req.params.id);
@@ -87,6 +105,10 @@ export const putCoffeeProfile = async (req, res) => {
       name,
       code: code || null,
       category: category || null,
+      processPurchaseCoffeeId: processPurchaseCoffeeId || null,
+      basePurchaseCoffeeId: basePurchaseCoffeeId || null,
+      processPercentage: processPct,
+      basePercentage: basePct,
       basePriceCop: priceCop,
       basePriceUsd: priceUsd,
       isActive,
@@ -114,6 +136,10 @@ export const postCoffeeProfile = async (req, res) => {
       name,
       code,
       category,
+      processPurchaseCoffeeId,
+      basePurchaseCoffeeId,
+      processPercentage,
+      basePercentage,
       basePriceCop = 0,
       basePriceUsd = 0,
     } = req.body;
@@ -124,6 +150,8 @@ export const postCoffeeProfile = async (req, res) => {
 
     const priceCop = toNumber(basePriceCop);
     const priceUsd = toNumber(basePriceUsd);
+    const processPct = toNumber(processPercentage);
+    const basePct = toNumber(basePercentage);
 
     if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
@@ -131,10 +159,25 @@ export const postCoffeeProfile = async (req, res) => {
       });
     }
 
+    if (
+      (processPct !== null && (!Number.isFinite(processPct) || processPct < 0 || processPct > 100)) ||
+      (basePct !== null && (!Number.isFinite(basePct) || basePct < 0 || basePct > 100))
+    ) {
+      return res.status(400).json({ message: "Los porcentajes de ensamble deben estar entre 0 y 100" });
+    }
+
+    if (category === "Exotico" && processPct !== null && basePct !== null && Number((processPct + basePct).toFixed(2)) !== 100) {
+      return res.status(400).json({ message: "En un exotico, los porcentajes de proceso y base deben sumar 100" });
+    }
+
     const profile = await createCoffeeProfile({
       name,
       code: code || null,
       category: category || null,
+      processPurchaseCoffeeId: processPurchaseCoffeeId || null,
+      basePurchaseCoffeeId: basePurchaseCoffeeId || null,
+      processPercentage: processPct,
+      basePercentage: basePct,
       basePriceCop: priceCop,
       basePriceUsd: priceUsd,
     });

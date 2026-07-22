@@ -61,7 +61,7 @@ const buildWarehouseOrderHtml = (sale) => {
                       <td>${blend.commercial_classification || "-"}</td>
                       <td>${blend.lot_code || "-"}</td>
                       <td>${blend.percentage}%</td>
-                      <td>${blend.calculated_quantity_kg} kg</td>
+                      <td>${blend.calculated_operational_kg || blend.calculated_quantity_kg} kg</td>
                     </tr>
                   `
                 )
@@ -683,7 +683,9 @@ const SalesPage = () => {
                               </div>
                               <p className="text-right text-slate-700">
                                 {blend.percentage}%<br />
-                                <span className="text-xs text-slate-500">{blend.calculated_quantity_kg} kg estimados</span>
+                                <span className="text-xs text-slate-500">
+                                  {blend.calculated_operational_kg || blend.calculated_quantity_kg} kg estimados
+                                </span>
                               </p>
                             </div>
                           ))}

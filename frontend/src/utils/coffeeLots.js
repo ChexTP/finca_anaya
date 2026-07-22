@@ -1,10 +1,15 @@
 export const getCoffeeLotGroup = (lot) => {
-  if (lot.lot_kind === "PROC") return "Procesados";
-  if (lot.lot_kind === "PASILLA") return `Pasillas ${lot.coffee_type_name || ""}`.trim();
-  if (lot.lot_kind === "RECUPERACION") return `Recuperaciones ${lot.commercial_classification || "Sin categoria"}`;
+  if (lot.lot_kind === "PROC") return "Proceso";
+  if (lot.lot_kind === "PASILLA") return "Pasillas";
+  if (lot.lot_kind === "RECUPERACION") return `Recuperacion ${lot.coffee_type_name || ""}`.trim();
 
   const category = lot.commercial_classification || "Sin categoria";
   const process = lot.coffee_type_name || "Sin proceso";
+
+  if (["Regional", "Varietal"].includes(category) && ["Lavado", "Natural"].includes(process)) {
+    return `${category} ${process}`;
+  }
+
   return `${category} ${process}`;
 };
 

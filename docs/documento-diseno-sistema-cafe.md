@@ -1947,3 +1947,42 @@ Antes de empezar el desarrollo, se debe responder primero un bloque minimo de pr
 - Reglas de impuestos, descuentos y costos.
 
 Con esas respuestas se puede cerrar el modelo de base de datos y comenzar la implementacion.
+
+## 19. Actualizacion: Conversion A Pergamino Y Recetas De Exoticos
+
+Cuando un pedido comercial se registre como Excelso, el sistema guardara tambien un peso operativo en pergamino para que bodega y gerencia sepan cuanto cafe deben considerar realmente.
+
+- Excelso Lavado: kg operativos = kg pedidos * 94 / 70.
+- Excelso Natural: kg operativos = kg pedidos * 140 / 70.
+- Excelso Semilavado: queda sin factor confirmado por la empresa; en fase actual se mantiene igual al kg pedido.
+- Pergamino: el kg operativo sera igual al kg pedido.
+
+El valor comercial de la cotizacion/factura sigue usando los kg pedidos por el cliente. El kg operativo se usa para bodega, ensambles y calculos gerenciales.
+
+Para cafes exoticos, cada perfil comercial podra tener una receta sugerida:
+
+- Cafe usado para proceso.
+- Cafe usado como base.
+- Porcentaje de proceso.
+- Porcentaje de base.
+
+Los cafes de compra quedan estandarizados para evitar errores de escritura y calculos falsos:
+
+- Regional Lavado.
+- Regional Natural.
+- Rosado Lavado.
+- Rosado Natural.
+- Desco Lavado.
+- Geisha Lavado.
+- Geisha Natural.
+
+Cuando gerencia calcule deficit, si un pedido exotico ya tiene ensamble definido se usaran esos porcentajes reales. Si aun no tiene ensamble, pero el perfil tiene receta sugerida, el sistema usara esa receta para estimar cuanto cafe de compra hace falta.
+
+## 20. Actualizacion: Bodega, Faltantes Y Ensambles Operativos
+
+- Recepcion exige clasificacion exacta cuando el cafe entra como Regional, Varietal o Exotico. Para Regional/Varietal se guia con los cafes de compra estandarizados segun el proceso Lavado/Natural.
+- Inventario se agrupa para lectura rapida por Regional Lavado, Regional Natural, Varietal Lavado, Varietal Natural, Proceso, Pasillas y Recuperacion Lavado/Natural.
+- Bodega puede marcar un item de venta como "no hay" con observacion. Gerencia lo ve como faltante confirmado para priorizar compra o preparacion.
+- Bodega, administracion, contabilidad y laboratorio pueden guardar ordenes de ensamble. En bodega se muestran sugerencias para exoticos con porcentajes y lotes disponibles por categoria.
+- El documento imprimible de bodega incluye el encargado del pedido, productos, kg operativos y componentes/porcentajes de ensamble.
+- Procesos tiene filtro por codigo, cliente, venta, lote, perfil, clasificacion o ubicacion para encontrar trabajos activos sin recorrer toda la lista.

@@ -106,11 +106,18 @@ export const findSaleById = async (id) => {
       sale_items.*,
       coffee_lots.code AS lot_code,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.category AS coffee_profile_category,
+      process_purchase.name AS process_purchase_coffee_name,
+      base_purchase.name AS base_purchase_coffee_name,
+      coffee_profiles.process_percentage,
+      coffee_profiles.base_percentage
     FROM sale_items
     LEFT JOIN coffee_lots ON coffee_lots.id = sale_items.lot_id
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
+    LEFT JOIN purchase_coffees process_purchase ON process_purchase.id = coffee_profiles.process_purchase_coffee_id
+    LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
     WHERE sale_items.sale_id = $1
     ORDER BY sale_items.id ASC
     `,
@@ -187,6 +194,7 @@ export const findSaleById = async (id) => {
       sale_blend_items.*,
       sale_items.quantity_kg AS requested_quantity_kg,
       ROUND((sale_items.quantity_kg * sale_blend_items.percentage / 100)::numeric, 3) AS calculated_quantity_kg,
+      ROUND((COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg) * sale_blend_items.percentage / 100)::numeric, 3) AS calculated_operational_kg,
       coffee_lots.code AS lot_code,
       coffee_lots.lot_kind,
       coffee_lots.commercial_classification,
@@ -405,6 +413,25 @@ export const updateSaleOrderAssignee = async ({ saleId, assignee, changedBy }) =
   } finally {
     client.release();
   }
+};
+
+export const updateSaleItemShortage = async ({ saleId, saleItemId, shortageMarked, notes, markedBy }) => {
+  const result = await pool.query(
+    `
+    UPDATE sale_items
+    SET
+      shortage_marked = $1,
+      shortage_notes = $2,
+      shortage_marked_by = CASE WHEN $1 THEN $3 ELSE NULL END,
+      shortage_marked_at = CASE WHEN $1 THEN NOW() ELSE NULL END
+    WHERE id = $4
+      AND sale_id = $5
+    RETURNING *
+    `,
+    [shortageMarked, notes || null, markedBy, saleItemId, saleId]
+  );
+
+  return result.rows[0];
 };
 
 export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) => {
@@ -639,10 +666,11 @@ export const convertQuoteToSale = async ({
           process_type,
           variety,
           quantity_kg,
+          operational_weight_kg,
           unit_price,
           line_total
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
         `,
         [
@@ -656,6 +684,7 @@ export const convertQuoteToSale = async ({
           item.process_type,
           item.variety,
           item.quantity_kg,
+          item.operational_weight_kg,
           item.unit_price,
           item.line_total,
         ]
@@ -776,11 +805,15 @@ export const createDirectSale = async ({
           coffee_type_id,
           coffee_profile_id,
           description,
+          product_form,
+          process_type,
+          variety,
           quantity_kg,
+          operational_weight_kg,
           unit_price,
           line_total
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
         `,
         [
@@ -789,7 +822,11 @@ export const createDirectSale = async ({
           item.coffeeTypeId,
           item.coffeeProfileId,
           item.description,
+          item.productForm,
+          item.processType,
+          item.variety,
           item.quantityKg,
+          item.operationalWeightKg,
           item.unitPrice,
           item.lineTotal,
         ]

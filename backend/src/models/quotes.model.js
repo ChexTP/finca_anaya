@@ -89,11 +89,18 @@ export const findQuoteById = async (id) => {
       quote_items.*,
       coffee_lots.code AS lot_code,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.category AS coffee_profile_category,
+      process_purchase.name AS process_purchase_coffee_name,
+      base_purchase.name AS base_purchase_coffee_name,
+      coffee_profiles.process_percentage,
+      coffee_profiles.base_percentage
     FROM quote_items
     LEFT JOIN coffee_lots ON coffee_lots.id = quote_items.lot_id
     LEFT JOIN coffee_types ON coffee_types.id = quote_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = quote_items.coffee_profile_id
+    LEFT JOIN purchase_coffees process_purchase ON process_purchase.id = coffee_profiles.process_purchase_coffee_id
+    LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
     WHERE quote_items.quote_id = $1
     ORDER BY quote_items.id ASC
     `,
@@ -163,10 +170,11 @@ export const createQuote = async (quoteData) => {
           process_type,
           variety,
           quantity_kg,
+          operational_weight_kg,
           unit_price,
           line_total
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         `,
         [
           quote.id,
@@ -178,6 +186,7 @@ export const createQuote = async (quoteData) => {
           item.processType,
           item.variety,
           item.quantityKg,
+          item.operationalWeightKg,
           item.unitPrice,
           item.lineTotal,
         ]

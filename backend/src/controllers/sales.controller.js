@@ -11,6 +11,7 @@ import {
   markSaleWithoutBlend,
   updateSaleWarehousePriority,
   updateSaleOrderAssignee,
+  updateSaleItemShortage,
   replaceSaleLotAssignments,
 } from "../models/sales.model.js";
 import { logControllerError } from "../utils/logger.js";
@@ -23,6 +24,7 @@ import {
   findLotById,
   findPaymentMethodById,
 } from "../models/lots.model.js";
+import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 
 const toNumber = (value) => {
   if (value === undefined || value === null || value === "") {
@@ -242,6 +244,39 @@ export const putSaleOrderAssignee = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al actualizar encargado de pedido",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleItemShortage = async (req, res) => {
+  try {
+    const shortageMarked = Boolean(req.body.shortageMarked);
+    const notes = String(req.body.notes || "").trim();
+
+    const item = await updateSaleItemShortage({
+      saleId: req.params.id,
+      saleItemId: Number(req.params.itemId),
+      shortageMarked,
+      notes,
+      markedBy: req.user.id,
+    });
+
+    if (!item) {
+      return res.status(404).json({ message: "Producto de venta no encontrado" });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: shortageMarked
+        ? "Producto marcado como faltante para gerencia"
+        : "Marca de faltante retirada",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar faltante del producto",
       error: error.message,
     });
   }
@@ -509,7 +544,15 @@ export const postDirectSale = async (req, res) => {
         coffeeTypeId: item.coffeeTypeId || null,
         coffeeProfileId: item.coffeeProfileId || null,
         description: item.description || null,
+        productForm: item.productForm || null,
+        processType: item.processType || null,
+        variety: item.variety || null,
         quantityKg,
+        operationalWeightKg: calculateOperationalKg({
+          quantityKg,
+          productForm: item.productForm,
+          processType: item.processType,
+        }),
         unitPrice,
         lineTotal: Number((quantityKg * unitPrice).toFixed(2)),
       });

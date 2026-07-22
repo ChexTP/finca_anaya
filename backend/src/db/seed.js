@@ -21,6 +21,15 @@ const initialUsers = [
 ];
 
 const coffeeTypes = ["Lavado", "Natural", "Semilavado"];
+const purchaseCoffees = [
+  ["Regional Lavado", "Regional", "Lavado"],
+  ["Regional Natural", "Regional", "Natural"],
+  ["Rosado Lavado", "Varietal", "Lavado"],
+  ["Rosado Natural", "Varietal", "Natural"],
+  ["Desco Lavado", "Varietal", "Lavado"],
+  ["Geisha Lavado", "Varietal", "Lavado"],
+  ["Geisha Natural", "Varietal", "Natural"],
+];
 const packagingTypes = [
   ["Costal o saco de fique", 0.7],
   ["Tula o estopa", 0.2],
@@ -49,6 +58,7 @@ const runSeed = async () => {
   try {
     await seedCatalog("roles", roles, ["name", "label"]);
     await seedCatalog("coffee_types", coffeeTypes, ["name"]);
+    await seedCatalog("purchase_coffees", purchaseCoffees, ["name", "family", "process_type"]);
     await seedCatalog("packaging_types", packagingTypes, ["name", "tare_kg"]);
     await seedCatalog("payment_methods", paymentMethods, ["name"]);
     await seedCatalog("payable_categories", payableCategories, ["name"]);
