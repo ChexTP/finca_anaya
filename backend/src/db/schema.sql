@@ -671,7 +671,7 @@ CREATE TABLE IF NOT EXISTS sample_requests (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sample_requests_status_check CHECK (
-    status IN ('solicitada', 'en_preparacion', 'lista', 'entregada', 'cancelada')
+    status IN ('solicitada', 'en_preparacion', 'pendiente_laboratorio', 'aprobada_laboratorio', 'lista', 'entregada', 'cancelada')
   ),
   CONSTRAINT sample_requests_currency_check CHECK (currency IN ('COP', 'USD')),
   CONSTRAINT sample_requests_humidity_check CHECK (
@@ -706,6 +706,11 @@ ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_clean_cup NUMERI
 ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_score NUMERIC(5, 2);
 ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_notes TEXT;
 ALTER TABLE sample_requests ALTER COLUMN requester_phone DROP NOT NULL;
+ALTER TABLE sample_requests DROP CONSTRAINT IF EXISTS sample_requests_status_check;
+ALTER TABLE sample_requests
+ADD CONSTRAINT sample_requests_status_check CHECK (
+  status IN ('solicitada', 'en_preparacion', 'pendiente_laboratorio', 'aprobada_laboratorio', 'lista', 'entregada', 'cancelada')
+);
 DO $$
 BEGIN
   IF NOT EXISTS (

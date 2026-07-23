@@ -19,7 +19,15 @@ const toNumber = (value) => {
 
 const isValidNumber = (value) => Number.isFinite(value);
 
-const validStatuses = ["solicitada", "en_preparacion", "lista", "entregada", "cancelada"];
+const validStatuses = [
+  "solicitada",
+  "en_preparacion",
+  "pendiente_laboratorio",
+  "aprobada_laboratorio",
+  "lista",
+  "entregada",
+  "cancelada",
+];
 const requiredSampleLabFields = [
   "humidityPercent",
   "aroma",
@@ -198,6 +206,30 @@ export const putSampleStatus = async (req, res) => {
       return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
     }
 
+    if (req.user.role === "laboratory") {
+      if (sampleBeforeUpdate.status !== "pendiente_laboratorio") {
+        return res.status(409).json({ message: "Laboratorio solo puede revisar muestras pendientes de analisis" });
+      }
+
+      if (!["aprobada_laboratorio", "en_preparacion"].includes(status)) {
+        return res.status(403).json({ message: "Laboratorio solo puede aprobar o rechazar el analisis de muestra" });
+      }
+    }
+
+    if (["admin", "samples"].includes(req.user.role)) {
+      if (status === "aprobada_laboratorio") {
+        return res.status(403).json({ message: "Solo laboratorio puede aprobar el analisis de muestra" });
+      }
+
+      if (status === "pendiente_laboratorio" && sampleBeforeUpdate.status !== "en_preparacion") {
+        return res.status(409).json({ message: "La muestra debe estar en preparacion para solicitar analisis" });
+      }
+
+      if (status === "lista" && sampleBeforeUpdate.status !== "aprobada_laboratorio") {
+        return res.status(409).json({ message: "Laboratorio debe aprobar la muestra antes de marcarla como lista" });
+      }
+    }
+
     const cleanLabReview = {
       humidityPercent: toNumber(labReview.humidityPercent),
       aroma: toNumber(labReview.aroma),
@@ -211,12 +243,12 @@ export const putSampleStatus = async (req, res) => {
       notes: labReview.notes || null,
     };
 
-    if (status === "lista" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
+    if (status === "aprobada_laboratorio" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
       const missingLabField = requiredSampleLabFields.find((field) => !isValidNumber(cleanLabReview[field]));
 
       if (missingLabField) {
         return res.status(400).json({
-          message: "Los datos completos de laboratorio de la muestra son obligatorios para marcarla como lista",
+          message: "Los datos completos de laboratorio de la muestra son obligatorios para aprobar el analisis",
         });
       }
 
@@ -232,13 +264,13 @@ export const putSampleStatus = async (req, res) => {
       }
     }
 
-    if (status === "entregada" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
+    if (["lista", "entregada"].includes(status) && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
       return res.status(400).json({
-        message: "Antes de entregar la muestra debe marcarla como lista y registrar datos de laboratorio",
+        message: "Antes de avanzar la muestra laboratorio debe registrar y aprobar los datos de analisis",
       });
     }
 
-    if (["lista", "entregada"].includes(status) && !(await hasCompleteSampleBlend(req.params.id))) {
+    if (["pendiente_laboratorio", "aprobada_laboratorio", "lista", "entregada"].includes(status) && !(await hasCompleteSampleBlend(req.params.id))) {
       return res.status(409).json({
         message: "Cada cafe de la solicitud debe tener un ensamble registrado que sume 100%",
       });
@@ -248,7 +280,7 @@ export const putSampleStatus = async (req, res) => {
       id: req.params.id,
       status,
       notes,
-      labReview: status === "lista" ? cleanLabReview : null,
+      labReview: status === "aprobada_laboratorio" ? cleanLabReview : null,
       handledBy: req.user.id,
     });
 

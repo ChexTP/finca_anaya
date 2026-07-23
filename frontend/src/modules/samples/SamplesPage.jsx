@@ -39,6 +39,8 @@ const emptySampleItem = {
 const statusLabels = {
   solicitada: "Solicitada",
   en_preparacion: "En preparacion",
+  pendiente_laboratorio: "Pendiente laboratorio",
+  aprobada_laboratorio: "Aprobada laboratorio",
   lista: "Lista",
   entregada: "Entregada",
   cancelada: "Cancelada",
@@ -47,17 +49,19 @@ const statusLabels = {
 const statusTones = {
   solicitada: "warning",
   en_preparacion: "warning",
+  pendiente_laboratorio: "warning",
+  aprobada_laboratorio: "success",
   lista: "success",
   entregada: "success",
   cancelada: "danger",
 };
 
-const editableStatuses = ["solicitada", "en_preparacion", "lista", "entregada", "cancelada"];
-
 const sampleFilters = [
   { key: "all", label: "Todas" },
   { key: "solicitada", label: "Solicitadas" },
   { key: "en_preparacion", label: "En preparacion" },
+  { key: "pendiente_laboratorio", label: "Pendientes lab" },
+  { key: "aprobada_laboratorio", label: "Aprobadas lab" },
   { key: "lista", label: "Listas" },
   { key: "cancelada", label: "Canceladas" },
 ];
@@ -65,9 +69,11 @@ const sampleFilters = [
 const statusOrder = {
   solicitada: 1,
   en_preparacion: 2,
-  lista: 3,
-  entregada: 4,
-  cancelada: 5,
+  pendiente_laboratorio: 3,
+  aprobada_laboratorio: 4,
+  lista: 5,
+  entregada: 6,
+  cancelada: 7,
 };
 
 const formatDate = (value) => {
@@ -91,18 +97,6 @@ const formatHumidity = (value) => {
   })}%`;
 };
 
-const sampleLabFields = [
-  ["humidityPercent", "Humedad (%)"],
-  ["aroma", "Aroma"],
-  ["fragrance", "Fragancia"],
-  ["flavor", "Sabor"],
-  ["sweetness", "Dulzor"],
-  ["body", "Cuerpo"],
-  ["residual", "Residual"],
-  ["cleanCup", "Taza limpia"],
-  ["score", "Score"],
-];
-
 const hasCompleteSampleLabReview = (sample) => {
   return [
     sample.sample_humidity_percent,
@@ -115,6 +109,13 @@ const hasCompleteSampleLabReview = (sample) => {
     sample.sample_lab_clean_cup,
     sample.sample_lab_score,
   ].every((value) => value !== null && value !== undefined);
+};
+
+const hasCompleteSampleBlend = (sample) => {
+  return (sample.items || []).every((item) => {
+    const total = (item.blend_items || []).reduce((sum, blend) => sum + Number(blend.percentage || 0), 0);
+    return Number(total.toFixed(2)) === 100;
+  });
 };
 
 const buildSampleLabSummary = (sample) => {
@@ -136,6 +137,17 @@ const buildSampleLabSummary = (sample) => {
 const formatRequestedCoffee = (item) => {
   const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
   return [...new Set(details)].join(" - ") || "Cafe sin especificar";
+};
+
+const getSampleActions = (sample) => {
+  const actionsByStatus = {
+    solicitada: ["en_preparacion", "cancelada"],
+    en_preparacion: ["pendiente_laboratorio", "cancelada"],
+    aprobada_laboratorio: ["lista", "cancelada"],
+    lista: ["entregada", "cancelada"],
+  };
+
+  return actionsByStatus[sample.status] || [];
 };
 
 const buildSampleOrderHtml = (sample) => {
@@ -389,25 +401,14 @@ const SamplesPage = () => {
   };
 
   const updateStatus = async (sample, status) => {
-    let labReview = null;
+    if (status === "pendiente_laboratorio" && !hasCompleteSampleBlend(sample)) {
+      setError("Antes de enviar a laboratorio cada cafe de la muestra debe tener ensamble completo al 100%.");
+      return;
+    }
 
-    if (status === "lista" && !hasCompleteSampleLabReview(sample)) {
-      labReview = {};
-
-      for (const [field, label] of sampleLabFields) {
-        const input = window.prompt(`${label} de la muestra ${sample.code}`);
-        if (input === null) return;
-
-        const value = Number(input);
-        if (!Number.isFinite(value) || value < 0 || value > 100) {
-          setError(`${label} debe ser un numero entre 0 y 100.`);
-          return;
-        }
-
-        labReview[field] = value;
-      }
-
-      labReview.notes = window.prompt(`Notas de laboratorio para ${sample.code} (opcional)`, "") || "";
+    if (status === "lista" && sample.status !== "aprobada_laboratorio") {
+      setError("Laboratorio debe aprobar la muestra antes de marcarla como lista.");
+      return;
     }
 
     const confirmed = window.confirm(`Confirmas cambiar ${sample.code} a ${statusLabels[status]}?`);
@@ -423,10 +424,6 @@ const SamplesPage = () => {
         status,
         notes: statusNotes[sample.id] || undefined,
       };
-
-      if (labReview) {
-        requestBody.labReview = labReview;
-      }
 
       await apiRequest(`/samples/${sample.id}/status`, {
         method: "PUT",
@@ -934,24 +931,15 @@ const SamplesPage = () => {
                         onChange={(event) => setStatusNotes({ ...statusNotes, [sample.id]: event.target.value })}
                       />
                       <div className="flex flex-wrap gap-2">
-                        {editableStatuses.map((status) => (
+                        {getSampleActions(sample).map((status) => (
                           <button
                             key={status}
                             className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                             type="button"
-                            disabled={
-                              saving ||
-                              (sample.status === status &&
-                                !(status === "lista" &&
-                                  !hasCompleteSampleLabReview(sample)))
-                            }
+                            disabled={saving}
                             onClick={() => updateStatus(sample, status)}
                           >
-                            {status === "lista" &&
-                            sample.status === "lista" &&
-                            !hasCompleteSampleLabReview(sample)
-                              ? "Registrar laboratorio"
-                              : statusLabels[status]}
+                            {status === "pendiente_laboratorio" ? "Enviar a laboratorio" : statusLabels[status]}
                           </button>
                         ))}
                       </div>

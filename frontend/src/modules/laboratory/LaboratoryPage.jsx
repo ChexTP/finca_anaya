@@ -36,6 +36,20 @@ const initialFinish = {
   initialComment: "",
 };
 
+const initialSampleReview = {
+  decision: "aprobada_laboratorio",
+  humidityPercent: "",
+  aroma: "",
+  fragrance: "",
+  flavor: "",
+  sweetness: "",
+  body: "",
+  residual: "",
+  cleanCup: "",
+  score: "",
+  notes: "",
+};
+
 const cuppingFields = [
   ["aroma", "Aroma"],
   ["fragrance", "Fragancia"],
@@ -56,6 +70,11 @@ const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
+const formatRequestedCoffee = (item) => {
+  const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
+  return [...new Set(details)].join(" - ") || "Cafe sin especificar";
+};
+
 const formatDate = (value) => {
   if (!value) return "Sin fecha estimada";
   const [datePart] = String(value).split("T");
@@ -69,23 +88,27 @@ const LaboratoryPage = () => {
   const [processFilter, setProcessFilter] = useState("pendiente_laboratorio");
   const [lots, setLots] = useState([]);
   const [processes, setProcesses] = useState([]);
+  const [samples, setSamples] = useState([]);
   const [sales, setSales] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
   const [selectedProcess, setSelectedProcess] = useState(null);
+  const [selectedSample, setSelectedSample] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
   const [review, setReview] = useState(initialReview);
   const [finishForm, setFinishForm] = useState(initialFinish);
+  const [sampleReview, setSampleReview] = useState(initialSampleReview);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
-    const [lotData, processData, saleData, availableLotData, catalogData] = await Promise.all([
+    const [lotData, processData, sampleData, saleData, availableLotData, catalogData] = await Promise.all([
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/processes"),
+      apiRequest("/samples?status=pendiente_laboratorio"),
       apiRequest("/sales"),
       apiRequest("/inventory/lots"),
       apiRequest("/catalogs"),
@@ -93,6 +116,7 @@ const LaboratoryPage = () => {
 
     setLots(lotData);
     setProcesses(processData.filter((process) => process.status === "pendiente_laboratorio"));
+    setSamples(sampleData);
     setSales(saleData.filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
     setAvailableLots(availableLotData);
     setCatalogs(catalogData);
@@ -105,6 +129,11 @@ const LaboratoryPage = () => {
     if (selectedProcess) {
       const updatedSelectedProcess = processData.find((process) => process.id === selectedProcess.id);
       setSelectedProcess(updatedSelectedProcess || null);
+    }
+
+    if (selectedSample) {
+      const updatedSelectedSample = sampleData.find((sample) => sample.id === selectedSample.id);
+      setSelectedSample(updatedSelectedSample || null);
     }
   };
 
@@ -145,6 +174,14 @@ const LaboratoryPage = () => {
     setFinishForm({
       ...initialFinish,
     });
+    setMessage("");
+    setError("");
+  };
+
+  const selectSample = (sample) => {
+    setActivePanel("samples");
+    setSelectedSample(sample);
+    setSampleReview(initialSampleReview);
     setMessage("");
     setError("");
   };
@@ -328,6 +365,71 @@ const LaboratoryPage = () => {
     }
   };
 
+  const submitSampleReview = async (event) => {
+    event.preventDefault();
+
+    if (!selectedSample) {
+      setError("Seleccione una muestra para revisar.");
+      return;
+    }
+
+    if (sampleReview.decision === "en_preparacion" && !sampleReview.notes.trim()) {
+      setError("Para rechazar una muestra debe escribir una nota de laboratorio.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      sampleReview.decision === "aprobada_laboratorio"
+        ? `Confirma aprobar el analisis de ${selectedSample.code}?`
+        : `Confirma rechazar ${selectedSample.code} y devolverla a preparacion?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const requestBody = {
+        status: sampleReview.decision,
+        notes: sampleReview.notes || undefined,
+      };
+
+      if (sampleReview.decision === "aprobada_laboratorio") {
+        requestBody.labReview = {
+          humidityPercent: Number(sampleReview.humidityPercent),
+          aroma: Number(sampleReview.aroma),
+          fragrance: Number(sampleReview.fragrance),
+          flavor: Number(sampleReview.flavor),
+          sweetness: Number(sampleReview.sweetness),
+          body: Number(sampleReview.body),
+          residual: Number(sampleReview.residual),
+          cleanCup: Number(sampleReview.cleanCup),
+          score: Number(sampleReview.score),
+          notes: sampleReview.notes || null,
+        };
+      }
+
+      await apiRequest(`/samples/${selectedSample.id}/status`, {
+        method: "PUT",
+        body: JSON.stringify(requestBody),
+      });
+      setSampleReview(initialSampleReview);
+      setSelectedSample(null);
+      await loadData();
+      setMessage(
+        sampleReview.decision === "aprobada_laboratorio"
+          ? "Analisis de muestra aprobado. El usuario de muestras ya puede marcarla como lista."
+          : "Muestra rechazada y devuelta a preparacion."
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const finishProcess = async (event) => {
     event.preventDefault();
 
@@ -410,6 +512,18 @@ const LaboratoryPage = () => {
               Procesos
             </span>
             <span className="text-xs">{processes.length}</span>
+          </button>
+          <button
+            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
+              activePanel === "samples" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+            }`}
+            onClick={() => setActivePanel("samples")}
+          >
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <FlaskConical size={16} />
+              Muestras
+            </span>
+            <span className="text-xs">{samples.length}</span>
           </button>
           <button
             className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
@@ -722,6 +836,157 @@ const LaboratoryPage = () => {
               </div>
             )}
           </form>
+          </div>
+        ) : activePanel === "samples" ? (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="rounded border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h2 className="text-sm font-semibold text-slate-800">Muestras pendientes de analisis</h2>
+              </div>
+              {samples.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title="Sin muestras pendientes" message="Las muestras enviadas por el usuario de muestras apareceran aqui." />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {samples.map((sample) => (
+                    <button
+                      key={sample.id}
+                      className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
+                        selectedSample?.id === sample.id ? "bg-emerald-50" : "bg-white"
+                      }`}
+                      onClick={() => selectSample(sample)}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-ink">{sample.code}</p>
+                          <p className="text-sm text-slate-500">
+                            {sample.requester_name}
+                            {sample.requester_company ? ` - ${sample.requester_company}` : ""}
+                          </p>
+                        </div>
+                        <StatusBadge tone="warning">Pendiente analisis</StatusBadge>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600">{sample.quantity_grams} g solicitados</p>
+                      <p className="text-sm text-slate-500">Entrega tentativa: {formatDate(sample.tentative_delivery_date)}</p>
+                      <div className="mt-3 space-y-1 text-sm text-slate-600">
+                        {sample.items?.map((item) => (
+                          <p key={item.id}>
+                            {formatRequestedCoffee(item)} - {item.quantity_grams} g
+                          </p>
+                        ))}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <form className="rounded border border-slate-200 bg-white p-4" onSubmit={submitSampleReview}>
+              <div className="flex items-center gap-2">
+                <FlaskConical size={17} className="text-leaf" />
+                <h2 className="text-sm font-semibold text-slate-800">Analisis de muestra</h2>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedSample ? `Muestra seleccionada: ${selectedSample.code}` : "Seleccione una muestra pendiente."}
+              </p>
+
+              {!selectedSample ? (
+                <div className="mt-4">
+                  <EmptyState title="Sin muestra seleccionada" message="Seleccione una muestra de la lista." />
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="rounded bg-slate-50 p-3 text-sm text-slate-600">
+                    <p className="font-medium text-ink">Muestras solicitadas</p>
+                    <div className="mt-2 space-y-1">
+                      {selectedSample.items?.map((item) => (
+                        <p key={item.id}>
+                          {formatRequestedCoffee(item)} - {item.quantity_grams} g
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedSample.items?.some((item) => item.blend_items?.length > 0) && (
+                    <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
+                      <p className="text-xs font-semibold uppercase text-amber-800">Ensamble definido por muestras</p>
+                      <div className="mt-2 space-y-3">
+                        {selectedSample.items.map((item) => (
+                          <div key={`sample-blend-${item.id}`}>
+                            <p className="font-semibold text-ink">{formatRequestedCoffee(item)}</p>
+                            {item.blend_items.map((blend) => (
+                              <p key={blend.id} className="text-slate-700">
+                                {blend.lot_code} - {blend.coffee_profile_name || blend.coffee_type_name || blend.commercial_classification || "Cafe"}: {blend.percentage}% ({blend.calculated_grams} g)
+                              </p>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={sampleReview.decision}
+                    onChange={(event) => setSampleReview({ ...sampleReview, decision: event.target.value })}
+                  >
+                    <option value="aprobada_laboratorio">Aprobar muestra</option>
+                    <option value="en_preparacion">Rechazar y devolver a preparacion</option>
+                  </select>
+
+                  {sampleReview.decision === "aprobada_laboratorio" && (
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <input
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Humedad (%)"
+                        type="number"
+                        step="0.01"
+                        value={sampleReview.humidityPercent}
+                        onChange={(event) => setSampleReview({ ...sampleReview, humidityPercent: event.target.value })}
+                        required
+                      />
+                      {cuppingFields.map(([field, label]) => (
+                        <input
+                          key={field}
+                          className="rounded border border-slate-300 px-3 py-2 text-sm"
+                          placeholder={label}
+                          type="number"
+                          step="0.01"
+                          value={sampleReview[field]}
+                          onChange={(event) => setSampleReview({ ...sampleReview, [field]: event.target.value })}
+                          required
+                        />
+                      ))}
+                      <input
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Score"
+                        type="number"
+                        step="0.01"
+                        value={sampleReview.score}
+                        onChange={(event) => setSampleReview({ ...sampleReview, score: event.target.value })}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <textarea
+                    className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder={sampleReview.decision === "en_preparacion" ? "Motivo del rechazo para que muestras corrija" : "Notas de laboratorio"}
+                    value={sampleReview.notes}
+                    onChange={(event) => setSampleReview({ ...sampleReview, notes: event.target.value })}
+                    required={sampleReview.decision === "en_preparacion"}
+                  />
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={saving || !selectedSample}
+                  >
+                    <Save size={16} />
+                    Guardar analisis
+                  </button>
+                </div>
+              )}
+            </form>
           </div>
         ) : (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
