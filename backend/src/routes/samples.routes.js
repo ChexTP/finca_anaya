@@ -3,8 +3,8 @@ import {
   getSample,
   getSamples,
   postSample,
-  putSampleStatus,
   putSampleBlend,
+  putSampleStatus,
 } from "../controllers/samples.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 

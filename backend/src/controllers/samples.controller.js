@@ -4,9 +4,9 @@ import {
   findSampleRequestById,
   getNextSampleCode,
   listSampleRequests,
-  updateSampleRequestStatus,
   replaceSampleBlend,
-  hasCompleteSampleBlend,
+  updateSampleRequestStatus,
+  updateSampleItemReviews,
 } from "../models/samples.model.js";
 
 const toNumber = (value) => {
@@ -40,18 +40,22 @@ const requiredSampleLabFields = [
   "score",
 ];
 
-const hasCompleteSampleLabReview = (sample) => {
+const hasCompleteItemLabReview = (item) => {
   return [
-    sample.sample_humidity_percent,
-    sample.sample_lab_aroma,
-    sample.sample_lab_fragrance,
-    sample.sample_lab_flavor,
-    sample.sample_lab_sweetness,
-    sample.sample_lab_body,
-    sample.sample_lab_residual,
-    sample.sample_lab_clean_cup,
-    sample.sample_lab_score,
+    item.sample_humidity_percent,
+    item.sample_lab_aroma,
+    item.sample_lab_fragrance,
+    item.sample_lab_flavor,
+    item.sample_lab_sweetness,
+    item.sample_lab_body,
+    item.sample_lab_residual,
+    item.sample_lab_clean_cup,
+    item.sample_lab_score,
   ].every((value) => value !== null && value !== undefined);
+};
+
+const hasCompleteSampleLabReview = (sample) => {
+  return sample.items?.length > 0 && sample.items.every(hasCompleteItemLabReview);
 };
 
 export const getSamples = async (req, res) => {
@@ -194,7 +198,7 @@ export const postSample = async (req, res) => {
 export const putSampleStatus = async (req, res) => {
   try {
     const { status, notes } = req.body;
-    const labReview = req.body.labReview || {};
+    const itemReviews = Array.isArray(req.body.itemReviews) ? req.body.itemReviews : [];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Estado de muestra no valido" });
@@ -230,36 +234,39 @@ export const putSampleStatus = async (req, res) => {
       }
     }
 
-    const cleanLabReview = {
-      humidityPercent: toNumber(labReview.humidityPercent),
-      aroma: toNumber(labReview.aroma),
-      fragrance: toNumber(labReview.fragrance),
-      flavor: toNumber(labReview.flavor),
-      sweetness: toNumber(labReview.sweetness),
-      body: toNumber(labReview.body),
-      residual: toNumber(labReview.residual),
-      cleanCup: toNumber(labReview.cleanCup),
-      score: toNumber(labReview.score),
-      notes: labReview.notes || null,
-    };
+    const cleanItemReviews = itemReviews.map((review) => ({
+      sampleItemId: Number(review.sampleItemId),
+      humidityPercent: toNumber(review.humidityPercent),
+      aroma: toNumber(review.aroma),
+      fragrance: toNumber(review.fragrance),
+      flavor: toNumber(review.flavor),
+      sweetness: toNumber(review.sweetness),
+      body: toNumber(review.body),
+      residual: toNumber(review.residual),
+      cleanCup: toNumber(review.cleanCup),
+      score: toNumber(review.score),
+      notes: review.notes || null,
+    }));
 
     if (status === "aprobada_laboratorio" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
-      const missingLabField = requiredSampleLabFields.find((field) => !isValidNumber(cleanLabReview[field]));
+      const missingLabField = cleanItemReviews.length !== sampleBeforeUpdate.items.length || cleanItemReviews.some((review) => (
+        !Number.isInteger(review.sampleItemId) ||
+        requiredSampleLabFields.some((field) => !isValidNumber(review[field]))
+      ));
 
       if (missingLabField) {
         return res.status(400).json({
-          message: "Los datos completos de laboratorio de la muestra son obligatorios para aprobar el analisis",
+          message: "Los datos completos de laboratorio de cada cafe solicitado son obligatorios para aprobar el analisis",
         });
       }
 
-      const outOfRangeField = requiredSampleLabFields.find((field) => {
-        const value = cleanLabReview[field];
-        return value < 0 || value > 100;
-      });
+      const outOfRangeField = cleanItemReviews.some((review) =>
+        requiredSampleLabFields.some((field) => review[field] < 0 || review[field] > 100)
+      );
 
       if (outOfRangeField) {
         return res.status(400).json({
-          message: "Los datos de laboratorio de la muestra deben estar entre 0 y 100",
+          message: "Los datos de laboratorio de cada cafe deben estar entre 0 y 100",
         });
       }
     }
@@ -270,9 +277,10 @@ export const putSampleStatus = async (req, res) => {
       });
     }
 
-    if (["pendiente_laboratorio", "aprobada_laboratorio", "lista", "entregada"].includes(status) && !(await hasCompleteSampleBlend(req.params.id))) {
-      return res.status(409).json({
-        message: "Cada cafe de la solicitud debe tener un ensamble registrado que sume 100%",
+    if (status === "aprobada_laboratorio" && cleanItemReviews.length > 0) {
+      await updateSampleItemReviews({
+        sampleId: Number(req.params.id),
+        itemReviews: cleanItemReviews,
       });
     }
 
@@ -280,7 +288,7 @@ export const putSampleStatus = async (req, res) => {
       id: req.params.id,
       status,
       notes,
-      labReview: status === "aprobada_laboratorio" ? cleanLabReview : null,
+      labReview: null,
       handledBy: req.user.id,
     });
 
@@ -311,7 +319,8 @@ export const putSampleBlend = async (req, res) => {
 
     const items = req.body.items.map((item) => ({
       sampleItemId: Number(item.sampleItemId),
-      lotId: Number(item.lotId),
+      lotId: item.lotId ? Number(item.lotId) : null,
+      componentDescription: item.componentDescription?.trim() || null,
       percentage: toNumber(item.percentage),
       notes: item.notes || null,
     }));
@@ -319,12 +328,12 @@ export const putSampleBlend = async (req, res) => {
     const invalid = items.some(
       (item) =>
         !Number.isInteger(item.sampleItemId) ||
-        !Number.isInteger(item.lotId) ||
+        !item.componentDescription ||
         !isValidNumber(item.percentage) ||
         item.percentage <= 0 ||
         item.percentage > 100
     );
-    if (invalid) return res.status(400).json({ message: "Cafe, lote y porcentaje son obligatorios" });
+    if (invalid) return res.status(400).json({ message: "Cafe, descripcion del componente y porcentaje son obligatorios" });
 
     const totals = items.reduce((result, item) => {
       result[item.sampleItemId] = Number(((result[item.sampleItemId] || 0) + item.percentage).toFixed(2));

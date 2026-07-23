@@ -31,17 +31,17 @@ const formatHumidity = (value) => {
 };
 
 const hasCompleteSampleLabReview = (sample) => {
-  return [
-    sample.sample_humidity_percent,
-    sample.sample_lab_aroma,
-    sample.sample_lab_fragrance,
-    sample.sample_lab_flavor,
-    sample.sample_lab_sweetness,
-    sample.sample_lab_body,
-    sample.sample_lab_residual,
-    sample.sample_lab_clean_cup,
-    sample.sample_lab_score,
-  ].every((value) => value !== null && value !== undefined);
+  return (sample.items || []).length > 0 && (sample.items || []).every((item) => [
+    item.sample_humidity_percent,
+    item.sample_lab_aroma,
+    item.sample_lab_fragrance,
+    item.sample_lab_flavor,
+    item.sample_lab_sweetness,
+    item.sample_lab_body,
+    item.sample_lab_residual,
+    item.sample_lab_clean_cup,
+    item.sample_lab_score,
+  ].every((value) => value !== null && value !== undefined));
 };
 
 const formatRequestedCoffee = (item) => {
@@ -52,6 +52,27 @@ const formatRequestedCoffee = (item) => {
 
 const getSampleTotal = (sample) => {
   return (sample.items || []).reduce((total, item) => total + Number(item.price || 0), 0);
+};
+
+const buildItemLabLines = (item) => {
+  if ([
+    item.sample_humidity_percent,
+    item.sample_lab_aroma,
+    item.sample_lab_fragrance,
+    item.sample_lab_flavor,
+    item.sample_lab_sweetness,
+    item.sample_lab_body,
+    item.sample_lab_residual,
+    item.sample_lab_clean_cup,
+    item.sample_lab_score,
+  ].some((value) => value === null || value === undefined)) {
+    return null;
+  }
+
+  return {
+    summary: `Score ${item.sample_lab_score} · Humedad ${formatHumidity(item.sample_humidity_percent)}`,
+    detail: `Aroma ${item.sample_lab_aroma} · Fragancia ${item.sample_lab_fragrance} · Sabor ${item.sample_lab_flavor} · Dulzor ${item.sample_lab_sweetness} · Cuerpo ${item.sample_lab_body} · Residual ${item.sample_lab_residual} · Taza limpia ${item.sample_lab_clean_cup}`,
+  };
 };
 
 const SamplesHistoryPage = () => {
@@ -210,16 +231,17 @@ const SamplesHistoryPage = () => {
                     <td className="px-3 py-2">
                       {hasCompleteSampleLabReview(sample) ? (
                         <div className="space-y-1 text-xs text-slate-600">
-                          <p className="font-semibold text-slate-800">
-                            Score {sample.sample_lab_score} · Humedad {formatHumidity(sample.sample_humidity_percent)}
-                          </p>
-                          <p>
-                            Aroma {sample.sample_lab_aroma} · Fragancia {sample.sample_lab_fragrance} · Sabor {sample.sample_lab_flavor}
-                          </p>
-                          <p>
-                            Dulzor {sample.sample_lab_sweetness} · Cuerpo {sample.sample_lab_body} · Residual {sample.sample_lab_residual} · Taza limpia {sample.sample_lab_clean_cup}
-                          </p>
-                          {sample.sample_lab_notes && <p>Notas: {sample.sample_lab_notes}</p>}
+                          {sample.items.map((item) => {
+                            const lab = buildItemLabLines(item);
+                            return (
+                              <div key={`history-lab-${item.id}`} className="rounded border border-slate-200 bg-white p-2">
+                                <p className="font-semibold text-slate-800">{formatRequestedCoffee(item)}</p>
+                                <p>{lab?.summary}</p>
+                                <p>{lab?.detail}</p>
+                                {item.sample_lab_notes && <p>Notas: {item.sample_lab_notes}</p>}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         "-"

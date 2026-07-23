@@ -38,15 +38,7 @@ const initialFinish = {
 
 const initialSampleReview = {
   decision: "aprobada_laboratorio",
-  humidityPercent: "",
-  aroma: "",
-  fragrance: "",
-  flavor: "",
-  sweetness: "",
-  body: "",
-  residual: "",
-  cleanCup: "",
-  score: "",
+  itemReviews: [],
   notes: "",
 };
 
@@ -70,9 +62,25 @@ const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
-const formatRequestedCoffee = (item) => {
+const formatRequestedCoffee = (item = {}) => {
   const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
   return [...new Set(details)].join(" - ") || "Cafe sin especificar";
+};
+
+const buildBlankSampleItemReviews = (sample) => {
+  return (sample.items || []).map((item) => ({
+    sampleItemId: item.id,
+    humidityPercent: item.sample_humidity_percent || "",
+    aroma: item.sample_lab_aroma || "",
+    fragrance: item.sample_lab_fragrance || "",
+    flavor: item.sample_lab_flavor || "",
+    sweetness: item.sample_lab_sweetness || "",
+    body: item.sample_lab_body || "",
+    residual: item.sample_lab_residual || "",
+    cleanCup: item.sample_lab_clean_cup || "",
+    score: item.sample_lab_score || "",
+    notes: item.sample_lab_notes || "",
+  }));
 };
 
 const formatDate = (value) => {
@@ -181,9 +189,21 @@ const LaboratoryPage = () => {
   const selectSample = (sample) => {
     setActivePanel("samples");
     setSelectedSample(sample);
-    setSampleReview(initialSampleReview);
+    setSampleReview({
+      ...initialSampleReview,
+      itemReviews: buildBlankSampleItemReviews(sample),
+    });
     setMessage("");
     setError("");
+  };
+
+  const updateSampleItemReview = (index, field, value) => {
+    setSampleReview((currentReview) => ({
+      ...currentReview,
+      itemReviews: currentReview.itemReviews.map((itemReview, itemIndex) =>
+        itemIndex === index ? { ...itemReview, [field]: value } : itemReview
+      ),
+    }));
   };
 
   const selectSaleForBlend = async (saleId) => {
@@ -397,18 +417,19 @@ const LaboratoryPage = () => {
       };
 
       if (sampleReview.decision === "aprobada_laboratorio") {
-        requestBody.labReview = {
-          humidityPercent: Number(sampleReview.humidityPercent),
-          aroma: Number(sampleReview.aroma),
-          fragrance: Number(sampleReview.fragrance),
-          flavor: Number(sampleReview.flavor),
-          sweetness: Number(sampleReview.sweetness),
-          body: Number(sampleReview.body),
-          residual: Number(sampleReview.residual),
-          cleanCup: Number(sampleReview.cleanCup),
-          score: Number(sampleReview.score),
-          notes: sampleReview.notes || null,
-        };
+        requestBody.itemReviews = sampleReview.itemReviews.map((itemReview) => ({
+          sampleItemId: itemReview.sampleItemId,
+          humidityPercent: Number(itemReview.humidityPercent),
+          aroma: Number(itemReview.aroma),
+          fragrance: Number(itemReview.fragrance),
+          flavor: Number(itemReview.flavor),
+          sweetness: Number(itemReview.sweetness),
+          body: Number(itemReview.body),
+          residual: Number(itemReview.residual),
+          cleanCup: Number(itemReview.cleanCup),
+          score: Number(itemReview.score),
+          notes: itemReview.notes || null,
+        }));
       }
 
       await apiRequest(`/samples/${selectedSample.id}/status`, {
@@ -917,7 +938,7 @@ const LaboratoryPage = () => {
                             <p className="font-semibold text-ink">{formatRequestedCoffee(item)}</p>
                             {item.blend_items.map((blend) => (
                               <p key={blend.id} className="text-slate-700">
-                                {blend.lot_code} - {blend.coffee_profile_name || blend.coffee_type_name || blend.commercial_classification || "Cafe"}: {blend.percentage}% ({blend.calculated_grams} g)
+                                {blend.component_description || blend.lot_code || "Componente"}: {blend.percentage}% ({blend.calculated_grams} g)
                               </p>
                             ))}
                           </div>
@@ -936,37 +957,56 @@ const LaboratoryPage = () => {
                   </select>
 
                   {sampleReview.decision === "aprobada_laboratorio" && (
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      <input
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Humedad (%)"
-                        type="number"
-                        step="0.01"
-                        value={sampleReview.humidityPercent}
-                        onChange={(event) => setSampleReview({ ...sampleReview, humidityPercent: event.target.value })}
-                        required
-                      />
-                      {cuppingFields.map(([field, label]) => (
-                        <input
-                          key={field}
-                          className="rounded border border-slate-300 px-3 py-2 text-sm"
-                          placeholder={label}
-                          type="number"
-                          step="0.01"
-                          value={sampleReview[field]}
-                          onChange={(event) => setSampleReview({ ...sampleReview, [field]: event.target.value })}
-                          required
-                        />
-                      ))}
-                      <input
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Score"
-                        type="number"
-                        step="0.01"
-                        value={sampleReview.score}
-                        onChange={(event) => setSampleReview({ ...sampleReview, score: event.target.value })}
-                        required
-                      />
+                    <div className="space-y-3">
+                      {sampleReview.itemReviews.map((itemReview, index) => {
+                        const item = selectedSample.items?.find((sampleItem) => sampleItem.id === itemReview.sampleItemId);
+
+                        return (
+                          <div key={itemReview.sampleItemId} className="rounded border border-slate-200 p-3">
+                            <p className="mb-3 text-sm font-semibold text-ink">
+                              {formatRequestedCoffee(item)} - {item?.quantity_grams} g
+                            </p>
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                              <input
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder="Humedad (%)"
+                                type="number"
+                                step="0.01"
+                                value={itemReview.humidityPercent}
+                                onChange={(event) => updateSampleItemReview(index, "humidityPercent", event.target.value)}
+                                required
+                              />
+                              {cuppingFields.map(([field, label]) => (
+                                <input
+                                  key={field}
+                                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                  placeholder={label}
+                                  type="number"
+                                  step="0.01"
+                                  value={itemReview[field]}
+                                  onChange={(event) => updateSampleItemReview(index, field, event.target.value)}
+                                  required
+                                />
+                              ))}
+                              <input
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder="Score"
+                                type="number"
+                                step="0.01"
+                                value={itemReview.score}
+                                onChange={(event) => updateSampleItemReview(index, "score", event.target.value)}
+                                required
+                              />
+                            </div>
+                            <textarea
+                              className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Notas de este cafe"
+                              value={itemReview.notes}
+                              onChange={(event) => updateSampleItemReview(index, "notes", event.target.value)}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 

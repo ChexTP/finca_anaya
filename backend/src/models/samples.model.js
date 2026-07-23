@@ -111,7 +111,7 @@ const attachSampleItems = async (samples) => {
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name
     FROM sample_item_blends
-    JOIN coffee_lots ON coffee_lots.id = sample_item_blends.lot_id
+    LEFT JOIN coffee_lots ON coffee_lots.id = sample_item_blends.lot_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     WHERE sample_item_blends.sample_request_item_id = ANY($1::int[])
@@ -162,17 +162,11 @@ export const replaceSampleBlend = async ({ sampleId, items, createdBy }) => {
     );
 
     for (const item of items) {
-      const lotResult = await client.query(
-        "SELECT id FROM coffee_lots WHERE id = $1 AND status IN ('disponible', 'vendido_parcial') AND available_weight_kg > 0",
-        [item.lotId]
-      );
-      if (!lotResult.rows[0]) throw new Error("Uno de los lotes del ensamble no esta disponible");
-
       await client.query(
         `INSERT INTO sample_item_blends
-          (sample_request_item_id, lot_id, percentage, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [item.sampleItemId, item.lotId, item.percentage, item.notes, createdBy]
+          (sample_request_item_id, lot_id, component_description, percentage, notes, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [item.sampleItemId, item.lotId || null, item.componentDescription, item.percentage, item.notes, createdBy]
       );
     }
 
@@ -202,6 +196,94 @@ export const hasCompleteSampleBlend = async (sampleId) => {
   );
 
   return result.rows[0].incomplete_count === 0;
+};
+
+export const haveCompleteSampleItemReviews = async (sampleId) => {
+  const result = await pool.query(
+    `
+    SELECT COUNT(*)::int AS incomplete_count
+    FROM sample_request_items
+    WHERE sample_request_id = $1
+      AND (
+        sample_humidity_percent IS NULL OR
+        sample_lab_aroma IS NULL OR
+        sample_lab_fragrance IS NULL OR
+        sample_lab_flavor IS NULL OR
+        sample_lab_sweetness IS NULL OR
+        sample_lab_body IS NULL OR
+        sample_lab_residual IS NULL OR
+        sample_lab_clean_cup IS NULL OR
+        sample_lab_score IS NULL
+      )
+    `,
+    [sampleId]
+  );
+
+  return result.rows[0].incomplete_count === 0;
+};
+
+export const updateSampleItemReviews = async ({ sampleId, itemReviews }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const requestItems = await client.query(
+      "SELECT id FROM sample_request_items WHERE sample_request_id = $1 ORDER BY id",
+      [sampleId]
+    );
+    const validIds = new Set(requestItems.rows.map((item) => item.id));
+
+    if (requestItems.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    if (itemReviews.length !== requestItems.rows.length || itemReviews.some((review) => !validIds.has(review.sampleItemId))) {
+      throw new Error("Debe registrar analisis para cada cafe de la solicitud");
+    }
+
+    for (const review of itemReviews) {
+      await client.query(
+        `
+        UPDATE sample_request_items
+        SET
+          sample_humidity_percent = $1,
+          sample_lab_aroma = $2,
+          sample_lab_fragrance = $3,
+          sample_lab_flavor = $4,
+          sample_lab_sweetness = $5,
+          sample_lab_body = $6,
+          sample_lab_residual = $7,
+          sample_lab_clean_cup = $8,
+          sample_lab_score = $9,
+          sample_lab_notes = $10
+        WHERE id = $11 AND sample_request_id = $12
+        `,
+        [
+          review.humidityPercent,
+          review.aroma,
+          review.fragrance,
+          review.flavor,
+          review.sweetness,
+          review.body,
+          review.residual,
+          review.cleanCup,
+          review.score,
+          review.notes,
+          review.sampleItemId,
+          sampleId,
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+    return true;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const createSampleRequest = async (sampleData) => {

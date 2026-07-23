@@ -5,7 +5,6 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
-import { formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -98,17 +97,17 @@ const formatHumidity = (value) => {
 };
 
 const hasCompleteSampleLabReview = (sample) => {
-  return [
-    sample.sample_humidity_percent,
-    sample.sample_lab_aroma,
-    sample.sample_lab_fragrance,
-    sample.sample_lab_flavor,
-    sample.sample_lab_sweetness,
-    sample.sample_lab_body,
-    sample.sample_lab_residual,
-    sample.sample_lab_clean_cup,
-    sample.sample_lab_score,
-  ].every((value) => value !== null && value !== undefined);
+  return (sample.items || []).length > 0 && (sample.items || []).every((item) => [
+    item.sample_humidity_percent,
+    item.sample_lab_aroma,
+    item.sample_lab_fragrance,
+    item.sample_lab_flavor,
+    item.sample_lab_sweetness,
+    item.sample_lab_body,
+    item.sample_lab_residual,
+    item.sample_lab_clean_cup,
+    item.sample_lab_score,
+  ].every((value) => value !== null && value !== undefined));
 };
 
 const hasCompleteSampleBlend = (sample) => {
@@ -122,16 +121,28 @@ const buildSampleLabSummary = (sample) => {
   if (!hasCompleteSampleLabReview(sample)) return null;
 
   return [
-    `Humedad ${formatHumidity(sample.sample_humidity_percent)}`,
-    `Aroma ${sample.sample_lab_aroma}`,
-    `Fragancia ${sample.sample_lab_fragrance}`,
-    `Sabor ${sample.sample_lab_flavor}`,
-    `Dulzor ${sample.sample_lab_sweetness}`,
-    `Cuerpo ${sample.sample_lab_body}`,
-    `Residual ${sample.sample_lab_residual}`,
-    `Taza limpia ${sample.sample_lab_clean_cup}`,
-    `Score ${sample.sample_lab_score}`,
+    ...sample.items.map((item) => (
+      `${formatRequestedCoffee(item)}: Humedad ${formatHumidity(item.sample_humidity_percent)}, Score ${item.sample_lab_score}`
+    )),
   ].join(" | ");
+};
+
+const buildSampleItemLabSummary = (item) => {
+  if ([
+    item.sample_humidity_percent,
+    item.sample_lab_aroma,
+    item.sample_lab_fragrance,
+    item.sample_lab_flavor,
+    item.sample_lab_sweetness,
+    item.sample_lab_body,
+    item.sample_lab_residual,
+    item.sample_lab_clean_cup,
+    item.sample_lab_score,
+  ].some((value) => value === null || value === undefined)) {
+    return null;
+  }
+
+  return `Humedad ${formatHumidity(item.sample_humidity_percent)} · Aroma ${item.sample_lab_aroma} · Fragancia ${item.sample_lab_fragrance} · Sabor ${item.sample_lab_flavor} · Dulzor ${item.sample_lab_sweetness} · Cuerpo ${item.sample_lab_body} · Residual ${item.sample_lab_residual} · Taza limpia ${item.sample_lab_clean_cup} · Score ${item.sample_lab_score}`;
 };
 
 const formatRequestedCoffee = (item) => {
@@ -184,8 +195,8 @@ const buildSampleOrderHtml = (sample) => {
                 .map(
                   (blend) => `
                     <tr>
-                      <td>${blend.lot_code || "-"} - ${blend.coffee_profile_name || blend.commercial_classification || "Cafe"} (${blend.percentage}%)</td>
-                      <td>${blend.coffee_type_name || "-"}</td>
+                      <td>${blend.component_description || blend.lot_code || "-"} (${blend.percentage}%)</td>
+                      <td>${blend.notes || "-"}</td>
                       <td>${blend.calculated_grams}</td>
                       <td></td>
                     </tr>
@@ -274,7 +285,6 @@ const SamplesPage = () => {
   const { user } = useAuth();
   const [samples, setSamples] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
-  const [availableLots, setAvailableLots] = useState([]);
   const [form, setForm] = useState(initialSample);
   const [sampleItems, setSampleItems] = useState([]);
   const [statusNotes, setStatusNotes] = useState({});
@@ -313,19 +323,13 @@ const SamplesPage = () => {
       });
   }, [samples, sampleFilter]);
 
-  const availableLotGroups = useMemo(() => {
-    return Object.values(groupCoffeeLots(availableLots)).sort((left, right) => left.name.localeCompare(right.name));
-  }, [availableLots]);
-
   const loadData = async () => {
-    const [sampleData, catalogData, inventoryData] = await Promise.all([
+    const [sampleData, catalogData] = await Promise.all([
       apiRequest("/samples"),
       apiRequest("/catalogs"),
-      apiRequest("/inventory/lots"),
     ]);
     setSamples(sampleData.filter((sample) => sample.status !== "entregada"));
     setCatalogs(catalogData);
-    setAvailableLots(inventoryData);
   };
 
   useEffect(() => {
@@ -443,7 +447,7 @@ const SamplesPage = () => {
     const existingRows = sample.items.flatMap((item) =>
       item.blend_items.map((blend) => ({
         sampleItemId: String(item.id),
-        lotId: String(blend.lot_id),
+        componentDescription: blend.component_description || blend.lot_code || "",
         percentage: String(blend.percentage),
         notes: blend.notes || "",
       }))
@@ -453,7 +457,7 @@ const SamplesPage = () => {
       existingRows.length > 0
         ? existingRows
         : sample.items.map((item) => ({
-            sampleItemId: String(item.id), lotId: "", percentage: "", notes: "",
+            sampleItemId: String(item.id), componentDescription: "", percentage: "", notes: "",
           }))
     );
   };
@@ -473,7 +477,7 @@ const SamplesPage = () => {
         body: JSON.stringify({
           items: blendRows.map((row) => ({
             sampleItemId: Number(row.sampleItemId),
-            lotId: Number(row.lotId),
+            componentDescription: row.componentDescription,
             percentage: Number(row.percentage),
             notes: row.notes || null,
           })),
@@ -749,7 +753,7 @@ const SamplesPage = () => {
                       <p>{sample.quantity_grams} g</p>
                       <p>{formatMoney(sample.currency, sample.price)}</p>
                       {hasCompleteSampleLabReview(sample) && (
-                        <p>Score: {sample.sample_lab_score} · Humedad: {formatHumidity(sample.sample_humidity_percent)}</p>
+                        <p>{sample.items.length} cafes analizados</p>
                       )}
                     </div>
                   </div>
@@ -775,15 +779,22 @@ const SamplesPage = () => {
                     </p>
                     <p>
                       <span className="font-medium text-slate-800">Laboratorio:</span>{" "}
-                      {hasCompleteSampleLabReview(sample) ? `Score ${sample.sample_lab_score} / Humedad ${formatHumidity(sample.sample_humidity_percent)}` : "-"}
+                      {hasCompleteSampleLabReview(sample) ? "Aprobado por cafe" : "-"}
                     </p>
                   </div>
 
                   {hasCompleteSampleLabReview(sample) && (
                     <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                      <p className="text-xs font-semibold uppercase text-slate-500">Datos de laboratorio de muestra</p>
-                      <p className="mt-1">{buildSampleLabSummary(sample)}</p>
-                      {sample.sample_lab_notes && <p className="mt-1 text-slate-500">Notas: {sample.sample_lab_notes}</p>}
+                      <p className="text-xs font-semibold uppercase text-slate-500">Datos de laboratorio por cafe</p>
+                      <div className="mt-2 space-y-2">
+                        {sample.items.map((item) => (
+                          <div key={`lab-${item.id}`}>
+                            <p className="font-semibold text-ink">{formatRequestedCoffee(item)}</p>
+                            <p>{buildSampleItemLabSummary(item)}</p>
+                            {item.sample_lab_notes && <p className="text-slate-500">Notas: {item.sample_lab_notes}</p>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -807,7 +818,7 @@ const SamplesPage = () => {
                             </p>
                             {item.blend_items.map((blend) => (
                               <p key={blend.id} className="text-sm text-slate-700">
-                                {blend.lot_code} - {blend.coffee_profile_name || blend.coffee_type_name || blend.commercial_classification || "Cafe"}: {blend.percentage}% ({blend.calculated_grams} g)
+                                {blend.component_description || blend.lot_code || "Componente"}: {blend.percentage}% ({blend.calculated_grams} g)
                               </p>
                             ))}
                           </div>
@@ -818,7 +829,7 @@ const SamplesPage = () => {
 
                   {(canManageSamples || canPrintSampleOrder) && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {canManageSamples && (
+                      {canManageSamples && ["solicitada", "en_preparacion"].includes(sample.status) && (
                         <button
                           className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
                           type="button"
@@ -863,20 +874,12 @@ const SamplesPage = () => {
                                   </option>
                                 ))}
                               </select>
-                              <select
+                              <input
                                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                value={row.lotId}
-                                onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
-                              >
-                                <option value="">Lote utilizado</option>
-                                {availableLotGroups.map((group) => (
-                                  <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
-                                    {group.lots.map((lot) => (
-                                      <option key={lot.id} value={lot.id}>{formatCoffeeLotOption(lot)}</option>
-                                    ))}
-                                  </optgroup>
-                                ))}
-                              </select>
+                                placeholder="Cafe usado, lote, proceso o referencia"
+                                value={row.componentDescription}
+                                onChange={(event) => updateBlendRow(index, "componentDescription", event.target.value)}
+                              />
                               <input
                                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                                 placeholder="Porcentaje %"
@@ -906,7 +909,7 @@ const SamplesPage = () => {
                         <button
                           className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
                           type="button"
-                          onClick={() => setBlendRows((rows) => [...rows, { sampleItemId: String(sample.items[0]?.id || ""), lotId: "", percentage: "", notes: "" }])}
+                          onClick={() => setBlendRows((rows) => [...rows, { sampleItemId: String(sample.items[0]?.id || ""), componentDescription: "", percentage: "", notes: "" }])}
                         >
                           Agregar lote
                         </button>

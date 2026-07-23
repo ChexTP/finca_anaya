@@ -753,6 +753,16 @@ CREATE TABLE IF NOT EXISTS sample_request_items (
   description TEXT,
   quantity_grams NUMERIC(12, 2) NOT NULL,
   price NUMERIC(14, 2),
+  sample_humidity_percent NUMERIC(5, 2),
+  sample_lab_aroma NUMERIC(5, 2),
+  sample_lab_fragrance NUMERIC(5, 2),
+  sample_lab_flavor NUMERIC(5, 2),
+  sample_lab_sweetness NUMERIC(5, 2),
+  sample_lab_body NUMERIC(5, 2),
+  sample_lab_residual NUMERIC(5, 2),
+  sample_lab_clean_cup NUMERIC(5, 2),
+  sample_lab_score NUMERIC(5, 2),
+  sample_lab_notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sample_request_items_quantity_check CHECK (quantity_grams > 0),
   CONSTRAINT sample_request_items_price_check CHECK (price IS NULL OR price >= 0),
@@ -760,6 +770,17 @@ CREATE TABLE IF NOT EXISTS sample_request_items (
     coffee_type_id IS NOT NULL OR coffee_profile_id IS NOT NULL OR description IS NOT NULL
   )
 );
+
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_humidity_percent NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_aroma NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_fragrance NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_flavor NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_sweetness NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_body NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_residual NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_clean_cup NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_score NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_notes TEXT;
 
 INSERT INTO sample_request_items (
   sample_request_id, coffee_type_id, coffee_profile_id, description, quantity_grams, price
@@ -773,13 +794,17 @@ WHERE NOT EXISTS (
 CREATE TABLE IF NOT EXISTS sample_item_blends (
   id SERIAL PRIMARY KEY,
   sample_request_item_id INTEGER NOT NULL REFERENCES sample_request_items(id) ON DELETE CASCADE,
-  lot_id INTEGER NOT NULL REFERENCES coffee_lots(id),
+  lot_id INTEGER REFERENCES coffee_lots(id),
+  component_description TEXT,
   percentage NUMERIC(5, 2) NOT NULL,
   notes TEXT,
   created_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sample_item_blends_percentage_check CHECK (percentage > 0 AND percentage <= 100)
 );
+
+ALTER TABLE sample_item_blends ADD COLUMN IF NOT EXISTS component_description TEXT;
+ALTER TABLE sample_item_blends ALTER COLUMN lot_id DROP NOT NULL;
 
 -- Los tipos activos corresponden al beneficio con el que llega el cafe a bodega.
 INSERT INTO coffee_types (name) VALUES ('Lavado'), ('Natural'), ('Semilavado')
