@@ -22,6 +22,28 @@ const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
 
+const formatHumidity = (value) => {
+  if (value === null || value === undefined || value === "") return "-";
+  return `${Number(value).toLocaleString("es-CO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}%`;
+};
+
+const hasCompleteSampleLabReview = (sample) => {
+  return [
+    sample.sample_humidity_percent,
+    sample.sample_lab_aroma,
+    sample.sample_lab_fragrance,
+    sample.sample_lab_flavor,
+    sample.sample_lab_sweetness,
+    sample.sample_lab_body,
+    sample.sample_lab_residual,
+    sample.sample_lab_clean_cup,
+    sample.sample_lab_score,
+  ].every((value) => value !== null && value !== undefined);
+};
+
 const formatRequestedCoffee = (item) => {
   return [item.coffee_type_name, item.coffee_profile_name, item.description]
     .filter(Boolean)
@@ -169,6 +191,7 @@ const SamplesHistoryPage = () => {
                   <th className="px-3 py-2">Cliente</th>
                   <th className="px-3 py-2">Fecha solicitud</th>
                   <th className="px-3 py-2">Fecha entrega</th>
+                  <th className="px-3 py-2">Laboratorio</th>
                   <th className="px-3 py-2">Muestras</th>
                   <th className="px-3 py-2">Valor</th>
                   <th className="px-3 py-2">Gestion</th>
@@ -184,6 +207,24 @@ const SamplesHistoryPage = () => {
                     </td>
                     <td className="px-3 py-2">{formatDate(sample.requested_at)}</td>
                     <td className="px-3 py-2">{formatDate(sample.tentative_delivery_date || sample.updated_at)}</td>
+                    <td className="px-3 py-2">
+                      {hasCompleteSampleLabReview(sample) ? (
+                        <div className="space-y-1 text-xs text-slate-600">
+                          <p className="font-semibold text-slate-800">
+                            Score {sample.sample_lab_score} · Humedad {formatHumidity(sample.sample_humidity_percent)}
+                          </p>
+                          <p>
+                            Aroma {sample.sample_lab_aroma} · Fragancia {sample.sample_lab_fragrance} · Sabor {sample.sample_lab_flavor}
+                          </p>
+                          <p>
+                            Dulzor {sample.sample_lab_sweetness} · Cuerpo {sample.sample_lab_body} · Residual {sample.sample_lab_residual} · Taza limpia {sample.sample_lab_clean_cup}
+                          </p>
+                          {sample.sample_lab_notes && <p>Notas: {sample.sample_lab_notes}</p>}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="space-y-1">
                         {(sample.items || []).map((item) => (

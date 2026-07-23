@@ -1,0 +1,612 @@
+GUIA DE COMPROBACION - PRUEBAS COMPLETAS SISTEMA FINCA ANAYA
+Fecha: 22/07/2026
+
+Objetivo:
+Verificar el funcionamiento completo del sistema antes de usar datos reales, desde la recepcion de cafe hasta ventas, facturacion interna, pagos, bodega, procesos, muestras, documentos y gerencia.
+
+Recomendacion para la prueba:
+- Usar datos de prueba, no datos reales definitivos.
+- Probar con cada rol por separado.
+- Anotar cualquier pantalla confusa, dato que falte o paso que no coincida con el trabajo diario.
+- En cada caso revisar el resultado esperado antes de pasar al siguiente.
+
+
+1. ACCESO AL SISTEMA
+
+Usuarios base:
+- Administrador: admin / admin123
+- Bodega: bodega / bodega123
+- Laboratorio: laboratorio / laboratorio123
+- Contabilidad: contabilidad / contabilidad123
+- Muestras: muestras / muestras123
+- Gerencia: gerencia / gerencia123
+- Vendedor demo si existe: vendedor1 / vendedor123
+
+Prueba:
+1. Entrar con cada usuario.
+2. Verificar que cada rol vea solo los modulos que le corresponden.
+3. Cerrar sesion y volver a entrar.
+
+Resultado esperado:
+- El login funciona.
+- El menu lateral cambia segun el rol.
+- El administrador ve todo.
+
+
+2. RECEPCION DE CAFE EN BODEGA
+
+Usuario recomendado: bodega o admin.
+Ruta: Recepcion.
+
+Prueba A - Crear proveedor:
+1. Abrir Recepcion.
+2. Crear un proveedor nuevo con nombre, telefono, direccion y zona.
+3. Guardar.
+
+Resultado esperado:
+- El proveedor queda disponible para registrar cafe recibido.
+
+Prueba B - Registrar cafe completo:
+1. Seleccionar proveedor.
+2. Seleccionar metodo de proceso: Lavado, Natural o Semilavado.
+3. Poner fecha de llegada a bodega.
+4. Poner peso bruto.
+5. Seleccionar empaque.
+6. Poner cantidad de empaques.
+7. Marcar bolsa interna si aplica.
+8. Poner humedad.
+9. Poner factor de rendimiento.
+10. Seleccionar categoria: Regional, Varietal o Exotico.
+11. Seleccionar o escribir la clasificacion exacta.
+12. Agregar zona de procedencia y observaciones si aplica.
+13. Guardar.
+
+Resultado esperado:
+- El sistema calcula el peso neto.
+- Si tiene humedad y factor, el lote queda pendiente de laboratorio.
+- La fecha de llegada, categoria, clasificacion exacta, humedad y factor no se pierden.
+
+Prueba C - Registrar cafe sin humedad o sin factor:
+1. Repetir registro, pero dejar vacia humedad o factor.
+2. Guardar.
+
+Resultado esperado:
+- El lote queda en Pendientes de revision fisica.
+- Bodega puede registrar despues humedad y factor.
+- Al completar revision fisica, el lote pasa a Pendientes de laboratorio.
+
+Prueba D - Validacion de clasificacion:
+1. Intentar registrar Regional, Varietal o Exotico sin clasificacion exacta.
+
+Resultado esperado:
+- El sistema no debe dejar guardar.
+- Debe pedir clasificacion, variedad o codigo exacto.
+
+
+3. LABORATORIO - REVISION DE LOTES RECIBIDOS
+
+Usuario recomendado: laboratorio o admin.
+Ruta: Laboratorio.
+
+Prueba:
+1. Abrir Laboratorio.
+2. Seleccionar un lote pendiente.
+3. Revisar que aparezcan los datos recibidos desde bodega.
+4. Poner catacion: aroma, fragancia, sabor, dulzor, cuerpo, residual, taza limpia y score.
+5. Poner notas de laboratorio.
+6. Aprobar el lote.
+
+Resultado esperado:
+- El lote queda disponible en inventario.
+- El sistema no pide acidez, balance ni uniformidad.
+- Si laboratorio cambia categoria o clasificacion, debe pedir nota interna.
+- El historial debe conservar el cambio.
+
+Prueba de rechazo:
+1. Seleccionar otro lote pendiente.
+2. Marcar como rechazado.
+
+Resultado esperado:
+- El lote queda rechazado.
+- Bodega puede verlo para retiro si corresponde.
+
+
+4. INVENTARIO
+
+Usuarios recomendados: admin, contabilidad, bodega.
+Ruta: Inventario.
+
+Prueba:
+1. Abrir Inventario.
+2. Revisar que los lotes disponibles aparezcan agrupados por categorias utiles:
+   - Regional Lavado
+   - Regional Natural
+   - Varietal Lavado
+   - Varietal Natural
+   - Proceso
+   - Pasillas
+   - Recuperacion Lavado
+   - Recuperacion Natural
+3. Usar filtros/cajitas de categorias.
+4. Revisar cada lote.
+
+Resultado esperado:
+- La tabla filtra correctamente.
+- Se ve codigo, tipo, perfil/categoria, clasificacion, fecha de llegada, disponible, humedad, factor y estado.
+- Los procesos disponibles deben mostrar codigo PROC y perfil.
+
+
+5. ENTRADA RAPIDA DE PASILLAS Y RECUPERACIONES
+
+Usuario recomendado: bodega o admin.
+Ruta: Recepcion.
+
+Prueba A - Pasilla:
+1. Crear entrada rapida tipo Pasilla.
+2. Seleccionar Lavado o Natural.
+3. Poner cantidad kg.
+4. Guardar.
+
+Resultado esperado:
+- Se crea un lote PAS.
+- Queda disponible en inventario.
+- Se agrupa como Pasillas.
+
+Prueba B - Recuperacion:
+1. Crear entrada rapida tipo Recuperacion.
+2. Seleccionar proceso.
+3. Seleccionar categoria Regional, Varietal o Exotico.
+4. Indicar nombre exacto.
+5. Poner cantidad kg.
+6. Guardar.
+
+Resultado esperado:
+- Se crea un lote REC.
+- Queda disponible en inventario.
+- Aparece en Recuperacion Lavado o Recuperacion Natural segun corresponda.
+
+
+6. CONFIGURACION DE CAFES COMERCIALES
+
+Usuario recomendado: admin.
+Ruta: Cafes comerciales.
+
+Prueba:
+1. Crear o editar un perfil Regional.
+2. Crear o editar un perfil Varietal.
+3. Crear o editar un perfil Exotico.
+4. En Exotico configurar:
+   - Cafe usado para proceso.
+   - Cafe usado como base.
+   - Porcentaje de proceso.
+   - Porcentaje de base.
+5. Guardar.
+
+Resultado esperado:
+- Los perfiles quedan disponibles en cotizaciones.
+- En Exotico, los porcentajes deben sumar 100%.
+- Los cambios no deben borrar ventas antiguas.
+
+
+7. COTIZACION COMERCIAL
+
+Usuario recomendado: vendedor, contabilidad o admin.
+Ruta: Comercial.
+
+Prueba A - Crear cliente:
+1. Crear cliente rapido si no existe.
+2. Completar datos obligatorios.
+
+Resultado esperado:
+- El cliente queda disponible para cotizar.
+
+Prueba B - Crear cotizacion con varios cafes:
+1. Seleccionar cliente.
+2. Seleccionar moneda COP o USD.
+3. Seleccionar estado borrador.
+4. Poner fecha estimada de entrega.
+5. Agregar un cafe Excelso Lavado con perfil Regional o Varietal.
+6. Agregar otro cafe Exotico con perfil comercial.
+7. Agregar precio por kg y cantidad.
+8. Agregar costo de envio si aplica.
+9. Guardar cotizacion.
+
+Resultado esperado:
+- La cotizacion acepta varios items.
+- El total se calcula correctamente.
+- Para Excelso Lavado/Natural se muestra el kg operativo para bodega.
+- El precio negociado no cambia el precio base del perfil.
+
+Prueba C - PDF cotizacion:
+1. Abrir documento de cotizacion.
+2. Descargar o imprimir PDF.
+
+Resultado esperado:
+- El PDF muestra cliente, cafes, cantidades, precios, moneda, envio y total.
+
+
+8. CONVERSION DE COTIZACION A VENTA
+
+Usuario recomendado: contabilidad o admin.
+Ruta: Comercial o Ventas.
+
+Prueba:
+1. Cambiar cotizacion a aceptada.
+2. Convertir a venta.
+3. Registrar estado de pago:
+   - pagada
+   - pago parcial
+   - pendiente de pago
+4. Si hay abono, registrar metodo, referencia y fecha.
+5. Guardar.
+
+Resultado esperado:
+- Se crea venta con codigo VEN.
+- La venta pasa a bodega.
+- El pago inicial queda registrado.
+- Si queda saldo, aparece como pendiente por cobrar.
+
+
+9. PAGOS Y FACTURA INTERNA
+
+Usuario recomendado: contabilidad o admin.
+Ruta: Ventas / Documentos.
+
+Prueba A - Abonar varias veces:
+1. Abrir una venta con pago parcial.
+2. Registrar un nuevo abono.
+3. Registrar otro abono.
+4. Verificar saldo.
+
+Resultado esperado:
+- El sistema permite varios abonos.
+- El saldo baja correctamente.
+- Cuando se completa el total, la venta queda pagada.
+
+Prueba B - Documento/factura:
+1. Abrir documentos de venta.
+2. Generar PDF de factura interna.
+3. Revisar pagos.
+
+Resultado esperado:
+- El PDF debe mostrar historial de pagos con fecha, metodo, referencia y valor.
+- El total, pagado y saldo deben coincidir.
+
+
+10. BODEGA - PEDIDOS POR ALISTAR
+
+Usuario recomendado: bodega o admin.
+Ruta: Pedidos.
+
+Prueba:
+1. Abrir Pedidos.
+2. Revisar que las ventas aparezcan ordenadas por prioridad y fecha de entrega.
+3. Filtrar por:
+   - Todo
+   - Por decidir
+   - Procesos
+   - Ensamble
+   - Alistar
+   - Despachar
+4. Abrir una venta.
+5. Cambiar prioridad: alta, media o baja.
+6. Poner encargado de pedido.
+
+Resultado esperado:
+- El pedido queda organizado segun prioridad y fecha.
+- El encargado queda guardado.
+- El encargado aparece en la orden imprimible.
+
+
+11. BODEGA - ASIGNACION DE LOTES
+
+Usuario recomendado: bodega o admin.
+Ruta: Pedidos.
+
+Prueba:
+1. Abrir una venta pendiente.
+2. Seleccionar producto vendido.
+3. Seleccionar lote disponible.
+4. Revisar que los lotes aparezcan agrupados por categoria.
+5. Poner cantidad kg.
+6. Guardar asignacion.
+
+Resultado esperado:
+- La venta queda con lote asignado.
+- El sistema no descuenta inventario todavia.
+- El descuento se realiza al marcar la venta como alistada.
+- El documento indica que lotes debe sacar bodega.
+
+Prueba de faltante:
+1. En un item de venta, presionar "No hay".
+2. Escribir observacion.
+
+Resultado esperado:
+- El item queda marcado como faltante.
+- Gerencia lo ve como faltante confirmado.
+
+
+12. PROCESOS
+
+Usuario recomendado: bodega o admin.
+Ruta: Procesos.
+
+Prueba:
+1. Desde una venta en bodega, solicitar proceso.
+2. Seleccionar la venta.
+3. Seleccionar lotes y cantidades que se llevan a proceso.
+4. Crear proceso.
+
+Resultado esperado:
+- Se crea proceso con codigo PRO.
+- La venta pasa a proceso solicitado.
+- El proceso queda pendiente de iniciar.
+
+Prueba de ciclo de proceso:
+1. Marcar proceso como iniciado.
+2. Poner ubicacion y fecha estimada de regreso.
+3. Marcar que regreso para revision fisica.
+4. Registrar cantidad final, humedad y factor.
+5. En laboratorio completar examen del proceso.
+
+Resultado esperado:
+- Mientras esta en proceso, bodega puede ver el estado.
+- No vuelve a bodega como disponible hasta tener datos fisicos y de laboratorio.
+- Al finalizar, se crea lote PROC disponible.
+
+Prueba de busqueda:
+1. Buscar proceso por codigo, cliente, venta, lote, perfil o ubicacion.
+
+Resultado esperado:
+- La lista se filtra correctamente.
+
+
+13. ENSAMBLE DE PEDIDOS
+
+Usuario recomendado: bodega o admin.
+Ruta: Pedidos.
+
+Prueba:
+1. Abrir venta con cafe Exotico.
+2. Revisar sugerencia de ensamble del perfil.
+3. Seleccionar lote proceso y lote base.
+4. Poner porcentajes que sumen 100%.
+5. Guardar ensamble.
+6. Imprimir orden.
+
+Resultado esperado:
+- El sistema no deja guardar si los porcentajes no suman 100%.
+- La orden muestra componentes, porcentajes y kg estimados.
+- Bodega puede entregar la orden fisica a quien arma la mezcla.
+
+
+14. ALISTAMIENTO Y DESPACHO
+
+Usuario recomendado: bodega o admin.
+Ruta: Pedidos.
+
+Prueba:
+1. Con lotes asignados, marcar venta como alistada.
+2. Revisar inventario.
+3. Luego marcar venta como despachada.
+
+Resultado esperado:
+- Al alistar, se descuentan los lotes asignados.
+- El inventario baja correctamente.
+- Al despachar, la venta sale de pendientes de bodega.
+
+
+15. MUESTRAS
+
+Usuarios recomendados:
+- Crear solicitud: vendedor, contabilidad o admin.
+- Gestionar: muestras, contabilidad o admin.
+Ruta: Muestras.
+
+Prueba A - Crear muestra con varios cafes:
+1. Crear solicitud.
+2. Poner nombre del solicitante.
+3. Telefono opcional.
+4. Empresa, direccion, ciudad y pais si aplica.
+5. Agregar una muestra.
+6. Agregar otra muestra.
+7. Poner gramos, precio opcional o dejar gratis.
+8. Guardar.
+
+Resultado esperado:
+- La muestra permite varios cafes.
+- La cantidad se maneja en gramos.
+- No aparece COP junto a gramos.
+
+Prueba B - Ensamble de muestra:
+1. Abrir solicitud.
+2. Registrar ensamble por cada cafe de la muestra.
+3. Poner lote y porcentaje.
+4. Guardar.
+
+Resultado esperado:
+- Cada cafe de la muestra debe sumar 100%.
+- El ensamble queda guardado por item de muestra.
+
+Prueba C - Estados:
+1. Cambiar a en preparacion.
+2. Cambiar a lista.
+3. Cuando el sistema lo pida, registrar datos de laboratorio de la muestra:
+   - Humedad.
+   - Aroma.
+   - Fragancia.
+   - Sabor.
+   - Dulzor.
+   - Cuerpo.
+   - Residual.
+   - Taza limpia.
+   - Score.
+   - Notas opcionales.
+4. Cambiar a entregada.
+
+Resultado esperado:
+- El sistema no deja pasar a lista/entregada si falta ensamble.
+- El sistema no deja pasar a lista si no se registran los datos de laboratorio.
+- Los datos de laboratorio quedan visibles en la solicitud, en la orden imprimible y en el historico.
+- Al entregarla, sale del trabajo activo y queda en historico.
+
+
+16. HISTORICO DE MUESTRAS
+
+Usuarios recomendados: admin o muestras.
+Ruta: Historico muestras.
+
+Prueba:
+1. Entrar con admin o muestras.
+2. Abrir Historico muestras desde el menu lateral.
+3. Filtrar por nombre de cliente, empresa o telefono.
+4. Filtrar por fecha desde/hasta.
+5. Imprimir o guardar PDF si se necesita.
+
+Resultado esperado:
+- Solo aparecen muestras entregadas.
+- Los filtros funcionan.
+- Se ve codigo, cliente, fecha de solicitud, fecha de entrega, datos de laboratorio, muestras, gramos, valor y responsable.
+
+
+17. CUENTAS POR PAGAR
+
+Usuario recomendado: contabilidad o admin.
+Ruta: Cuentas por pagar.
+
+Prueba:
+1. Registrar cuenta por pagar de compra de lote.
+2. Asociar referencia de lote si aplica.
+3. Registrar concepto, valor, fecha y referencia de pago.
+4. Guardar.
+
+Resultado esperado:
+- La cuenta queda registrada.
+- Puede filtrarse despues por fecha, proveedor o estado.
+
+
+18. REPORTES CONTABLES
+
+Usuario recomendado: contabilidad o admin.
+Ruta: Reportes.
+
+Prueba:
+1. Filtrar ventas por rango de fechas.
+2. Revisar ventas por vendedor.
+3. Revisar ventas pagadas y pendientes.
+4. Exportar si aplica.
+
+Resultado esperado:
+- Los totales coinciden con las ventas registradas.
+- Los pagos parciales se reflejan correctamente.
+- Se puede revisar rendimiento por vendedor.
+
+
+19. GERENCIA
+
+Usuario recomendado: gerencia o admin.
+Ruta: Gerencia.
+
+Prueba:
+1. Abrir panel de gerencia.
+2. Revisar KPIs.
+3. Revisar deficit de Excelso y Pergamino.
+4. Revisar pedidos urgentes.
+5. Revisar procesos activos.
+6. Revisar faltantes marcados desde bodega.
+7. Descargar CSV o imprimir PDF.
+
+Resultado esperado:
+- El panel calcula kg pedidos y kg necesarios.
+- Para Excelso Lavado usa kg * 94 / 70.
+- Para Excelso Natural usa kg * 140 / 70.
+- Los exoticos usan ensamble real si existe o receta sugerida si no existe.
+- Si bodega marco "No hay", gerencia lo ve claramente.
+
+
+20. BACKUPS
+
+Usuario recomendado: admin o contabilidad.
+Ruta: Backups.
+
+Prueba:
+1. Abrir Backups.
+2. Ejecutar backup manual si esta disponible.
+3. Descargar archivo.
+
+Resultado esperado:
+- Se genera copia.
+- El archivo se descarga correctamente.
+
+
+21. DOCUMENTOS PDF
+
+Usuarios recomendados: segun modulo.
+
+Prueba:
+1. Descargar PDF de cotizacion.
+2. Descargar PDF de factura/venta.
+3. Descargar PDF de orden de bodega.
+4. Descargar PDF de muestra.
+
+Resultado esperado:
+- Los documentos tienen logo.
+- Los datos corresponden al registro abierto.
+- En ventas aparece historial de pagos.
+- En orden de bodega aparece encargado, lotes y porcentajes de ensamble.
+- En muestras aparece ensamble por cafe cuando aplique.
+
+
+22. COMPROBACION FINAL DE FLUJO COMPLETO
+
+Flujo recomendado para prueba integral:
+
+1. Bodega registra proveedor.
+2. Bodega registra cafe recibido.
+3. Si falta humedad/factor, bodega completa revision fisica.
+4. Laboratorio aprueba cafe.
+5. Inventario muestra lote disponible.
+6. Admin configura perfil comercial con receta si es exotico.
+7. Vendedor crea cliente.
+8. Vendedor crea cotizacion con varios cafes.
+9. Contabilidad acepta cotizacion y convierte a venta.
+10. Contabilidad registra pago inicial o pendiente.
+11. Bodega ve venta en Pedidos.
+12. Bodega asigna prioridad y encargado.
+13. Si hay stock, bodega asigna lote.
+14. Si no hay stock, bodega marca "No hay" o solicita proceso.
+15. Bodega crea proceso si aplica.
+16. Bodega inicia proceso y registra regreso fisico.
+17. Laboratorio revisa proceso.
+18. Bodega define ensamble si aplica.
+19. Bodega imprime orden.
+20. Bodega marca alistada.
+21. Inventario descuenta cantidades.
+22. Bodega marca despachada.
+23. Contabilidad registra abonos si quedan saldos.
+24. Documento de venta muestra pagos.
+25. Gerencia ve datos de ventas, procesos, deficit y faltantes.
+
+Resultado esperado:
+- El flujo completo se puede realizar sin usar Excel para controlar estados principales.
+- Cada rol ve la informacion que necesita.
+- Los datos clave no se pierden entre modulos.
+- El sistema ayuda a decidir que cafe hay, que cafe falta y que pedido sigue.
+
+
+23. OBSERVACIONES PARA QUIEN PRUEBA
+
+Anotar por cada problema:
+- Usuario con el que estaba probando.
+- Modulo.
+- Codigo del lote, venta, muestra o proceso.
+- Que estaba intentando hacer.
+- Que esperaba que pasara.
+- Que paso realmente.
+- Captura de pantalla si es posible.
+- Si el problema impide seguir el flujo o solo es una mejora visual.
+
+Prioridad sugerida:
+- Alta: bloquea el trabajo o causa calculos incorrectos.
+- Media: permite trabajar, pero confunde o genera pasos extra.
+- Baja: mejora visual, texto, orden o comodidad.

@@ -20,6 +20,31 @@ const toNumber = (value) => {
 const isValidNumber = (value) => Number.isFinite(value);
 
 const validStatuses = ["solicitada", "en_preparacion", "lista", "entregada", "cancelada"];
+const requiredSampleLabFields = [
+  "humidityPercent",
+  "aroma",
+  "fragrance",
+  "flavor",
+  "sweetness",
+  "body",
+  "residual",
+  "cleanCup",
+  "score",
+];
+
+const hasCompleteSampleLabReview = (sample) => {
+  return [
+    sample.sample_humidity_percent,
+    sample.sample_lab_aroma,
+    sample.sample_lab_fragrance,
+    sample.sample_lab_flavor,
+    sample.sample_lab_sweetness,
+    sample.sample_lab_body,
+    sample.sample_lab_residual,
+    sample.sample_lab_clean_cup,
+    sample.sample_lab_score,
+  ].every((value) => value !== null && value !== undefined);
+};
 
 export const getSamples = async (req, res) => {
   try {
@@ -160,10 +185,56 @@ export const postSample = async (req, res) => {
 
 export const putSampleStatus = async (req, res) => {
   try {
-    const { status, notes } = req.body;
+    const { status, notes, labReview = {} } = req.body;
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Estado de muestra no valido" });
+    }
+
+    const sampleBeforeUpdate = await findSampleRequestById(req.params.id);
+
+    if (!sampleBeforeUpdate) {
+      return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+    }
+
+    const cleanLabReview = {
+      humidityPercent: toNumber(labReview.humidityPercent),
+      aroma: toNumber(labReview.aroma),
+      fragrance: toNumber(labReview.fragrance),
+      flavor: toNumber(labReview.flavor),
+      sweetness: toNumber(labReview.sweetness),
+      body: toNumber(labReview.body),
+      residual: toNumber(labReview.residual),
+      cleanCup: toNumber(labReview.cleanCup),
+      score: toNumber(labReview.score),
+      notes: labReview.notes || null,
+    };
+
+    if (status === "lista" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
+      const missingLabField = requiredSampleLabFields.find((field) => !isValidNumber(cleanLabReview[field]));
+
+      if (missingLabField) {
+        return res.status(400).json({
+          message: "Los datos completos de laboratorio de la muestra son obligatorios para marcarla como lista",
+        });
+      }
+
+      const outOfRangeField = requiredSampleLabFields.find((field) => {
+        const value = cleanLabReview[field];
+        return value < 0 || value > 100;
+      });
+
+      if (outOfRangeField) {
+        return res.status(400).json({
+          message: "Los datos de laboratorio de la muestra deben estar entre 0 y 100",
+        });
+      }
+    }
+
+    if (status === "entregada" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
+      return res.status(400).json({
+        message: "Antes de entregar la muestra debe marcarla como lista y registrar datos de laboratorio",
+      });
     }
 
     if (["lista", "entregada"].includes(status) && !(await hasCompleteSampleBlend(req.params.id))) {
@@ -176,6 +247,7 @@ export const putSampleStatus = async (req, res) => {
       id: req.params.id,
       status,
       notes,
+      labReview: status === "lista" ? cleanLabReview : null,
       handledBy: req.user.id,
     });
 

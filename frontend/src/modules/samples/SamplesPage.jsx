@@ -84,6 +84,56 @@ const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
 
+const formatHumidity = (value) => {
+  if (value === null || value === undefined || value === "") return "-";
+  return `${Number(value).toLocaleString("es-CO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}%`;
+};
+
+const sampleLabFields = [
+  ["humidityPercent", "Humedad (%)"],
+  ["aroma", "Aroma"],
+  ["fragrance", "Fragancia"],
+  ["flavor", "Sabor"],
+  ["sweetness", "Dulzor"],
+  ["body", "Cuerpo"],
+  ["residual", "Residual"],
+  ["cleanCup", "Taza limpia"],
+  ["score", "Score"],
+];
+
+const hasCompleteSampleLabReview = (sample) => {
+  return [
+    sample.sample_humidity_percent,
+    sample.sample_lab_aroma,
+    sample.sample_lab_fragrance,
+    sample.sample_lab_flavor,
+    sample.sample_lab_sweetness,
+    sample.sample_lab_body,
+    sample.sample_lab_residual,
+    sample.sample_lab_clean_cup,
+    sample.sample_lab_score,
+  ].every((value) => value !== null && value !== undefined);
+};
+
+const buildSampleLabSummary = (sample) => {
+  if (!hasCompleteSampleLabReview(sample)) return null;
+
+  return [
+    `Humedad ${formatHumidity(sample.sample_humidity_percent)}`,
+    `Aroma ${sample.sample_lab_aroma}`,
+    `Fragancia ${sample.sample_lab_fragrance}`,
+    `Sabor ${sample.sample_lab_flavor}`,
+    `Dulzor ${sample.sample_lab_sweetness}`,
+    `Cuerpo ${sample.sample_lab_body}`,
+    `Residual ${sample.sample_lab_residual}`,
+    `Taza limpia ${sample.sample_lab_clean_cup}`,
+    `Score ${sample.sample_lab_score}`,
+  ].join(" | ");
+};
+
 const formatRequestedCoffee = (item) => {
   const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
   return [...new Set(details)].join(" - ") || "Cafe sin especificar";
@@ -170,7 +220,9 @@ const buildSampleOrderHtml = (sample) => {
             <p><strong>Fecha de Inicio orden:</strong> ${formatDate(sample.requested_at)}</p>
             <p><strong>Categoria:</strong> ${sample.items?.[0]?.coffee_type_name || sample.coffee_type_name || "CAFE"}</p>
             <p><strong>Cliente:</strong> ${sample.requester_company || sample.requester_name || "-"}</p>
+            <p><strong>Datos laboratorio:</strong> ${buildSampleLabSummary(sample) || "-"}</p>
             <p><strong>Dia estimado de despacho:</strong> ${formatDate(sample.tentative_delivery_date)}</p>
+            ${sample.sample_lab_notes ? `<p><strong>Notas laboratorio:</strong> ${sample.sample_lab_notes}</p>` : ""}
           </div>
           <div>
             <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
@@ -337,6 +389,27 @@ const SamplesPage = () => {
   };
 
   const updateStatus = async (sample, status) => {
+    let labReview = null;
+
+    if (status === "lista" && !hasCompleteSampleLabReview(sample)) {
+      labReview = {};
+
+      for (const [field, label] of sampleLabFields) {
+        const input = window.prompt(`${label} de la muestra ${sample.code}`);
+        if (input === null) return;
+
+        const value = Number(input);
+        if (!Number.isFinite(value) || value < 0 || value > 100) {
+          setError(`${label} debe ser un numero entre 0 y 100.`);
+          return;
+        }
+
+        labReview[field] = value;
+      }
+
+      labReview.notes = window.prompt(`Notas de laboratorio para ${sample.code} (opcional)`, "") || "";
+    }
+
     const confirmed = window.confirm(`Confirmas cambiar ${sample.code} a ${statusLabels[status]}?`);
 
     if (!confirmed) return;
@@ -350,6 +423,7 @@ const SamplesPage = () => {
         method: "PUT",
         body: JSON.stringify({
           status,
+          labReview,
           notes: statusNotes[sample.id] || undefined,
         }),
       });
@@ -672,6 +746,9 @@ const SamplesPage = () => {
                     <div className="text-right text-sm text-slate-600">
                       <p>{sample.quantity_grams} g</p>
                       <p>{formatMoney(sample.currency, sample.price)}</p>
+                      {hasCompleteSampleLabReview(sample) && (
+                        <p>Score: {sample.sample_lab_score} · Humedad: {formatHumidity(sample.sample_humidity_percent)}</p>
+                      )}
                     </div>
                   </div>
 
@@ -694,7 +771,19 @@ const SamplesPage = () => {
                       <span className="font-medium text-slate-800">Entrega tentativa:</span>{" "}
                       {formatDate(sample.tentative_delivery_date)}
                     </p>
+                    <p>
+                      <span className="font-medium text-slate-800">Laboratorio:</span>{" "}
+                      {hasCompleteSampleLabReview(sample) ? `Score ${sample.sample_lab_score} / Humedad ${formatHumidity(sample.sample_humidity_percent)}` : "-"}
+                    </p>
                   </div>
+
+                  {hasCompleteSampleLabReview(sample) && (
+                    <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Datos de laboratorio de muestra</p>
+                      <p className="mt-1">{buildSampleLabSummary(sample)}</p>
+                      {sample.sample_lab_notes && <p className="mt-1 text-slate-500">Notas: {sample.sample_lab_notes}</p>}
+                    </div>
+                  )}
 
                   {sample.requester_address && (
                     <p className="mt-2 text-sm text-slate-500">Envio: {sample.requester_address}</p>
@@ -841,10 +930,19 @@ const SamplesPage = () => {
                             key={status}
                             className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                             type="button"
-                            disabled={saving || sample.status === status}
+                            disabled={
+                              saving ||
+                              (sample.status === status &&
+                                !(status === "lista" &&
+                                  !hasCompleteSampleLabReview(sample)))
+                            }
                             onClick={() => updateStatus(sample, status)}
                           >
-                            {statusLabels[status]}
+                            {status === "lista" &&
+                            sample.status === "lista" &&
+                            !hasCompleteSampleLabReview(sample)
+                              ? "Registrar laboratorio"
+                              : statusLabels[status]}
                           </button>
                         ))}
                       </div>

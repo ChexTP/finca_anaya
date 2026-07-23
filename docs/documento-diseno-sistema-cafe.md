@@ -1986,3 +1986,10 @@ Cuando gerencia calcule deficit, si un pedido exotico ya tiene ensamble definido
 - Bodega, administracion, contabilidad y laboratorio pueden guardar ordenes de ensamble. En bodega se muestran sugerencias para exoticos con porcentajes y lotes disponibles por categoria.
 - El documento imprimible de bodega incluye el encargado del pedido, productos, kg operativos y componentes/porcentajes de ensamble.
 - Procesos tiene filtro por codigo, cliente, venta, lote, perfil, clasificacion o ubicacion para encontrar trabajos activos sin recorrer toda la lista.
+
+## 21. Actualizacion: Laboratorio Obligatorio En Muestras Listas
+
+- Cuando una solicitud de muestra pasa a estado "Lista", el sistema exige registrar los datos completos de laboratorio de la muestra.
+- Los datos guardados son humedad, aroma, fragancia, sabor, dulzor, cuerpo, residual, taza limpia, score y notas opcionales.
+- Una muestra no puede pasar directamente a "Entregada" si no tiene datos de laboratorio registrados.
+- La revision queda visible en el listado operativo de muestras, la orden imprimible y el historico de muestras entregadas.

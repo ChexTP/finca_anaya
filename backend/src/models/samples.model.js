@@ -288,20 +288,45 @@ export const createSampleRequest = async (sampleData) => {
   }
 };
 
-export const updateSampleRequestStatus = async ({ id, status, notes, handledBy }) => {
+export const updateSampleRequestStatus = async ({ id, status, notes, labReview, handledBy }) => {
   const result = await pool.query(
     `
     UPDATE sample_requests
     SET
       status = $1,
       notes = COALESCE($2, notes),
-      handled_by = $3,
+      sample_humidity_percent = COALESCE($3, sample_humidity_percent),
+      sample_lab_aroma = COALESCE($4, sample_lab_aroma),
+      sample_lab_fragrance = COALESCE($5, sample_lab_fragrance),
+      sample_lab_flavor = COALESCE($6, sample_lab_flavor),
+      sample_lab_sweetness = COALESCE($7, sample_lab_sweetness),
+      sample_lab_body = COALESCE($8, sample_lab_body),
+      sample_lab_residual = COALESCE($9, sample_lab_residual),
+      sample_lab_clean_cup = COALESCE($10, sample_lab_clean_cup),
+      sample_lab_score = COALESCE($11, sample_lab_score),
+      sample_lab_notes = COALESCE($12, sample_lab_notes),
+      handled_by = $13,
       handled_at = NOW(),
       updated_at = NOW()
-    WHERE id = $4
+    WHERE id = $14
     RETURNING *
     `,
-    [status, notes || null, handledBy, id]
+    [
+      status,
+      notes || null,
+      labReview?.humidityPercent ?? null,
+      labReview?.aroma ?? null,
+      labReview?.fragrance ?? null,
+      labReview?.flavor ?? null,
+      labReview?.sweetness ?? null,
+      labReview?.body ?? null,
+      labReview?.residual ?? null,
+      labReview?.cleanCup ?? null,
+      labReview?.score ?? null,
+      labReview?.notes || null,
+      handledBy,
+      id,
+    ]
   );
 
   return result.rows[0];

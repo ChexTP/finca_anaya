@@ -653,6 +653,16 @@ CREATE TABLE IF NOT EXISTS sample_requests (
   price NUMERIC(14, 2),
   requested_at DATE NOT NULL DEFAULT CURRENT_DATE,
   tentative_delivery_date DATE,
+  sample_humidity_percent NUMERIC(5, 2),
+  sample_lab_aroma NUMERIC(5, 2),
+  sample_lab_fragrance NUMERIC(5, 2),
+  sample_lab_flavor NUMERIC(5, 2),
+  sample_lab_sweetness NUMERIC(5, 2),
+  sample_lab_body NUMERIC(5, 2),
+  sample_lab_residual NUMERIC(5, 2),
+  sample_lab_clean_cup NUMERIC(5, 2),
+  sample_lab_score NUMERIC(5, 2),
+  sample_lab_notes TEXT,
   status VARCHAR(30) NOT NULL DEFAULT 'solicitada',
   notes TEXT,
   created_by INTEGER REFERENCES users(id),
@@ -664,6 +674,19 @@ CREATE TABLE IF NOT EXISTS sample_requests (
     status IN ('solicitada', 'en_preparacion', 'lista', 'entregada', 'cancelada')
   ),
   CONSTRAINT sample_requests_currency_check CHECK (currency IN ('COP', 'USD')),
+  CONSTRAINT sample_requests_humidity_check CHECK (
+    sample_humidity_percent IS NULL OR (sample_humidity_percent >= 0 AND sample_humidity_percent <= 100)
+  ),
+  CONSTRAINT sample_requests_lab_values_check CHECK (
+    (sample_lab_aroma IS NULL OR (sample_lab_aroma >= 0 AND sample_lab_aroma <= 100)) AND
+    (sample_lab_fragrance IS NULL OR (sample_lab_fragrance >= 0 AND sample_lab_fragrance <= 100)) AND
+    (sample_lab_flavor IS NULL OR (sample_lab_flavor >= 0 AND sample_lab_flavor <= 100)) AND
+    (sample_lab_sweetness IS NULL OR (sample_lab_sweetness >= 0 AND sample_lab_sweetness <= 100)) AND
+    (sample_lab_body IS NULL OR (sample_lab_body >= 0 AND sample_lab_body <= 100)) AND
+    (sample_lab_residual IS NULL OR (sample_lab_residual >= 0 AND sample_lab_residual <= 100)) AND
+    (sample_lab_clean_cup IS NULL OR (sample_lab_clean_cup >= 0 AND sample_lab_clean_cup <= 100)) AND
+    (sample_lab_score IS NULL OR (sample_lab_score >= 0 AND sample_lab_score <= 100))
+  ),
   CONSTRAINT sample_requests_quantity_check CHECK (quantity_kg > 0),
   CONSTRAINT sample_requests_price_check CHECK (price IS NULL OR price >= 0),
   CONSTRAINT sample_requests_coffee_reference_check CHECK (
@@ -672,7 +695,46 @@ CREATE TABLE IF NOT EXISTS sample_requests (
 );
 
 ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS quantity_grams NUMERIC(12, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_humidity_percent NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_aroma NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_fragrance NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_flavor NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_sweetness NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_body NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_residual NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_clean_cup NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_score NUMERIC(5, 2);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_notes TEXT;
 ALTER TABLE sample_requests ALTER COLUMN requester_phone DROP NOT NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'sample_requests_humidity_check'
+  ) THEN
+    ALTER TABLE sample_requests
+    ADD CONSTRAINT sample_requests_humidity_check CHECK (
+      sample_humidity_percent IS NULL OR (sample_humidity_percent >= 0 AND sample_humidity_percent <= 100)
+    );
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'sample_requests_lab_values_check'
+  ) THEN
+    ALTER TABLE sample_requests
+    ADD CONSTRAINT sample_requests_lab_values_check CHECK (
+      (sample_lab_aroma IS NULL OR (sample_lab_aroma >= 0 AND sample_lab_aroma <= 100)) AND
+      (sample_lab_fragrance IS NULL OR (sample_lab_fragrance >= 0 AND sample_lab_fragrance <= 100)) AND
+      (sample_lab_flavor IS NULL OR (sample_lab_flavor >= 0 AND sample_lab_flavor <= 100)) AND
+      (sample_lab_sweetness IS NULL OR (sample_lab_sweetness >= 0 AND sample_lab_sweetness <= 100)) AND
+      (sample_lab_body IS NULL OR (sample_lab_body >= 0 AND sample_lab_body <= 100)) AND
+      (sample_lab_residual IS NULL OR (sample_lab_residual >= 0 AND sample_lab_residual <= 100)) AND
+      (sample_lab_clean_cup IS NULL OR (sample_lab_clean_cup >= 0 AND sample_lab_clean_cup <= 100)) AND
+      (sample_lab_score IS NULL OR (sample_lab_score >= 0 AND sample_lab_score <= 100))
+    );
+  END IF;
+END $$;
 UPDATE sample_requests
 SET quantity_grams = quantity_kg * 1000
 WHERE quantity_grams IS NULL;
