@@ -59,7 +59,6 @@ const sampleFilters = [
   { key: "solicitada", label: "Solicitadas" },
   { key: "en_preparacion", label: "En preparacion" },
   { key: "lista", label: "Listas" },
-  { key: "entregada", label: "Entregadas" },
   { key: "cancelada", label: "Canceladas" },
 ];
 
@@ -311,7 +310,7 @@ const SamplesPage = () => {
       apiRequest("/catalogs"),
       apiRequest("/inventory/lots"),
     ]);
-    setSamples(sampleData);
+    setSamples(sampleData.filter((sample) => sample.status !== "entregada"));
     setCatalogs(catalogData);
     setAvailableLots(inventoryData);
   };
