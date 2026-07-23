@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
+import { AlertTriangle, Eye, FlaskConical, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -31,6 +31,7 @@ const taskFilters = [
   { key: "decision", label: "Por decidir" },
   { key: "process", label: "Procesos" },
   { key: "blend", label: "Ensamble" },
+  { key: "lab", label: "Laboratorio" },
   { key: "prepare", label: "Alistar" },
   { key: "dispatch", label: "Despachar" },
 ];
@@ -390,7 +391,12 @@ const WarehousePendingPage = () => {
   const updateSaleStatus = async (action) => {
     if (!selectedSale) return;
 
-    const label = action === "prepare" ? "marcar esta venta como alistada" : "marcar esta venta como despachada";
+    const label =
+      action === "send-lab"
+        ? "enviar esta venta a laboratorio"
+        : action === "prepare"
+          ? "marcar esta venta como alistada"
+          : "marcar esta venta como despachada";
     const confirmed = window.confirm(`Confirmas ${label}?`);
     if (!confirmed) return;
 
@@ -404,7 +410,13 @@ const WarehousePendingPage = () => {
         body: JSON.stringify({ notes }),
       });
       await loadData();
-      setMessage(action === "prepare" ? "Venta marcada como alistada." : "Venta marcada como despachada.");
+      setMessage(
+        action === "send-lab"
+          ? "Venta enviada a laboratorio."
+          : action === "prepare"
+            ? "Venta marcada como alistada."
+            : "Venta marcada como despachada."
+      );
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -912,7 +924,18 @@ const WarehousePendingPage = () => {
               />
 
               <div className="grid gap-2 sm:grid-cols-2">
-                {selectedSale.status === "lote_asignado" && (
+                {["lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded border border-leaf bg-emerald-50 px-3 py-2 text-sm font-semibold text-leaf disabled:opacity-60"
+                  disabled={saving}
+                  type="button"
+                  onClick={() => updateSaleStatus("send-lab")}
+                >
+                  <FlaskConical size={16} />
+                  Enviar a laboratorio
+                </button>
+                )}
+                {selectedSale.status === "aprobada_laboratorio" && (
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={saving}

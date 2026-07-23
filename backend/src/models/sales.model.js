@@ -244,6 +244,131 @@ export const findSaleById = async (id) => {
   };
 };
 
+export const haveCompleteSaleItemReviews = async (saleId) => {
+  const result = await pool.query(
+    `
+    SELECT COUNT(*)::int AS pending_count
+    FROM sale_items
+    WHERE sale_id = $1
+      AND (
+        sale_humidity_percent IS NULL OR TRIM(sale_humidity_percent) = '' OR
+        sale_lab_aroma IS NULL OR TRIM(sale_lab_aroma) = '' OR
+        sale_lab_flavor IS NULL OR TRIM(sale_lab_flavor) = '' OR
+        sale_lab_sweetness IS NULL OR TRIM(sale_lab_sweetness) = '' OR
+        sale_lab_body IS NULL OR TRIM(sale_lab_body) = '' OR
+        sale_lab_residual IS NULL OR TRIM(sale_lab_residual) = '' OR
+        sale_lab_clean_cup IS NULL OR TRIM(sale_lab_clean_cup) = '' OR
+        sale_lab_score IS NULL OR TRIM(sale_lab_score) = ''
+      )
+    `,
+    [saleId]
+  );
+
+  return result.rows[0]?.pending_count === 0;
+};
+
+export const markSalePendingLaboratory = async ({ saleId, notes }) => {
+  const result = await pool.query(
+    `
+    UPDATE sales
+    SET status = 'pendiente_laboratorio', notes = COALESCE($1, notes), updated_at = NOW()
+    WHERE id = $2
+      AND status IN ('lote_asignado', 'ensamble_definido')
+    RETURNING *
+    `,
+    [notes || null, saleId]
+  );
+
+  return result.rows[0];
+};
+
+export const updateSaleItemReviews = async ({ saleId, itemReviews, status, notes }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (sale.status !== "pendiente_laboratorio") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, sale };
+    }
+
+    const saleItemsResult = await client.query(
+      "SELECT id FROM sale_items WHERE sale_id = $1 ORDER BY id",
+      [saleId]
+    );
+    const validIds = new Set(saleItemsResult.rows.map((item) => item.id));
+
+    if (status === "aprobada_laboratorio") {
+      if (
+        saleItemsResult.rows.length === 0 ||
+        itemReviews.length !== saleItemsResult.rows.length ||
+        itemReviews.some((review) => !validIds.has(review.saleItemId))
+      ) {
+        throw new Error("Debe registrar analisis para cada producto de la venta");
+      }
+
+      for (const review of itemReviews) {
+        await client.query(
+          `
+          UPDATE sale_items
+          SET
+            sale_humidity_percent = $1,
+            sale_lab_aroma = $2,
+            sale_lab_flavor = $3,
+            sale_lab_sweetness = $4,
+            sale_lab_body = $5,
+            sale_lab_residual = $6,
+            sale_lab_clean_cup = $7,
+            sale_lab_score = $8,
+            sale_lab_notes = $9
+          WHERE id = $10 AND sale_id = $11
+          `,
+          [
+            review.humidityPercent,
+            review.aroma,
+            review.flavor,
+            review.sweetness,
+            review.body,
+            review.residual,
+            review.cleanCup,
+            review.score,
+            review.notes,
+            review.saleItemId,
+            saleId,
+          ]
+        );
+      }
+    }
+
+    const updateResult = await client.query(
+      `
+      UPDATE sales
+      SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+      `,
+      [status, notes || null, saleId]
+    );
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
   const client = await pool.connect();
 
@@ -448,7 +573,7 @@ export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) =>
       return null;
     }
 
-    if (["alistada", "despachada", "anulada"].includes(sale.status)) {
+    if (["pendiente_laboratorio", "aprobada_laboratorio", "alistada", "despachada", "anulada"].includes(sale.status)) {
       await client.query("ROLLBACK");
       return { invalidStatus: true, sale };
     }
@@ -866,6 +991,18 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
     }
 
     if (status === "alistada") {
+      if (sale.status !== "aprobada_laboratorio") {
+        await client.query("ROLLBACK");
+        return { missingLabReview: true, sale };
+      }
+
+      const hasLabReview = await haveCompleteSaleItemReviews(saleId);
+
+      if (!hasLabReview) {
+        await client.query("ROLLBACK");
+        return { missingLabReview: true, sale };
+      }
+
       const pendingAssignments = await client.query(
         `
         SELECT
@@ -987,7 +1124,7 @@ export const cancelSale = async ({ saleId, notes, cancelledBy }) => {
       return { alreadyCancelled: true, sale };
     }
 
-    if (!["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "proceso_solicitado", "en_proceso", "listo_para_ensamble", "ensamble_definido", "alistada"].includes(sale.status)) {
+    if (!["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "proceso_solicitado", "en_proceso", "listo_para_ensamble", "ensamble_definido", "pendiente_laboratorio", "aprobada_laboratorio", "alistada"].includes(sale.status)) {
       await client.query("ROLLBACK");
       return { invalidStatus: true, sale };
     }

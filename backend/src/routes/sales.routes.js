@@ -14,6 +14,8 @@ import {
   putSaleOrderAssignee,
   putSaleItemShortage,
   putSaleLotAssignments,
+  putSalePendingLaboratory,
+  putSaleLabReview,
 } from "../controllers/sales.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
@@ -32,6 +34,18 @@ router.post(
   requireAuth,
   requireRoles("admin", "accounting"),
   postDirectSale
+);
+router.put(
+  "/:id/send-lab",
+  requireAuth,
+  requireRoles("admin", "warehouse", "accounting"),
+  putSalePendingLaboratory
+);
+router.put(
+  "/:id/lab-review",
+  requireAuth,
+  requireRoles("admin", "laboratory"),
+  putSaleLabReview
 );
 router.put(
   "/:id/prepare",

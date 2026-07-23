@@ -1,4 +1,4 @@
-import { Eye, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
+import { Eye, FlaskConical, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -50,6 +50,8 @@ export const activeWarehouseStatuses = [
   "en_proceso",
   "listo_para_ensamble",
   "ensamble_definido",
+  "pendiente_laboratorio",
+  "aprobada_laboratorio",
   "alistada",
 ];
 
@@ -597,7 +599,12 @@ const WarehousePage = () => {
   const updateSaleStatus = async (action) => {
     if (!selectedSale) return;
 
-    const label = action === "prepare" ? "marcar esta venta como alistada" : "marcar esta venta como despachada";
+    const label =
+      action === "send-lab"
+        ? "enviar esta venta a laboratorio"
+        : action === "prepare"
+          ? "marcar esta venta como alistada"
+          : "marcar esta venta como despachada";
     const confirmed = window.confirm(`Confirmas ${label}?`);
 
     if (!confirmed) return;
@@ -612,7 +619,13 @@ const WarehousePage = () => {
         body: JSON.stringify({ notes }),
       });
       await loadData();
-      setMessage(action === "prepare" ? "Venta marcada como alistada." : "Venta marcada como despachada.");
+      setMessage(
+        action === "send-lab"
+          ? "Venta enviada a laboratorio."
+          : action === "prepare"
+            ? "Venta marcada como alistada."
+            : "Venta marcada como despachada."
+      );
     } catch (requestError) {
       setError(requestError.message);
     } finally {

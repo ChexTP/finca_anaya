@@ -9,6 +9,20 @@ export const formatDocumentDate = (value) => {
   return new Date(value).toLocaleDateString("es-CO");
 };
 
+const hasLabReview = (item) => {
+  const review = item.labReview || {};
+  return [
+    review.humidity,
+    review.aroma,
+    review.flavor,
+    review.sweetness,
+    review.body,
+    review.residual,
+    review.cleanCup,
+    review.score,
+  ].some((value) => value !== null && value !== undefined && value !== "");
+};
+
 const escapeHtml = (value) => {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -31,6 +45,29 @@ export const buildCommercialDocumentHtml = (document) => {
           <td>${escapeHtml(item.processType || "-")}</td>
           <td>${formatDocumentMoney(currency, item.unitPrice)}</td>
           <td>${escapeHtml(item.quantityKg || "-")}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const labRows = document.items
+    ?.filter(hasLabReview)
+    .map((item) => {
+      const review = item.labReview || {};
+      const description = item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-";
+
+      return `
+        <tr>
+          <td>${escapeHtml(description)}</td>
+          <td>${escapeHtml(review.humidity || "-")}</td>
+          <td>${escapeHtml(review.aroma || "-")}</td>
+          <td>${escapeHtml(review.flavor || "-")}</td>
+          <td>${escapeHtml(review.sweetness || "-")}</td>
+          <td>${escapeHtml(review.body || "-")}</td>
+          <td>${escapeHtml(review.residual || "-")}</td>
+          <td>${escapeHtml(review.cleanCup || "-")}</td>
+          <td>${escapeHtml(review.score || "-")}</td>
+          <td>${escapeHtml(review.notes || "-")}</td>
         </tr>
       `;
     })
@@ -125,6 +162,31 @@ export const buildCommercialDocumentHtml = (document) => {
           <p><span>Envio</span><span>${formatDocumentMoney(currency, document.totals?.shippingCost)}</span></p>
           <p class="total"><span>Total</span><span>${formatDocumentMoney(currency, document.totals?.total)}</span></p>
         </div>
+
+        ${
+          labRows
+            ? `
+              <h3>Analisis de laboratorio</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Humedad</th>
+                    <th>Aroma</th>
+                    <th>Sabor</th>
+                    <th>Dulzor</th>
+                    <th>Cuerpo</th>
+                    <th>Residual</th>
+                    <th>Taza limpia</th>
+                    <th>Score</th>
+                    <th>Notas</th>
+                  </tr>
+                </thead>
+                <tbody>${labRows}</tbody>
+              </table>
+            `
+            : ""
+        }
 
         ${document.notes ? `<h3>Notas</h3><p>${escapeHtml(document.notes)}</p>` : ""}
       </body>

@@ -40,6 +40,12 @@ const initialSampleReview = {
   notes: "",
 };
 
+const initialSaleReview = {
+  decision: "aprobada_laboratorio",
+  itemReviews: [],
+  notes: "",
+};
+
 const cuppingFields = [
   ["aroma", "Aroma"],
   ["flavor", "Sabor"],
@@ -79,6 +85,21 @@ const buildBlankSampleItemReviews = (sample) => {
   }));
 };
 
+const buildBlankSaleItemReviews = (sale) => {
+  return (sale.items || []).map((item) => ({
+    saleItemId: item.id,
+    humidityPercent: item.sale_humidity_percent || "",
+    aroma: item.sale_lab_aroma || "",
+    flavor: item.sale_lab_flavor || "",
+    sweetness: item.sale_lab_sweetness || "",
+    body: item.sale_lab_body || "",
+    residual: item.sale_lab_residual || "",
+    cleanCup: item.sale_lab_clean_cup || "",
+    score: item.sale_lab_score || "",
+    notes: item.sale_lab_notes || "",
+  }));
+};
+
 const formatDate = (value) => {
   if (!value) return "Sin fecha estimada";
   const [datePart] = String(value).split("T");
@@ -94,16 +115,19 @@ const LaboratoryPage = () => {
   const [processes, setProcesses] = useState([]);
   const [samples, setSamples] = useState([]);
   const [sales, setSales] = useState([]);
+  const [saleLabRequests, setSaleLabRequests] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
   const [selectedProcess, setSelectedProcess] = useState(null);
   const [selectedSample, setSelectedSample] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [selectedSaleReview, setSelectedSaleReview] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
   const [review, setReview] = useState(initialReview);
   const [finishForm, setFinishForm] = useState(initialFinish);
   const [sampleReview, setSampleReview] = useState(initialSampleReview);
+  const [saleReview, setSaleReview] = useState(initialSaleReview);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -122,6 +146,7 @@ const LaboratoryPage = () => {
     setProcesses(processData.filter((process) => process.status === "pendiente_laboratorio"));
     setSamples(sampleData);
     setSales(saleData.filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
+    setSaleLabRequests(saleData.filter((sale) => sale.status === "pendiente_laboratorio"));
     setAvailableLots(availableLotData);
     setCatalogs(catalogData);
 
@@ -138,6 +163,11 @@ const LaboratoryPage = () => {
     if (selectedSample) {
       const updatedSelectedSample = sampleData.find((sample) => sample.id === selectedSample.id);
       setSelectedSample(updatedSelectedSample || null);
+    }
+
+    if (selectedSaleReview) {
+      const updatedSaleReview = saleData.find((sale) => sale.id === selectedSaleReview.id);
+      setSelectedSaleReview(updatedSaleReview || null);
     }
   };
 
@@ -195,6 +225,35 @@ const LaboratoryPage = () => {
 
   const updateSampleItemReview = (index, field, value) => {
     setSampleReview((currentReview) => ({
+      ...currentReview,
+      itemReviews: currentReview.itemReviews.map((itemReview, itemIndex) =>
+        itemIndex === index ? { ...itemReview, [field]: value } : itemReview
+      ),
+    }));
+  };
+
+  const selectSaleReview = async (saleId) => {
+    setActivePanel("sales");
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const sale = await apiRequest(`/sales/${saleId}`);
+      setSelectedSaleReview(sale);
+      setSaleReview({
+        ...initialSaleReview,
+        itemReviews: buildBlankSaleItemReviews(sale),
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateSaleItemReview = (index, field, value) => {
+    setSaleReview((currentReview) => ({
       ...currentReview,
       itemReviews: currentReview.itemReviews.map((itemReview, itemIndex) =>
         itemIndex === index ? { ...itemReview, [field]: value } : itemReview
@@ -446,6 +505,71 @@ const LaboratoryPage = () => {
     }
   };
 
+  const submitSaleReview = async (event) => {
+    event.preventDefault();
+
+    if (!selectedSaleReview) {
+      setError("Seleccione una venta para revisar.");
+      return;
+    }
+
+    if (saleReview.decision === "ensamble_definido" && !saleReview.notes.trim()) {
+      setError("Para rechazar una venta debe escribir una nota de laboratorio.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      saleReview.decision === "aprobada_laboratorio"
+        ? `Confirma aprobar el analisis de ${selectedSaleReview.code}?`
+        : `Confirma rechazar ${selectedSaleReview.code} y devolverla a ensamble?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const requestBody = {
+        status: saleReview.decision,
+        notes: saleReview.notes || undefined,
+      };
+
+      if (saleReview.decision === "aprobada_laboratorio") {
+        requestBody.itemReviews = saleReview.itemReviews.map((itemReview) => ({
+          saleItemId: itemReview.saleItemId,
+          humidityPercent: itemReview.humidityPercent,
+          aroma: itemReview.aroma,
+          flavor: itemReview.flavor,
+          sweetness: itemReview.sweetness,
+          body: itemReview.body,
+          residual: itemReview.residual,
+          cleanCup: itemReview.cleanCup,
+          score: itemReview.score,
+          notes: itemReview.notes || null,
+        }));
+      }
+
+      await apiRequest(`/sales/${selectedSaleReview.id}/lab-review`, {
+        method: "PUT",
+        body: JSON.stringify(requestBody),
+      });
+      setSaleReview(initialSaleReview);
+      setSelectedSaleReview(null);
+      await loadData();
+      setMessage(
+        saleReview.decision === "aprobada_laboratorio"
+          ? "Analisis de venta aprobado. Bodega ya puede alistar."
+          : "Venta rechazada y devuelta a ensamble."
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const finishProcess = async (event) => {
     event.preventDefault();
 
@@ -540,6 +664,18 @@ const LaboratoryPage = () => {
               Muestras
             </span>
             <span className="text-xs">{samples.length}</span>
+          </button>
+          <button
+            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
+              activePanel === "sales" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+            }`}
+            onClick={() => setActivePanel("sales")}
+          >
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <FlaskConical size={16} />
+              Ventas
+            </span>
+            <span className="text-xs">{saleLabRequests.length}</span>
           </button>
           <button
             className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
@@ -1012,6 +1148,144 @@ const LaboratoryPage = () => {
                   <button
                     className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     disabled={saving || !selectedSample}
+                  >
+                    <Save size={16} />
+                    Guardar analisis
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        ) : activePanel === "sales" ? (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="rounded border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h2 className="text-sm font-semibold text-slate-800">Ventas pendientes de analisis</h2>
+              </div>
+              {saleLabRequests.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title="Sin ventas pendientes" message="Las ventas enviadas por bodega apareceran aqui." />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {saleLabRequests.map((sale) => (
+                    <button
+                      key={sale.id}
+                      className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
+                        selectedSaleReview?.id === sale.id ? "bg-emerald-50" : "bg-white"
+                      }`}
+                      onClick={() => selectSaleReview(sale.id)}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-ink">{sale.code}</p>
+                          <p className="text-sm text-slate-500">{sale.client_name}</p>
+                        </div>
+                        <StatusBadge tone="warning">Pendiente analisis</StatusBadge>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500">Entrega estimada: {formatDate(sale.estimated_delivery_date)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <form className="rounded border border-slate-200 bg-white p-4" onSubmit={submitSaleReview}>
+              <div className="flex items-center gap-2">
+                <FlaskConical size={17} className="text-leaf" />
+                <h2 className="text-sm font-semibold text-slate-800">Analisis de venta</h2>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedSaleReview ? `Venta seleccionada: ${selectedSaleReview.code}` : "Seleccione una venta pendiente."}
+              </p>
+
+              {!selectedSaleReview ? (
+                <div className="mt-4">
+                  <EmptyState title="Sin venta seleccionada" message="Seleccione una venta de la lista." />
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="rounded bg-slate-50 p-3 text-sm text-slate-600">
+                    <p className="font-medium text-ink">Productos vendidos</p>
+                    <div className="mt-2 space-y-1">
+                      {selectedSaleReview.items?.map((item) => (
+                        <p key={item.id}>
+                          {formatRequestedCoffee(item)} - {item.quantity_kg} kg
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={saleReview.decision}
+                    onChange={(event) => setSaleReview({ ...saleReview, decision: event.target.value })}
+                  >
+                    <option value="aprobada_laboratorio">Aprobar venta</option>
+                    <option value="ensamble_definido">Rechazar y devolver a ensamble</option>
+                  </select>
+
+                  {saleReview.decision === "aprobada_laboratorio" && (
+                    <div className="space-y-3">
+                      {saleReview.itemReviews.map((itemReview, index) => {
+                        const item = selectedSaleReview.items?.find((saleItem) => saleItem.id === itemReview.saleItemId);
+
+                        return (
+                          <div key={itemReview.saleItemId} className="rounded border border-slate-200 p-3">
+                            <p className="mb-3 text-sm font-semibold text-ink">
+                              {formatRequestedCoffee(item)} - {item?.quantity_kg} kg
+                            </p>
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                              <input
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder="Humedad"
+                                type="text"
+                                value={itemReview.humidityPercent}
+                                onChange={(event) => updateSaleItemReview(index, "humidityPercent", event.target.value)}
+                                required
+                              />
+                              {cuppingFields.map(([field, label]) => (
+                                <input
+                                  key={field}
+                                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                  placeholder={label}
+                                  type="text"
+                                  value={itemReview[field]}
+                                  onChange={(event) => updateSaleItemReview(index, field, event.target.value)}
+                                  required
+                                />
+                              ))}
+                              <input
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder="Score"
+                                type="text"
+                                value={itemReview.score}
+                                onChange={(event) => updateSaleItemReview(index, "score", event.target.value)}
+                                required
+                              />
+                            </div>
+                            <textarea
+                              className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Notas de este producto"
+                              value={itemReview.notes}
+                              onChange={(event) => updateSaleItemReview(index, "notes", event.target.value)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <textarea
+                    className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder={saleReview.decision === "ensamble_definido" ? "Motivo del rechazo para ajustar el ensamble" : "Notas de laboratorio"}
+                    value={saleReview.notes}
+                    onChange={(event) => setSaleReview({ ...saleReview, notes: event.target.value })}
+                    required={saleReview.decision === "ensamble_definido"}
+                  />
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={saving || !selectedSaleReview}
                   >
                     <Save size={16} />
                     Guardar analisis

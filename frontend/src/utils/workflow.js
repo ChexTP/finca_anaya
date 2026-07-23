@@ -6,6 +6,8 @@ export const saleStatusLabels = {
   en_proceso: "En proceso",
   listo_para_ensamble: "Listo para ensamble",
   ensamble_definido: "Ensamble definido",
+  pendiente_laboratorio: "Pendiente laboratorio",
+  aprobada_laboratorio: "Aprobada laboratorio",
   alistada: "Alistada",
   despachada: "Despachada",
   anulada: "Anulada",
@@ -66,7 +68,9 @@ export const getSaleNextAction = (sale) => {
     proceso_solicitado: "Administracion debe confirmar el inicio del proceso",
     en_proceso: "Esperando finalizacion para enviar a examen de laboratorio",
     listo_para_ensamble: "Bodega debe revisar la orden de mezcla o alistar",
-    ensamble_definido: "Bodega debe asignar lotes, ensamblar y alistar",
+    ensamble_definido: "Bodega debe enviar a laboratorio despues del ensamble",
+    pendiente_laboratorio: "Laboratorio debe aprobar las caracteristicas de cada producto",
+    aprobada_laboratorio: "Bodega puede alistar y descontar inventario",
     alistada: "Bodega puede despachar",
     despachada: "Contabilidad debe revisar pago si queda saldo",
     anulada: "Sin accion operativa",
@@ -81,6 +85,8 @@ export const getSaleTaskKey = (sale) => {
   if (sale.status === "lote_asignado") return "prepare";
   if (["proceso_solicitado", "en_proceso"].includes(sale.status)) return "process";
   if (["listo_para_ensamble", "ensamble_definido"].includes(sale.status)) return "blend";
+  if (sale.status === "pendiente_laboratorio") return "lab";
+  if (sale.status === "aprobada_laboratorio") return "prepare";
   if (sale.status === "alistada") return "dispatch";
   return "other";
 };
@@ -89,7 +95,8 @@ export const getSaleStatusTone = (sale) => {
   if (sale?.status === "despachada") return "success";
   if (sale?.status === "anulada") return "danger";
   if (sale?.status === "alistada") return "success";
-  if (["proceso_solicitado", "en_proceso", "listo_para_ensamble"].includes(sale?.status)) return "warning";
+  if (["proceso_solicitado", "en_proceso", "listo_para_ensamble", "pendiente_laboratorio"].includes(sale?.status)) return "warning";
+  if (sale?.status === "aprobada_laboratorio") return "success";
   return "neutral";
 };
 

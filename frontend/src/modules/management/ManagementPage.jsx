@@ -40,6 +40,8 @@ const saleStatusLabels = {
   en_proceso: "En proceso",
   listo_para_ensamble: "Listo para ensamble",
   ensamble_definido: "Ensamble definido",
+  pendiente_laboratorio: "Pendiente laboratorio",
+  aprobada_laboratorio: "Aprobada laboratorio",
   alistada: "Alistada",
 };
 

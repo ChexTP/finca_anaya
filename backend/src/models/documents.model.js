@@ -100,6 +100,17 @@ export const buildSaleDocument = async ({ id, includePayments = false }) => {
       quantityKg: item.quantity_kg,
       unitPrice: item.unit_price,
       lineTotal: item.line_total,
+      labReview: {
+        humidity: item.sale_humidity_percent,
+        aroma: item.sale_lab_aroma,
+        flavor: item.sale_lab_flavor,
+        sweetness: item.sale_lab_sweetness,
+        body: item.sale_lab_body,
+        residual: item.sale_lab_residual,
+        cleanCup: item.sale_lab_clean_cup,
+        score: item.sale_lab_score,
+        notes: item.sale_lab_notes,
+      },
     })),
     deductedLots: sale.deductedLots.map((lot) => ({
       lotCode: lot.lot_code,

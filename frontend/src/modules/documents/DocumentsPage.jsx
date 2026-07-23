@@ -16,6 +16,20 @@ const formatDate = (value) => {
   return new Date(value).toLocaleDateString("es-CO");
 };
 
+const hasLabReview = (item) => {
+  const review = item.labReview || {};
+  return [
+    review.humidity,
+    review.aroma,
+    review.flavor,
+    review.sweetness,
+    review.body,
+    review.residual,
+    review.cleanCup,
+    review.score,
+  ].some((value) => value !== null && value !== undefined && value !== "");
+};
+
 const buildDocumentHtml = (document) => {
   const currency = document.totals?.currency || "COP";
   const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
@@ -65,7 +79,28 @@ const buildDocumentHtml = (document) => {
     `
     : document.totals?.amountPaid !== undefined
       ? "<h3>Pagos</h3><p>No hay abonos registrados para esta venta.</p>"
-      : "";
+    : "";
+
+  const labReviewRows = document.items
+    .filter(hasLabReview)
+    .map((item) => {
+      const review = item.labReview || {};
+      return `
+        <tr>
+          <td>${item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-"}</td>
+          <td>${review.humidity || "-"}</td>
+          <td>${review.aroma || "-"}</td>
+          <td>${review.flavor || "-"}</td>
+          <td>${review.sweetness || "-"}</td>
+          <td>${review.body || "-"}</td>
+          <td>${review.residual || "-"}</td>
+          <td>${review.cleanCup || "-"}</td>
+          <td>${review.score || "-"}</td>
+          <td>${review.notes || "-"}</td>
+        </tr>
+      `;
+    })
+    .join("");
 
   return `
     <!doctype html>
@@ -164,6 +199,30 @@ const buildDocumentHtml = (document) => {
         </div>
 
         ${payments}
+        ${
+          labReviewRows
+            ? `
+              <h3>Analisis de laboratorio</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Humedad</th>
+                    <th>Aroma</th>
+                    <th>Sabor</th>
+                    <th>Dulzor</th>
+                    <th>Cuerpo</th>
+                    <th>Residual</th>
+                    <th>Taza limpia</th>
+                    <th>Score</th>
+                    <th>Notas</th>
+                  </tr>
+                </thead>
+                <tbody>${labReviewRows}</tbody>
+              </table>
+            `
+            : ""
+        }
         ${document.notes ? `<h3>Notas</h3><p>${document.notes}</p>` : ""}
       </body>
     </html>
@@ -378,6 +437,14 @@ const DocumentsPage = () => {
                     <p className="text-slate-500">
                       {[item.productForm, item.processType, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantityKg} kg
                     </p>
+                    {hasLabReview(item) && (
+                      <div className="mt-2 rounded bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                        <p className="font-semibold">Analisis laboratorio</p>
+                        <p>
+                          Humedad {item.labReview.humidity || "-"} · Aroma {item.labReview.aroma || "-"} · Sabor {item.labReview.flavor || "-"} · Score {item.labReview.score || "-"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

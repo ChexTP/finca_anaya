@@ -13,6 +13,8 @@ import {
   updateSaleOrderAssignee,
   updateSaleItemShortage,
   replaceSaleLotAssignments,
+  markSalePendingLaboratory,
+  updateSaleItemReviews,
 } from "../models/sales.model.js";
 import { logControllerError } from "../utils/logger.js";
 import { findQuoteById } from "../models/quotes.model.js";
@@ -33,6 +35,23 @@ const toNumber = (value) => {
 
   return Number(value);
 };
+
+const toText = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text || null;
+};
+
+const requiredSaleLabFields = [
+  "humidityPercent",
+  "aroma",
+  "flavor",
+  "sweetness",
+  "body",
+  "residual",
+  "cleanCup",
+  "score",
+];
 
 const sanitizeSaleForSeller = (sale) => {
   if (!sale) {
@@ -708,6 +727,133 @@ export const postSalePayment = async (req, res) => {
   }
 };
 
+export const putSalePendingLaboratory = async (req, res) => {
+  try {
+    const sale = await findSaleById(req.params.id);
+
+    if (!sale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (!["lote_asignado", "ensamble_definido"].includes(sale.status)) {
+      return res.status(409).json({
+        message: "Solo se pueden enviar a laboratorio ventas con lotes asignados o ensamble definido",
+        data: sale,
+      });
+    }
+
+    const hasAssignments = sale.deductedLots?.length > 0 || sale.blendItems?.length > 0;
+
+    if (!hasAssignments) {
+      return res.status(409).json({
+        message: "Antes de enviar a laboratorio se debe asignar el cafe o definir el ensamble",
+        data: sale,
+      });
+    }
+
+    const updatedSale = await markSalePendingLaboratory({
+      saleId: req.params.id,
+      notes: req.body.notes,
+    });
+
+    if (!updatedSale) {
+      return res.status(409).json({
+        message: "No se pudo enviar la venta a laboratorio en su estado actual",
+        data: sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Venta enviada a laboratorio para analisis",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al enviar venta a laboratorio",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleLabReview = async (req, res) => {
+  try {
+    const { status, itemReviews = [], notes } = req.body;
+
+    if (!["aprobada_laboratorio", "ensamble_definido"].includes(status)) {
+      return res.status(400).json({
+        message: "El estado de laboratorio de la venta no es valido",
+      });
+    }
+
+    if (status === "ensamble_definido" && !String(notes || "").trim()) {
+      return res.status(400).json({
+        message: "Para rechazar una venta debe escribir una nota de laboratorio",
+      });
+    }
+
+    const cleanItemReviews = itemReviews.map((review) => ({
+      saleItemId: Number(review.saleItemId),
+      humidityPercent: toText(review.humidityPercent),
+      aroma: toText(review.aroma),
+      flavor: toText(review.flavor),
+      sweetness: toText(review.sweetness),
+      body: toText(review.body),
+      residual: toText(review.residual),
+      cleanCup: toText(review.cleanCup),
+      score: toText(review.score),
+      notes: toText(review.notes),
+    }));
+
+    if (status === "aprobada_laboratorio") {
+      const missingLabField = cleanItemReviews.length === 0 || cleanItemReviews.some((review) => (
+        !Number.isInteger(review.saleItemId) ||
+        requiredSaleLabFields.some((field) => !review[field])
+      ));
+
+      if (missingLabField) {
+        return res.status(400).json({
+          message: "Los datos completos de laboratorio de cada producto vendido son obligatorios para aprobar",
+        });
+      }
+    }
+
+    const result = await updateSaleItemReviews({
+      saleId: Number(req.params.id),
+      itemReviews: cleanItemReviews,
+      status,
+      notes,
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden revisar ventas pendientes de laboratorio",
+        data: result.sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message:
+        status === "aprobada_laboratorio"
+          ? "Analisis de venta aprobado. Bodega ya puede alistar."
+          : "Venta devuelta a ensamble para ajustes.",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al guardar analisis de venta",
+      error: error.message,
+    });
+  }
+};
+
 export const putSalePrepared = async (req, res) => {
   try {
     const sale = await findSaleById(req.params.id);
@@ -716,9 +862,9 @@ export const putSalePrepared = async (req, res) => {
       return res.status(404).json({ message: "Venta no encontrada" });
     }
 
-    if (!["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(sale.status)) {
+    if (sale.status !== "aprobada_laboratorio") {
       return res.status(409).json({
-        message: "Solo se pueden alistar ventas pendientes de bodega o con lotes asignados",
+        message: "La venta debe estar aprobada por laboratorio antes de alistarse",
         data: sale,
       });
     }
@@ -733,6 +879,13 @@ export const putSalePrepared = async (req, res) => {
     if (updatedSale.missingAssignments) {
       return res.status(409).json({
         message: "Antes de alistar se debe asignar al menos un lote a la venta",
+        data: updatedSale.sale,
+      });
+    }
+
+    if (updatedSale.missingLabReview) {
+      return res.status(409).json({
+        message: "Antes de alistar se debe aprobar el analisis de laboratorio de todos los productos",
         data: updatedSale.sale,
       });
     }

@@ -439,6 +439,8 @@ CREATE TABLE IF NOT EXISTS sales (
       'en_proceso',
       'listo_para_ensamble',
       'ensamble_definido',
+      'pendiente_laboratorio',
+      'aprobada_laboratorio',
       'alistada',
       'despachada',
       'anulada'
@@ -469,6 +471,15 @@ CREATE TABLE IF NOT EXISTS sale_items (
   variety TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
   operational_weight_kg NUMERIC(12, 3),
+  sale_humidity_percent TEXT,
+  sale_lab_aroma TEXT,
+  sale_lab_flavor TEXT,
+  sale_lab_sweetness TEXT,
+  sale_lab_body TEXT,
+  sale_lab_residual TEXT,
+  sale_lab_clean_cup TEXT,
+  sale_lab_score TEXT,
+  sale_lab_notes TEXT,
   unit_price NUMERIC(14, 2) NOT NULL,
   line_total NUMERIC(14, 2) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -480,6 +491,15 @@ ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(20);
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(20);
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS variety TEXT;
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS operational_weight_kg NUMERIC(12, 3);
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_humidity_percent TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_aroma TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_flavor TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_sweetness TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_body TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_residual TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_clean_cup TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_score TEXT;
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_lab_notes TEXT;
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS shortage_marked BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS shortage_notes TEXT;
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS shortage_marked_by INTEGER REFERENCES users(id);
@@ -520,6 +540,8 @@ BEGIN
       'en_proceso',
       'listo_para_ensamble',
       'ensamble_definido',
+      'pendiente_laboratorio',
+      'aprobada_laboratorio',
       'alistada',
       'despachada',
       'anulada'

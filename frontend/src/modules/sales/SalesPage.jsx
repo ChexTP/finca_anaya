@@ -1,4 +1,4 @@
-import { Eye, FileDown, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
+import { Eye, FileDown, FlaskConical, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -19,6 +19,30 @@ const formatDate = (value) => {
 
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
+};
+
+const formatLabValue = (value) => {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+};
+
+const hasSaleItemLabReview = (item) => {
+  return [
+    item.sale_humidity_percent,
+    item.sale_lab_aroma,
+    item.sale_lab_flavor,
+    item.sale_lab_sweetness,
+    item.sale_lab_body,
+    item.sale_lab_residual,
+    item.sale_lab_clean_cup,
+    item.sale_lab_score,
+  ].every((value) => value !== null && value !== undefined && String(value).trim() !== "");
+};
+
+const buildSaleItemLabSummary = (item) => {
+  if (!hasSaleItemLabReview(item)) return null;
+
+  return `Humedad ${formatLabValue(item.sale_humidity_percent)} · Aroma ${formatLabValue(item.sale_lab_aroma)} · Sabor ${formatLabValue(item.sale_lab_flavor)} · Dulzor ${formatLabValue(item.sale_lab_sweetness)} · Cuerpo ${formatLabValue(item.sale_lab_body)} · Residual ${formatLabValue(item.sale_lab_residual)} · Taza limpia ${formatLabValue(item.sale_lab_clean_cup)} · Score ${formatLabValue(item.sale_lab_score)}`;
 };
 
 const buildWarehouseOrderHtml = (sale) => {
@@ -207,6 +231,8 @@ const operationalFilters = [
   { key: "pending", label: "Pendientes" },
   { key: "process", label: "En proceso" },
   { key: "blend", label: "Por ensamble" },
+  { key: "lab", label: "Laboratorio" },
+  { key: "prepare", label: "Aprobadas lab" },
   { key: "blend_ready", label: "Ensamble listo" },
   { key: "alistada", label: "Alistadas" },
   { key: "despachada", label: "Despachadas" },
@@ -245,6 +271,8 @@ const getOperationalFilterKey = (status) => {
   if (["proceso_solicitado", "en_proceso"].includes(status)) return "process";
   if (status === "listo_para_ensamble") return "blend";
   if (status === "ensamble_definido") return "blend_ready";
+  if (status === "pendiente_laboratorio") return "lab";
+  if (status === "aprobada_laboratorio") return "prepare";
   return status;
 };
 
@@ -424,7 +452,12 @@ const SalesPage = () => {
   }, []);
 
   const updateStatus = async (sale, action) => {
-    const label = action === "prepare" ? "marcar esta venta como alistada" : "marcar esta venta como despachada";
+    const label =
+      action === "send-lab"
+        ? "enviar esta venta a laboratorio"
+        : action === "prepare"
+          ? "marcar esta venta como alistada"
+          : "marcar esta venta como despachada";
     const confirmed = window.confirm(`Confirma ${label}?`);
 
     if (!confirmed) {
@@ -442,7 +475,13 @@ const SalesPage = () => {
       });
       await loadSales();
       await loadSaleDetail(sale.id, false);
-      setMessage(action === "prepare" ? "Venta marcada como alistada." : "Venta marcada como despachada.");
+      setMessage(
+        action === "send-lab"
+          ? "Venta enviada a laboratorio."
+          : action === "prepare"
+            ? "Venta marcada como alistada."
+            : "Venta marcada como despachada."
+      );
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -705,6 +744,13 @@ const SalesPage = () => {
                   <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
                     <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name}</p>
                     <p className="text-slate-500">{item.quantity_kg} kg</p>
+                    {buildSaleItemLabSummary(item) && (
+                      <div className="mt-2 rounded bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                        <p className="font-semibold">Analisis laboratorio</p>
+                        <p>{buildSaleItemLabSummary(item)}</p>
+                        {item.sale_lab_notes && <p className="mt-1 text-emerald-700">Notas: {item.sale_lab_notes}</p>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -801,12 +847,25 @@ const SalesPage = () => {
                   />
                   <div className="grid gap-2 sm:grid-cols-2">
                     <button
+                      className="inline-flex items-center justify-center gap-2 rounded border border-leaf bg-emerald-50 px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-100 disabled:opacity-60"
+                      disabled={
+                        saving ||
+                        !["lote_asignado", "ensamble_definido"].includes(selectedSale.status)
+                      }
+                      onClick={() => updateStatus(selectedSale, "send-lab")}
+                      type="button"
+                    >
+                      <FlaskConical size={16} />
+                      Enviar a laboratorio
+                    </button>
+                    <button
                       className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                       disabled={
                         saving ||
-                        !["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status)
+                        selectedSale.status !== "aprobada_laboratorio"
                       }
                       onClick={() => updateStatus(selectedSale, "prepare")}
+                      type="button"
                     >
                       <PackageCheck size={16} />
                       Alistada
@@ -815,6 +874,7 @@ const SalesPage = () => {
                       className="inline-flex items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                       disabled={saving || selectedSale.status !== "alistada"}
                       onClick={() => updateStatus(selectedSale, "dispatch")}
+                      type="button"
                     >
                       <Truck size={16} />
                       Despachada

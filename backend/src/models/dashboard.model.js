@@ -334,7 +334,7 @@ const getSalesPendingBlend = async (role) => {
     FROM sales
     INNER JOIN clients ON clients.id = sales.client_id
     INNER JOIN sale_items ON sale_items.sale_id = sales.id
-    WHERE sales.status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'listo_para_ensamble', 'ensamble_definido')
+    WHERE sales.status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'listo_para_ensamble', 'ensamble_definido', 'pendiente_laboratorio', 'aprobada_laboratorio')
       AND NOT EXISTS (
         SELECT 1
         FROM sale_blend_items
@@ -395,7 +395,7 @@ const getSalesToPrepare = async (role) => {
     `
     SELECT id, code, status, warehouse_priority, payment_status, balance_due, estimated_delivery_date, created_at
     FROM sales
-    WHERE status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'proceso_solicitado', 'en_proceso', 'listo_para_ensamble', 'ensamble_definido')
+    WHERE status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'proceso_solicitado', 'en_proceso', 'listo_para_ensamble', 'ensamble_definido', 'pendiente_laboratorio', 'aprobada_laboratorio')
     ORDER BY
       estimated_delivery_date ASC NULLS LAST,
       CASE warehouse_priority
