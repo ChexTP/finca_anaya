@@ -279,7 +279,6 @@ export const putRejectedLotWithdrawal = async (req, res) => {
 
 const requiredCuppingFields = [
   "aroma",
-  "fragrance",
   "flavor",
   "sweetness",
   "body",
@@ -292,7 +291,6 @@ export const putLabReview = async (req, res) => {
     const {
       decision,
       aroma,
-      fragrance,
       flavor,
       sweetness,
       body,
@@ -382,7 +380,7 @@ export const putLabReview = async (req, res) => {
       humidityPercent: humidity,
       performanceFactor: performance,
       aroma,
-      fragrance,
+      fragrance: null,
       flavor,
       acidity: null,
       sweetness,

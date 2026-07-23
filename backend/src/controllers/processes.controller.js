@@ -25,7 +25,6 @@ const toNumber = (value) => {
 
 const requiredCuppingFields = [
   "aroma",
-  "fragrance",
   "flavor",
   "sweetness",
   "body",
@@ -246,7 +245,6 @@ export const putFinishProcess = async (req, res) => {
     const {
       coffeeProfileId,
       aroma,
-      fragrance,
       flavor,
       sweetness,
       body,
@@ -285,7 +283,7 @@ export const putFinishProcess = async (req, res) => {
         code,
         coffeeProfileId,
         aroma,
-        fragrance,
+        fragrance: null,
         flavor,
         acidity: null,
         sweetness,

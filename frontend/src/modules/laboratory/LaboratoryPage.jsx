@@ -9,7 +9,6 @@ import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, processS
 const initialReview = {
   decision: "aprobado",
   aroma: "",
-  fragrance: "",
   flavor: "",
   sweetness: "",
   body: "",
@@ -25,7 +24,6 @@ const initialReview = {
 const initialFinish = {
   coffeeProfileId: "",
   aroma: "",
-  fragrance: "",
   flavor: "",
   sweetness: "",
   body: "",
@@ -44,7 +42,6 @@ const initialSampleReview = {
 
 const cuppingFields = [
   ["aroma", "Aroma"],
-  ["fragrance", "Fragancia"],
   ["flavor", "Sabor"],
   ["sweetness", "Dulzor"],
   ["body", "Cuerpo"],
@@ -72,7 +69,6 @@ const buildBlankSampleItemReviews = (sample) => {
     sampleItemId: item.id,
     humidityPercent: item.sample_humidity_percent || "",
     aroma: item.sample_lab_aroma || "",
-    fragrance: item.sample_lab_fragrance || "",
     flavor: item.sample_lab_flavor || "",
     sweetness: item.sample_lab_sweetness || "",
     body: item.sample_lab_body || "",
@@ -419,15 +415,14 @@ const LaboratoryPage = () => {
       if (sampleReview.decision === "aprobada_laboratorio") {
         requestBody.itemReviews = sampleReview.itemReviews.map((itemReview) => ({
           sampleItemId: itemReview.sampleItemId,
-          humidityPercent: Number(itemReview.humidityPercent),
-          aroma: Number(itemReview.aroma),
-          fragrance: Number(itemReview.fragrance),
-          flavor: Number(itemReview.flavor),
-          sweetness: Number(itemReview.sweetness),
-          body: Number(itemReview.body),
-          residual: Number(itemReview.residual),
-          cleanCup: Number(itemReview.cleanCup),
-          score: Number(itemReview.score),
+          humidityPercent: itemReview.humidityPercent,
+          aroma: itemReview.aroma,
+          flavor: itemReview.flavor,
+          sweetness: itemReview.sweetness,
+          body: itemReview.body,
+          residual: itemReview.residual,
+          cleanCup: itemReview.cleanCup,
+          score: itemReview.score,
           notes: itemReview.notes || null,
         }));
       }
@@ -969,9 +964,8 @@ const LaboratoryPage = () => {
                             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                               <input
                                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Humedad (%)"
-                                type="number"
-                                step="0.01"
+                                placeholder="Humedad"
+                                type="text"
                                 value={itemReview.humidityPercent}
                                 onChange={(event) => updateSampleItemReview(index, "humidityPercent", event.target.value)}
                                 required
@@ -981,8 +975,7 @@ const LaboratoryPage = () => {
                                   key={field}
                                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                                   placeholder={label}
-                                  type="number"
-                                  step="0.01"
+                                  type="text"
                                   value={itemReview[field]}
                                   onChange={(event) => updateSampleItemReview(index, field, event.target.value)}
                                   required
@@ -991,8 +984,7 @@ const LaboratoryPage = () => {
                               <input
                                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                                 placeholder="Score"
-                                type="number"
-                                step="0.01"
+                                type="text"
                                 value={itemReview.score}
                                 onChange={(event) => updateSampleItemReview(index, "score", event.target.value)}
                                 required

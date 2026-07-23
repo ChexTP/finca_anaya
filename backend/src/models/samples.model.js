@@ -207,7 +207,6 @@ export const haveCompleteSampleItemReviews = async (sampleId) => {
       AND (
         sample_humidity_percent IS NULL OR
         sample_lab_aroma IS NULL OR
-        sample_lab_fragrance IS NULL OR
         sample_lab_flavor IS NULL OR
         sample_lab_sweetness IS NULL OR
         sample_lab_body IS NULL OR
@@ -249,20 +248,18 @@ export const updateSampleItemReviews = async ({ sampleId, itemReviews }) => {
         SET
           sample_humidity_percent = $1,
           sample_lab_aroma = $2,
-          sample_lab_fragrance = $3,
-          sample_lab_flavor = $4,
-          sample_lab_sweetness = $5,
-          sample_lab_body = $6,
-          sample_lab_residual = $7,
-          sample_lab_clean_cup = $8,
-          sample_lab_score = $9,
-          sample_lab_notes = $10
-        WHERE id = $11 AND sample_request_id = $12
+          sample_lab_flavor = $3,
+          sample_lab_sweetness = $4,
+          sample_lab_body = $5,
+          sample_lab_residual = $6,
+          sample_lab_clean_cup = $7,
+          sample_lab_score = $8,
+          sample_lab_notes = $9
+        WHERE id = $10 AND sample_request_id = $11
         `,
         [
           review.humidityPercent,
           review.aroma,
-          review.fragrance,
           review.flavor,
           review.sweetness,
           review.body,

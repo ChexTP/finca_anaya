@@ -88,19 +88,15 @@ const formatMoney = (currency, value) => {
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
 
-const formatHumidity = (value) => {
+const formatLabValue = (value) => {
   if (value === null || value === undefined || value === "") return "-";
-  return `${Number(value).toLocaleString("es-CO", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })}%`;
+  return String(value);
 };
 
 const hasCompleteSampleLabReview = (sample) => {
   return (sample.items || []).length > 0 && (sample.items || []).every((item) => [
     item.sample_humidity_percent,
     item.sample_lab_aroma,
-    item.sample_lab_fragrance,
     item.sample_lab_flavor,
     item.sample_lab_sweetness,
     item.sample_lab_body,
@@ -122,7 +118,7 @@ const buildSampleLabSummary = (sample) => {
 
   return [
     ...sample.items.map((item) => (
-      `${formatRequestedCoffee(item)}: Humedad ${formatHumidity(item.sample_humidity_percent)}, Score ${item.sample_lab_score}`
+      `${formatRequestedCoffee(item)}: Humedad ${formatLabValue(item.sample_humidity_percent)}, Score ${formatLabValue(item.sample_lab_score)}`
     )),
   ].join(" | ");
 };
@@ -131,7 +127,6 @@ const buildSampleItemLabSummary = (item) => {
   if ([
     item.sample_humidity_percent,
     item.sample_lab_aroma,
-    item.sample_lab_fragrance,
     item.sample_lab_flavor,
     item.sample_lab_sweetness,
     item.sample_lab_body,
@@ -142,7 +137,7 @@ const buildSampleItemLabSummary = (item) => {
     return null;
   }
 
-  return `Humedad ${formatHumidity(item.sample_humidity_percent)} · Aroma ${item.sample_lab_aroma} · Fragancia ${item.sample_lab_fragrance} · Sabor ${item.sample_lab_flavor} · Dulzor ${item.sample_lab_sweetness} · Cuerpo ${item.sample_lab_body} · Residual ${item.sample_lab_residual} · Taza limpia ${item.sample_lab_clean_cup} · Score ${item.sample_lab_score}`;
+  return `Humedad ${formatLabValue(item.sample_humidity_percent)} · Aroma ${formatLabValue(item.sample_lab_aroma)} · Sabor ${formatLabValue(item.sample_lab_flavor)} · Dulzor ${formatLabValue(item.sample_lab_sweetness)} · Cuerpo ${formatLabValue(item.sample_lab_body)} · Residual ${formatLabValue(item.sample_lab_residual)} · Taza limpia ${formatLabValue(item.sample_lab_clean_cup)} · Score ${formatLabValue(item.sample_lab_score)}`;
 };
 
 const formatRequestedCoffee = (item) => {

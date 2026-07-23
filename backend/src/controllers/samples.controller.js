@@ -18,6 +18,11 @@ const toNumber = (value) => {
 };
 
 const isValidNumber = (value) => Number.isFinite(value);
+const toText = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text || null;
+};
 
 const validStatuses = [
   "solicitada",
@@ -31,7 +36,6 @@ const validStatuses = [
 const requiredSampleLabFields = [
   "humidityPercent",
   "aroma",
-  "fragrance",
   "flavor",
   "sweetness",
   "body",
@@ -44,14 +48,13 @@ const hasCompleteItemLabReview = (item) => {
   return [
     item.sample_humidity_percent,
     item.sample_lab_aroma,
-    item.sample_lab_fragrance,
     item.sample_lab_flavor,
     item.sample_lab_sweetness,
     item.sample_lab_body,
     item.sample_lab_residual,
     item.sample_lab_clean_cup,
     item.sample_lab_score,
-  ].every((value) => value !== null && value !== undefined);
+  ].every((value) => value !== null && value !== undefined && String(value).trim() !== "");
 };
 
 const hasCompleteSampleLabReview = (sample) => {
@@ -236,22 +239,21 @@ export const putSampleStatus = async (req, res) => {
 
     const cleanItemReviews = itemReviews.map((review) => ({
       sampleItemId: Number(review.sampleItemId),
-      humidityPercent: toNumber(review.humidityPercent),
-      aroma: toNumber(review.aroma),
-      fragrance: toNumber(review.fragrance),
-      flavor: toNumber(review.flavor),
-      sweetness: toNumber(review.sweetness),
-      body: toNumber(review.body),
-      residual: toNumber(review.residual),
-      cleanCup: toNumber(review.cleanCup),
-      score: toNumber(review.score),
-      notes: review.notes || null,
+      humidityPercent: toText(review.humidityPercent),
+      aroma: toText(review.aroma),
+      flavor: toText(review.flavor),
+      sweetness: toText(review.sweetness),
+      body: toText(review.body),
+      residual: toText(review.residual),
+      cleanCup: toText(review.cleanCup),
+      score: toText(review.score),
+      notes: toText(review.notes),
     }));
 
     if (status === "aprobada_laboratorio" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
       const missingLabField = cleanItemReviews.length !== sampleBeforeUpdate.items.length || cleanItemReviews.some((review) => (
         !Number.isInteger(review.sampleItemId) ||
-        requiredSampleLabFields.some((field) => !isValidNumber(review[field]))
+        requiredSampleLabFields.some((field) => !review[field])
       ));
 
       if (missingLabField) {
@@ -260,15 +262,6 @@ export const putSampleStatus = async (req, res) => {
         });
       }
 
-      const outOfRangeField = cleanItemReviews.some((review) =>
-        requiredSampleLabFields.some((field) => review[field] < 0 || review[field] > 100)
-      );
-
-      if (outOfRangeField) {
-        return res.status(400).json({
-          message: "Los datos de laboratorio de cada cafe deben estar entre 0 y 100",
-        });
-      }
     }
 
     if (["lista", "entregada"].includes(status) && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {

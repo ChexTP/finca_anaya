@@ -753,15 +753,15 @@ CREATE TABLE IF NOT EXISTS sample_request_items (
   description TEXT,
   quantity_grams NUMERIC(12, 2) NOT NULL,
   price NUMERIC(14, 2),
-  sample_humidity_percent NUMERIC(5, 2),
-  sample_lab_aroma NUMERIC(5, 2),
-  sample_lab_fragrance NUMERIC(5, 2),
-  sample_lab_flavor NUMERIC(5, 2),
-  sample_lab_sweetness NUMERIC(5, 2),
-  sample_lab_body NUMERIC(5, 2),
-  sample_lab_residual NUMERIC(5, 2),
-  sample_lab_clean_cup NUMERIC(5, 2),
-  sample_lab_score NUMERIC(5, 2),
+  sample_humidity_percent TEXT,
+  sample_lab_aroma TEXT,
+  sample_lab_fragrance TEXT,
+  sample_lab_flavor TEXT,
+  sample_lab_sweetness TEXT,
+  sample_lab_body TEXT,
+  sample_lab_residual TEXT,
+  sample_lab_clean_cup TEXT,
+  sample_lab_score TEXT,
   sample_lab_notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sample_request_items_quantity_check CHECK (quantity_grams > 0),
@@ -771,16 +771,25 @@ CREATE TABLE IF NOT EXISTS sample_request_items (
   )
 );
 
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_humidity_percent NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_aroma NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_fragrance NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_flavor NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_sweetness NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_body NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_residual NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_clean_cup NUMERIC(5, 2);
-ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_score NUMERIC(5, 2);
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_humidity_percent TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_aroma TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_fragrance TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_flavor TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_sweetness TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_body TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_residual TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_clean_cup TEXT;
+ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_score TEXT;
 ALTER TABLE sample_request_items ADD COLUMN IF NOT EXISTS sample_lab_notes TEXT;
+ALTER TABLE sample_request_items ALTER COLUMN sample_humidity_percent TYPE TEXT USING sample_humidity_percent::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_aroma TYPE TEXT USING sample_lab_aroma::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_fragrance TYPE TEXT USING sample_lab_fragrance::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_flavor TYPE TEXT USING sample_lab_flavor::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_sweetness TYPE TEXT USING sample_lab_sweetness::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_body TYPE TEXT USING sample_lab_body::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_residual TYPE TEXT USING sample_lab_residual::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_clean_cup TYPE TEXT USING sample_lab_clean_cup::text;
+ALTER TABLE sample_request_items ALTER COLUMN sample_lab_score TYPE TEXT USING sample_lab_score::text;
 
 INSERT INTO sample_request_items (
   sample_request_id, coffee_type_id, coffee_profile_id, description, quantity_grams, price
