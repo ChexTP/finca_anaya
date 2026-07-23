@@ -1,9 +1,10 @@
-import { Eye, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
+import { Eye, FileDown, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
 
@@ -469,6 +470,27 @@ const SalesPage = () => {
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 
+  const printQuotePdf = async (quoteId) => {
+    if (!quoteId) {
+      setError("Esta venta no tiene cotizacion asociada.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const document = await apiRequest(`/documents/quotes/${quoteId}`);
+      openCommercialDocumentPrint(document);
+      setMessage("Cotizacion abierta para imprimir o guardar como PDF.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -572,13 +594,27 @@ const SalesPage = () => {
                       {showFinancialData && <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>}
                       {showFinancialData && <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>}
                       <td className="px-3 py-2">
-                        <button
-                          className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                          onClick={() => loadSaleDetail(sale.id)}
-                        >
-                          <Eye size={14} />
-                          Ver
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                            onClick={() => loadSaleDetail(sale.id)}
+                            type="button"
+                          >
+                            <Eye size={14} />
+                            Ver
+                          </button>
+                          {sale.quote_id && (
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100 disabled:opacity-60"
+                              disabled={saving}
+                              onClick={() => printQuotePdf(sale.quote_id)}
+                              type="button"
+                            >
+                              <FileDown size={14} />
+                              PDF cotizacion
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -649,6 +685,18 @@ const SalesPage = () => {
                   <p className="text-slate-500">Pagado: {formatMoney(selectedSale.currency, selectedSale.amount_paid)}</p>
                   <p className="font-semibold text-ink">Saldo: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</p>
                 </div>
+              )}
+
+              {selectedSale.quote_id && (
+                <button
+                  className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+                  disabled={saving}
+                  onClick={() => printQuotePdf(selectedSale.quote_id)}
+                  type="button"
+                >
+                  <FileDown size={17} />
+                  Imprimir / guardar PDF de cotizacion
+                </button>
               )}
 
               <div className="space-y-2">

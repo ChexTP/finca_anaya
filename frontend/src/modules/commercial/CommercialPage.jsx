@@ -1,10 +1,11 @@
-import { Eye, Plus, RefreshCw, Save, Trash2, UserPlus } from "lucide-react";
+import { Eye, FileDown, Plus, RefreshCw, Save, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
+import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
 const initialQuote = {
@@ -206,7 +207,7 @@ const CommercialPage = () => {
     try {
       const items = itemForm.quantityKg ? [...quoteItems, buildItem()] : quoteItems;
       if (items.length === 0) throw new Error("Agregue al menos un cafe a la cotizacion.");
-      await apiRequest("/quotes", {
+      const response = await apiRequest("/quotes", {
         method: "POST",
         body: JSON.stringify({
           ...quoteForm,
@@ -219,7 +220,8 @@ const CommercialPage = () => {
       setItemForm(initialItem);
       setQuoteItems([]);
       await loadData();
-      setMessage("Cotizacion creada correctamente.");
+      setSelectedQuote(response.data);
+      setMessage("Cotizacion creada correctamente. Ya puede descargar el PDF desde el detalle.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -286,6 +288,22 @@ const CommercialPage = () => {
       await loadData();
       await loadQuoteDetail(quote.id);
       setMessage("Estado de cotizacion actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const printQuotePdf = async (quoteId) => {
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const document = await apiRequest(`/documents/quotes/${quoteId}`);
+      openCommercialDocumentPrint(document);
+      setMessage("Cotizacion abierta para imprimir o guardar como PDF.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -697,13 +715,25 @@ const CommercialPage = () => {
                         <td className="px-3 py-2 text-slate-600">{getQuoteNextAction(quote)}</td>
                         <td className="px-3 py-2">{formatMoney(quote.currency, quote.total)}</td>
                         <td className="px-3 py-2">
-                          <button
-                            className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                            onClick={() => loadQuoteDetail(quote.id)}
-                          >
-                            <Eye size={14} />
-                            Ver
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                              onClick={() => loadQuoteDetail(quote.id)}
+                              type="button"
+                            >
+                              <Eye size={14} />
+                              Ver
+                            </button>
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100 disabled:opacity-60"
+                              disabled={saving}
+                              onClick={() => printQuotePdf(quote.id)}
+                              type="button"
+                            >
+                              <FileDown size={14} />
+                              PDF
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -735,6 +765,15 @@ const CommercialPage = () => {
                 <p className="text-slate-500">Envio: {formatMoney(selectedQuote.currency, selectedQuote.shipping_cost)}</p>
                 <p className="font-semibold text-ink">Total: {formatMoney(selectedQuote.currency, selectedQuote.total)}</p>
               </div>
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+                disabled={saving}
+                onClick={() => printQuotePdf(selectedQuote.id)}
+                type="button"
+              >
+                <FileDown size={17} />
+                Imprimir / guardar PDF de cotizacion
+              </button>
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
                 {selectedQuote.items?.map((item) => (
