@@ -876,7 +876,7 @@ const SamplesPage = () => {
                               </select>
                               <input
                                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Cafe usado, lote, proceso o referencia"
+                                placeholder="Cafe usado, proceso, mezcla o referencia libre"
                                 value={row.componentDescription}
                                 onChange={(event) => updateBlendRow(index, "componentDescription", event.target.value)}
                               />
@@ -911,7 +911,7 @@ const SamplesPage = () => {
                           type="button"
                           onClick={() => setBlendRows((rows) => [...rows, { sampleItemId: String(sample.items[0]?.id || ""), componentDescription: "", percentage: "", notes: "" }])}
                         >
-                          Agregar lote
+                          Agregar componente
                         </button>
                         <button
                           className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
