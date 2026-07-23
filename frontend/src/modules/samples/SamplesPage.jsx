@@ -273,8 +273,9 @@ const SamplesPage = () => {
   const [blendSampleId, setBlendSampleId] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
 
-  const canCreate = ["admin", "accounting", "seller"].includes(user?.role);
-  const canUpdateStatus = ["admin", "accounting", "samples"].includes(user?.role);
+  const canCreate = ["admin", "seller"].includes(user?.role);
+  const canManageSamples = ["admin", "samples"].includes(user?.role);
+  const canPrintSampleOrder = ["admin", "accounting", "samples"].includes(user?.role);
 
   const sampleCounts = useMemo(() => {
     return samples.reduce(
@@ -818,27 +819,31 @@ const SamplesPage = () => {
                     </div>
                   )}
 
-                  {canUpdateStatus && (
+                  {(canManageSamples || canPrintSampleOrder) && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
-                        type="button"
-                        onClick={() => openBlendEditor(sample)}
-                      >
-                        Definir ensamble
-                      </button>
-                      <button
-                        className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        type="button"
-                        onClick={() => printSampleOrder(sample)}
-                      >
-                        <Printer size={16} />
-                        Imprimir orden
-                      </button>
+                      {canManageSamples && (
+                        <button
+                          className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                          type="button"
+                          onClick={() => openBlendEditor(sample)}
+                        >
+                          Definir ensamble
+                        </button>
+                      )}
+                      {canPrintSampleOrder && (
+                        <button
+                          className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          type="button"
+                          onClick={() => printSampleOrder(sample)}
+                        >
+                          <Printer size={16} />
+                          Imprimir orden
+                        </button>
+                      )}
                     </div>
                   )}
 
-                  {canUpdateStatus && blendSampleId === sample.id && (
+                  {canManageSamples && blendSampleId === sample.id && (
                     <div className="mt-3 space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
                       <p className="text-sm font-semibold text-slate-800">Formula por cafe</p>
                       {blendRows.map((row, index) => {
@@ -920,7 +925,7 @@ const SamplesPage = () => {
                     </div>
                   )}
 
-                  {canUpdateStatus && (
+                  {canManageSamples && (
                     <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">
                       <input
                         className="rounded border border-slate-300 px-3 py-2 text-sm"

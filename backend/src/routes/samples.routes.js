@@ -12,8 +12,8 @@ const router = Router();
 
 router.get("/", requireAuth, requireRoles("admin", "accounting", "seller", "samples"), getSamples);
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "seller", "samples"), getSample);
-router.post("/", requireAuth, requireRoles("admin", "accounting", "seller"), postSample);
-router.put("/:id/status", requireAuth, requireRoles("admin", "accounting", "samples"), putSampleStatus);
-router.put("/:id/blend", requireAuth, requireRoles("admin", "accounting", "samples"), putSampleBlend);
+router.post("/", requireAuth, requireRoles("admin", "seller"), postSample);
+router.put("/:id/status", requireAuth, requireRoles("admin", "samples"), putSampleStatus);
+router.put("/:id/blend", requireAuth, requireRoles("admin", "samples"), putSampleBlend);
 
 export default router;
