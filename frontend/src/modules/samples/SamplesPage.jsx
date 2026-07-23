@@ -418,13 +418,18 @@ const SamplesPage = () => {
     setError("");
 
     try {
+      const requestBody = {
+        status,
+        notes: statusNotes[sample.id] || undefined,
+      };
+
+      if (labReview) {
+        requestBody.labReview = labReview;
+      }
+
       await apiRequest(`/samples/${sample.id}/status`, {
         method: "PUT",
-        body: JSON.stringify({
-          status,
-          labReview,
-          notes: statusNotes[sample.id] || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
       setStatusNotes({ ...statusNotes, [sample.id]: "" });
       await loadData();

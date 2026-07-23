@@ -185,7 +185,8 @@ export const postSample = async (req, res) => {
 
 export const putSampleStatus = async (req, res) => {
   try {
-    const { status, notes, labReview = {} } = req.body;
+    const { status, notes } = req.body;
+    const labReview = req.body.labReview || {};
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Estado de muestra no valido" });
