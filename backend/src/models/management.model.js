@@ -104,7 +104,25 @@ const getActiveSaleItems = async () => {
       coffee_profiles.process_percentage,
       coffee_profiles.base_percentage,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.name AS coffee_profile_name,
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'purchase_coffee_id', coffee_profile_components.purchase_coffee_id,
+              'purchase_coffee_name', purchase_coffees.name,
+              'purchase_coffee_family', purchase_coffees.family,
+              'purchase_coffee_process_type', purchase_coffees.process_type,
+              'percentage', coffee_profile_components.percentage
+            )
+            ORDER BY coffee_profile_components.sort_order ASC, coffee_profile_components.id ASC
+          )
+          FROM coffee_profile_components
+          INNER JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          WHERE coffee_profile_components.coffee_profile_id = coffee_profiles.id
+        ),
+        '[]'::json
+      ) AS profile_components
     FROM sale_items
     INNER JOIN sales ON sales.id = sale_items.sale_id
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
@@ -448,6 +466,34 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
       continue;
     }
 
+    const profileComponents = Array.isArray(item.profile_components)
+      ? item.profile_components.filter((component) => Number(component.percentage || 0) > 0)
+      : [];
+
+    if (profileComponents.length > 0) {
+      profileComponents.forEach((component) => {
+        const percentage = Number(component.percentage || 0);
+
+        if (percentage <= 0) {
+          return;
+        }
+
+        addDeficit(groups, {
+          sale,
+          productForm,
+          benefit: itemBenefit,
+          name: component.purchase_coffee_name,
+          componentType: `${component.purchase_coffee_family || "Componente"} ${component.purchase_coffee_process_type || ""}`.trim(),
+          requestedKg: round3(requestedKg * percentage / 100),
+          requiredKg: round3(operationalKg * percentage / 100),
+          shortageMarked: item.shortage_marked,
+          shortageNotes: item.shortage_notes,
+        });
+      });
+
+      continue;
+    }
+
     if (
       item.coffee_profile_category === "Exotico" &&
       item.process_purchase_coffee_name &&
@@ -455,31 +501,29 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
       Number(item.process_percentage || 0) > 0 &&
       Number(item.base_percentage || 0) > 0
     ) {
-      const processKg = round3(operationalKg * Number(item.process_percentage) / 100);
-      const baseKg = round3(operationalKg * Number(item.base_percentage) / 100);
-
-      addDeficit(groups, {
-        sale,
-        productForm,
-        benefit: itemBenefit,
-        name: item.process_purchase_coffee_name,
-        componentType: "Proceso sugerido",
-        requestedKg: round3(requestedKg * Number(item.process_percentage) / 100),
-        requiredKg: processKg,
-        shortageMarked: item.shortage_marked,
-        shortageNotes: item.shortage_notes,
-      });
-
-      addDeficit(groups, {
-        sale,
-        productForm,
-        benefit: itemBenefit,
-        name: item.base_purchase_coffee_name,
-        componentType: "Base sugerida",
-        requestedKg: round3(requestedKg * Number(item.base_percentage) / 100),
-        requiredKg: baseKg,
-        shortageMarked: item.shortage_marked,
-        shortageNotes: item.shortage_notes,
+      [
+        {
+          name: item.process_purchase_coffee_name,
+          componentType: "Componente proceso",
+          percentage: Number(item.process_percentage),
+        },
+        {
+          name: item.base_purchase_coffee_name,
+          componentType: "Componente base",
+          percentage: Number(item.base_percentage),
+        },
+      ].forEach((component) => {
+        addDeficit(groups, {
+          sale,
+          productForm,
+          benefit: itemBenefit,
+          name: component.name,
+          componentType: component.componentType,
+          requestedKg: round3(requestedKg * component.percentage / 100),
+          requiredKg: round3(operationalKg * component.percentage / 100),
+          shortageMarked: item.shortage_marked,
+          shortageNotes: item.shortage_notes,
+        });
       });
 
       continue;

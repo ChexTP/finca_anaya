@@ -1,4 +1,4 @@
-import { RefreshCw, Save, SlidersHorizontal } from "lucide-react";
+import { Plus, RefreshCw, Save, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -8,13 +8,61 @@ const initialProfile = {
   name: "",
   code: "",
   category: "",
-  processPurchaseCoffeeId: "",
-  basePurchaseCoffeeId: "",
-  processPercentage: "",
-  basePercentage: "",
+  components: [{ purchaseCoffeeId: "" }],
   basePriceCop: "0",
   basePriceUsd: "0",
   isActive: true,
+};
+
+const emptyComponent = { purchaseCoffeeId: "" };
+
+const buildLegacyComponents = (profile) => {
+  const components = [];
+
+  if (profile.process_purchase_coffee_id || profile.process_percentage) {
+    components.push({
+      purchaseCoffeeId: profile.process_purchase_coffee_id || "",
+    });
+  }
+
+  if (profile.base_purchase_coffee_id || profile.base_percentage) {
+    components.push({
+      purchaseCoffeeId: profile.base_purchase_coffee_id || "",
+    });
+  }
+
+  return components.length > 0 ? components : [{ ...emptyComponent }];
+};
+
+const buildProfileComponents = (profile) => {
+  if (Array.isArray(profile.components) && profile.components.length > 0) {
+    return profile.components.map((component) => ({
+      purchaseCoffeeId: component.purchase_coffee_id || component.purchaseCoffeeId || "",
+    }));
+  }
+
+  return buildLegacyComponents(profile);
+};
+
+const formatComponentSummary = (profile) => {
+  const components = Array.isArray(profile.components) && profile.components.length > 0
+    ? profile.components
+    : [];
+
+  if (components.length > 0) {
+    return components
+      .map((component) => component.purchase_coffee_name || "Cafe")
+      .join(" / ");
+  }
+
+  if (profile.process_purchase_coffee_name || profile.base_purchase_coffee_name) {
+    return [
+      profile.process_purchase_coffee_name,
+      profile.base_purchase_coffee_name,
+    ].filter(Boolean).join(" / ");
+  }
+
+  return "-";
 };
 
 const CoffeeProfilesPage = () => {
@@ -45,10 +93,7 @@ const CoffeeProfilesPage = () => {
       name: profile.name || "",
       code: profile.internal_code || "",
       category: profile.category || "",
-      processPurchaseCoffeeId: profile.process_purchase_coffee_id || "",
-      basePurchaseCoffeeId: profile.base_purchase_coffee_id || "",
-      processPercentage: profile.process_percentage || "",
-      basePercentage: profile.base_percentage || "",
+      components: buildProfileComponents(profile),
       basePriceCop: profile.base_price_cop || "0",
       basePriceUsd: profile.base_price_usd || "0",
       isActive: profile.is_active,
@@ -73,6 +118,11 @@ const CoffeeProfilesPage = () => {
     try {
       const payload = {
         ...form,
+        components: form.components
+          .filter((component) => component.purchaseCoffeeId)
+          .map((component) => ({
+            purchaseCoffeeId: Number(component.purchaseCoffeeId),
+          })),
         basePriceCop: Number(form.basePriceCop || 0),
         basePriceUsd: Number(form.basePriceUsd || 0),
       };
@@ -97,6 +147,31 @@ const CoffeeProfilesPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const updateComponent = (index, field, value) => {
+    setForm({
+      ...form,
+      components: form.components.map((component, componentIndex) => (
+        componentIndex === index ? { ...component, [field]: value } : component
+      )),
+    });
+  };
+
+  const addComponent = () => {
+    setForm({
+      ...form,
+      components: [...form.components, { ...emptyComponent }],
+    });
+  };
+
+  const removeComponent = (index) => {
+    setForm({
+      ...form,
+      components: form.components.length === 1
+        ? [{ ...emptyComponent }]
+        : form.components.filter((_, componentIndex) => componentIndex !== index),
+    });
   };
 
   return (
@@ -136,7 +211,7 @@ const CoffeeProfilesPage = () => {
                     <th className="px-4 py-3">Perfil</th>
                     <th className="px-4 py-3">Codigo</th>
                     <th className="px-4 py-3">Categoria</th>
-                    <th className="px-4 py-3">Proceso/Base</th>
+                    <th className="px-4 py-3">Componentes</th>
                     <th className="px-4 py-3">COP</th>
                     <th className="px-4 py-3">USD</th>
                     <th className="px-4 py-3">Estado</th>
@@ -150,9 +225,7 @@ const CoffeeProfilesPage = () => {
                       <td className="px-4 py-3 text-slate-600">{profile.internal_code || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.category || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">
-                        {profile.process_purchase_coffee_name || profile.base_purchase_coffee_name
-                          ? `${profile.process_purchase_coffee_name || "-"} / ${profile.base_purchase_coffee_name || "-"}`
-                          : "-"}
+                        {formatComponentSummary(profile)}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_cop || 0).toLocaleString("es-CO")}</td>
                       <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_usd || 0).toLocaleString("es-CO")}</td>
@@ -235,59 +308,45 @@ const CoffeeProfilesPage = () => {
                 onChange={(event) => setForm({ ...form, basePriceUsd: event.target.value })}
               />
             </div>
-            {form.category === "Exotico" && (
-              <div className="rounded border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs font-semibold uppercase text-amber-900">Receta sugerida para ensamble</p>
-                <div className="mt-3 grid gap-3">
-                  <select
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={form.processPurchaseCoffeeId}
-                    onChange={(event) => setForm({ ...form, processPurchaseCoffeeId: event.target.value })}
-                  >
-                    <option value="">Cafe usado para proceso</option>
-                    {catalogs?.purchaseCoffees?.map((coffee) => (
-                      <option key={coffee.id} value={coffee.id}>
-                        {coffee.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={form.basePurchaseCoffeeId}
-                    onChange={(event) => setForm({ ...form, basePurchaseCoffeeId: event.target.value })}
-                  >
-                    <option value="">Cafe usado como base</option>
-                    {catalogs?.purchaseCoffees?.map((coffee) => (
-                      <option key={coffee.id} value={coffee.id}>
-                        {coffee.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <input
-                      className="rounded border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="% Proceso"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={form.processPercentage}
-                      onChange={(event) => setForm({ ...form, processPercentage: event.target.value })}
-                    />
-                    <input
-                      className="rounded border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="% Base"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={form.basePercentage}
-                      onChange={(event) => setForm({ ...form, basePercentage: event.target.value })}
-                    />
+            <div className="rounded border border-amber-200 bg-amber-50 p-3">
+              <p className="text-xs font-semibold uppercase text-amber-900">Componente principal</p>
+              <div className="mt-3 grid gap-3">
+                {form.components.map((component, index) => (
+                  <div key={`component-${index}`} className="rounded border border-amber-200 bg-white p-2">
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_38px]">
+                      <select
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={component.purchaseCoffeeId}
+                        onChange={(event) => updateComponent(index, "purchaseCoffeeId", event.target.value)}
+                      >
+                        <option value="">Cafe comprado</option>
+                        {catalogs?.purchaseCoffees?.map((coffee) => (
+                          <option key={coffee.id} value={coffee.id}>
+                            {coffee.name} - {coffee.family} {coffee.process_type}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="inline-flex items-center justify-center rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+                        type="button"
+                        onClick={() => removeComponent(index)}
+                        title="Quitar componente"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ))}
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded border border-leaf bg-white px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                  type="button"
+                  onClick={addComponent}
+                >
+                  <Plus size={16} />
+                  Agregar otro componente
+                </button>
               </div>
-            )}
+            </div>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"

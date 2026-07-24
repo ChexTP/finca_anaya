@@ -54,6 +54,30 @@ const toNumber = (value) => {
   return Number(value);
 };
 
+const normalizeProfileComponents = (components = []) => {
+  if (!Array.isArray(components)) {
+    return { error: "Los componentes deben enviarse como una lista" };
+  }
+
+  const cleanComponents = components
+    .map((component) => ({
+      purchaseCoffeeId: Number(component.purchaseCoffeeId || component.purchase_coffee_id),
+      percentage: null,
+    }))
+    .filter((component) => component.purchaseCoffeeId);
+
+  if (
+    cleanComponents.some((component) => (
+      !Number.isInteger(component.purchaseCoffeeId) ||
+      component.purchaseCoffeeId <= 0
+    ))
+  ) {
+    return { error: "Cada componente debe tener un cafe valido" };
+  }
+
+  return { components: cleanComponents };
+};
+
 export const putCoffeeProfile = async (req, res) => {
   try {
     const {
@@ -67,6 +91,7 @@ export const putCoffeeProfile = async (req, res) => {
       basePriceCop = 0,
       basePriceUsd = 0,
       isActive = true,
+      components = [],
     } = req.body;
 
     if (!name || !allowedCoffeeProfileCategories.includes(category)) {
@@ -77,6 +102,7 @@ export const putCoffeeProfile = async (req, res) => {
     const priceUsd = toNumber(basePriceUsd);
     const processPct = toNumber(processPercentage);
     const basePct = toNumber(basePercentage);
+    const normalizedComponents = normalizeProfileComponents(components);
 
     if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
@@ -84,15 +110,8 @@ export const putCoffeeProfile = async (req, res) => {
       });
     }
 
-    if (
-      (processPct !== null && (!Number.isFinite(processPct) || processPct < 0 || processPct > 100)) ||
-      (basePct !== null && (!Number.isFinite(basePct) || basePct < 0 || basePct > 100))
-    ) {
-      return res.status(400).json({ message: "Los porcentajes de ensamble deben estar entre 0 y 100" });
-    }
-
-    if (category === "Exotico" && processPct !== null && basePct !== null && Number((processPct + basePct).toFixed(2)) !== 100) {
-      return res.status(400).json({ message: "En un exotico, los porcentajes de proceso y base deben sumar 100" });
+    if (normalizedComponents.error) {
+      return res.status(400).json({ message: normalizedComponents.error });
     }
 
     const profile = await findCoffeeProfileById(req.params.id);
@@ -101,16 +120,20 @@ export const putCoffeeProfile = async (req, res) => {
       return res.status(404).json({ message: "Perfil comercial no encontrado" });
     }
 
+    const firstComponent = normalizedComponents.components[0];
+    const secondComponent = normalizedComponents.components[1];
+
     const updatedProfile = await updateCoffeeProfile(req.params.id, {
       name,
       code: code || null,
       category: category || null,
-      processPurchaseCoffeeId: processPurchaseCoffeeId || null,
-      basePurchaseCoffeeId: basePurchaseCoffeeId || null,
+      processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,
+      basePurchaseCoffeeId: secondComponent?.purchaseCoffeeId || basePurchaseCoffeeId || null,
       processPercentage: processPct,
       basePercentage: basePct,
       basePriceCop: priceCop,
       basePriceUsd: priceUsd,
+      components: normalizedComponents.components,
       isActive,
     });
 
@@ -142,6 +165,7 @@ export const postCoffeeProfile = async (req, res) => {
       basePercentage,
       basePriceCop = 0,
       basePriceUsd = 0,
+      components = [],
     } = req.body;
 
     if (!name || !allowedCoffeeProfileCategories.includes(category)) {
@@ -152,6 +176,7 @@ export const postCoffeeProfile = async (req, res) => {
     const priceUsd = toNumber(basePriceUsd);
     const processPct = toNumber(processPercentage);
     const basePct = toNumber(basePercentage);
+    const normalizedComponents = normalizeProfileComponents(components);
 
     if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
@@ -159,27 +184,24 @@ export const postCoffeeProfile = async (req, res) => {
       });
     }
 
-    if (
-      (processPct !== null && (!Number.isFinite(processPct) || processPct < 0 || processPct > 100)) ||
-      (basePct !== null && (!Number.isFinite(basePct) || basePct < 0 || basePct > 100))
-    ) {
-      return res.status(400).json({ message: "Los porcentajes de ensamble deben estar entre 0 y 100" });
+    if (normalizedComponents.error) {
+      return res.status(400).json({ message: normalizedComponents.error });
     }
 
-    if (category === "Exotico" && processPct !== null && basePct !== null && Number((processPct + basePct).toFixed(2)) !== 100) {
-      return res.status(400).json({ message: "En un exotico, los porcentajes de proceso y base deben sumar 100" });
-    }
+    const firstComponent = normalizedComponents.components[0];
+    const secondComponent = normalizedComponents.components[1];
 
     const profile = await createCoffeeProfile({
       name,
       code: code || null,
       category: category || null,
-      processPurchaseCoffeeId: processPurchaseCoffeeId || null,
-      basePurchaseCoffeeId: basePurchaseCoffeeId || null,
+      processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,
+      basePurchaseCoffeeId: secondComponent?.purchaseCoffeeId || basePurchaseCoffeeId || null,
       processPercentage: processPct,
       basePercentage: basePct,
       basePriceCop: priceCop,
       basePriceUsd: priceUsd,
+      components: normalizedComponents.components,
     });
 
     res.status(201).json({

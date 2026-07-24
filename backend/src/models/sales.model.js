@@ -111,7 +111,25 @@ export const findSaleById = async (id) => {
       process_purchase.name AS process_purchase_coffee_name,
       base_purchase.name AS base_purchase_coffee_name,
       coffee_profiles.process_percentage,
-      coffee_profiles.base_percentage
+      coffee_profiles.base_percentage,
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'purchase_coffee_id', coffee_profile_components.purchase_coffee_id,
+              'purchase_coffee_name', purchase_coffees.name,
+              'purchase_coffee_family', purchase_coffees.family,
+              'purchase_coffee_process_type', purchase_coffees.process_type,
+              'percentage', coffee_profile_components.percentage
+            )
+            ORDER BY coffee_profile_components.sort_order ASC, coffee_profile_components.id ASC
+          )
+          FROM coffee_profile_components
+          INNER JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          WHERE coffee_profile_components.coffee_profile_id = coffee_profiles.id
+        ),
+        '[]'::json
+      ) AS profile_components
     FROM sale_items
     LEFT JOIN coffee_lots ON coffee_lots.id = sale_items.lot_id
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id

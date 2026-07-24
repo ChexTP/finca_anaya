@@ -54,6 +54,17 @@ CREATE TABLE IF NOT EXISTS coffee_profiles (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS coffee_profile_components (
+  id SERIAL PRIMARY KEY,
+  coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id) ON DELETE CASCADE,
+  purchase_coffee_id INTEGER NOT NULL REFERENCES purchase_coffees(id),
+  percentage NUMERIC(5, 2),
+  sort_order INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT coffee_profile_components_percentage_check CHECK (percentage IS NULL OR (percentage > 0 AND percentage <= 100))
+);
+
 CREATE TABLE IF NOT EXISTS packaging_types (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL,
@@ -218,6 +229,21 @@ ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_purchase_coffee_id 
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_percentage NUMERIC(5, 2);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_percentage NUMERIC(5, 2);
+CREATE TABLE IF NOT EXISTS coffee_profile_components (
+  id SERIAL PRIMARY KEY,
+  coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id) ON DELETE CASCADE,
+  purchase_coffee_id INTEGER NOT NULL REFERENCES purchase_coffees(id),
+  percentage NUMERIC(5, 2),
+  sort_order INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT coffee_profile_components_percentage_check CHECK (percentage IS NULL OR (percentage > 0 AND percentage <= 100))
+);
+ALTER TABLE coffee_profile_components ALTER COLUMN percentage DROP NOT NULL;
+ALTER TABLE coffee_profile_components DROP CONSTRAINT IF EXISTS coffee_profile_components_percentage_check;
+ALTER TABLE coffee_profile_components
+  ADD CONSTRAINT coffee_profile_components_percentage_check
+  CHECK (percentage IS NULL OR (percentage > 0 AND percentage <= 100));
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_method_id INTEGER REFERENCES payment_methods(id);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_reference TEXT;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_paid_at TIMESTAMP;
@@ -919,6 +945,7 @@ CREATE TABLE IF NOT EXISTS backup_exports (
 
 CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_coffees_name ON purchase_coffees(name);
+CREATE INDEX IF NOT EXISTS idx_coffee_profile_components_profile ON coffee_profile_components(coffee_profile_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_suppliers_phone ON suppliers(phone);
 CREATE INDEX IF NOT EXISTS idx_clients_phone ON clients(phone);

@@ -33,6 +33,23 @@ const initialItem = {
   unitPrice: "",
 };
 
+const formatProfileComponents = (item) => {
+  if (Array.isArray(item.profile_components) && item.profile_components.length > 0) {
+    return item.profile_components
+      .map((component) => component.purchase_coffee_name || "Cafe")
+      .join(" / ");
+  }
+
+  if (item.process_purchase_coffee_name || item.base_purchase_coffee_name) {
+    return [
+      item.process_purchase_coffee_name,
+      item.base_purchase_coffee_name,
+    ].filter(Boolean).join(" / ");
+  }
+
+  return "";
+};
+
 const initialSale = {
   paymentStatus: "pendiente_pago",
   amountPaid: "0",
@@ -787,9 +804,9 @@ const CommercialPage = () => {
                         ? ` · ${item.operational_weight_kg} kg operativos`
                         : ""}
                     </p>
-                    {item.coffee_profile_category === "Exotico" && (item.process_purchase_coffee_name || item.base_purchase_coffee_name) && (
+                    {item.coffee_profile_category === "Exotico" && formatProfileComponents(item) && (
                       <p className="mt-1 text-xs text-amber-700">
-                        Ensamble sugerido: {item.process_purchase_coffee_name || "-"} {item.process_percentage || "-"}% / {item.base_purchase_coffee_name || "-"} {item.base_percentage || "-"}%
+                        Componentes sugeridos: {formatProfileComponents(item)}
                       </p>
                     )}
                   </div>
