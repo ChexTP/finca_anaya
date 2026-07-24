@@ -1,5 +1,5 @@
 import { Download, Eye, Printer, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
@@ -16,6 +16,12 @@ const formatDate = (value) => {
 const toDateOnly = (value) => {
   if (!value) return "";
   return String(value).split("T")[0];
+};
+
+const formatSaleItemName = (item) => {
+  return [item.description, item.coffee_profile_name, item.coffee_type_name]
+    .filter(Boolean)
+    .join(" - ") || "Producto";
 };
 
 const SalesHistoryPage = () => {
@@ -101,7 +107,7 @@ const SalesHistoryPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-5">
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Ventas registradas</h2>
@@ -146,83 +152,90 @@ const SalesHistoryPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredSales.map((sale) => (
-                    <tr key={sale.id}>
-                      <td className="px-3 py-2 font-medium">{sale.code}</td>
-                      <td className="px-3 py-2">{sale.client_name}</td>
-                      <td className="px-3 py-2">{formatDate(sale.created_at)}</td>
-                      <td className="px-3 py-2"><StatusBadge>{saleStatusLabels[sale.status] || sale.status}</StatusBadge></td>
-                      <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>
-                      <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                            onClick={() => loadSaleDetail(sale.id)}
-                            type="button"
-                          >
-                            <Eye size={14} />
-                            Ver
-                          </button>
-                          <button
-                            className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100"
-                            onClick={() => printSaleDocument(sale.id)}
-                            type="button"
-                          >
-                            <Download size={14} />
-                            PDF
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredSales.map((sale) => {
+                    const isExpanded = selectedSale?.id === sale.id;
+
+                    return (
+                      <Fragment key={sale.id}>
+                        <tr>
+                          <td className="px-3 py-2 font-medium">{sale.code}</td>
+                          <td className="px-3 py-2">{sale.client_name}</td>
+                          <td className="px-3 py-2">{formatDate(sale.created_at)}</td>
+                          <td className="px-3 py-2"><StatusBadge>{saleStatusLabels[sale.status] || sale.status}</StatusBadge></td>
+                          <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>
+                          <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                                onClick={() => (isExpanded ? setSelectedSale(null) : loadSaleDetail(sale.id))}
+                                type="button"
+                              >
+                                <Eye size={14} />
+                                {isExpanded ? "Ocultar" : "Ver mas"}
+                              </button>
+                              <button
+                                className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100"
+                                onClick={() => printSaleDocument(sale.id)}
+                                type="button"
+                              >
+                                <Download size={14} />
+                                PDF
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={7} className="bg-slate-50 px-4 py-4">
+                              {loading ? (
+                                <p className="text-sm text-slate-500">Cargando detalle...</p>
+                              ) : (
+                                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+                                  <div>
+                                    <p className="text-xs font-semibold uppercase text-slate-500">Productos y analisis</p>
+                                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                      {(selectedSale.items || []).map((item) => (
+                                        <div key={item.id} className="rounded border border-slate-200 bg-white p-3 text-sm">
+                                          <p className="font-medium text-ink">{formatSaleItemName(item)}</p>
+                                          <p className="text-slate-500">{item.quantity_kg} kg</p>
+                                          <div className="mt-2 rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                            <p>Humedad: {item.sale_humidity_percent || "-"}</p>
+                                            <p>Aroma: {item.sale_lab_aroma || "-"} · Sabor: {item.sale_lab_flavor || "-"} · Dulzor: {item.sale_lab_sweetness || "-"}</p>
+                                            <p>Cuerpo: {item.sale_lab_body || "-"} · Residual: {item.sale_lab_residual || "-"} · Taza limpia: {item.sale_lab_clean_cup || "-"}</p>
+                                            <p>Score: {item.sale_lab_score || "-"}</p>
+                                            {item.sale_lab_notes && <p>Notas: {item.sale_lab_notes}</p>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="rounded border border-slate-200 bg-white p-3 text-sm">
+                                    <p className="font-semibold text-ink">{selectedSale.code}</p>
+                                    <p className="text-slate-500">{selectedSale.client_name}</p>
+                                    <p className="text-slate-500">{formatDate(selectedSale.created_at)}</p>
+                                    <button
+                                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
+                                      onClick={() => printSaleDocument(selectedSale.id)}
+                                      type="button"
+                                    >
+                                      <Printer size={16} />
+                                      Imprimir / guardar PDF
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
-
-        <aside className="rounded border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-slate-800">Detalle</h2>
-          {loading ? (
-            <p className="mt-3 text-sm text-slate-500">Cargando...</p>
-          ) : !selectedSale ? (
-            <div className="mt-3">
-              <EmptyState title="Seleccione una venta" message="Aqui vera productos y analisis registrados." />
-            </div>
-          ) : (
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="font-semibold text-ink">{selectedSale.code}</p>
-                <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
-                <p className="text-sm text-slate-500">{formatDate(selectedSale.created_at)}</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase text-slate-500">Productos y analisis</p>
-                {selectedSale.items?.map((item) => (
-                  <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
-                    <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}</p>
-                    <p className="text-slate-500">{item.quantity_kg} kg</p>
-                    <div className="mt-2 rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      <p>Humedad: {item.sale_humidity_percent || "-"}</p>
-                      <p>Aroma: {item.sale_lab_aroma || "-"} · Sabor: {item.sale_lab_flavor || "-"} · Dulzor: {item.sale_lab_sweetness || "-"}</p>
-                      <p>Cuerpo: {item.sale_lab_body || "-"} · Residual: {item.sale_lab_residual || "-"} · Taza limpia: {item.sale_lab_clean_cup || "-"}</p>
-                      <p>Score: {item.sale_lab_score || "-"}</p>
-                      {item.sale_lab_notes && <p>Notas: {item.sale_lab_notes}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button
-                className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
-                onClick={() => printSaleDocument(selectedSale.id)}
-              >
-                <Printer size={16} />
-                Imprimir / guardar PDF
-              </button>
-            </div>
-          )}
-        </aside>
       </div>
     </section>
   );

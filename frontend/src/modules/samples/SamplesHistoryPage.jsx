@@ -1,4 +1,4 @@
-import { Printer, RefreshCw } from "lucide-react";
+import { Eye, Printer, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import { apiRequest } from "../../utils/api";
@@ -79,6 +79,7 @@ const SamplesHistoryPage = () => {
   });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [expandedSampleId, setExpandedSampleId] = useState(null);
 
   const loadData = async () => {
     setError("");
@@ -199,71 +200,90 @@ const SamplesHistoryPage = () => {
             <EmptyState title="Sin resultados" message="No hay muestras entregadas con esos filtros." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-100 text-slate-600">
-                <tr>
-                  <th className="px-3 py-2">Codigo</th>
-                  <th className="px-3 py-2">Cliente</th>
-                  <th className="px-3 py-2">Fecha solicitud</th>
-                  <th className="px-3 py-2">Fecha entrega</th>
-                  <th className="px-3 py-2">Laboratorio</th>
-                  <th className="px-3 py-2">Muestras</th>
-                  <th className="px-3 py-2">Valor</th>
-                  <th className="px-3 py-2">Gestion</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredSamples.map((sample) => (
-                  <tr key={sample.id}>
-                    <td className="px-3 py-2 font-medium text-ink">{sample.code}</td>
-                    <td className="px-3 py-2">
+          <div className="divide-y divide-slate-100">
+            {filteredSamples.map((sample) => {
+              const isExpanded = expandedSampleId === sample.id;
+              const itemCount = (sample.items || []).length;
+              const grams = (sample.items || []).reduce((total, item) => total + Number(item.quantity_grams || 0), 0);
+
+              return (
+                <article key={sample.id} className="px-4 py-3">
+                  <div className="grid gap-3 lg:grid-cols-[150px_minmax(180px,1.2fr)_130px_130px_130px_130px] lg:items-center">
+                    <div>
+                      <p className="font-semibold text-ink">{sample.code}</p>
+                      <p className="text-xs text-slate-500">{itemCount} muestra{itemCount === 1 ? "" : "s"}</p>
+                    </div>
+                    <div>
                       <p className="font-medium text-slate-800">{sample.requester_name}</p>
                       <p className="text-xs text-slate-500">{sample.requester_company || "-"} · {sample.requester_phone || "-"}</p>
-                    </td>
-                    <td className="px-3 py-2">{formatDate(sample.requested_at)}</td>
-                    <td className="px-3 py-2">{formatDate(sample.tentative_delivery_date || sample.updated_at)}</td>
-                    <td className="px-3 py-2">
-                      {hasCompleteSampleLabReview(sample) ? (
-                        <div className="space-y-1 text-xs text-slate-600">
-                          {sample.items.map((item) => {
-                            const lab = buildItemLabLines(item);
-                            return (
-                              <div key={`history-lab-${item.id}`} className="rounded border border-slate-200 bg-white p-2">
-                                <p className="font-semibold text-slate-800">{formatRequestedCoffee(item)}</p>
-                                <p>{lab?.summary}</p>
-                                <p>{lab?.detail}</p>
-                                {item.sample_lab_notes && <p>Notas: {item.sample_lab_notes}</p>}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-500">Solicitud</p>
+                      <p>{formatDate(sample.requested_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-500">Entrega</p>
+                      <p>{formatDate(sample.tentative_delivery_date || sample.updated_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-500">Cantidad</p>
+                      <p>{grams.toLocaleString("es-CO")} g</p>
+                    </div>
+                    <button
+                      className="inline-flex items-center justify-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => setExpandedSampleId(isExpanded ? null : sample.id)}
+                      type="button"
+                    >
+                      <Eye size={16} />
+                      {isExpanded ? "Ocultar" : "Ver mas"}
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-4 grid gap-4 rounded border border-slate-200 bg-slate-50 p-4 xl:grid-cols-2">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-slate-500">Muestras solicitadas</p>
+                          <div className="mt-2 space-y-2">
+                            {(sample.items || []).map((item) => (
+                              <div key={item.id} className="rounded border border-slate-200 bg-white p-3 text-sm">
+                                <p className="font-medium text-ink">{formatRequestedCoffee(item)}</p>
+                                <p className="text-slate-500">{Number(item.quantity_grams || 0).toLocaleString("es-CO")} g · {formatMoney(sample.currency, item.price)}</p>
                               </div>
-                            );
-                          })}
+                            ))}
+                          </div>
                         </div>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="space-y-1">
-                        {(sample.items || []).map((item) => (
-                          <p key={item.id}>
-                            {formatRequestedCoffee(item)} · {Number(item.quantity_grams || 0).toLocaleString("es-CO")} g
-                          </p>
-                        ))}
+                        <div className="text-sm text-slate-600">
+                          <p><span className="font-semibold text-slate-800">Gestion:</span> {sample.handled_by_name || sample.created_by_name || "-"}</p>
+                          {sample.notes && <p><span className="font-semibold text-slate-800">Notas:</span> {sample.notes}</p>}
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      {(sample.items || []).map((item) => (
-                        <p key={`price-${item.id}`}>{formatMoney(sample.currency, item.price)}</p>
-                      ))}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      <p>{sample.handled_by_name || sample.created_by_name || "-"}</p>
-                      {sample.notes && <p className="mt-1 text-xs text-slate-500">{sample.notes}</p>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-slate-500">Analisis de laboratorio</p>
+                        {hasCompleteSampleLabReview(sample) ? (
+                          <div className="mt-2 space-y-2 text-sm text-slate-600">
+                            {sample.items.map((item) => {
+                              const lab = buildItemLabLines(item);
+                              return (
+                                <div key={`history-lab-${item.id}`} className="rounded border border-slate-200 bg-white p-3">
+                                  <p className="font-semibold text-slate-800">{formatRequestedCoffee(item)}</p>
+                                  <p>{lab?.summary}</p>
+                                  <p>{lab?.detail}</p>
+                                  {item.sample_lab_notes && <p>Notas: {item.sample_lab_notes}</p>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-500">Sin analisis completo registrado.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
