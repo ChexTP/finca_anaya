@@ -9,7 +9,8 @@
     "dev": "nodemon src/index.js",
     "db:schema": "node src/db/run-schema.js",
     "db:seed": "node src/db/seed.js",
-    "db:demo": "node src/db/seed-demo.js"
+    "db:demo": "node src/db/seed-demo.js",
+    "db:cleanup-operational": "node src/db/cleanup-operational-data.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
