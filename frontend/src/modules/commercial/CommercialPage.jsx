@@ -84,6 +84,39 @@ const quoteFilters = [
 
 const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
+const normalizeMoneyInput = (value) => {
+  const text = String(value || "").replace(/[^\d,.]/g, "");
+  if (!text) return "";
+
+  const lastComma = text.lastIndexOf(",");
+  const lastDot = text.lastIndexOf(".");
+  const decimalIndex = Math.max(lastComma, lastDot);
+  const decimalSeparator = decimalIndex === lastComma ? "," : ".";
+  const decimalDigits = decimalIndex > -1 ? text.length - decimalIndex - 1 : 0;
+  const hasDecimal =
+    decimalIndex > -1 &&
+    decimalDigits > 0 &&
+    decimalDigits <= 2 &&
+    (decimalSeparator === "," || text.indexOf(".") === decimalIndex);
+
+  if (!hasDecimal) {
+    return text.replace(/[^\d]/g, "");
+  }
+
+  const integerPart = text.slice(0, decimalIndex).replace(/[^\d]/g, "");
+  const decimalPart = text.slice(decimalIndex + 1).replace(/[^\d]/g, "").slice(0, 2);
+  return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+};
+
+const formatMoneyInput = (value) => {
+  const normalized = String(value || "");
+  if (!normalized) return "";
+
+  const [integerPart, decimalPart] = normalized.split(".");
+  const formattedInteger = Number(integerPart || 0).toLocaleString("es-CO");
+  return decimalPart !== undefined ? `${formattedInteger},${decimalPart}` : formattedInteger;
+};
+
 const CommercialPage = () => {
   const { user } = useAuth();
   const [quotes, setQuotes] = useState([]);
@@ -351,7 +384,7 @@ const CommercialPage = () => {
         method: "POST",
         body: JSON.stringify({
           ...saleForm,
-          amountPaid: Number(saleForm.amountPaid || 0),
+          amountPaid: Number(normalizeMoneyInput(saleForm.amountPaid) || 0),
           paymentMethodId: saleForm.paymentMethodId ? Number(saleForm.paymentMethodId) : null,
         }),
       });
@@ -851,10 +884,10 @@ const CommercialPage = () => {
                   <input
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     placeholder="Valor pagado"
-                    type="number"
-                    step="0.01"
-                    value={saleForm.amountPaid}
-                    onChange={(event) => setSaleForm({ ...saleForm, amountPaid: event.target.value })}
+                    type="text"
+                    inputMode="decimal"
+                    value={formatMoneyInput(saleForm.amountPaid)}
+                    onChange={(event) => setSaleForm({ ...saleForm, amountPaid: normalizeMoneyInput(event.target.value) })}
                   />
                   <input
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"

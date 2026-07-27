@@ -493,8 +493,8 @@ const WarehousePendingPage = () => {
         </select>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_460px]">
-        <div className="rounded border border-slate-200 bg-white">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)]">
+        <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Ordenes por hacer</h2>
           </div>
@@ -558,7 +558,7 @@ const WarehousePendingPage = () => {
           )}
         </div>
 
-        <aside className="rounded border border-slate-200 bg-white p-4">
+        <aside className="min-w-0 rounded border border-slate-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-slate-800">Detalle operativo</h2>
           {loadingDetail ? (
             <p className="mt-3 text-sm text-slate-500">Cargando orden...</p>
@@ -567,7 +567,7 @@ const WarehousePendingPage = () => {
               <EmptyState title="Seleccione una venta" message="Aqui podra priorizar, asignar lotes, imprimir y cambiar estado." />
             </div>
           ) : (
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 min-w-0 space-y-4">
               <div>
                 <p className="font-semibold text-ink">{selectedSale.code}</p>
                 <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
@@ -819,13 +819,13 @@ const WarehousePendingPage = () => {
               )}
 
               {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
-              <div className="space-y-3 rounded border border-slate-200 p-3">
+              <div className="min-w-0 space-y-3 overflow-hidden rounded border border-slate-200 p-3">
                 <p className="text-xs font-semibold uppercase text-slate-500">Asignar lotes</p>
                 {assignmentRows.map((row, index) => (
-                  <div key={`assignment-${index}`} className="rounded border border-slate-200 p-3">
-                    <div className="grid gap-2">
+                  <div key={`assignment-${index}`} className="min-w-0 rounded border border-slate-200 p-3">
+                    <div className="grid min-w-0 gap-2">
                       <select
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        className="min-w-0 max-w-full truncate rounded border border-slate-300 px-3 py-2 text-sm"
                         value={row.saleItemId}
                         onChange={(event) => updateAssignmentRow(index, "saleItemId", event.target.value)}
                       >
@@ -837,7 +837,7 @@ const WarehousePendingPage = () => {
                         ))}
                       </select>
                       <select
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        className="min-w-0 max-w-full truncate rounded border border-slate-300 px-3 py-2 text-sm"
                         value={row.lotId}
                         onChange={(event) => updateAssignmentRow(index, "lotId", event.target.value)}
                       >
@@ -853,7 +853,7 @@ const WarehousePendingPage = () => {
                         ))}
                       </select>
                       <input
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        className="min-w-0 max-w-full rounded border border-slate-300 px-3 py-2 text-sm"
                         placeholder="Cantidad kg"
                         type="number"
                         min="0.001"
@@ -862,7 +862,7 @@ const WarehousePendingPage = () => {
                         onChange={(event) => updateAssignmentRow(index, "quantityKg", event.target.value)}
                       />
                       <input
-                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        className="min-w-0 max-w-full rounded border border-slate-300 px-3 py-2 text-sm"
                         placeholder="Observacion opcional"
                         value={row.notes}
                         onChange={(event) => updateAssignmentRow(index, "notes", event.target.value)}
