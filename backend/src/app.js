@@ -27,7 +27,7 @@ const app = express();
 
 app.use(morgan("dev"));
 app.use(requestDebugLogger);
-app.use(express.json());
+app.use(express.json({ limit: "6mb" }));
 app.use(
   cors({
     origin: ALLOWED_ORIGINS,

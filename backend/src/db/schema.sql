@@ -711,6 +711,11 @@ CREATE TABLE IF NOT EXISTS sample_requests (
   sample_lab_clean_cup NUMERIC(5, 2),
   sample_lab_score NUMERIC(5, 2),
   sample_lab_notes TEXT,
+  shipping_guide_image TEXT,
+  shipping_guide_file_name TEXT,
+  shipping_guide_mime_type VARCHAR(120),
+  shipping_guide_uploaded_by INTEGER REFERENCES users(id),
+  shipping_guide_uploaded_at TIMESTAMP,
   status VARCHAR(30) NOT NULL DEFAULT 'solicitada',
   notes TEXT,
   created_by INTEGER REFERENCES users(id),
@@ -753,6 +758,11 @@ ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_residual NUMERIC
 ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_clean_cup NUMERIC(5, 2);
 ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_score NUMERIC(5, 2);
 ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS sample_lab_notes TEXT;
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS shipping_guide_image TEXT;
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS shipping_guide_file_name TEXT;
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS shipping_guide_mime_type VARCHAR(120);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS shipping_guide_uploaded_by INTEGER REFERENCES users(id);
+ALTER TABLE sample_requests ADD COLUMN IF NOT EXISTS shipping_guide_uploaded_at TIMESTAMP;
 ALTER TABLE sample_requests ALTER COLUMN requester_phone DROP NOT NULL;
 ALTER TABLE sample_requests DROP CONSTRAINT IF EXISTS sample_requests_status_check;
 ALTER TABLE sample_requests

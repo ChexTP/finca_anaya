@@ -1,6 +1,7 @@
-import { Eye, Printer, RefreshCw } from "lucide-react";
+import { Eye, ImagePlus, Printer, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -70,7 +71,34 @@ const buildItemLabLines = (item) => {
   };
 };
 
+const viewShippingGuide = (sample, setError) => {
+  if (!sample.shipping_guide_image) return;
+
+  const win = window.open("", "_blank", "noopener,noreferrer");
+  if (!win) {
+    setError("El navegador bloqueo la ventana para ver la guia.");
+    return;
+  }
+
+  win.document.write(`
+    <html>
+      <head>
+        <title>Guia de envio ${sample.code}</title>
+        <style>
+          body { margin: 0; background: #111827; display: grid; place-items: center; min-height: 100vh; }
+          img { max-width: 100%; max-height: 100vh; object-fit: contain; background: white; }
+        </style>
+      </head>
+      <body>
+        <img src="${sample.shipping_guide_image}" alt="Guia de envio ${sample.code}" />
+      </body>
+    </html>
+  `);
+  win.document.close();
+};
+
 const SamplesHistoryPage = () => {
+  const { user } = useAuth();
   const [samples, setSamples] = useState([]);
   const [filters, setFilters] = useState({
     client: "",
@@ -80,6 +108,8 @@ const SamplesHistoryPage = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [expandedSampleId, setExpandedSampleId] = useState(null);
+  const [uploadingGuideId, setUploadingGuideId] = useState(null);
+  const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
 
   const loadData = async () => {
     setError("");
@@ -118,6 +148,49 @@ const SamplesHistoryPage = () => {
       { count: 0, grams: 0, charged: 0 }
     );
   }, [filteredSamples]);
+
+  const uploadShippingGuide = async (sample, file) => {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("La guia de envio debe ser una imagen.");
+      return;
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      setError("La imagen de la guia no debe superar 4 MB.");
+      return;
+    }
+
+    setUploadingGuideId(sample.id);
+    setMessage("");
+    setError("");
+
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("No se pudo leer la imagen de la guia"));
+        reader.readAsDataURL(file);
+      });
+
+      await apiRequest(`/samples/${sample.id}/shipping-guide`, {
+        method: "PUT",
+        body: JSON.stringify({
+          image,
+          fileName: file.name,
+          mimeType: file.type,
+        }),
+      });
+
+      await loadData();
+      setMessage("Guia de envio asociada a la muestra.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setUploadingGuideId(null);
+    }
+  };
 
   return (
     <section className="space-y-5">
@@ -256,6 +329,57 @@ const SamplesHistoryPage = () => {
                         <div className="text-sm text-slate-600">
                           <p><span className="font-semibold text-slate-800">Gestion:</span> {sample.handled_by_name || sample.created_by_name || "-"}</p>
                           {sample.notes && <p><span className="font-semibold text-slate-800">Notas:</span> {sample.notes}</p>}
+                        </div>
+                        <div className="rounded border border-slate-200 bg-white p-3 text-sm">
+                          <p className="font-semibold text-slate-800">Guia de envio</p>
+                          {sample.shipping_guide_image ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                className="inline-flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                type="button"
+                                onClick={() => viewShippingGuide(sample, setError)}
+                              >
+                                <Eye size={15} />
+                                Ver guia
+                              </button>
+                              {canUploadShippingGuide && (
+                                <label className="inline-flex cursor-pointer items-center gap-2 rounded bg-leaf px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+                                  <ImagePlus size={15} />
+                                  {uploadingGuideId === sample.id ? "Subiendo..." : "Cambiar guia"}
+                                  <input
+                                    className="hidden"
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={uploadingGuideId === sample.id}
+                                    onChange={(event) => {
+                                      uploadShippingGuide(sample, event.target.files?.[0]);
+                                      event.target.value = "";
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <p className="text-slate-500">Sin guia cargada.</p>
+                              {canUploadShippingGuide && (
+                                <label className="inline-flex cursor-pointer items-center gap-2 rounded bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">
+                                  <ImagePlus size={15} />
+                                  {uploadingGuideId === sample.id ? "Subiendo..." : "Subir guia"}
+                                  <input
+                                    className="hidden"
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={uploadingGuideId === sample.id}
+                                    onChange={(event) => {
+                                      uploadShippingGuide(sample, event.target.files?.[0]);
+                                      event.target.value = "";
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 

@@ -1,4 +1,4 @@
-import { FlaskConical, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Eye, FlaskConical, ImagePlus, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -287,12 +287,14 @@ const SamplesPage = () => {
   const [error, setError] = useState("");
   const [sampleFilter, setSampleFilter] = useState("all");
   const [saving, setSaving] = useState(false);
+  const [uploadingGuideId, setUploadingGuideId] = useState(null);
   const [blendSampleId, setBlendSampleId] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
 
   const canCreate = ["admin", "seller"].includes(user?.role);
   const canManageSamples = ["admin", "samples"].includes(user?.role);
   const canPrintSampleOrder = ["admin", "accounting", "samples"].includes(user?.role);
+  const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
 
   const sampleCounts = useMemo(() => {
     return samples.reduce(
@@ -436,6 +438,75 @@ const SamplesPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const uploadShippingGuide = async (sample, file) => {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("La guia de envio debe ser una imagen.");
+      return;
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      setError("La imagen de la guia no debe superar 4 MB.");
+      return;
+    }
+
+    setUploadingGuideId(sample.id);
+    setMessage("");
+    setError("");
+
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("No se pudo leer la imagen de la guia"));
+        reader.readAsDataURL(file);
+      });
+
+      await apiRequest(`/samples/${sample.id}/shipping-guide`, {
+        method: "PUT",
+        body: JSON.stringify({
+          image,
+          fileName: file.name,
+          mimeType: file.type,
+        }),
+      });
+
+      await loadData();
+      setMessage("Guia de envio asociada a la muestra.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setUploadingGuideId(null);
+    }
+  };
+
+  const viewShippingGuide = (sample) => {
+    if (!sample.shipping_guide_image) return;
+
+    const win = window.open("", "_blank", "noopener,noreferrer");
+    if (!win) {
+      setError("El navegador bloqueo la ventana para ver la guia.");
+      return;
+    }
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>Guia de envio ${sample.code}</title>
+          <style>
+            body { margin: 0; background: #111827; display: grid; place-items: center; min-height: 100vh; }
+            img { max-width: 100%; max-height: 100vh; object-fit: contain; background: white; }
+          </style>
+        </head>
+        <body>
+          <img src="${sample.shipping_guide_image}" alt="Guia de envio ${sample.code}" />
+        </body>
+      </html>
+    `);
+    win.document.close();
   };
 
   const openBlendEditor = (sample) => {
@@ -843,6 +914,61 @@ const SamplesPage = () => {
                           Imprimir orden
                         </button>
                       )}
+                    </div>
+                  )}
+
+                  {["lista", "entregada"].includes(sample.status) && (
+                    <div className={`mt-3 rounded border p-3 ${
+                      sample.shipping_guide_image
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-amber-300 bg-amber-50"
+                    }`}>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className={`text-sm font-semibold ${sample.shipping_guide_image ? "text-emerald-800" : "text-amber-900"}`}>
+                            Guia de envio
+                          </p>
+                          <p className="text-xs text-slate-600">
+                            {sample.shipping_guide_image
+                              ? `Guia cargada${sample.shipping_guide_file_name ? `: ${sample.shipping_guide_file_name}` : ""}`
+                              : "Aun no se ha cargado la foto de la guia."}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {sample.shipping_guide_image && (
+                            <button
+                              className="inline-flex items-center gap-2 rounded border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                              type="button"
+                              onClick={() => viewShippingGuide(sample)}
+                            >
+                              <Eye size={15} />
+                              Ver guia
+                            </button>
+                          )}
+                          {canUploadShippingGuide && (
+                            <label className={`inline-flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs font-semibold text-white ${
+                              sample.shipping_guide_image ? "bg-leaf hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"
+                            }`}>
+                              <ImagePlus size={15} />
+                              {uploadingGuideId === sample.id
+                                ? "Subiendo..."
+                                : sample.shipping_guide_image
+                                  ? "Cambiar guia"
+                                  : "Subir guia"}
+                              <input
+                                className="hidden"
+                                type="file"
+                                accept="image/*"
+                                disabled={uploadingGuideId === sample.id}
+                                onChange={(event) => {
+                                  uploadShippingGuide(sample, event.target.files?.[0]);
+                                  event.target.value = "";
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
 

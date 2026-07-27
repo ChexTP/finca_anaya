@@ -7,6 +7,7 @@ import {
   replaceSampleBlend,
   updateSampleRequestStatus,
   updateSampleItemReviews,
+  updateSampleShippingGuide,
 } from "../models/samples.model.js";
 
 const toNumber = (value) => {
@@ -33,6 +34,8 @@ const validStatuses = [
   "entregada",
   "cancelada",
 ];
+const allowedShippingGuideStatuses = ["lista", "entregada"];
+const maxShippingGuideSize = 4 * 1024 * 1024;
 const requiredSampleLabFields = [
   "humidityPercent",
   "aroma",
@@ -342,5 +345,55 @@ export const putSampleBlend = async (req, res) => {
     res.json({ message: "Ensamble de muestras guardado correctamente", data: updatedSample });
   } catch (error) {
     res.status(500).json({ message: "Error al guardar ensamble de muestras", error: error.message });
+  }
+};
+
+export const putSampleShippingGuide = async (req, res) => {
+  try {
+    const { image, fileName, mimeType } = req.body;
+    const sample = await findSampleRequestById(req.params.id);
+
+    if (!sample) {
+      return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+    }
+
+    if (!allowedShippingGuideStatuses.includes(sample.status)) {
+      return res.status(409).json({
+        message: "La guia de envio solo se puede asociar cuando la muestra esta lista o entregada",
+      });
+    }
+
+    if (!image || typeof image !== "string" || !image.startsWith("data:image/")) {
+      return res.status(400).json({ message: "Debe cargar una imagen valida de la guia de envio" });
+    }
+
+    if (mimeType && !String(mimeType).startsWith("image/")) {
+      return res.status(400).json({ message: "El archivo de guia debe ser una imagen" });
+    }
+
+    const base64Size = Math.ceil((image.length * 3) / 4);
+    if (base64Size > maxShippingGuideSize) {
+      return res.status(400).json({ message: "La imagen de la guia no debe superar 4 MB" });
+    }
+
+    await updateSampleShippingGuide({
+      id: sample.id,
+      image,
+      fileName,
+      mimeType,
+      uploadedBy: req.user.id,
+    });
+
+    const updatedSample = await findSampleRequestById(sample.id);
+
+    res.json({
+      message: "Guia de envio asociada correctamente",
+      data: updatedSample,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al guardar guia de envio",
+      error: error.message,
+    });
   }
 };

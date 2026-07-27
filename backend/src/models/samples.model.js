@@ -410,3 +410,29 @@ export const updateSampleRequestStatus = async ({ id, status, notes, labReview, 
 
   return result.rows[0];
 };
+
+export const updateSampleShippingGuide = async ({
+  id,
+  image,
+  fileName,
+  mimeType,
+  uploadedBy,
+}) => {
+  const result = await pool.query(
+    `
+    UPDATE sample_requests
+    SET
+      shipping_guide_image = $1,
+      shipping_guide_file_name = $2,
+      shipping_guide_mime_type = $3,
+      shipping_guide_uploaded_by = $4,
+      shipping_guide_uploaded_at = NOW(),
+      updated_at = NOW()
+    WHERE id = $5
+    RETURNING *
+    `,
+    [image, fileName || null, mimeType || null, uploadedBy, id]
+  );
+
+  return result.rows[0];
+};
