@@ -18,6 +18,38 @@ const getItemName = (item) => {
   return item.description || item.coffee_profile_name || item.coffee_type_name || item.variety || "Cafe solicitado";
 };
 
+const getPrimaryComponentName = (item) => {
+  return Array.isArray(item.profile_components)
+    ? item.profile_components.find((component) => component?.purchase_coffee_name)?.purchase_coffee_name
+    : null;
+};
+
+const getDeficitCoffeeName = (item) => {
+  const primaryComponent = getPrimaryComponentName(item);
+
+  if (item.coffee_profile_category === "Exotico" && primaryComponent && item.coffee_profile_name) {
+    return `${primaryComponent} - ${item.coffee_profile_name}`;
+  }
+
+  return getItemName(item);
+};
+
+const getEstimatedDeficitParts = (item) => {
+  const missingKg = Number(item.missing_kg || 0);
+  const primaryComponent = getPrimaryComponentName(item);
+
+  if (item.coffee_profile_category !== "Exotico" || !primaryComponent || missingKg <= 0) {
+    return null;
+  }
+
+  // Estimacion interna: 60% proceso con rendimiento 95%, 40% cafe base.
+  return {
+    processComponentName: `${primaryComponent} - ${item.coffee_profile_name}`,
+    processInputKg: missingKg * 0.6 / 0.95,
+    baseKg: missingKg * 0.4,
+  };
+};
+
 const LotReservationsPage = () => {
   const { user } = useAuth();
   const [data, setData] = useState({ lots: [], deficits: [], totals: {} });
@@ -68,6 +100,7 @@ const LotReservationsPage = () => {
         item.client_name,
         item.order_assignee,
         getItemName(item),
+        getDeficitCoffeeName(item),
         item.product_form,
         item.process_type,
         item.variety,
@@ -193,10 +226,24 @@ const LotReservationsPage = () => {
                   <tr key={item.sale_item_id} className="border-t border-slate-100">
                     <td className="px-3 py-2 font-semibold text-ink">{item.sale_code}</td>
                     <td className="px-3 py-2">{item.client_name}</td>
-                    <td className="px-3 py-2">{getItemName(item)}</td>
+                    <td className="px-3 py-2">{getDeficitCoffeeName(item)}</td>
                     <td className="px-3 py-2">{formatKg(item.required_kg)}</td>
                     <td className="px-3 py-2">{formatKg(item.reserved_kg)}</td>
-                    <td className="px-3 py-2 font-semibold text-rose-700">{formatKg(item.missing_kg)}</td>
+                    <td className="px-3 py-2">
+                      {getEstimatedDeficitParts(item) ? (
+                        <div className="space-y-1 text-xs">
+                          <p className="font-semibold text-rose-700">
+                            {getEstimatedDeficitParts(item).processComponentName}: {formatKg(getEstimatedDeficitParts(item).processInputKg)}
+                          </p>
+                          <p className="font-semibold text-amber-700">
+                            Cafe base estimado: {formatKg(getEstimatedDeficitParts(item).baseKg)}
+                          </p>
+                          <p className="text-slate-500">Faltante perfil final: {formatKg(item.missing_kg)}</p>
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-rose-700">{formatKg(item.missing_kg)}</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">{formatDate(item.estimated_delivery_date)}</td>
                     <td className="px-3 py-2">
                       <Link className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50" to="/bodega/pendientes">

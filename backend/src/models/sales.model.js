@@ -844,7 +844,27 @@ export const getOperationalLotReservations = async () => {
       COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg) AS required_kg,
       COALESCE(SUM(sale_item_lots.quantity_kg), 0) AS reserved_kg,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.id AS coffee_profile_id,
+      coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.category AS coffee_profile_category,
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'purchase_coffee_id', coffee_profile_components.purchase_coffee_id,
+              'purchase_coffee_name', purchase_coffees.name,
+              'purchase_coffee_family', purchase_coffees.family,
+              'purchase_coffee_process_type', purchase_coffees.process_type,
+              'percentage', coffee_profile_components.percentage
+            )
+            ORDER BY coffee_profile_components.sort_order ASC, coffee_profile_components.id ASC
+          )
+          FROM coffee_profile_components
+          INNER JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          WHERE coffee_profile_components.coffee_profile_id = coffee_profiles.id
+        ),
+        '[]'::json
+      ) AS profile_components
     FROM sale_items
     INNER JOIN sales ON sales.id = sale_items.sale_id
     INNER JOIN clients ON clients.id = sales.client_id
@@ -852,7 +872,7 @@ export const getOperationalLotReservations = async () => {
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
     WHERE sales.status NOT IN ('despachada', 'anulada')
-    GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.name
+    GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.id, coffee_profiles.name, coffee_profiles.category
     ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_items.id ASC
     `
   );
