@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, RefreshCw, Unlock } from "lucide-react";
+import { AlertTriangle, Eye, FileSpreadsheet, Printer, RefreshCw, Unlock, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -50,6 +50,62 @@ const getEstimatedDeficitParts = (item) => {
   };
 };
 
+const escapeCsv = (value) => {
+  const text = value === undefined || value === null ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const downloadCsv = ({ filename, headers, rows }) => {
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsv).join(";"))
+    .join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const printRows = ({ title, headers, rows }) => {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return false;
+
+  const tableRows = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ""}</td>`).join("")}</tr>`)
+    .join("");
+  const tableHeaders = headers.map((header) => `<th>${header}</th>`).join("");
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #102033; padding: 24px; }
+          h1 { font-size: 20px; margin: 0 0 16px; }
+          table { border-collapse: collapse; width: 100%; font-size: 12px; }
+          th, td { border: 1px solid #d7dee8; padding: 7px; text-align: left; vertical-align: top; }
+          th { background: #eef2f7; }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        <table>
+          <thead><tr>${tableHeaders}</tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  return true;
+};
+
 const LotReservationsPage = () => {
   const { user } = useAuth();
   const [data, setData] = useState({ lots: [], deficits: [], totals: {} });
@@ -57,6 +113,7 @@ const LotReservationsPage = () => {
   const [onlyWithDeficit, setOnlyWithDeficit] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [detailModal, setDetailModal] = useState(null);
 
   const loadData = async () => {
     setMessage("");
@@ -120,6 +177,96 @@ const LotReservationsPage = () => {
     );
   }, [filteredLots]);
 
+  const freeLots = useMemo(() => {
+    return filteredLots.filter((lot) => Number(lot.operational_available_kg || 0) > 0);
+  }, [filteredLots]);
+
+  const detailReports = useMemo(() => {
+    const deficitRows = filteredDeficits.map((item) => {
+      const estimatedParts = getEstimatedDeficitParts(item);
+
+      return {
+        sale: item.sale_code,
+        client: item.client_name,
+        coffee: getDeficitCoffeeName(item),
+        requested: formatKg(item.required_kg),
+        reserved: formatKg(item.reserved_kg),
+        missing: formatKg(item.missing_kg),
+        estimate: estimatedParts
+          ? `${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)} / Cafe base estimado: ${formatKg(estimatedParts.baseKg)}`
+          : formatKg(item.missing_kg),
+        delivery: formatDate(item.estimated_delivery_date),
+        assignee: item.order_assignee || "-",
+      };
+    });
+
+    return {
+      reserved: {
+        title: "Detalle de cafe reservado",
+        filename: "detalle-cafe-reservado.csv",
+        headers: ["Lote", "Venta", "Cliente", "Cafe", "Kg asignados", "Entrega", "Encargado", "Estado"],
+        rows: activeAssignments.map((assignment) => ({
+          lot: formatCoffeeLotOption(assignment.lot),
+          sale: assignment.sale_code,
+          client: assignment.client_name,
+          coffee: getItemName(assignment),
+          kg: formatKg(assignment.quantity_kg),
+          delivery: formatDate(assignment.estimated_delivery_date),
+          assignee: assignment.order_assignee || "-",
+          status: saleStatusLabels[assignment.sale_status] || assignment.sale_status,
+        })),
+      },
+      free: {
+        title: "Detalle de cafe libre operativo",
+        filename: "detalle-cafe-libre-operativo.csv",
+        headers: ["Lote", "Cafe", "Estado", "Fisico", "Reservado", "Libre operativo"],
+        rows: freeLots.map((lot) => ({
+          lot: lot.code,
+          coffee: formatCoffeeLotOption(lot).replace(`${lot.code} - `, ""),
+          status: lot.status,
+          physical: formatKg(lot.available_weight_kg),
+          reserved: formatKg(lot.reserved_kg),
+          free: formatKg(lot.operational_available_kg),
+        })),
+      },
+      deficit: {
+        title: "Detalle de deficit de cafe",
+        filename: "detalle-deficit-cafe.csv",
+        headers: ["Venta", "Cliente", "Cafe", "Pedido", "Reservado", "Faltante", "Estimacion compra/proceso", "Entrega", "Encargado"],
+        rows: deficitRows,
+      },
+    };
+  }, [activeAssignments, filteredDeficits, freeLots]);
+
+  const selectedReport = detailModal ? detailReports[detailModal] : null;
+
+  const getReportRows = (report) => {
+    if (!report) return [];
+    return report.rows.map((row) => Object.values(row));
+  };
+
+  const exportSelectedReport = () => {
+    if (!selectedReport) return;
+
+    downloadCsv({
+      filename: selectedReport.filename,
+      headers: selectedReport.headers,
+      rows: getReportRows(selectedReport),
+    });
+  };
+
+  const printSelectedReport = () => {
+    if (!selectedReport) return;
+
+    const opened = printRows({
+      title: selectedReport.title,
+      headers: selectedReport.headers,
+      rows: getReportRows(selectedReport),
+    });
+
+    if (!opened) setError("El navegador bloqueo la ventana de impresion.");
+  };
+
   const canReleaseReservation = ["admin", "warehouse"].includes(user?.role);
 
   const releaseAssignment = async (assignment) => {
@@ -169,16 +316,105 @@ const LotReservationsPage = () => {
         <div className="rounded border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase text-slate-500">Reservado</p>
           <p className="mt-2 text-2xl font-bold text-amber-700">{formatKg(data.totals?.reserved_kg)}</p>
+          <button
+            className="mt-3 inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+            type="button"
+            onClick={() => setDetailModal("reserved")}
+          >
+            <Eye size={13} />
+            Ver detalle
+          </button>
         </div>
         <div className="rounded border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase text-slate-500">Libre operativo</p>
           <p className="mt-2 text-2xl font-bold text-emerald-700">{formatKg(data.totals?.operational_available_kg)}</p>
+          <button
+            className="mt-3 inline-flex items-center gap-1 rounded border border-emerald-300 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+            type="button"
+            onClick={() => setDetailModal("free")}
+          >
+            <Eye size={13} />
+            Ver detalle
+          </button>
         </div>
         <div className="rounded border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase text-slate-500">Deficit</p>
           <p className="mt-2 text-2xl font-bold text-rose-700">{formatKg(data.totals?.missing_kg)}</p>
+          <button
+            className="mt-3 inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+            type="button"
+            onClick={() => setDetailModal("deficit")}
+          >
+            <Eye size={13} />
+            Ver detalle
+          </button>
         </div>
       </div>
+
+      {selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="max-h-[88vh] w-full max-w-6xl overflow-hidden rounded border border-slate-200 bg-white shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <h2 className="text-base font-semibold text-ink">{selectedReport.title}</h2>
+                <p className="text-xs text-slate-500">{selectedReport.rows.length} registros con los filtros actuales.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={printSelectedReport}
+                >
+                  <Printer size={16} />
+                  Imprimir / PDF
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                  type="button"
+                  onClick={exportSelectedReport}
+                >
+                  <FileSpreadsheet size={16} />
+                  Excel
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={() => setDetailModal(null)}
+                >
+                  <X size={16} />
+                  Cerrar
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[70vh] overflow-auto p-4">
+              {selectedReport.rows.length === 0 ? (
+                <EmptyState title="Sin registros" message="No hay informacion para mostrar con los filtros actuales." />
+              ) : (
+                <table className="min-w-full text-left text-sm">
+                  <thead className="sticky top-0 bg-slate-100 text-slate-600">
+                    <tr>
+                      {selectedReport.headers.map((header) => (
+                        <th key={header} className="px-3 py-2">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getReportRows(selectedReport).map((row, index) => (
+                      <tr key={`${detailModal}-${index}`} className="border-t border-slate-100">
+                        {row.map((cell, cellIndex) => (
+                          <td key={`${detailModal}-${index}-${cellIndex}`} className="px-3 py-2 align-top">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 rounded border border-slate-200 bg-white p-3">
         <input
