@@ -1329,7 +1329,7 @@ const LaboratoryPage = () => {
               )}
             </div>
 
-            <form className="rounded border border-slate-200 bg-white p-4" onSubmit={saveBlendOrder}>
+            <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={saveBlendOrder}>
               <h2 className="text-sm font-semibold text-slate-800">Orden final de mezcla</h2>
               <p className="mt-1 text-sm text-slate-500">
                 {selectedSale ? `Venta seleccionada: ${selectedSale.code}` : "Seleccione una venta pendiente."}
@@ -1356,10 +1356,10 @@ const LaboratoryPage = () => {
                       });
 
                       return (
-                        <div key={`blend-${index}`} className="rounded border border-slate-200 p-3">
-                          <div className="grid gap-3 sm:grid-cols-2">
+                        <div key={`blend-${index}`} className="min-w-0 overflow-hidden rounded border border-slate-200 p-3">
+                          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                             <select
-                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
                               value={row.saleItemId}
                               onChange={(event) => updateBlendRow(index, "saleItemId", event.target.value)}
                               required
@@ -1372,7 +1372,7 @@ const LaboratoryPage = () => {
                               ))}
                             </select>
                             <select
-                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
                               value={row.category}
                               onChange={(event) => updateBlendRow(index, "category", event.target.value)}
                               required
@@ -1385,7 +1385,7 @@ const LaboratoryPage = () => {
                               ))}
                             </select>
                             <select
-                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
                               value={row.lotId}
                               onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
                               required
@@ -1398,7 +1398,7 @@ const LaboratoryPage = () => {
                               ))}
                             </select>
                             <input
-                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
                               placeholder="Porcentaje %"
                               type="number"
                               min="0.01"

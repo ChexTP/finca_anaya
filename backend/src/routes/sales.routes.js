@@ -75,7 +75,7 @@ router.put(
 router.put(
   "/:id/blend-order",
   requireAuth,
-  requireRoles("admin", "laboratory", "warehouse", "accounting"),
+  requireRoles("admin", "laboratory"),
   putSaleBlendOrder
 );
 router.put(
