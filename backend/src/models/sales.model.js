@@ -705,6 +705,56 @@ export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) =>
   }
 };
 
+export const removeSaleLotAssignment = async ({ assignmentId }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const assignmentResult = await client.query(
+      `
+      SELECT
+        sale_item_lots.*,
+        sales.id AS sale_id,
+        sales.code AS sale_code,
+        sales.status AS sale_status,
+        coffee_lots.code AS lot_code
+      FROM sale_item_lots
+      INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+      INNER JOIN sales ON sales.id = sale_items.sale_id
+      INNER JOIN coffee_lots ON coffee_lots.id = sale_item_lots.lot_id
+      WHERE sale_item_lots.id = $1
+      FOR UPDATE
+      `,
+      [assignmentId]
+    );
+    const assignment = assignmentResult.rows[0];
+
+    if (!assignment) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (
+      assignment.deducted_at ||
+      ["alistada", "despachada", "anulada"].includes(assignment.sale_status)
+    ) {
+      await client.query("ROLLBACK");
+      return { locked: true, assignment };
+    }
+
+    await client.query("DELETE FROM sale_item_lots WHERE id = $1", [assignmentId]);
+
+    await client.query("COMMIT");
+    return { assignment };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const getOperationalLotReservations = async () => {
   const lotsResult = await pool.query(
     `

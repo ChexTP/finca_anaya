@@ -13,6 +13,7 @@ import {
   updateSaleOrderAssignee,
   updateSaleItemShortage,
   replaceSaleLotAssignments,
+  removeSaleLotAssignment,
   getOperationalLotReservations,
   markSalePendingLaboratory,
   updateSaleItemReviews,
@@ -357,6 +358,40 @@ export const putSaleLotAssignments = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al asignar lotes",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteSaleLotAssignment = async (req, res) => {
+  try {
+    const assignmentId = Number(req.params.assignmentId);
+
+    if (!Number.isInteger(assignmentId)) {
+      return res.status(400).json({ message: "Asignacion invalida" });
+    }
+
+    const result = await removeSaleLotAssignment({ assignmentId });
+
+    if (!result) {
+      return res.status(404).json({ message: "Asignacion no encontrada" });
+    }
+
+    if (result.locked) {
+      return res.status(409).json({
+        message: "No se puede liberar un lote de una venta alistada, despachada, anulada o ya descontada",
+        data: result.assignment,
+      });
+    }
+
+    res.json({
+      message: "Reserva de lote liberada correctamente",
+      data: result.assignment,
+    });
+  } catch (error) {
+    logControllerError("Error al liberar reserva de lote", error);
+    res.status(500).json({
+      message: "Error al liberar reserva de lote",
       error: error.message,
     });
   }

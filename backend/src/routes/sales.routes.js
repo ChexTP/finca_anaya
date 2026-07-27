@@ -14,6 +14,7 @@ import {
   putSaleOrderAssignee,
   putSaleItemShortage,
   putSaleLotAssignments,
+  deleteSaleLotAssignment,
   getSaleLotReservations,
   putSalePendingLaboratory,
   putSaleLabReview,
@@ -28,6 +29,12 @@ router.get(
   requireAuth,
   requireRoles("admin", "accounting", "warehouse"),
   getSaleLotReservations
+);
+router.delete(
+  "/lot-assignments/:assignmentId",
+  requireAuth,
+  requireRoles("admin", "warehouse"),
+  deleteSaleLotAssignment
 );
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
 router.post(

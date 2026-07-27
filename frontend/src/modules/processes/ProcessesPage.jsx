@@ -70,6 +70,10 @@ const ProcessesPage = () => {
     return selectedInputs.reduce((total, input) => total + input.quantityKg, 0).toFixed(3);
   }, [selectedInputs]);
 
+  const selectedSale = useMemo(() => {
+    return sales.find((sale) => String(sale.id) === String(form.saleId));
+  }, [form.saleId, sales]);
+
   const filteredProcesses = useMemo(() => {
     const search = processSearch.trim().toLowerCase();
     if (!search) return processes;
@@ -329,8 +333,9 @@ const ProcessesPage = () => {
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={form.quoteId}
               onChange={(event) => setForm({ ...form, quoteId: event.target.value, saleId: "" })}
+              disabled={Boolean(form.saleId)}
             >
-              <option value="">Sin preventa asociada</option>
+              <option value="">{form.saleId ? "Proceso asociado a venta" : "Sin preventa asociada"}</option>
               {quotes.map((quote) => (
                 <option key={quote.id} value={quote.id}>
                   {quote.code} - {quote.client_name}
@@ -362,6 +367,12 @@ const ProcessesPage = () => {
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
             />
           </div>
+
+          {selectedSale && (
+            <p className="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              Proceso asociado a la venta <span className="font-semibold">{selectedSale.code}</span> de {selectedSale.client_name}.
+            </p>
+          )}
 
           <div className="mt-4 overflow-x-auto rounded border border-slate-200">
             <table className="min-w-full text-left text-sm">

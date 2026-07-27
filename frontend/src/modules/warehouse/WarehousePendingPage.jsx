@@ -88,18 +88,39 @@ const WarehousePendingPage = () => {
     );
   }, [sales]);
 
+  const currentReservedByLot = useMemo(() => {
+    return (selectedSale?.deductedLots || []).reduce((totals, lot) => {
+      if (lot.deducted_at) return totals;
+      const lotId = Number(lot.lot_id);
+      totals[lotId] = (totals[lotId] || 0) + Number(lot.quantity_kg || 0);
+      return totals;
+    }, {});
+  }, [selectedSale]);
+
   const availableLotGroups = useMemo(() => {
-    return Object.values(groupCoffeeLots(availableLots)).sort((left, right) => left.name.localeCompare(right.name));
-  }, [availableLots]);
+    const assignableLots = availableLots
+      .map((lot) => {
+        const currentReservedKg = currentReservedByLot[Number(lot.id)] || 0;
+        const effectiveOperationalKg = Number(lot.operational_available_kg || 0) + currentReservedKg;
+
+        return {
+          ...lot,
+          available_weight_kg: Number(effectiveOperationalKg.toFixed(3)),
+        };
+      })
+      .filter((lot) => Number(lot.available_weight_kg || 0) > 0);
+
+    return Object.values(groupCoffeeLots(assignableLots)).sort((left, right) => left.name.localeCompare(right.name));
+  }, [availableLots, currentReservedByLot]);
 
   const loadData = async () => {
-    const [saleData, inventoryData] = await Promise.all([
+    const [saleData, reservationData] = await Promise.all([
       apiRequest("/sales"),
-      apiRequest("/inventory/lots"),
+      apiRequest("/sales/lot-reservations"),
     ]);
 
     setSales(saleData.filter((sale) => activeWarehouseStatuses.includes(sale.status)));
-    setAvailableLots(inventoryData);
+    setAvailableLots(reservationData.lots || []);
 
     if (selectedSale) {
       const stillExists = saleData.find((sale) => sale.id === selectedSale.id && activeWarehouseStatuses.includes(sale.status));
