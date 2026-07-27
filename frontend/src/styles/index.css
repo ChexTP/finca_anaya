@@ -27,6 +27,8 @@ input,
 select,
 textarea {
   font: inherit;
+  max-width: 100%;
+  min-width: 0;
 }
 
 @media print {

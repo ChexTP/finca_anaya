@@ -222,7 +222,7 @@ const SamplesHistoryPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-3 rounded border border-slate-200 bg-white p-4 md:grid-cols-[1fr_170px_170px]">
+      <div className="grid min-w-0 gap-3 rounded border border-slate-200 bg-white p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,170px)_minmax(0,170px)]">
         <input
           className="rounded border border-slate-300 px-3 py-2 text-sm"
           placeholder="Buscar por cliente, empresa o telefono"

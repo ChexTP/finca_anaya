@@ -726,7 +726,7 @@ const WarehousePendingPage = () => {
                               const calculatedKg = baseKg * Number(row.percentage || 0) / 100;
 
                               return (
-                                <div key={`blend-row-${row.index}`} className="grid gap-2 md:grid-cols-[1fr_90px_1fr_auto]">
+                                <div key={`blend-row-${row.index}`} className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_90px_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_90px_minmax(0,1fr)_auto]">
                                   <select
                                     className="rounded border border-slate-300 px-3 py-2 text-sm"
                                     value={row.lotId}

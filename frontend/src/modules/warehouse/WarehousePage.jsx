@@ -672,7 +672,7 @@ const WarehousePage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         <div className="space-y-5">
           <div className="rounded border border-slate-200 bg-white p-4">
             <button

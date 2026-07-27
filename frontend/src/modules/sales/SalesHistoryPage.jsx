@@ -191,7 +191,7 @@ const SalesHistoryPage = () => {
                               {loading ? (
                                 <p className="text-sm text-slate-500">Cargando detalle...</p>
                               ) : (
-                                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+                                <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,260px)]">
                                   <div>
                                     <p className="text-xs font-semibold uppercase text-slate-500">Productos y analisis</p>
                                     <div className="mt-2 grid gap-2 md:grid-cols-2">

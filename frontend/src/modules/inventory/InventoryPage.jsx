@@ -161,8 +161,8 @@ const InventoryPage = () => {
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
       {canRegisterPurchase && (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="rounded border border-slate-200 bg-white">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+          <div className="min-w-0 rounded border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-4 py-3">
               <h2 className="text-sm font-semibold text-slate-800">Lotes aprobados pendientes de pago</h2>
             </div>
@@ -209,7 +209,7 @@ const InventoryPage = () => {
             )}
           </div>
 
-          <form className="rounded border border-slate-200 bg-white p-4" onSubmit={registerPurchase}>
+          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={registerPurchase}>
             <h2 className="text-sm font-semibold text-slate-800">Pago de lote</h2>
             <p className="mt-1 text-sm text-slate-500">
               {selectedLot ? `Lote seleccionado: ${selectedLot.code}` : "Seleccione un lote pendiente de pago."}

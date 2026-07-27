@@ -627,7 +627,7 @@ const LaboratoryPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[170px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,170px)_minmax(0,1fr)]">
         <aside className="space-y-2">
           <button
             className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
@@ -692,7 +692,7 @@ const LaboratoryPage = () => {
         </aside>
 
         {activePanel === "lots" ? (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Lotes pendientes</h2>
@@ -828,7 +828,7 @@ const LaboratoryPage = () => {
           </form>
           </div>
         ) : activePanel === "processes" ? (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Procesos por etapa</h2>
@@ -990,7 +990,7 @@ const LaboratoryPage = () => {
           </form>
           </div>
         ) : activePanel === "samples" ? (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Muestras pendientes de analisis</h2>
@@ -1157,7 +1157,7 @@ const LaboratoryPage = () => {
             </form>
           </div>
         ) : activePanel === "sales" ? (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Ventas pendientes de analisis</h2>
@@ -1295,7 +1295,7 @@ const LaboratoryPage = () => {
             </form>
           </div>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Ventas para mezcla</h2>

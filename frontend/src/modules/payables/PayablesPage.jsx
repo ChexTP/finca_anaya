@@ -149,9 +149,9 @@ const PayablesPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-5">
-          <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createPayable}>
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+        <div className="min-w-0 space-y-5">
+          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={createPayable}>
             <div className="flex items-center gap-2">
               <Plus size={17} className="text-leaf" />
               <h2 className="text-sm font-semibold text-slate-800">Crear cuenta</h2>
@@ -319,7 +319,7 @@ const PayablesPage = () => {
           </div>
         </div>
 
-        <aside className="rounded border border-slate-200 bg-white p-4">
+        <aside className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4">
           <div className="flex items-center gap-2">
             <CreditCard size={17} className="text-leaf" />
             <h2 className="text-sm font-semibold text-slate-800">Pago</h2>

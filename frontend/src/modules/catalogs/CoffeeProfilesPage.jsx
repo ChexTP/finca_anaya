@@ -193,8 +193,8 @@ const CoffeeProfilesPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="rounded border border-slate-200 bg-white">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+        <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Listado</h2>
           </div>
@@ -250,7 +250,7 @@ const CoffeeProfilesPage = () => {
           )}
         </div>
 
-        <form className="rounded border border-slate-200 bg-white p-4" onSubmit={saveProfile}>
+        <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={saveProfile}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <SlidersHorizontal size={18} className="text-leaf" />
@@ -308,11 +308,11 @@ const CoffeeProfilesPage = () => {
                 onChange={(event) => setForm({ ...form, basePriceUsd: event.target.value })}
               />
             </div>
-            <div className="rounded border border-amber-200 bg-amber-50 p-3">
+            <div className="min-w-0 overflow-hidden rounded border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs font-semibold uppercase text-amber-900">Componente principal</p>
               <div className="mt-3 grid gap-3">
                 {form.components.map((component, index) => (
-                  <div key={`component-${index}`} className="rounded border border-amber-200 bg-white p-2">
+                  <div key={`component-${index}`} className="min-w-0 rounded border border-amber-200 bg-white p-2">
                     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_38px]">
                       <select
                         className="w-full rounded border border-slate-300 px-3 py-2 text-sm"

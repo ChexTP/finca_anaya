@@ -122,7 +122,7 @@ const BackupsPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <div className="rounded border border-slate-200 bg-white p-4">
           <div className="flex items-center gap-2">
             <DatabaseBackup size={18} className="text-leaf" />

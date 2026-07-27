@@ -465,7 +465,7 @@ const ProcessesPage = () => {
                 </button>
               )}
               {startProcessId === process.id && (
-                <form className="mt-3 grid gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-[1fr_1fr_auto]" onSubmit={(event) => startProcess(event, process)}>
+                <form className="mt-3 grid min-w-0 gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => startProcess(event, process)}>
                   <label className="text-xs font-medium text-slate-600">
                     Fecha estimada de regreso
                     <input
@@ -515,7 +515,7 @@ const ProcessesPage = () => {
                 </button>
               )}
               {physicalReviewProcessId === process.id && (
-                <form className="mt-3 grid gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={(event) => completePhysicalReview(event, process)}>
+                <form className="mt-3 grid min-w-0 gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => completePhysicalReview(event, process)}>
                   <label className="text-xs font-medium text-slate-600">
                     Cantidad final kg
                     <input

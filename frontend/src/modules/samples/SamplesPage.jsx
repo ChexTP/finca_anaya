@@ -593,9 +593,9 @@ const SamplesPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className={`grid gap-5 ${canCreate ? "xl:grid-cols-[420px_minmax(0,1fr)]" : ""}`}>
+      <div className={`grid min-w-0 gap-5 ${canCreate ? "xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]" : ""}`}>
         {canCreate && (
-          <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createSample}>
+          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={createSample}>
             <div className="flex items-center gap-2">
               <FlaskConical size={18} className="text-leaf" />
               <h2 className="text-sm font-semibold text-slate-800">Nueva solicitud</h2>
@@ -690,7 +690,7 @@ const SamplesPage = () => {
                 onChange={(event) => setForm({ ...form, quantityGrams: event.target.value })}
                 required={sampleItems.length === 0}
               />
-              <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                   placeholder="Precio opcional. Vacio si es gratis"
@@ -775,7 +775,7 @@ const SamplesPage = () => {
           </form>
         )}
 
-        <div className="rounded border border-slate-200 bg-white">
+        <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Solicitudes registradas</h2>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -981,8 +981,8 @@ const SamplesPage = () => {
                           ? Number((Number(sampleItem.quantity_grams) * Number(row.percentage) / 100).toFixed(2))
                           : 0;
                         return (
-                          <div key={`blend-row-${index}`} className="rounded border border-slate-200 bg-white p-3">
-                            <div className="grid gap-2 md:grid-cols-3">
+                          <div key={`blend-row-${index}`} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-3">
+                            <div className="grid min-w-0 gap-2 md:grid-cols-3">
                               <select
                                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                                 value={row.sampleItemId}
@@ -1047,7 +1047,7 @@ const SamplesPage = () => {
                   )}
 
                   {canManageSamples && (
-                    <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">
+                    <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                       <input
                         className="rounded border border-slate-300 px-3 py-2 text-sm"
                         placeholder="Nota opcional al cambiar estado"

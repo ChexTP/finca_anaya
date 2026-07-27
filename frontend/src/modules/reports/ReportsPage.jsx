@@ -180,7 +180,7 @@ const ReportsPage = () => {
 
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
         <aside className="space-y-3">
           <div className="rounded border border-slate-200 bg-white p-3">
             <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Tipo de reporte</p>
