@@ -27,6 +27,7 @@ const navigation = [
   { label: "Gerencia", path: "/gerencia", icon: BarChart3, roles: ["admin", "accounting", "management"] },
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
+  { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse"] },

@@ -14,6 +14,7 @@ import {
   putSaleOrderAssignee,
   putSaleItemShortage,
   putSaleLotAssignments,
+  getSaleLotReservations,
   putSalePendingLaboratory,
   putSaleLabReview,
 } from "../controllers/sales.controller.js";
@@ -22,6 +23,12 @@ import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 const router = Router();
 
 router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSales);
+router.get(
+  "/lot-reservations",
+  requireAuth,
+  requireRoles("admin", "accounting", "warehouse"),
+  getSaleLotReservations
+);
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
 router.post(
   "/from-quote/:quoteId",

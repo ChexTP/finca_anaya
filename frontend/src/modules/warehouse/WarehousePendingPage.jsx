@@ -656,6 +656,13 @@ const WarehousePendingPage = () => {
                         <> · Operativo bodega: {formatOperationalKg(item.operational_weight_kg)}</>
                       )}
                     </p>
+                    <p className="mt-1 text-xs">
+                      <span className="text-amber-700">Reservado: {formatOperationalKg(item.reserved_kg)}</span>
+                      {" · "}
+                      <span className={Number(item.missing_kg || 0) > 0 ? "font-semibold text-rose-700" : "font-semibold text-emerald-700"}>
+                        Faltante: {formatOperationalKg(item.missing_kg)}
+                      </span>
+                    </p>
                     {item.shortage_marked && item.shortage_notes && (
                       <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
                         Faltante: {item.shortage_notes}

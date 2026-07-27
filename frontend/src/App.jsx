@@ -21,6 +21,7 @@ import SalesPage from "./modules/sales/SalesPage";
 import SamplesHistoryPage from "./modules/samples/SamplesHistoryPage";
 import SamplesPage from "./modules/samples/SamplesPage";
 import UsersPage from "./modules/users/UsersPage";
+import LotReservationsPage from "./modules/warehouse/LotReservationsPage";
 import WarehousePage from "./modules/warehouse/WarehousePage";
 import WarehousePendingPage from "./modules/warehouse/WarehousePendingPage";
 
@@ -87,6 +88,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin", "warehouse"]}>
               <WarehousePendingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bodega/lotes-asignados"
+          element={
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+              <LotReservationsPage />
             </ProtectedRoute>
           }
         />

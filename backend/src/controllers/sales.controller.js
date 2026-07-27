@@ -13,6 +13,7 @@ import {
   updateSaleOrderAssignee,
   updateSaleItemShortage,
   replaceSaleLotAssignments,
+  getOperationalLotReservations,
   markSalePendingLaboratory,
   updateSaleItemReviews,
 } from "../models/sales.model.js";
@@ -356,6 +357,19 @@ export const putSaleLotAssignments = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al asignar lotes",
+      error: error.message,
+    });
+  }
+};
+
+export const getSaleLotReservations = async (_req, res) => {
+  try {
+    const reservations = await getOperationalLotReservations();
+    res.json(reservations);
+  } catch (error) {
+    logControllerError("Error al obtener reservas operativas de lotes", error);
+    res.status(500).json({
+      message: "Error al obtener lotes asignados",
       error: error.message,
     });
   }

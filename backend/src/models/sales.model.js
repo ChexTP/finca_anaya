@@ -249,12 +249,28 @@ export const findSaleById = async (id) => {
     return groups;
   }, {});
 
+  const lotsBySaleItem = lotsResult.rows.reduce((groups, lot) => {
+    const key = lot.sale_item_id;
+    groups[key] = groups[key] || [];
+    groups[key].push(lot);
+    return groups;
+  }, {});
+
   return {
     ...sale,
-    items: itemsResult.rows.map((item) => ({
-      ...item,
-      blend_items: blendItemsBySaleItem[item.id] || [],
-    })),
+    items: itemsResult.rows.map((item) => {
+      const assignedLots = lotsBySaleItem[item.id] || [];
+      const reservedKg = assignedLots.reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0);
+      const requiredKg = Number(item.operational_weight_kg || item.quantity_kg || 0);
+
+      return {
+        ...item,
+        blend_items: blendItemsBySaleItem[item.id] || [],
+        assigned_lots: assignedLots,
+        reserved_kg: Number(reservedKg.toFixed(3)),
+        missing_kg: Number(Math.max(requiredKg - reservedKg, 0).toFixed(3)),
+      };
+    }),
     deductedLots: lotsResult.rows,
     blendItems: blendResult.rows,
     payments: paymentsResult.rows,
@@ -609,6 +625,8 @@ export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) =>
       [saleId]
     );
 
+    const quantityByLot = new Map();
+
     for (const item of items) {
       const saleItemResult = await client.query(
         "SELECT id FROM sale_items WHERE id = $1 AND sale_id = $2 LIMIT 1",
@@ -621,12 +639,27 @@ export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) =>
 
       const lotResult = await client.query(
         `
-        SELECT id, code, status, available_weight_kg
+        SELECT
+          coffee_lots.id,
+          coffee_lots.code,
+          coffee_lots.status,
+          coffee_lots.available_weight_kg,
+          COALESCE(SUM(other_assignments.quantity_kg) FILTER (WHERE other_sales.id IS NOT NULL), 0) AS reserved_other_sales_kg
         FROM coffee_lots
-        WHERE id = $1
+        LEFT JOIN sale_item_lots other_assignments
+          ON other_assignments.lot_id = coffee_lots.id
+          AND other_assignments.deducted_at IS NULL
+        LEFT JOIN sale_items other_items
+          ON other_items.id = other_assignments.sale_item_id
+        LEFT JOIN sales other_sales
+          ON other_sales.id = other_items.sale_id
+          AND other_sales.id <> $2
+          AND other_sales.status NOT IN ('despachada', 'anulada')
+        WHERE coffee_lots.id = $1
+        GROUP BY coffee_lots.id
         LIMIT 1
         `,
-        [item.lotId]
+        [item.lotId, saleId]
       );
       const lot = lotResult.rows[0];
 
@@ -634,9 +667,14 @@ export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) =>
         throw new Error("El lote seleccionado no esta disponible para asignar");
       }
 
-      if (Number(lot.available_weight_kg) < item.quantityKg) {
-        throw new Error(`El lote ${lot.code || lot.id} no tiene cantidad suficiente`);
+      const reservedInThisSave = quantityByLot.get(item.lotId) || 0;
+      const freeOperationalKg = Number(lot.available_weight_kg) - Number(lot.reserved_other_sales_kg || 0) - reservedInThisSave;
+
+      if (freeOperationalKg < item.quantityKg) {
+        throw new Error(`El lote ${lot.code || lot.id} no tiene cantidad operativa suficiente. Libre operativo: ${Math.max(freeOperationalKg, 0).toFixed(3)} kg`);
       }
+
+      quantityByLot.set(item.lotId, reservedInThisSave + item.quantityKg);
 
       await client.query(
         `
@@ -665,6 +703,153 @@ export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) =>
   } finally {
     client.release();
   }
+};
+
+export const getOperationalLotReservations = async () => {
+  const lotsResult = await pool.query(
+    `
+    SELECT
+      coffee_lots.id,
+      coffee_lots.code,
+      coffee_lots.lot_kind,
+      coffee_lots.commercial_classification,
+      coffee_lots.coffee_variety,
+      coffee_lots.available_weight_kg,
+      coffee_lots.status,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+        WHERE sale_item_lots.deducted_at IS NULL
+          AND sales.status NOT IN ('despachada', 'anulada')
+      ), 0) AS reserved_kg
+    FROM coffee_lots
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
+    LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+    LEFT JOIN sales ON sales.id = sale_items.sale_id
+    WHERE coffee_lots.status IN ('disponible', 'vendido_parcial', 'agotado')
+    GROUP BY coffee_lots.id, coffee_types.name, coffee_profiles.name
+    HAVING coffee_lots.available_weight_kg > 0
+      OR COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+        WHERE sale_item_lots.deducted_at IS NULL
+          AND sales.status NOT IN ('despachada', 'anulada')
+      ), 0) > 0
+    ORDER BY coffee_lots.received_at ASC, coffee_lots.created_at ASC
+    `
+  );
+
+  const assignmentsResult = await pool.query(
+    `
+    SELECT
+      sale_item_lots.id,
+      sale_item_lots.lot_id,
+      sale_item_lots.sale_item_id,
+      sale_item_lots.quantity_kg,
+      sale_item_lots.notes,
+      sale_item_lots.created_at,
+      sales.id AS sale_id,
+      sales.code AS sale_code,
+      sales.status AS sale_status,
+      sales.warehouse_priority,
+      sales.order_assignee,
+      sales.estimated_delivery_date,
+      clients.name AS client_name,
+      sale_items.description,
+      sale_items.product_form,
+      sale_items.process_type,
+      sale_items.variety,
+      sale_items.quantity_kg AS requested_quantity_kg,
+      sale_items.operational_weight_kg,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name
+    FROM sale_item_lots
+    INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+    INNER JOIN sales ON sales.id = sale_items.sale_id
+    INNER JOIN clients ON clients.id = sales.client_id
+    LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
+    WHERE sales.status NOT IN ('despachada', 'anulada')
+      AND sale_item_lots.deducted_at IS NULL
+    ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_item_lots.id ASC
+    `
+  );
+
+  const deficitsResult = await pool.query(
+    `
+    SELECT
+      sale_items.id AS sale_item_id,
+      sales.id AS sale_id,
+      sales.code AS sale_code,
+      sales.status AS sale_status,
+      sales.warehouse_priority,
+      sales.order_assignee,
+      sales.estimated_delivery_date,
+      clients.name AS client_name,
+      sale_items.description,
+      sale_items.product_form,
+      sale_items.process_type,
+      sale_items.variety,
+      sale_items.quantity_kg AS requested_quantity_kg,
+      COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg) AS required_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg), 0) AS reserved_kg,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name
+    FROM sale_items
+    INNER JOIN sales ON sales.id = sale_items.sale_id
+    INNER JOIN clients ON clients.id = sales.client_id
+    LEFT JOIN sale_item_lots ON sale_item_lots.sale_item_id = sale_items.id
+    LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
+    WHERE sales.status NOT IN ('despachada', 'anulada')
+    GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.name
+    ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_items.id ASC
+    `
+  );
+
+  const assignmentsByLot = assignmentsResult.rows.reduce((groups, assignment) => {
+    groups[assignment.lot_id] = groups[assignment.lot_id] || [];
+    groups[assignment.lot_id].push(assignment);
+    return groups;
+  }, {});
+
+  const lots = lotsResult.rows.map((lot) => {
+    const reservedKg = Number(lot.reserved_kg || 0);
+    const physicalKg = Number(lot.available_weight_kg || 0);
+
+    return {
+      ...lot,
+      available_weight_kg: physicalKg,
+      reserved_kg: Number(reservedKg.toFixed(3)),
+      operational_available_kg: Number(Math.max(physicalKg - reservedKg, 0).toFixed(3)),
+      assignments: assignmentsByLot[lot.id] || [],
+    };
+  });
+
+  const deficits = deficitsResult.rows
+    .map((item) => {
+      const requiredKg = Number(item.required_kg || 0);
+      const reservedKg = Number(item.reserved_kg || 0);
+
+      return {
+        ...item,
+        required_kg: Number(requiredKg.toFixed(3)),
+        reserved_kg: Number(reservedKg.toFixed(3)),
+        missing_kg: Number(Math.max(requiredKg - reservedKg, 0).toFixed(3)),
+      };
+    })
+    .filter((item) => item.missing_kg > 0);
+
+  return {
+    lots,
+    deficits,
+    totals: {
+      physical_kg: Number(lots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0).toFixed(3)),
+      reserved_kg: Number(lots.reduce((total, lot) => total + Number(lot.reserved_kg || 0), 0).toFixed(3)),
+      operational_available_kg: Number(lots.reduce((total, lot) => total + Number(lot.operational_available_kg || 0), 0).toFixed(3)),
+      missing_kg: Number(deficits.reduce((total, item) => total + Number(item.missing_kg || 0), 0).toFixed(3)),
+    },
+  };
 };
 
 export const convertQuoteToSale = async ({
