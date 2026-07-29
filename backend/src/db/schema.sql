@@ -928,6 +928,15 @@ CREATE TABLE IF NOT EXISTS sample_item_blends (
 ALTER TABLE sample_item_blends ADD COLUMN IF NOT EXISTS component_description TEXT;
 ALTER TABLE sample_item_blends ALTER COLUMN lot_id DROP NOT NULL;
 
+-- Empaques definidos por la empresa para calcular la tara en recepcion.
+INSERT INTO packaging_types (name, tare_kg)
+VALUES
+  ('Costal o saco de fique', 0.700),
+  ('Tula o estopa', 0.200)
+ON CONFLICT (name) DO UPDATE
+SET tare_kg = EXCLUDED.tare_kg,
+    is_active = TRUE;
+
 -- Los tipos activos corresponden al beneficio con el que llega el cafe a bodega.
 INSERT INTO coffee_types (name) VALUES ('Lavado'), ('Natural'), ('Semilavado')
 ON CONFLICT (name) DO UPDATE SET is_active = TRUE;
