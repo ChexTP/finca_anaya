@@ -369,6 +369,22 @@ CREATE TABLE IF NOT EXISTS coffee_process_inputs (
   CONSTRAINT coffee_process_inputs_quantity_check CHECK (quantity_kg > 0)
 );
 
+CREATE TABLE IF NOT EXISTS coffee_process_outputs (
+  id SERIAL PRIMARY KEY,
+  process_id INTEGER NOT NULL REFERENCES coffee_processes(id) ON DELETE CASCADE,
+  coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id),
+  output_lot_id INTEGER REFERENCES coffee_lots(id),
+  output_weight_kg NUMERIC(12, 3) NOT NULL,
+  humidity_percent NUMERIC(5, 2) NOT NULL,
+  performance_factor NUMERIC(8, 2) NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT coffee_process_outputs_weight_check CHECK (output_weight_kg > 0),
+  CONSTRAINT coffee_process_outputs_humidity_check CHECK (humidity_percent >= 0 AND humidity_percent <= 100),
+  CONSTRAINT coffee_process_outputs_performance_check CHECK (performance_factor >= 0)
+);
+
 CREATE TABLE IF NOT EXISTS quotes (
   id SERIAL PRIMARY KEY,
   code VARCHAR(30) UNIQUE NOT NULL,
@@ -969,6 +985,8 @@ CREATE INDEX IF NOT EXISTS idx_coffee_processes_quote_id ON coffee_processes(quo
 CREATE INDEX IF NOT EXISTS idx_coffee_processes_sale_id ON coffee_processes(sale_id);
 CREATE INDEX IF NOT EXISTS idx_coffee_process_inputs_process_id ON coffee_process_inputs(process_id);
 CREATE INDEX IF NOT EXISTS idx_coffee_process_inputs_lot_id ON coffee_process_inputs(lot_id);
+CREATE INDEX IF NOT EXISTS idx_coffee_process_outputs_process_id ON coffee_process_outputs(process_id);
+CREATE INDEX IF NOT EXISTS idx_coffee_process_outputs_profile_id ON coffee_process_outputs(coffee_profile_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_client_id ON quotes(client_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_seller_id ON quotes(seller_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);

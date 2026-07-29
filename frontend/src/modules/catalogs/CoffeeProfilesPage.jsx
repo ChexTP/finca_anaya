@@ -9,6 +9,7 @@ const initialProfile = {
   code: "",
   category: "",
   components: [{ purchaseCoffeeId: "" }],
+  basePurchaseCoffeeId: "",
   basePriceCop: "0",
   basePriceUsd: "0",
   isActive: true,
@@ -32,6 +33,10 @@ const buildLegacyComponents = (profile) => {
   }
 
   return components.length > 0 ? components : [{ ...emptyComponent }];
+};
+
+const getBasePurchaseCoffeeId = (profile) => {
+  return profile.base_purchase_coffee_id || "";
 };
 
 const buildProfileComponents = (profile) => {
@@ -65,6 +70,10 @@ const formatComponentSummary = (profile) => {
   return "-";
 };
 
+const formatBaseSummary = (profile) => {
+  return profile.base_purchase_coffee_name || "-";
+};
+
 const CoffeeProfilesPage = () => {
   const [profiles, setProfiles] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
@@ -94,6 +103,7 @@ const CoffeeProfilesPage = () => {
       code: profile.internal_code || "",
       category: profile.category || "",
       components: buildProfileComponents(profile),
+      basePurchaseCoffeeId: getBasePurchaseCoffeeId(profile),
       basePriceCop: profile.base_price_cop || "0",
       basePriceUsd: profile.base_price_usd || "0",
       isActive: profile.is_active,
@@ -123,6 +133,7 @@ const CoffeeProfilesPage = () => {
           .map((component) => ({
             purchaseCoffeeId: Number(component.purchaseCoffeeId),
           })),
+        basePurchaseCoffeeId: form.basePurchaseCoffeeId ? Number(form.basePurchaseCoffeeId) : null,
         basePriceCop: Number(form.basePriceCop || 0),
         basePriceUsd: Number(form.basePriceUsd || 0),
       };
@@ -212,6 +223,7 @@ const CoffeeProfilesPage = () => {
                     <th className="px-4 py-3">Codigo</th>
                     <th className="px-4 py-3">Categoria</th>
                     <th className="px-4 py-3">Componentes</th>
+                    <th className="px-4 py-3">Base principal</th>
                     <th className="px-4 py-3">COP</th>
                     <th className="px-4 py-3">USD</th>
                     <th className="px-4 py-3">Estado</th>
@@ -227,6 +239,7 @@ const CoffeeProfilesPage = () => {
                       <td className="px-4 py-3 text-slate-600">
                         {formatComponentSummary(profile)}
                       </td>
+                      <td className="px-4 py-3 text-slate-600">{formatBaseSummary(profile)}</td>
                       <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_cop || 0).toLocaleString("es-CO")}</td>
                       <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_usd || 0).toLocaleString("es-CO")}</td>
                       <td className="px-4 py-3">
@@ -346,6 +359,21 @@ const CoffeeProfilesPage = () => {
                   Agregar otro componente
                 </button>
               </div>
+            </div>
+            <div className="min-w-0 rounded border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-xs font-semibold uppercase text-emerald-900">Base principal para deficit</p>
+              <select
+                className="mt-3 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                value={form.basePurchaseCoffeeId}
+                onChange={(event) => setForm({ ...form, basePurchaseCoffeeId: event.target.value })}
+              >
+                <option value="">Sin base principal</option>
+                {catalogs?.purchaseCoffees?.map((coffee) => (
+                  <option key={coffee.id} value={coffee.id}>
+                    {coffee.name} - {coffee.family} {coffee.process_type}
+                  </option>
+                ))}
+              </select>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input

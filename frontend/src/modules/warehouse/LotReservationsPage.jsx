@@ -37,6 +37,7 @@ const getDeficitCoffeeName = (item) => {
 const getEstimatedDeficitParts = (item) => {
   const missingKg = Number(item.missing_kg || 0);
   const primaryComponent = getPrimaryComponentName(item);
+  const baseComponent = item.base_purchase_coffee_name || "Cafe base estimado";
 
   if (item.coffee_profile_category !== "Exotico" || !primaryComponent || missingKg <= 0) {
     return null;
@@ -46,6 +47,7 @@ const getEstimatedDeficitParts = (item) => {
   return {
     processComponentName: `${primaryComponent} - ${item.coffee_profile_name}`,
     processInputKg: missingKg * 0.6 / 0.95,
+    baseComponentName: baseComponent,
     baseKg: missingKg * 0.4,
   };
 };
@@ -193,7 +195,7 @@ const LotReservationsPage = () => {
         reserved: formatKg(item.reserved_kg),
         missing: formatKg(item.missing_kg),
         estimate: estimatedParts
-          ? `${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)} / Cafe base estimado: ${formatKg(estimatedParts.baseKg)}`
+          ? `${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)} / ${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)}`
           : formatKg(item.missing_kg),
         delivery: formatDate(item.estimated_delivery_date),
         assignee: item.order_assignee || "-",
@@ -472,7 +474,7 @@ const LotReservationsPage = () => {
                             {getEstimatedDeficitParts(item).processComponentName}: {formatKg(getEstimatedDeficitParts(item).processInputKg)}
                           </p>
                           <p className="font-semibold text-amber-700">
-                            Cafe base estimado: {formatKg(getEstimatedDeficitParts(item).baseKg)}
+                            {getEstimatedDeficitParts(item).baseComponentName}: {formatKg(getEstimatedDeficitParts(item).baseKg)}
                           </p>
                           <p className="text-slate-500">Faltante perfil final: {formatKg(item.missing_kg)}</p>
                         </div>

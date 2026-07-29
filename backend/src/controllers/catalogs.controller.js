@@ -121,14 +121,13 @@ export const putCoffeeProfile = async (req, res) => {
     }
 
     const firstComponent = normalizedComponents.components[0];
-    const secondComponent = normalizedComponents.components[1];
 
     const updatedProfile = await updateCoffeeProfile(req.params.id, {
       name,
       code: code || null,
       category: category || null,
       processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,
-      basePurchaseCoffeeId: secondComponent?.purchaseCoffeeId || basePurchaseCoffeeId || null,
+      basePurchaseCoffeeId: basePurchaseCoffeeId || null,
       processPercentage: processPct,
       basePercentage: basePct,
       basePriceCop: priceCop,
@@ -189,14 +188,13 @@ export const postCoffeeProfile = async (req, res) => {
     }
 
     const firstComponent = normalizedComponents.components[0];
-    const secondComponent = normalizedComponents.components[1];
 
     const profile = await createCoffeeProfile({
       name,
       code: code || null,
       category: category || null,
       processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,
-      basePurchaseCoffeeId: secondComponent?.purchaseCoffeeId || basePurchaseCoffeeId || null,
+      basePurchaseCoffeeId: basePurchaseCoffeeId || null,
       processPercentage: processPct,
       basePercentage: basePct,
       basePriceCop: priceCop,

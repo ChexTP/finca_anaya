@@ -42,6 +42,7 @@ export const listProcesses = async ({ status }) => {
       sales.estimated_delivery_date AS sale_estimated_delivery_date,
       sale_clients.name AS sale_client_name,
       output_lot.code AS output_lot_code,
+      output_profile.name AS output_lot_profile_name,
       users.name AS created_by_name,
       COALESCE(
         (
@@ -70,12 +71,37 @@ export const listProcesses = async ({ status }) => {
         ),
         '[]'::json
       ) AS inputs
+      ,
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'id', coffee_process_outputs.id,
+              'coffee_profile_id', coffee_process_outputs.coffee_profile_id,
+              'coffee_profile_name', coffee_profiles.name,
+              'output_lot_id', coffee_process_outputs.output_lot_id,
+              'output_lot_code', output_lots.code,
+              'output_weight_kg', coffee_process_outputs.output_weight_kg,
+              'humidity_percent', coffee_process_outputs.humidity_percent,
+              'performance_factor', coffee_process_outputs.performance_factor,
+              'notes', coffee_process_outputs.notes
+            )
+            ORDER BY coffee_process_outputs.id ASC
+          )
+          FROM coffee_process_outputs
+          INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
+          LEFT JOIN coffee_lots output_lots ON output_lots.id = coffee_process_outputs.output_lot_id
+          WHERE coffee_process_outputs.process_id = coffee_processes.id
+        ),
+        '[]'::json
+      ) AS outputs
     FROM coffee_processes
     LEFT JOIN quotes ON quotes.id = coffee_processes.quote_id
     LEFT JOIN clients ON clients.id = quotes.client_id
     LEFT JOIN sales ON sales.id = coffee_processes.sale_id
     LEFT JOIN clients sale_clients ON sale_clients.id = sales.client_id
     LEFT JOIN coffee_lots output_lot ON output_lot.id = coffee_processes.output_lot_id
+    LEFT JOIN coffee_profiles output_profile ON output_profile.id = output_lot.coffee_profile_id
     LEFT JOIN users ON users.id = coffee_processes.created_by
     ${where}
     ORDER BY
@@ -100,6 +126,7 @@ export const findProcessById = async (id) => {
       sales.estimated_delivery_date AS sale_estimated_delivery_date,
       sale_clients.name AS sale_client_name,
       output_lot.code AS output_lot_code,
+      output_profile.name AS output_lot_profile_name,
       users.name AS created_by_name
     FROM coffee_processes
     LEFT JOIN quotes ON quotes.id = coffee_processes.quote_id
@@ -107,6 +134,7 @@ export const findProcessById = async (id) => {
     LEFT JOIN sales ON sales.id = coffee_processes.sale_id
     LEFT JOIN clients sale_clients ON sale_clients.id = sales.client_id
     LEFT JOIN coffee_lots output_lot ON output_lot.id = coffee_processes.output_lot_id
+    LEFT JOIN coffee_profiles output_profile ON output_profile.id = output_lot.coffee_profile_id
     LEFT JOIN users ON users.id = coffee_processes.created_by
     WHERE coffee_processes.id = $1
     LIMIT 1
@@ -144,9 +172,25 @@ export const findProcessById = async (id) => {
     [id]
   );
 
+  const outputsResult = await pool.query(
+    `
+    SELECT
+      coffee_process_outputs.*,
+      coffee_profiles.name AS coffee_profile_name,
+      output_lots.code AS output_lot_code
+    FROM coffee_process_outputs
+    INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
+    LEFT JOIN coffee_lots output_lots ON output_lots.id = coffee_process_outputs.output_lot_id
+    WHERE coffee_process_outputs.process_id = $1
+    ORDER BY coffee_process_outputs.id ASC
+    `,
+    [id]
+  );
+
   return {
     ...process,
     inputs: inputsResult.rows,
+    outputs: outputsResult.rows,
   };
 };
 
@@ -398,29 +442,128 @@ export const completeProcessPhysicalReview = async ({
   outputWeightKg,
   humidityPercent,
   performanceFactor,
+  outputs = [],
   reviewedBy,
 }) => {
-  const result = await pool.query(
-    `
-    UPDATE coffee_processes
-    SET
-      status = 'pendiente_laboratorio',
-      output_weight_kg = $1,
-      physical_humidity_percent = $2,
-      physical_performance_factor = $3,
-      physical_reviewed_by = $4,
-      physical_reviewed_at = NOW(),
-      lab_pending_at = NOW(),
-      updated_at = NOW()
-    WHERE id = $5
-      AND status = 'pendiente_revision_fisica'
-      AND $1 <= total_input_kg
-    RETURNING *
-    `,
-    [outputWeightKg, humidityPercent, performanceFactor, reviewedBy, processId]
-  );
+  const client = await pool.connect();
 
-  return result.rows[0];
+  try {
+    await client.query("BEGIN");
+
+    const processResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_processes
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [processId]
+    );
+    const process = processResult.rows[0];
+
+    if (!process || process.status !== "pendiente_revision_fisica") {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const cleanOutputs = outputs.length
+      ? outputs
+      : [{
+          coffeeProfileId: null,
+          outputWeightKg,
+          humidityPercent,
+          performanceFactor,
+          notes: null,
+        }];
+
+    const totalOutputKg = cleanOutputs.reduce((total, output) => total + Number(output.outputWeightKg || 0), 0);
+
+    if (totalOutputKg <= 0 || totalOutputKg > Number(process.total_input_kg)) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    await client.query("DELETE FROM coffee_process_outputs WHERE process_id = $1", [processId]);
+
+    for (const output of cleanOutputs) {
+      if (!output.coffeeProfileId) {
+        throw new Error("Cada salida del proceso debe tener perfil comercial");
+      }
+
+      const profileResult = await client.query(
+        "SELECT id, is_active FROM coffee_profiles WHERE id = $1 LIMIT 1",
+        [output.coffeeProfileId]
+      );
+      const profile = profileResult.rows[0];
+
+      if (!profile || !profile.is_active) {
+        throw new Error("Perfil comercial de salida no encontrado o inactivo");
+      }
+
+      await client.query(
+        `
+        INSERT INTO coffee_process_outputs (
+          process_id,
+          coffee_profile_id,
+          output_weight_kg,
+          humidity_percent,
+          performance_factor,
+          notes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [
+          processId,
+          output.coffeeProfileId,
+          output.outputWeightKg,
+          output.humidityPercent,
+          output.performanceFactor,
+          output.notes || null,
+        ]
+      );
+    }
+
+    const weightedHumidity = cleanOutputs.reduce(
+      (total, output) => total + Number(output.humidityPercent || 0) * Number(output.outputWeightKg || 0),
+      0
+    ) / totalOutputKg;
+    const weightedPerformance = cleanOutputs.reduce(
+      (total, output) => total + Number(output.performanceFactor || 0) * Number(output.outputWeightKg || 0),
+      0
+    ) / totalOutputKg;
+
+    const updateResult = await client.query(
+      `
+      UPDATE coffee_processes
+      SET
+        status = 'pendiente_laboratorio',
+        output_weight_kg = $1,
+        physical_humidity_percent = $2,
+        physical_performance_factor = $3,
+        physical_reviewed_by = $4,
+        physical_reviewed_at = NOW(),
+        lab_pending_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $5
+      RETURNING *
+      `,
+      [
+        Number(totalOutputKg.toFixed(3)),
+        Number(weightedHumidity.toFixed(2)),
+        Number(weightedPerformance.toFixed(2)),
+        reviewedBy,
+        processId,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
@@ -459,7 +602,51 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       return { missingPhysicalReview: true, process };
     }
 
-    const outputResult = await client.query(
+    const outputsResult = await client.query(
+      `
+      SELECT
+        coffee_process_outputs.*,
+        coffee_profiles.name AS coffee_profile_name
+      FROM coffee_process_outputs
+      INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
+      WHERE coffee_process_outputs.process_id = $1
+      ORDER BY coffee_process_outputs.id ASC
+      `,
+      [processId]
+    );
+
+    const outputs = outputsResult.rows.length
+      ? outputsResult.rows
+      : [{
+          id: null,
+          coffee_profile_id: outputLot.coffeeProfileId,
+          output_weight_kg: process.output_weight_kg,
+          humidity_percent: process.physical_humidity_percent,
+          performance_factor: process.physical_performance_factor,
+          notes: outputLot.initialComment,
+        }];
+
+    const codeResult = await client.query(
+      `
+      SELECT code
+      FROM coffee_lots
+      WHERE code LIKE $1
+      ORDER BY code DESC
+      LIMIT 1
+      `,
+      [`PROC-${new Date().getFullYear()}-%`]
+    );
+    const lastNumber = codeResult.rows[0]?.code ? Number(codeResult.rows[0].code.split("-")[2]) : 0;
+    const createdLots = [];
+
+    for (const [index, output] of outputs.entries()) {
+      const code = `PROC-${new Date().getFullYear()}-${String(lastNumber + index + 1).padStart(4, "0")}`;
+      const outputInitialComment = [
+        outputLot.initialComment,
+        output.notes,
+      ].filter(Boolean).join("\n");
+
+      const outputResult = await client.query(
       `
       INSERT INTO coffee_lots (
         code,
@@ -498,10 +685,10 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       RETURNING *
       `,
       [
-        outputLot.code,
-        outputLot.coffeeProfileId,
-        process.output_weight_kg,
-        process.physical_humidity_percent,
+        code,
+        output.coffee_profile_id,
+        output.output_weight_kg,
+        output.humidity_percent,
         outputLot.aroma,
         outputLot.fragrance,
         outputLot.flavor,
@@ -515,11 +702,34 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         outputLot.score,
         outputLot.notes,
         finalizedBy,
-        outputLot.initialComment,
-        process.physical_performance_factor,
+        outputInitialComment,
+        output.performance_factor,
       ]
     );
-    const newLot = outputResult.rows[0];
+      const newLot = outputResult.rows[0];
+      createdLots.push(newLot);
+
+      if (output.id) {
+        await client.query(
+          `
+          UPDATE coffee_process_outputs
+          SET output_lot_id = $1, updated_at = NOW()
+          WHERE id = $2
+          `,
+          [newLot.id, output.id]
+        );
+      }
+
+      await client.query(
+        `
+        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+        VALUES ($1, 'proceso_entrada', $2, $3, $4)
+        `,
+        [newLot.id, output.output_weight_kg, `Lote generado por proceso ${process.code}`, finalizedBy]
+      );
+    }
+
+    const firstLot = createdLots[0];
 
     await client.query(
       `
@@ -534,7 +744,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       WHERE id = $4
       RETURNING *
       `,
-      [newLot.id, process.output_weight_kg, finalizedBy, processId]
+      [firstLot.id, process.output_weight_kg, finalizedBy, processId]
     );
 
     if (process.sale_id) {
@@ -563,16 +773,8 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       [processId]
     );
 
-    await client.query(
-      `
-      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
-      VALUES ($1, 'proceso_entrada', $2, $3, $4)
-      `,
-      [newLot.id, process.output_weight_kg, `Lote generado por proceso ${process.code}`, finalizedBy]
-    );
-
     await client.query("COMMIT");
-    return newLot;
+    return createdLots.length === 1 ? createdLots[0] : createdLots;
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

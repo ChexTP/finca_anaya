@@ -10,7 +10,6 @@ import {
 } from "../models/processes.model.js";
 import {
   findCoffeeProfileById,
-  getNextProcessedLotCode,
 } from "../models/lots.model.js";
 import { findQuoteById } from "../models/quotes.model.js";
 import { findSaleById } from "../models/sales.model.js";
@@ -206,17 +205,45 @@ export const putProcessPendingLaboratory = async (req, res) => {
 
 export const putProcessPhysicalReview = async (req, res) => {
   try {
-    const outputWeight = toNumber(req.body.outputWeightKg);
+    const outputs = Array.isArray(req.body.outputs)
+      ? req.body.outputs.map((output) => ({
+          coffeeProfileId: Number(output.coffeeProfileId),
+          outputWeightKg: toNumber(output.outputWeightKg),
+          humidityPercent: toNumber(output.humidityPercent),
+          performanceFactor: toNumber(output.performanceFactor),
+          notes: output.notes || null,
+        }))
+      : [];
+    const outputWeight = outputs.length
+      ? outputs.reduce((total, output) => total + Number(output.outputWeightKg || 0), 0)
+      : toNumber(req.body.outputWeightKg);
     const humidity = toNumber(req.body.humidityPercent);
     const performance = toNumber(req.body.performanceFactor);
+
+    const invalidOutput = outputs.find((output) => (
+      !Number.isInteger(output.coffeeProfileId) ||
+      !Number.isFinite(output.outputWeightKg) ||
+      output.outputWeightKg <= 0 ||
+      !Number.isFinite(output.humidityPercent) ||
+      output.humidityPercent < 0 ||
+      output.humidityPercent > 100 ||
+      !Number.isFinite(output.performanceFactor) ||
+      output.performanceFactor < 0
+    ));
+
+    if (outputs.length > 0 && invalidOutput) {
+      return res.status(400).json({
+        message: "Cada salida debe tener perfil comercial, peso, humedad y factor validos",
+      });
+    }
 
     if (!Number.isFinite(outputWeight) || outputWeight <= 0) {
       return res.status(400).json({ message: "La cantidad final debe ser mayor a cero" });
     }
-    if (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {
+    if (outputs.length === 0 && (!Number.isFinite(humidity) || humidity < 0 || humidity > 100)) {
       return res.status(400).json({ message: "La humedad debe estar entre 0 y 100" });
     }
-    if (!Number.isFinite(performance) || performance < 0) {
+    if (outputs.length === 0 && (!Number.isFinite(performance) || performance < 0)) {
       return res.status(400).json({ message: "El factor de rendimiento es obligatorio" });
     }
 
@@ -225,6 +252,7 @@ export const putProcessPhysicalReview = async (req, res) => {
       outputWeightKg: outputWeight,
       humidityPercent: humidity,
       performanceFactor: performance,
+      outputs,
       reviewedBy: req.user.id,
     });
 
@@ -255,14 +283,22 @@ export const putFinishProcess = async (req, res) => {
       initialComment,
     } = req.body;
 
-    if (!coffeeProfileId) {
-      return res.status(400).json({ message: "El perfil comercial es obligatorio" });
+    const currentProcess = await findProcessById(req.params.id);
+
+    if (!currentProcess) {
+      return res.status(404).json({ message: "Proceso no encontrado" });
     }
 
-    const profile = await findCoffeeProfileById(coffeeProfileId);
+    if (!currentProcess.outputs?.length && !coffeeProfileId) {
+      return res.status(400).json({ message: "El perfil comercial es obligatorio cuando el proceso no tiene salidas divididas" });
+    }
 
-    if (!profile || !profile.is_active) {
-      return res.status(404).json({ message: "Perfil comercial no encontrado o inactivo" });
+    if (coffeeProfileId) {
+      const profile = await findCoffeeProfileById(coffeeProfileId);
+
+      if (!profile || !profile.is_active) {
+        return res.status(404).json({ message: "Perfil comercial no encontrado o inactivo" });
+      }
     }
 
     const scoreValue = toNumber(score);
@@ -275,13 +311,11 @@ export const putFinishProcess = async (req, res) => {
       });
     }
 
-    const code = await getNextProcessedLotCode();
     const result = await finishProcess({
       processId: req.params.id,
       finalizedBy: req.user.id,
       outputLot: {
-        code,
-        coffeeProfileId,
+        coffeeProfileId: coffeeProfileId ? Number(coffeeProfileId) : null,
         aroma,
         fragrance: null,
         flavor,

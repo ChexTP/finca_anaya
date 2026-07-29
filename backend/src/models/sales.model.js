@@ -847,6 +847,7 @@ export const getOperationalLotReservations = async () => {
       coffee_profiles.id AS coffee_profile_id,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.category AS coffee_profile_category,
+      base_purchase.name AS base_purchase_coffee_name,
       COALESCE(
         (
           SELECT json_agg(
@@ -871,8 +872,9 @@ export const getOperationalLotReservations = async () => {
     LEFT JOIN sale_item_lots ON sale_item_lots.sale_item_id = sale_items.id
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
+    LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
     WHERE sales.status NOT IN ('despachada', 'anulada')
-    GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.id, coffee_profiles.name, coffee_profiles.category
+    GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.id, coffee_profiles.name, coffee_profiles.category, base_purchase.name
     ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_items.id ASC
     `
   );

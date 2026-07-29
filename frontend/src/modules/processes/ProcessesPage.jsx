@@ -20,9 +20,23 @@ const initialStartForm = {
 };
 
 const initialPhysicalReviewForm = {
+  outputs: [
+    {
+      coffeeProfileId: "",
+      outputWeightKg: "",
+      humidityPercent: "",
+      performanceFactor: "",
+      notes: "",
+    },
+  ],
+};
+
+const emptyProcessOutput = {
+  coffeeProfileId: "",
   outputWeightKg: "",
   humidityPercent: "",
   performanceFactor: "",
+  notes: "",
 };
 
 const formatInputLabel = (input) => {
@@ -44,6 +58,7 @@ const ProcessesPage = () => {
   const [availableLots, setAvailableLots] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [sales, setSales] = useState([]);
+  const [catalogs, setCatalogs] = useState(null);
   const [form, setForm] = useState(initialProcess);
   const [selectedLots, setSelectedLots] = useState({});
   const [startProcessId, setStartProcessId] = useState(null);
@@ -110,13 +125,15 @@ const ProcessesPage = () => {
       requests.push(apiRequest("/inventory/lots"));
       requests.push(apiRequest("/quotes?status=aceptada"));
       requests.push(apiRequest("/sales"));
+      requests.push(apiRequest("/catalogs"));
     }
 
-    const [processData, lotData = [], quoteData = [], saleData = []] = await Promise.all(requests);
+    const [processData, lotData = [], quoteData = [], saleData = [], catalogData = null] = await Promise.all(requests);
     setProcesses(processData);
     setAvailableLots(lotData);
     setQuotes(quoteData.filter((quote) => quote.quote_type === "preventa"));
     setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
+    setCatalogs(catalogData);
   };
 
   useEffect(() => {
@@ -201,13 +218,44 @@ const ProcessesPage = () => {
   const openPhysicalReviewForm = (process) => {
     setPhysicalReviewProcessId(process.id);
     setPhysicalReviewForm({
-      outputWeightKg: process.output_weight_kg || "",
-      humidityPercent: process.physical_humidity_percent || "",
-      performanceFactor: process.physical_performance_factor || "",
+      outputs: process.outputs?.length
+        ? process.outputs.map((output) => ({
+            coffeeProfileId: output.coffee_profile_id || "",
+            outputWeightKg: output.output_weight_kg || "",
+            humidityPercent: output.humidity_percent || "",
+            performanceFactor: output.performance_factor || "",
+            notes: output.notes || "",
+          }))
+        : [{ ...emptyProcessOutput }],
     });
     setStartProcessId(null);
     setError("");
     setMessage("");
+  };
+
+  const updatePhysicalOutput = (index, field, value) => {
+    setPhysicalReviewForm((current) => ({
+      ...current,
+      outputs: current.outputs.map((output, outputIndex) => (
+        outputIndex === index ? { ...output, [field]: value } : output
+      )),
+    }));
+  };
+
+  const addPhysicalOutput = () => {
+    setPhysicalReviewForm((current) => ({
+      ...current,
+      outputs: [...current.outputs, { ...emptyProcessOutput }],
+    }));
+  };
+
+  const removePhysicalOutput = (index) => {
+    setPhysicalReviewForm((current) => ({
+      ...current,
+      outputs: current.outputs.length === 1
+        ? [{ ...emptyProcessOutput }]
+        : current.outputs.filter((_, outputIndex) => outputIndex !== index),
+    }));
   };
 
   const startProcess = async (event, process) => {
@@ -259,8 +307,15 @@ const ProcessesPage = () => {
   const completePhysicalReview = async (event, process) => {
     event.preventDefault();
 
-    if (!physicalReviewForm.outputWeightKg || !physicalReviewForm.humidityPercent || !physicalReviewForm.performanceFactor) {
-      setError("Cantidad final, humedad y factor son obligatorios para la revision fisica.");
+    const invalidOutput = physicalReviewForm.outputs.find((output) => (
+      !output.coffeeProfileId ||
+      !output.outputWeightKg ||
+      !output.humidityPercent ||
+      !output.performanceFactor
+    ));
+
+    if (invalidOutput) {
+      setError("Cada salida debe tener perfil comercial, cantidad final, humedad y factor.");
       return;
     }
 
@@ -272,9 +327,13 @@ const ProcessesPage = () => {
       await apiRequest(`/processes/${process.id}/physical-review`, {
         method: "PUT",
         body: JSON.stringify({
-          outputWeightKg: Number(physicalReviewForm.outputWeightKg),
-          humidityPercent: Number(physicalReviewForm.humidityPercent),
-          performanceFactor: Number(physicalReviewForm.performanceFactor),
+          outputs: physicalReviewForm.outputs.map((output) => ({
+            coffeeProfileId: Number(output.coffeeProfileId),
+            outputWeightKg: Number(output.outputWeightKg),
+            humidityPercent: Number(output.humidityPercent),
+            performanceFactor: Number(output.performanceFactor),
+            notes: output.notes || null,
+          })),
         }),
       });
       setPhysicalReviewProcessId(null);
@@ -464,6 +523,23 @@ const ProcessesPage = () => {
                 </p>
               )}
               {process.notes && <p className="mt-2 text-sm text-slate-500">{process.notes}</p>}
+              {process.outputs?.length > 0 && (
+                <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Salidas registradas</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {process.outputs.map((output) => (
+                      <div key={output.id} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <p className="font-semibold text-ink">
+                          {output.output_lot_code || "Sin lote PROC"} - {output.coffee_profile_name}
+                        </p>
+                        <p className="text-slate-600">
+                          {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {["admin", "warehouse"].includes(user?.role) && process.status === "pendiente" && (
                 <button
                   className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
@@ -526,43 +602,85 @@ const ProcessesPage = () => {
                 </button>
               )}
               {physicalReviewProcessId === process.id && (
-                <form className="mt-3 grid min-w-0 gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => completePhysicalReview(event, process)}>
-                  <label className="text-xs font-medium text-slate-600">
-                    Cantidad final kg
-                    <input
-                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      type="number"
-                      min="0.001"
-                      step="0.001"
-                      value={physicalReviewForm.outputWeightKg}
-                      onChange={(event) => setPhysicalReviewForm({ ...physicalReviewForm, outputWeightKg: event.target.value })}
-                    />
-                  </label>
-                  <label className="text-xs font-medium text-slate-600">
-                    Humedad %
-                    <input
-                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={physicalReviewForm.humidityPercent}
-                      onChange={(event) => setPhysicalReviewForm({ ...physicalReviewForm, humidityPercent: event.target.value })}
-                    />
-                  </label>
-                  <label className="text-xs font-medium text-slate-600">
-                    Factor rendimiento
-                    <input
-                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={physicalReviewForm.performanceFactor}
-                      onChange={(event) => setPhysicalReviewForm({ ...physicalReviewForm, performanceFactor: event.target.value })}
-                    />
-                  </label>
+                <form className="mt-3 min-w-0 space-y-3 rounded border border-emerald-100 bg-emerald-50 p-3" onSubmit={(event) => completePhysicalReview(event, process)}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">Salidas del proceso</p>
+                      <p className="text-xs text-slate-600">Divida el cafe recibido por perfil comercial, peso, humedad y factor.</p>
+                    </div>
+                    <button
+                      className="inline-flex items-center gap-1 rounded border border-leaf bg-white px-3 py-2 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                      type="button"
+                      onClick={addPhysicalOutput}
+                    >
+                      <Plus size={14} />
+                      Agregar salida
+                    </button>
+                  </div>
+                  {physicalReviewForm.outputs.map((output, index) => (
+                    <div key={`process-output-${index}`} className="rounded border border-emerald-200 bg-white p-3">
+                      <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
+                        <select
+                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          value={output.coffeeProfileId}
+                          onChange={(event) => updatePhysicalOutput(index, "coffeeProfileId", event.target.value)}
+                        >
+                          <option value="">Perfil comercial</option>
+                          {catalogs?.coffeeProfiles?.map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.name}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          placeholder="Cantidad final kg"
+                          type="number"
+                          min="0.001"
+                          step="0.001"
+                          value={output.outputWeightKg}
+                          onChange={(event) => updatePhysicalOutput(index, "outputWeightKg", event.target.value)}
+                        />
+                        <input
+                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          placeholder="Humedad %"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={output.humidityPercent}
+                          onChange={(event) => updatePhysicalOutput(index, "humidityPercent", event.target.value)}
+                        />
+                        <input
+                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          placeholder="Factor"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={output.performanceFactor}
+                          onChange={(event) => updatePhysicalOutput(index, "performanceFactor", event.target.value)}
+                        />
+                      </div>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <input
+                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          placeholder="Observacion opcional de esta salida"
+                          value={output.notes}
+                          onChange={(event) => updatePhysicalOutput(index, "notes", event.target.value)}
+                        />
+                        <button
+                          className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          type="button"
+                          onClick={() => removePhysicalOutput(index)}
+                          disabled={physicalReviewForm.outputs.length === 1}
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                   <button
-                    className="self-end rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     disabled={saving}
                   >
                     Guardar revision

@@ -593,7 +593,7 @@ const LaboratoryPage = () => {
         method: "PUT",
         body: JSON.stringify({
           ...finishForm,
-          coffeeProfileId: Number(finishForm.coffeeProfileId),
+          coffeeProfileId: finishForm.coffeeProfileId ? Number(finishForm.coffeeProfileId) : null,
           score: Number(finishForm.score),
         }),
       });
@@ -930,18 +930,34 @@ const LaboratoryPage = () => {
               </div>
             ) : (
               <div className="mt-4 space-y-3">
-                <select
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  value={finishForm.coffeeProfileId}
-                  onChange={(event) => setFinishForm({ ...finishForm, coffeeProfileId: event.target.value })}
-                >
-                  <option value="">Perfil comercial</option>
-                  {catalogs?.coffeeProfiles?.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.name}
-                    </option>
-                  ))}
-                </select>
+                {selectedProcess.outputs?.length > 0 ? (
+                  <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-xs font-semibold uppercase text-emerald-900">Salidas definidas por bodega</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {selectedProcess.outputs.map((output) => (
+                        <div key={output.id} className="rounded border border-emerald-100 bg-white px-3 py-2 text-sm">
+                          <p className="font-semibold text-ink">{output.coffee_profile_name}</p>
+                          <p className="text-slate-600">
+                            {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={finishForm.coffeeProfileId}
+                    onChange={(event) => setFinishForm({ ...finishForm, coffeeProfileId: event.target.value })}
+                  >
+                    <option value="">Perfil comercial</option>
+                    {catalogs?.coffeeProfiles?.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
                   Revision fisica de Bodega: {selectedProcess.output_weight_kg} kg, humedad {selectedProcess.physical_humidity_percent}%, factor {selectedProcess.physical_performance_factor}.
                 </div>
