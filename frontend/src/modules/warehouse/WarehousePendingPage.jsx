@@ -18,6 +18,8 @@ import {
   buildWarehouseOrderHtml,
   formatDate,
   formatInputLabel,
+  getWarehouseItemComponentSummary,
+  getWarehouseItemLabel,
 } from "./WarehousePage";
 
 const priorityOrder = {
@@ -547,7 +549,7 @@ const WarehousePendingPage = () => {
                 {selectedSale.items?.map((item) => (
                   <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name}</p>
+                      <p className="font-medium text-ink">{getWarehouseItemLabel(item)}</p>
                       <button
                         className={`inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
                           item.shortage_marked
@@ -580,10 +582,12 @@ const WarehousePendingPage = () => {
                         Faltante: {item.shortage_notes}
                       </p>
                     )}
-                    {item.coffee_profile_category === "Exotico" && (item.process_purchase_coffee_name || item.base_purchase_coffee_name) && (
-                      <p className="mt-1 text-xs text-amber-700">
-                        Ensamble sugerido: {item.process_purchase_coffee_name || "-"} {item.process_percentage || "-"}% / {item.base_purchase_coffee_name || "-"} {item.base_percentage || "-"}%
-                      </p>
+                    {getWarehouseItemComponentSummary(item) && (
+                      <div className="mt-1 space-y-0.5 text-xs text-amber-700">
+                        {getWarehouseItemComponentSummary(item).split("<br>").map((line) => (
+                          <p key={line}>{line}</p>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -605,7 +609,7 @@ const WarehousePendingPage = () => {
                     .map((item) => (
                       <div key={`blend-${item.id}`} className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
                         <p className="font-semibold text-ink">
-                          {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}
+                          {getWarehouseItemLabel(item)}
                         </p>
                         <div className="mt-2 space-y-2">
                           {item.blend_items.map((blend) => (
@@ -642,7 +646,7 @@ const WarehousePendingPage = () => {
                         <option value="">Producto vendido</option>
                         {selectedSale.items?.map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.operational_weight_kg || item.quantity_kg} kg operativos
+                            {getWarehouseItemLabel(item)} - {item.operational_weight_kg || item.quantity_kg} kg operativos
                           </option>
                         ))}
                       </select>

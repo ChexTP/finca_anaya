@@ -64,17 +64,54 @@ export const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
+const getProfilePrimaryComponent = (item) => {
+  return Array.isArray(item.profile_components)
+    ? item.profile_components.find((component) => component?.purchase_coffee_name)?.purchase_coffee_name
+    : null;
+};
+
+export const getWarehouseItemLabel = (item) => {
+  const primaryComponent = getProfilePrimaryComponent(item);
+
+  if (item.coffee_profile_category === "Exotico" && primaryComponent && item.coffee_profile_name) {
+    return `${primaryComponent} para ${item.coffee_profile_name}`;
+  }
+
+  return item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "Producto";
+};
+
+export const getWarehouseItemComponentSummary = (item) => {
+  const primaryComponent = getProfilePrimaryComponent(item);
+  const parts = [];
+
+  if (item.coffee_profile_category === "Exotico" && primaryComponent && item.coffee_profile_name) {
+    parts.push(`Componente principal: ${primaryComponent} para ${item.coffee_profile_name}`);
+  }
+
+  if (item.base_purchase_coffee_name) {
+    parts.push(`Base principal: ${item.base_purchase_coffee_name}`);
+  }
+
+  return parts.join("<br>");
+};
+
 export const buildWarehouseOrderHtml = (sale) => {
   const productRows = sale.items
     ?.map(
-      (item) => `
+      (item) => {
+        const itemLabel = getWarehouseItemLabel(item);
+        const componentSummary = getWarehouseItemComponentSummary(item);
+        const processSummary = [item.process_type, item.variety].filter(Boolean).join(" - ");
+
+        return `
         <tr>
-          <td>${item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "-"}</td>
-          <td>${[item.process_type, item.variety].filter(Boolean).join(" - ") || "-"}</td>
+          <td>${itemLabel}</td>
+          <td>${[processSummary, componentSummary].filter(Boolean).join("<br>") || "-"}</td>
           <td>${item.quantity_kg}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${item.operational_weight_kg}</span>` : ""}</td>
           <td></td>
         </tr>
-      `
+      `;
+      }
     )
     .join("");
 
@@ -85,7 +122,7 @@ export const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}</h3>
+              <h3>${getWarehouseItemLabel(item)}</h3>
               <p>${item.quantity_kg} kg solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${item.operational_weight_kg} kg operativos` : ""}</p>
             </div>
             <strong>Mezcla final</strong>
