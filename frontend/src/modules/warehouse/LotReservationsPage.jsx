@@ -43,12 +43,12 @@ const getEstimatedDeficitParts = (item) => {
     return null;
   }
 
-  // Estimacion interna: 60% proceso con rendimiento 95%, 40% cafe base.
+  // Estimacion interna: 40% proceso con rendimiento 95%, 60% cafe base.
   return {
     processComponentName: `${primaryComponent} - ${item.coffee_profile_name}`,
-    processInputKg: missingKg * 0.6 / 0.95,
+    processInputKg: missingKg * 0.4 / 0.95,
     baseComponentName: baseComponent,
-    baseKg: missingKg * 0.4,
+    baseKg: missingKg * 0.6,
   };
 };
 
