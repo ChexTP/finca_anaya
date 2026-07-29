@@ -257,10 +257,10 @@ export const getInventoryReport = async () => {
         ELSE 'cafe comprado'
       END AS group_type,
       CASE
-        WHEN coffee_lots.lot_kind = 'PROC' THEN COALESCE(coffee_profiles.name, 'Sin perfil')
-        WHEN coffee_lots.lot_kind = 'PASILLA' THEN 'Pasilla ' || COALESCE(coffee_types.name, 'Sin tipo')
-        WHEN coffee_lots.lot_kind = 'RECUPERACION' THEN 'Recuperacion ' || COALESCE(coffee_lots.commercial_classification, 'Sin categoria') || ' ' || COALESCE(coffee_types.name, '')
-        ELSE COALESCE(coffee_lots.commercial_classification, 'Sin categoria') || ' ' || COALESCE(coffee_types.name, 'Sin tipo')
+        WHEN coffee_lots.lot_kind = 'PROC' THEN coffee_lots.presentation || ' - ' || COALESCE(coffee_profiles.name, 'Sin perfil')
+        WHEN coffee_lots.lot_kind = 'PASILLA' THEN coffee_lots.presentation || ' - Pasilla ' || COALESCE(coffee_types.name, 'Sin tipo')
+        WHEN coffee_lots.lot_kind = 'RECUPERACION' THEN coffee_lots.presentation || ' - Recuperacion ' || COALESCE(coffee_lots.commercial_classification, 'Sin categoria') || ' ' || COALESCE(coffee_types.name, '')
+        ELSE coffee_lots.presentation || ' - ' || COALESCE(coffee_lots.commercial_classification, 'Sin categoria') || ' ' || COALESCE(coffee_types.name, 'Sin tipo')
       END AS group_name,
       COUNT(*) AS lots_count,
       COALESCE(SUM(coffee_lots.available_weight_kg), 0) AS available_weight_kg,

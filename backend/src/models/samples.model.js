@@ -91,6 +91,7 @@ const attachSampleItems = async (samples) => {
       sample_item_blends.*,
       coffee_lots.code AS lot_code,
       coffee_lots.lot_kind,
+      coffee_lots.presentation,
       coffee_lots.commercial_classification,
       coffee_lots.coffee_variety,
       coffee_types.name AS coffee_type_name,

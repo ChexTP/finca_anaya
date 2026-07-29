@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   coffee_type_id INTEGER REFERENCES coffee_types(id),
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   status VARCHAR(40) NOT NULL DEFAULT 'pendiente_laboratorio',
+  presentation VARCHAR(20) NOT NULL DEFAULT 'Pergamino',
   lot_kind VARCHAR(20) NOT NULL DEFAULT 'LOT',
   commercial_classification VARCHAR(30),
   gross_weight_kg NUMERIC(12, 3) NOT NULL,
@@ -196,6 +197,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
       'danado'
     )
   ),
+  CONSTRAINT coffee_lots_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso')),
   CONSTRAINT coffee_lots_kind_check CHECK (lot_kind IN ('LOT', 'PROC', 'PASILLA', 'RECUPERACION')),
   CONSTRAINT coffee_lots_commercial_classification_check CHECK (
     commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado', 'Pasilla', 'Recuperacion')
@@ -266,6 +268,7 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_registered_by INTEGER 
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS performance_factor NUMERIC(8, 2);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS received_at DATE NOT NULL DEFAULT CURRENT_DATE;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS coffee_variety VARCHAR(120);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS presentation VARCHAR(20) NOT NULL DEFAULT 'Pergamino';
 
 DO $$
 BEGIN
@@ -287,6 +290,13 @@ BEGIN
       'danado'
     )
   );
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE coffee_lots DROP CONSTRAINT IF EXISTS coffee_lots_presentation_check;
+  ALTER TABLE coffee_lots
+  ADD CONSTRAINT coffee_lots_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso'));
 END $$;
 
 DO $$
@@ -391,6 +401,7 @@ CREATE TABLE IF NOT EXISTS coffee_process_outputs (
   id SERIAL PRIMARY KEY,
   process_id INTEGER NOT NULL REFERENCES coffee_processes(id) ON DELETE CASCADE,
   coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id),
+  presentation VARCHAR(20) NOT NULL DEFAULT 'Excelso',
   output_lot_id INTEGER REFERENCES coffee_lots(id),
   output_weight_kg NUMERIC(12, 3) NOT NULL,
   humidity_percent NUMERIC(5, 2) NOT NULL,
@@ -400,8 +411,18 @@ CREATE TABLE IF NOT EXISTS coffee_process_outputs (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT coffee_process_outputs_weight_check CHECK (output_weight_kg > 0),
   CONSTRAINT coffee_process_outputs_humidity_check CHECK (humidity_percent >= 0 AND humidity_percent <= 100),
-  CONSTRAINT coffee_process_outputs_performance_check CHECK (performance_factor >= 0)
+  CONSTRAINT coffee_process_outputs_performance_check CHECK (performance_factor >= 0),
+  CONSTRAINT coffee_process_outputs_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso'))
 );
+
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS presentation VARCHAR(20) NOT NULL DEFAULT 'Excelso';
+
+DO $$
+BEGIN
+  ALTER TABLE coffee_process_outputs DROP CONSTRAINT IF EXISTS coffee_process_outputs_presentation_check;
+  ALTER TABLE coffee_process_outputs
+  ADD CONSTRAINT coffee_process_outputs_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso'));
+END $$;
 
 CREATE TABLE IF NOT EXISTS quotes (
   id SERIAL PRIMARY KEY,

@@ -18,6 +18,7 @@ const initialLot = {
   supplierId: "",
   purchaseCoffeeId: "",
   coffeeTypeId: "",
+  presentation: "Pergamino",
   grossWeightKg: "",
   packagingTypeId: "",
   packagingQuantity: "",
@@ -36,6 +37,7 @@ const initialStockEntry = {
   lotKind: "PASILLA",
   coffeeTypeId: "",
   commercialClassification: "Regional",
+  presentation: "Pergamino",
   coffeeVariety: "",
   weightKg: "",
   humidityPercent: "",
@@ -841,6 +843,14 @@ const WarehousePage = () => {
                   )}
                 </>
               )}
+              <select
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                value={stockEntryForm.presentation}
+                onChange={(event) => setStockEntryForm({ ...stockEntryForm, presentation: event.target.value })}
+              >
+                <option value="Pergamino">Pergamino</option>
+                <option value="Excelso">Excelso</option>
+              </select>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Cantidad kg"
@@ -909,6 +919,14 @@ const WarehousePage = () => {
                   {coffee.name}
                 </option>
               ))}
+            </select>
+            <select
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+              value={lotForm.presentation}
+              onChange={(event) => setLotForm({ ...lotForm, presentation: event.target.value })}
+            >
+              <option value="Pergamino">Pergamino</option>
+              <option value="Excelso">Excelso</option>
             </select>
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1040,6 +1058,7 @@ const WarehousePage = () => {
                 <tr>
                   <th className="px-3 py-2">Codigo</th>
                   <th className="px-3 py-2">Proveedor</th>
+                  <th className="px-3 py-2">Presentacion</th>
                   <th className="px-3 py-2">Peso neto</th>
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor rendimiento</th>
@@ -1054,6 +1073,7 @@ const WarehousePage = () => {
                   <tr key={lot.id}>
                     <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.supplier_name}</td>
+                    <td className="px-3 py-2">{lot.presentation || "Pergamino"}</td>
                     <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
                     <td className="px-3 py-2">{lot.humidity_percent}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>

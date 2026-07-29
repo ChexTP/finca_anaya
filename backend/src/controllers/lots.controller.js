@@ -78,6 +78,7 @@ export const postReceivedLot = async (req, res) => {
       innerBagQuantity,
       humidityPercent,
       performanceFactor,
+      presentation = "Pergamino",
       receivedAt,
       coffeeVariety,
       visualDefectPercent,
@@ -95,6 +96,10 @@ export const postReceivedLot = async (req, res) => {
 
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
       return res.status(400).json({ message: "La clasificacion comercial no es valida" });
+    }
+
+    if (!["Pergamino", "Excelso"].includes(presentation)) {
+      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
     }
 
     if (
@@ -183,6 +188,7 @@ export const postReceivedLot = async (req, res) => {
       supplierId,
       coffeeTypeId,
       status,
+      presentation,
       grossWeightKg: gross,
       packagingTypeId,
       packagingQuantity: packages,
@@ -539,6 +545,7 @@ export const postStockEntry = async (req, res) => {
       coffeeVariety,
       weightKg,
       humidityPercent,
+      presentation,
       receivedAt,
       originZone,
       initialComment,
@@ -546,6 +553,10 @@ export const postStockEntry = async (req, res) => {
 
     if (!["PASILLA", "RECUPERACION"].includes(lotKind)) {
       return res.status(400).json({ message: "La entrada rapida debe ser PASILLA o RECUPERACION" });
+    }
+
+    if (presentation && !["Pergamino", "Excelso"].includes(presentation)) {
+      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
     }
 
     const weight = toNumber(weightKg);
@@ -598,6 +609,7 @@ export const postStockEntry = async (req, res) => {
       purchaseTotal: null,
       purchasePaid: false,
       createdBy: req.user.id,
+      presentation: presentation || (lotKind === "PROC" ? "Excelso" : "Pergamino"),
     });
 
     res.status(201).json({
@@ -628,6 +640,7 @@ export const postInitialLoad = async (req, res) => {
       purchasePricePerKg,
       purchasePaid = false,
     } = req.body;
+    const presentation = req.body.presentation || (lotKind === "PROC" ? "Excelso" : "Pergamino");
 
     if (!["LOT", "PROC", "PASILLA", "RECUPERACION"].includes(lotKind)) {
       return res.status(400).json({ message: "El tipo de lote debe ser LOT, PROC, PASILLA o RECUPERACION" });
@@ -635,6 +648,10 @@ export const postInitialLoad = async (req, res) => {
 
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
       return res.status(400).json({ message: "La clasificacion comercial no es valida" });
+    }
+
+    if (!["Pergamino", "Excelso"].includes(presentation)) {
+      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
     }
 
     const weight = toNumber(weightKg);
@@ -710,6 +727,7 @@ export const postInitialLoad = async (req, res) => {
       purchaseTotal,
       purchasePaid,
       createdBy: req.user.id,
+      presentation,
     });
 
     res.status(201).json({

@@ -77,6 +77,30 @@ const App = () => {
           }
         />
         <Route
+          path="/trilladora"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <ProcessesPage
+                fixedProcessType="Trilladora"
+                title="Trilladora"
+                description="Cafe enviado a trilladora, retorno fisico y paso a laboratorio."
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/seleccionadora"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <ProcessesPage
+                fixedProcessType="Seleccion electronica"
+                title="Seleccionadora"
+                description="Cafe enviado a seleccion electronica, retorno fisico y paso a laboratorio."
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/bodega"
           element={
             <ProtectedRoute roles={["admin", "warehouse"]}>

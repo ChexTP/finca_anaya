@@ -303,6 +303,7 @@ export const createReceivedLot = async (lotData) => {
         supplier_id,
         coffee_type_id,
         status,
+        presentation,
         gross_weight_kg,
         packaging_type_id,
         packaging_quantity,
@@ -324,7 +325,7 @@ export const createReceivedLot = async (lotData) => {
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
       )
       RETURNING *
       `,
@@ -333,6 +334,7 @@ export const createReceivedLot = async (lotData) => {
         lotData.supplierId,
         lotData.coffeeTypeId,
         lotData.status,
+        lotData.presentation || "Pergamino",
         lotData.grossWeightKg,
         lotData.packagingTypeId,
         lotData.packagingQuantity,
@@ -768,6 +770,7 @@ export const createInitialInventoryLot = async (lotData) => {
         coffee_type_id,
         coffee_profile_id,
         status,
+        presentation,
         lot_kind,
         commercial_classification,
         gross_weight_kg,
@@ -786,8 +789,8 @@ export const createInitialInventoryLot = async (lotData) => {
         created_by
       )
       VALUES (
-        $1, $2, $3, $4, 'disponible', $5, $6, $7, 0, $7, $7,
-        $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+        $1, $2, $3, $4, 'disponible', $5, $6, $7, $8, 0, $8, $8,
+        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
       )
       RETURNING *
       `,
@@ -796,6 +799,7 @@ export const createInitialInventoryLot = async (lotData) => {
         lotData.supplierId,
         lotData.coffeeTypeId,
         lotData.coffeeProfileId,
+        lotData.presentation || (lotData.lotKind === "PROC" ? "Excelso" : "Pergamino"),
         lotData.lotKind,
         lotData.commercialClassification,
         lotData.weightKg,

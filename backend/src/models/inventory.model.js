@@ -27,6 +27,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.id,
       coffee_lots.code,
       coffee_lots.lot_kind,
+      coffee_lots.presentation,
       coffee_lots.commercial_classification,
       coffee_lots.coffee_variety,
       coffee_lots.status,
@@ -59,7 +60,7 @@ export const getGroupedInventory = async () => {
     SELECT
       CASE
         WHEN coffee_lots.lot_kind = 'PROC' THEN 'profile'
-        ELSE 'type'
+        ELSE 'presentation_type'
       END AS group_type,
       CASE
         WHEN coffee_lots.lot_kind = 'PROC' THEN coffee_lots.coffee_profile_id
@@ -67,7 +68,7 @@ export const getGroupedInventory = async () => {
       END AS group_id,
       CASE
         WHEN coffee_lots.lot_kind = 'PROC' THEN COALESCE(coffee_profiles.name, 'Sin perfil')
-        ELSE COALESCE(coffee_types.name, 'Sin tipo')
+        ELSE coffee_lots.presentation || ' - ' || COALESCE(coffee_types.name, 'Sin tipo')
       END AS group_name,
       COUNT(*) AS lots_count,
       SUM(coffee_lots.available_weight_kg) AS available_weight_kg,
@@ -109,6 +110,7 @@ export const listSampleInventoryOutputs = async () => {
       inventory_movements.*,
       coffee_lots.code AS lot_code,
       coffee_lots.lot_kind,
+      coffee_lots.presentation,
       coffee_lots.commercial_classification,
       coffee_lots.coffee_variety,
       coffee_lots.status AS lot_status,

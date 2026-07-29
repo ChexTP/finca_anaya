@@ -209,8 +209,8 @@ const getInventorySummary = async () => {
     FROM (
       SELECT
         CASE
-          WHEN coffee_lots.lot_kind = 'PROC' THEN COALESCE(coffee_profiles.name, 'Perfil sin definir')
-          ELSE COALESCE(coffee_types.name, 'Tipo sin definir')
+          WHEN coffee_lots.lot_kind = 'PROC' THEN coffee_lots.presentation || ' - ' || COALESCE(coffee_profiles.name, 'Perfil sin definir')
+          ELSE coffee_lots.presentation || ' - ' || COALESCE(coffee_types.name, 'Tipo sin definir')
         END AS group_name,
         coffee_lots.lot_kind,
         COALESCE(SUM(coffee_lots.available_weight_kg), 0) AS total_kg

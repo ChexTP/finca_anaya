@@ -28,6 +28,7 @@ const initialPhysicalReviewForm = {
   outputs: [
     {
       coffeeProfileId: "",
+      presentation: "Excelso",
       outputWeightKg: "",
       humidityPercent: "",
       performanceFactor: "",
@@ -38,6 +39,7 @@ const initialPhysicalReviewForm = {
 
 const emptyProcessOutput = {
   coffeeProfileId: "",
+  presentation: "Excelso",
   outputWeightKg: "",
   humidityPercent: "",
   performanceFactor: "",
@@ -56,18 +58,23 @@ const formatDate = (value) => {
   return [day, month, year].filter(Boolean).join("/");
 };
 
-const ProcessesPage = () => {
+const ProcessesPage = ({
+  fixedProcessType = null,
+  title = "Procesos",
+  description = "Cafe enviado a procesamiento y procesos finalizados.",
+}) => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  const defaultProcessType = fixedProcessType || "Trilladora";
   const [processes, setProcesses] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [sales, setSales] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
-  const [form, setForm] = useState(initialProcess);
+  const [form, setForm] = useState({ ...initialProcess, processType: defaultProcessType });
   const [selectedLots, setSelectedLots] = useState({});
   const [startProcessId, setStartProcessId] = useState(null);
-  const [startForm, setStartForm] = useState(initialStartForm);
+  const [startForm, setStartForm] = useState({ ...initialStartForm, processType: defaultProcessType });
   const [physicalReviewProcessId, setPhysicalReviewProcessId] = useState(null);
   const [physicalReviewForm, setPhysicalReviewForm] = useState(initialPhysicalReviewForm);
   const [processSearch, setProcessSearch] = useState("");
@@ -125,7 +132,8 @@ const ProcessesPage = () => {
   }, [processes, processSearch]);
 
   const loadData = async () => {
-    const requests = [apiRequest("/processes")];
+    const processQuery = fixedProcessType ? `?processType=${encodeURIComponent(fixedProcessType)}` : "";
+    const requests = [apiRequest(`/processes${processQuery}`)];
 
     if (canCreateProcess) {
       requests.push(apiRequest("/inventory/lots"));
@@ -199,7 +207,7 @@ const ProcessesPage = () => {
           inputs: selectedInputs,
         }),
       });
-      setForm(initialProcess);
+      setForm({ ...initialProcess, processType: defaultProcessType });
       setSelectedLots({});
       await loadData();
       setMessage("Solicitud de proceso creada. Bodega debe confirmar cuando el cafe entre a procesamiento.");
@@ -213,7 +221,7 @@ const ProcessesPage = () => {
   const openStartForm = (process) => {
     setStartProcessId(process.id);
     setStartForm({
-      processType: process.process_type || "Trilladora",
+      processType: fixedProcessType || process.process_type || "Trilladora",
       processLocation: process.process_location || "",
       estimatedReturnDate: process.estimated_return_date ? String(process.estimated_return_date).slice(0, 10) : "",
     });
@@ -228,6 +236,7 @@ const ProcessesPage = () => {
       outputs: process.outputs?.length
         ? process.outputs.map((output) => ({
             coffeeProfileId: output.coffee_profile_id || "",
+            presentation: output.presentation || "Excelso",
             outputWeightKg: output.output_weight_kg || "",
             humidityPercent: output.humidity_percent || "",
             performanceFactor: output.performance_factor || "",
@@ -287,7 +296,7 @@ const ProcessesPage = () => {
         }),
       });
       setStartProcessId(null);
-      setStartForm(initialStartForm);
+      setStartForm({ ...initialStartForm, processType: defaultProcessType });
       await loadData();
       setMessage("Proceso iniciado correctamente.");
     } catch (requestError) {
@@ -317,13 +326,14 @@ const ProcessesPage = () => {
 
     const invalidOutput = physicalReviewForm.outputs.find((output) => (
       !output.coffeeProfileId ||
+      !output.presentation ||
       !output.outputWeightKg ||
       !output.humidityPercent ||
       !output.performanceFactor
     ));
 
     if (invalidOutput) {
-      setError("Cada salida debe tener perfil comercial, cantidad final, humedad y factor.");
+      setError("Cada salida debe tener perfil comercial, presentacion, cantidad final, humedad y factor.");
       return;
     }
 
@@ -337,6 +347,7 @@ const ProcessesPage = () => {
         body: JSON.stringify({
           outputs: physicalReviewForm.outputs.map((output) => ({
             coffeeProfileId: Number(output.coffeeProfileId),
+            presentation: output.presentation,
             outputWeightKg: Number(output.outputWeightKg),
             humidityPercent: Number(output.humidityPercent),
             performanceFactor: Number(output.performanceFactor),
@@ -359,8 +370,8 @@ const ProcessesPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Procesos</h1>
-          <p className="text-sm text-slate-500">Cafe enviado a procesamiento y procesos finalizados.</p>
+          <h1 className="text-xl font-bold text-ink">{title}</h1>
+          <p className="text-sm text-slate-500">{description}</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -421,15 +432,21 @@ const ProcessesPage = () => {
                 </option>
               ))}
             </select>
-            <select
-              className="rounded border border-slate-300 px-3 py-2 text-sm"
-              value={form.processType}
-              onChange={(event) => setForm({ ...form, processType: event.target.value })}
-            >
-              {processTypeOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            {fixedProcessType ? (
+              <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                {fixedProcessType}
+              </div>
+            ) : (
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={form.processType}
+                onChange={(event) => setForm({ ...form, processType: event.target.value })}
+              >
+                {processTypeOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            )}
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Ubicacion del proceso"
@@ -550,7 +567,7 @@ const ProcessesPage = () => {
                           {output.output_lot_code || "Sin lote PROC"} - {output.coffee_profile_name}
                         </p>
                         <p className="text-slate-600">
-                          {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
+                          {output.presentation || "Excelso"} · {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
                         </p>
                       </div>
                     ))}
@@ -579,18 +596,24 @@ const ProcessesPage = () => {
                       onChange={(event) => setStartForm({ ...startForm, estimatedReturnDate: event.target.value })}
                     />
                   </label>
-                  <label className="text-xs font-medium text-slate-600">
-                    Destino del cafe
-                    <select
-                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={startForm.processType}
-                      onChange={(event) => setStartForm({ ...startForm, processType: event.target.value })}
-                    >
-                      {processTypeOptions.map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  </label>
+                  {fixedProcessType ? (
+                    <div className="self-end rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+                      {fixedProcessType}
+                    </div>
+                  ) : (
+                    <label className="text-xs font-medium text-slate-600">
+                      Destino del cafe
+                      <select
+                        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={startForm.processType}
+                        onChange={(event) => setStartForm({ ...startForm, processType: event.target.value })}
+                      >
+                        {processTypeOptions.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label className="text-xs font-medium text-slate-600">
                     Ubicacion del proceso
                     <input
@@ -648,7 +671,7 @@ const ProcessesPage = () => {
                   </div>
                   {physicalReviewForm.outputs.map((output, index) => (
                     <div key={`process-output-${index}`} className="rounded border border-emerald-200 bg-white p-3">
-                      <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
+                      <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
                         <select
                           className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
                           value={output.coffeeProfileId}
@@ -660,6 +683,14 @@ const ProcessesPage = () => {
                               {profile.name}
                             </option>
                           ))}
+                        </select>
+                        <select
+                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          value={output.presentation}
+                          onChange={(event) => updatePhysicalOutput(index, "presentation", event.target.value)}
+                        >
+                          <option value="Pergamino">Pergamino</option>
+                          <option value="Excelso">Excelso</option>
                         </select>
                         <input
                           className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"

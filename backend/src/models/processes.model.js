@@ -5,13 +5,18 @@ export const getNextProcessCode = async () => {
   return getNextCode({ prefix: "PRO", tableName: "coffee_processes" });
 };
 
-export const listProcesses = async ({ status }) => {
+export const listProcesses = async ({ status, processType }) => {
   const params = [];
   const conditions = [];
 
   if (status) {
     params.push(status);
     conditions.push(`coffee_processes.status = $${params.length}`);
+  }
+
+  if (processType) {
+    params.push(processType);
+    conditions.push(`coffee_processes.process_type = $${params.length}`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -64,6 +69,7 @@ export const listProcesses = async ({ status }) => {
               'id', coffee_process_outputs.id,
               'coffee_profile_id', coffee_process_outputs.coffee_profile_id,
               'coffee_profile_name', coffee_profiles.name,
+              'presentation', coffee_process_outputs.presentation,
               'output_lot_id', coffee_process_outputs.output_lot_id,
               'output_lot_code', output_lots.code,
               'output_weight_kg', coffee_process_outputs.output_weight_kg,
@@ -461,6 +467,7 @@ export const completeProcessPhysicalReview = async ({
       ? outputs
       : [{
           coffeeProfileId: null,
+          presentation: "Excelso",
           outputWeightKg,
           humidityPercent,
           performanceFactor,
@@ -496,16 +503,18 @@ export const completeProcessPhysicalReview = async ({
         INSERT INTO coffee_process_outputs (
           process_id,
           coffee_profile_id,
+          presentation,
           output_weight_kg,
           humidity_percent,
           performance_factor,
           notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         `,
         [
           processId,
           output.coffeeProfileId,
+          output.presentation || "Excelso",
           output.outputWeightKg,
           output.humidityPercent,
           output.performanceFactor,
@@ -643,6 +652,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         code,
         coffee_profile_id,
         status,
+        presentation,
         lot_kind,
         commercial_classification,
         gross_weight_kg,
@@ -669,15 +679,16 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         created_by
       )
       VALUES (
-        $1, $2, 'disponible', 'PROC', 'Procesado', $3, 0, $3, $3, $4,
-        $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-        $15, $16, $17, NOW(), $19, $18, $17
+        $1, $2, 'disponible', $3, 'PROC', 'Procesado', $4, 0, $4, $4, $5,
+        $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18, NOW(), $20, $19, $18
       )
       RETURNING *
       `,
       [
         code,
         output.coffee_profile_id,
+        output.presentation || "Excelso",
         output.output_weight_kg,
         output.humidity_percent,
         outputReview?.aroma,

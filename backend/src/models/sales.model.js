@@ -134,6 +134,7 @@ export const findSaleById = async (id) => {
       sale_item_lots.deducted_at,
       coffee_lots.code AS lot_code,
       coffee_lots.lot_kind,
+      coffee_lots.presentation,
       coffee_lots.commercial_classification,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
@@ -200,6 +201,7 @@ export const findSaleById = async (id) => {
       ROUND((COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg) * sale_blend_items.percentage / 100)::numeric, 3) AS calculated_operational_kg,
       coffee_lots.code AS lot_code,
       coffee_lots.lot_kind,
+      coffee_lots.presentation,
       coffee_lots.commercial_classification,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name
@@ -747,6 +749,7 @@ export const getOperationalLotReservations = async () => {
       coffee_lots.id,
       coffee_lots.code,
       coffee_lots.lot_kind,
+      coffee_lots.presentation,
       coffee_lots.commercial_classification,
       coffee_lots.coffee_variety,
       coffee_lots.available_weight_kg,

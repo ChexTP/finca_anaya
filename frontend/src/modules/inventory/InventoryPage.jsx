@@ -30,6 +30,7 @@ const InventoryPage = () => {
   const [selectedLiquidationLot, setSelectedLiquidationLot] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
   const [liquidationForm, setLiquidationForm] = useState(initialLiquidation);
+  const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -228,12 +229,24 @@ const InventoryPage = () => {
     ? Number(Number(selectedLiquidationLot.net_weight_kg) * Number(liquidationForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
 
-  const inventoryGroups = groupCoffeeLots(lots);
+  const presentationOptions = ["Pergamino", "Excelso"].map((presentation) => {
+    const presentationLots = lots.filter((lot) => (lot.presentation || "Pergamino") === presentation);
+    return {
+      presentation,
+      count: presentationLots.length,
+      kg: presentationLots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0),
+    };
+  });
+  const presentationFilteredLots = selectedPresentation === "all"
+    ? lots
+    : lots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
+  const inventoryGroups = groupCoffeeLots(presentationFilteredLots);
   const groupCards = Object.values(inventoryGroups).sort((left, right) => left.name.localeCompare(right.name));
   const filteredLots = selectedGroup === "all"
-    ? lots
-    : lots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
-  const totalAvailableKg = lots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0);
+    ? presentationFilteredLots
+    : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
+  const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0);
+  const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0);
 
   return (
     <section className="space-y-5">
@@ -441,6 +454,37 @@ const InventoryPage = () => {
 
       {lots.length > 0 && (
         <div className="rounded border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap gap-2 border-b border-slate-100 pb-3">
+            <button
+              className={`rounded border px-3 py-2 text-left text-sm ${
+                selectedPresentation === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+              }`}
+              type="button"
+              onClick={() => {
+                setSelectedPresentation("all");
+                setSelectedGroup("all");
+              }}
+            >
+              <span className="block font-semibold">Todo</span>
+              <span className="text-xs">{lots.length} lotes - {allAvailableKg.toFixed(3)} kg</span>
+            </button>
+            {presentationOptions.map((option) => (
+              <button
+                key={option.presentation}
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  selectedPresentation === option.presentation ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => {
+                  setSelectedPresentation(option.presentation);
+                  setSelectedGroup("all");
+                }}
+              >
+                <span className="block font-semibold">{option.presentation}</span>
+                <span className="text-xs">{option.count} lotes - {option.kg.toFixed(3)} kg</span>
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap gap-2">
             <button
               className={`rounded border px-3 py-2 text-left text-sm ${
@@ -449,8 +493,8 @@ const InventoryPage = () => {
               type="button"
               onClick={() => setSelectedGroup("all")}
             >
-              <span className="block font-semibold">Todo</span>
-              <span className="text-xs">{lots.length} lotes - {totalAvailableKg.toFixed(3)} kg</span>
+              <span className="block font-semibold">Todos los tipos</span>
+              <span className="text-xs">{presentationFilteredLots.length} lotes - {totalAvailableKg.toFixed(3)} kg</span>
             </button>
             {groupCards.map((group) => (
               <button
@@ -483,6 +527,7 @@ const InventoryPage = () => {
               <thead className="bg-slate-100 text-slate-600">
                 <tr>
                   <th className="px-3 py-2">Codigo</th>
+                  <th className="px-3 py-2">Presentacion</th>
                   <th className="px-3 py-2">Tipo</th>
                   <th className="px-3 py-2">Perfil</th>
                   <th className="px-3 py-2">Categoria</th>
@@ -499,6 +544,7 @@ const InventoryPage = () => {
                 {filteredLots.map((lot) => (
                   <tr key={lot.id}>
                     <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
+                    <td className="px-3 py-2">{lot.presentation || "Pergamino"}</td>
                     <td className="px-3 py-2">{lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>

@@ -33,7 +33,7 @@ const requiredCuppingFields = [
 
 export const getProcesses = async (req, res) => {
   try {
-    const processes = await listProcesses({ status: req.query.status });
+    const processes = await listProcesses({ status: req.query.status, processType: req.query.processType });
     res.json(processes);
   } catch (error) {
     res.status(500).json({
@@ -213,6 +213,7 @@ export const putProcessPhysicalReview = async (req, res) => {
           outputWeightKg: toNumber(output.outputWeightKg),
           humidityPercent: toNumber(output.humidityPercent),
           performanceFactor: toNumber(output.performanceFactor),
+          presentation: output.presentation || "Excelso",
           notes: output.notes || null,
         }))
       : [];
@@ -226,6 +227,7 @@ export const putProcessPhysicalReview = async (req, res) => {
       !Number.isInteger(output.coffeeProfileId) ||
       !Number.isFinite(output.outputWeightKg) ||
       output.outputWeightKg <= 0 ||
+      !["Pergamino", "Excelso"].includes(output.presentation) ||
       !Number.isFinite(output.humidityPercent) ||
       output.humidityPercent < 0 ||
       output.humidityPercent > 100 ||
@@ -235,7 +237,7 @@ export const putProcessPhysicalReview = async (req, res) => {
 
     if (outputs.length > 0 && invalidOutput) {
       return res.status(400).json({
-        message: "Cada salida debe tener perfil comercial, peso, humedad y factor validos",
+        message: "Cada salida debe tener perfil comercial, presentacion, peso, humedad y factor validos",
       });
     }
 
