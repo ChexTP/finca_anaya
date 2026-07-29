@@ -1,6 +1,3 @@
-import anayaLogoFull from "../assets/anaya-logo-full.png";
-import anayaLogoMark from "../assets/anaya-logo-mark.png";
-
 export const companyBrand = {
   name: "Anaya Coffee",
   legalName: "Asociacion Huila Coffee Farmers",
@@ -9,10 +6,10 @@ export const companyBrand = {
   phone: "+57 320 6083481",
   email: "fincaanaya@gmail.com",
   instagram: "@fincaanaya",
-  logo: anayaLogoMark,
-  printableLogo: anayaLogoFull,
+  logo: "/logos/anaya-logo-mark.png",
+  printableLogo: "/logos/anaya-logo-full.png",
 };
 
 export const getPrintableLogo = () => {
-  return new URL(companyBrand.printableLogo, window.location.origin).href;
+  return `${window.location.origin}${companyBrand.printableLogo}`;
 };
