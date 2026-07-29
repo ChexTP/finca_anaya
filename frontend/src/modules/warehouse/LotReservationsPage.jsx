@@ -18,6 +18,18 @@ const getItemName = (item) => {
   return item.description || item.coffee_profile_name || item.coffee_type_name || item.variety || "Cafe solicitado";
 };
 
+const getLotCoffeeName = (lot) => {
+  const descriptors = lot.lot_kind === "PROC"
+    ? [lot.coffee_profile_name, lot.commercial_classification !== "Procesado" ? lot.commercial_classification : null]
+    : lot.lot_kind === "PASILLA"
+      ? ["Pasilla", lot.coffee_type_name]
+      : lot.lot_kind === "RECUPERACION"
+        ? ["Recuperacion", lot.commercial_classification, lot.coffee_variety, lot.coffee_type_name]
+        : [lot.coffee_type_name, lot.commercial_classification, lot.coffee_variety, lot.coffee_profile_name];
+
+  return [...new Set(descriptors.filter(Boolean))].join(" - ") || "Cafe sin clasificar";
+};
+
 const getPrimaryComponentName = (item) => {
   return Array.isArray(item.profile_components)
     ? item.profile_components.find((component) => component?.purchase_coffee_name)?.purchase_coffee_name
@@ -183,6 +195,116 @@ const LotReservationsPage = () => {
     return filteredLots.filter((lot) => Number(lot.operational_available_kg || 0) > 0);
   }, [filteredLots]);
 
+  const deficitSummary = useMemo(() => {
+    const grouped = {};
+
+    filteredDeficits
+      .filter((item) => Number(item.missing_kg || 0) > 0)
+      .forEach((item) => {
+        const estimatedParts = getEstimatedDeficitParts(item);
+        const parts = estimatedParts
+          ? [
+              {
+                coffee: estimatedParts.processComponentName,
+                category: "Proceso estimado",
+                kg: estimatedParts.processInputKg,
+              },
+              {
+                coffee: estimatedParts.baseComponentName,
+                category: "Base estimada",
+                kg: estimatedParts.baseKg,
+              },
+            ]
+          : [
+              {
+                coffee: getDeficitCoffeeName(item),
+                category: "Cafe solicitado",
+                kg: Number(item.missing_kg || 0),
+              },
+            ];
+
+        parts.forEach((part) => {
+          const key = `${part.category}-${part.coffee}`;
+          const current = grouped[key] || {
+            coffee: part.coffee,
+            category: part.category,
+            kg: 0,
+            sales: new Set(),
+            clients: new Set(),
+          };
+
+          current.kg += Number(part.kg || 0);
+          if (item.sale_code) current.sales.add(item.sale_code);
+          if (item.client_name) current.clients.add(item.client_name);
+          grouped[key] = current;
+        });
+      });
+
+    return Object.values(grouped)
+      .map((item) => ({
+        ...item,
+        kg: Number(item.kg.toFixed(3)),
+        sales: [...item.sales],
+        clients: [...item.clients],
+      }))
+      .sort((left, right) => left.coffee.localeCompare(right.coffee));
+  }, [filteredDeficits]);
+
+  const freeSummary = useMemo(() => {
+    const grouped = {};
+
+    freeLots.forEach((lot) => {
+      const coffee = getLotCoffeeName(lot);
+      const current = grouped[coffee] || {
+        coffee,
+        kg: 0,
+        lots: [],
+      };
+
+      current.kg += Number(lot.operational_available_kg || 0);
+      current.lots.push(lot.code);
+      grouped[coffee] = current;
+    });
+
+    return Object.values(grouped)
+      .map((item) => ({
+        ...item,
+        kg: Number(item.kg.toFixed(3)),
+      }))
+      .sort((left, right) => left.coffee.localeCompare(right.coffee));
+  }, [freeLots]);
+
+  const reservedSummary = useMemo(() => {
+    const grouped = {};
+
+    activeAssignments.forEach((assignment) => {
+      const coffee = getLotCoffeeName(assignment.lot);
+      const current = grouped[coffee] || {
+        coffee,
+        kg: 0,
+        lots: new Set(),
+        sales: new Set(),
+        clients: new Set(),
+      };
+
+      current.kg += Number(assignment.quantity_kg || 0);
+      if (assignment.lot?.code) current.lots.add(assignment.lot.code);
+      if (assignment.sale_code) current.sales.add(assignment.sale_code);
+      if (assignment.client_name) current.clients.add(assignment.client_name);
+      grouped[coffee] = current;
+    });
+
+    return Object.values(grouped)
+      .map((item) => ({
+        ...item,
+        kg: Number(item.kg.toFixed(3)),
+        lots: [...item.lots],
+        sales: [...item.sales],
+        clients: [...item.clients],
+      }))
+      .sort((left, right) => left.coffee.localeCompare(right.coffee));
+  }, [activeAssignments]);
+
   const detailReports = useMemo(() => {
     const deficitRows = filteredDeficits.map((item) => {
       const estimatedParts = getEstimatedDeficitParts(item);
@@ -218,6 +340,18 @@ const LotReservationsPage = () => {
           status: saleStatusLabels[assignment.sale_status] || assignment.sale_status,
         })),
       },
+      reservedSummary: {
+        title: "Resumen de cafe reservado",
+        filename: "resumen-cafe-reservado.csv",
+        headers: ["Cafe", "Kg reservados", "Lotes", "Ventas", "Clientes"],
+        rows: reservedSummary.map((item) => ({
+          coffee: item.coffee,
+          kg: formatKg(item.kg),
+          lots: item.lots.join(", "),
+          sales: item.sales.join(", "),
+          clients: item.clients.join(", "),
+        })),
+      },
       free: {
         title: "Detalle de cafe libre operativo",
         filename: "detalle-cafe-libre-operativo.csv",
@@ -231,14 +365,36 @@ const LotReservationsPage = () => {
           free: formatKg(lot.operational_available_kg),
         })),
       },
+      freeSummary: {
+        title: "Resumen de cafe libre operativo",
+        filename: "resumen-cafe-libre-operativo.csv",
+        headers: ["Cafe", "Kg libres", "Lotes"],
+        rows: freeSummary.map((item) => ({
+          coffee: item.coffee,
+          kg: formatKg(item.kg),
+          lots: item.lots.join(", "),
+        })),
+      },
       deficit: {
         title: "Detalle de deficit de cafe",
         filename: "detalle-deficit-cafe.csv",
         headers: ["Venta", "Cliente", "Cafe", "Pedido", "Reservado", "Faltante", "Estimacion compra/proceso", "Entrega", "Encargado"],
         rows: deficitRows,
       },
+      deficitSummary: {
+        title: "Resumen de cafe necesario",
+        filename: "resumen-cafe-necesario.csv",
+        headers: ["Cafe necesario", "Tipo", "Kg totales", "Ventas", "Clientes"],
+        rows: deficitSummary.map((item) => ({
+          coffee: item.coffee,
+          category: item.category,
+          kg: formatKg(item.kg),
+          sales: item.sales.join(", "),
+          clients: item.clients.join(", "),
+        })),
+      },
     };
-  }, [activeAssignments, filteredDeficits, freeLots]);
+  }, [activeAssignments, deficitSummary, filteredDeficits, freeLots, freeSummary, reservedSummary]);
 
   const selectedReport = detailModal ? detailReports[detailModal] : null;
 
@@ -433,6 +589,130 @@ const LotReservationsPage = () => {
           />
           Solo deficit
         </label>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-3">
+        <div className="rounded border border-rose-200 bg-white">
+          <div className="flex items-center justify-between gap-2 border-b border-rose-100 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-rose-900">Resumen deficit</h2>
+              <p className="text-xs text-slate-500">Cafe necesario agrupado.</p>
+            </div>
+            <button
+              className="rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+              type="button"
+              onClick={() => setDetailModal("deficitSummary")}
+            >
+              Exportar
+            </button>
+          </div>
+          {deficitSummary.length === 0 ? (
+            <div className="p-4">
+              <EmptyState title="Sin deficit" message="No hay cafe faltante con los filtros actuales." />
+            </div>
+          ) : (
+            <div className="max-h-72 overflow-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-rose-50 text-rose-900">
+                  <tr>
+                    <th className="px-3 py-2">Cafe</th>
+                    <th className="px-3 py-2">Tipo</th>
+                    <th className="px-3 py-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deficitSummary.map((item) => (
+                    <tr key={`${item.category}-${item.coffee}`} className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-semibold text-ink">{item.coffee}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500">{item.category}</td>
+                      <td className="px-3 py-2 font-semibold text-rose-700">{formatKg(item.kg)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded border border-emerald-200 bg-white">
+          <div className="flex items-center justify-between gap-2 border-b border-emerald-100 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-emerald-900">Resumen libre operativo</h2>
+              <p className="text-xs text-slate-500">Cafe disponible agrupado.</p>
+            </div>
+            <button
+              className="rounded border border-emerald-300 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+              type="button"
+              onClick={() => setDetailModal("freeSummary")}
+            >
+              Exportar
+            </button>
+          </div>
+          {freeSummary.length === 0 ? (
+            <div className="p-4">
+              <EmptyState title="Sin cafe libre" message="No hay cafe libre con los filtros actuales." />
+            </div>
+          ) : (
+            <div className="max-h-72 overflow-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-emerald-50 text-emerald-900">
+                  <tr>
+                    <th className="px-3 py-2">Cafe</th>
+                    <th className="px-3 py-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {freeSummary.map((item) => (
+                    <tr key={item.coffee} className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-semibold text-ink">{item.coffee}</td>
+                      <td className="px-3 py-2 font-semibold text-emerald-700">{formatKg(item.kg)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded border border-amber-200 bg-white">
+          <div className="flex items-center justify-between gap-2 border-b border-amber-100 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-amber-900">Resumen reservado</h2>
+              <p className="text-xs text-slate-500">Cafe separado agrupado.</p>
+            </div>
+            <button
+              className="rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+              type="button"
+              onClick={() => setDetailModal("reservedSummary")}
+            >
+              Exportar
+            </button>
+          </div>
+          {reservedSummary.length === 0 ? (
+            <div className="p-4">
+              <EmptyState title="Sin reservas" message="No hay cafe reservado con los filtros actuales." />
+            </div>
+          ) : (
+            <div className="max-h-72 overflow-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-amber-50 text-amber-900">
+                  <tr>
+                    <th className="px-3 py-2">Cafe</th>
+                    <th className="px-3 py-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reservedSummary.map((item) => (
+                    <tr key={item.coffee} className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-semibold text-ink">{item.coffee}</td>
+                      <td className="px-3 py-2 font-semibold text-amber-700">{formatKg(item.kg)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="rounded border border-rose-200 bg-white">
