@@ -197,7 +197,10 @@ export const getAccountsReceivableReport = async ({ clientId, currency }) => {
 
 export const getAccountsPayableReport = async ({ status, categoryId, supplierId }) => {
   const params = [];
-  const conditions = [];
+  const conditions = [
+    "payable_categories.name = 'Lote de cafe'",
+    "accounts_payable.lot_id IS NOT NULL",
+  ];
 
   if (status) {
     params.push(status);

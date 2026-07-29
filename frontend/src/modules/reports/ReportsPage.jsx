@@ -11,7 +11,7 @@ const reports = [
   { key: "sales-by-profile", label: "Ventas por perfil", path: "/reports/sales-by-profile", currency: true, dates: true },
   { key: "profit", label: "Utilidad estimada", path: "/reports/profit", currency: true, dates: true },
   { key: "accounts-receivable", label: "Cuentas por cobrar", path: "/reports/accounts-receivable", currency: true },
-  { key: "accounts-payable", label: "Cuentas por pagar", path: "/reports/accounts-payable", payableStatus: true },
+  { key: "accounts-payable", label: "Pagos de lotes", path: "/reports/accounts-payable", payableStatus: true },
   { key: "inventory", label: "Inventario", path: "/reports/inventory" },
 ];
 

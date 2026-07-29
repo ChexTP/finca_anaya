@@ -458,12 +458,15 @@ const getOverduePayables = async (role) => {
 
   const result = await pool.query(
     `
-    SELECT id, code, balance_due, due_date
+    SELECT accounts_payable.id, accounts_payable.code, accounts_payable.balance_due, accounts_payable.due_date
     FROM accounts_payable
-    WHERE status IN ('pendiente', 'pago_parcial')
-      AND due_date IS NOT NULL
-      AND due_date <= CURRENT_DATE
-    ORDER BY due_date ASC
+    INNER JOIN payable_categories ON payable_categories.id = accounts_payable.category_id
+    WHERE accounts_payable.status IN ('pendiente', 'pago_parcial')
+      AND accounts_payable.lot_id IS NOT NULL
+      AND payable_categories.name = 'Lote de cafe'
+      AND accounts_payable.due_date IS NOT NULL
+      AND accounts_payable.due_date <= CURRENT_DATE
+    ORDER BY accounts_payable.due_date ASC
     LIMIT 10
     `
   );

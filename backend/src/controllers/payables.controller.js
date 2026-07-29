@@ -129,6 +129,12 @@ export const postPayable = async (req, res) => {
       return res.status(404).json({ message: "Categoria de cuenta por pagar no encontrada o inactiva" });
     }
 
+    if (category.name !== "Lote de cafe" || !lotId) {
+      return res.status(400).json({
+        message: "Este sistema solo maneja cuentas por pagar asociadas a lotes de cafe",
+      });
+    }
+
     if (supplierId) {
       const supplier = await findSupplierById(supplierId);
 

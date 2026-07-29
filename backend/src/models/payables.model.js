@@ -12,7 +12,10 @@ export const getNextPayableCode = async () => {
 
 export const listPayables = async ({ status, categoryId, supplierId, lotId }) => {
   const params = [];
-  const conditions = [];
+  const conditions = [
+    "payable_categories.name = 'Lote de cafe'",
+    "accounts_payable.lot_id IS NOT NULL",
+  ];
 
   if (status) {
     params.push(status);
@@ -73,6 +76,8 @@ export const findPayableById = async (id) => {
     LEFT JOIN coffee_lots ON coffee_lots.id = accounts_payable.lot_id
     LEFT JOIN users ON users.id = accounts_payable.created_by
     WHERE accounts_payable.id = $1
+      AND payable_categories.name = 'Lote de cafe'
+      AND accounts_payable.lot_id IS NOT NULL
     LIMIT 1
     `,
     [id]

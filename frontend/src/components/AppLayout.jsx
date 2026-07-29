@@ -37,7 +37,7 @@ const navigation = [
   { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
   { label: "Ventas", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
   { label: "Historico ventas", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting"] },
-  { label: "Cuentas por pagar", path: "/cuentas-por-pagar", icon: CreditCard, roles: ["admin", "accounting"] },
+  { label: "Pagos de lotes", path: "/cuentas-por-pagar", icon: CreditCard, roles: ["admin", "accounting"] },
   { label: "Clientes", path: "/clientes", icon: Users, roles: ["admin", "accounting", "seller"] },
   { label: "Reportes", path: "/reportes", icon: BarChart3, roles: ["admin", "accounting"] },
   { label: "Documentos", path: "/documentos", icon: FileText, roles: ["admin", "accounting", "seller"] },
