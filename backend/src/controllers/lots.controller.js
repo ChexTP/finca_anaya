@@ -9,6 +9,7 @@ import {
   listLots,
   findLotById,
   createReceivedLot,
+  updateLotReceptionData,
   markRejectedLotAsWithdrawn,
   updateLotLabReview,
   updateLotPhysicalReview,
@@ -216,6 +217,142 @@ export const postReceivedLot = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al registrar lote",
+      error: error.message,
+    });
+  }
+};
+
+export const putReceptionData = async (req, res) => {
+  try {
+    const {
+      supplierId,
+      coffeeTypeId,
+      grossWeightKg,
+      packagingTypeId,
+      packagingQuantity = 0,
+      hasInnerBag = false,
+      innerBagQuantity,
+      humidityPercent,
+      performanceFactor,
+      presentation = "Pergamino",
+      receivedAt,
+      coffeeVariety,
+      commercialClassification,
+      originZone,
+    } = req.body;
+
+    if (!supplierId || !coffeeTypeId || !grossWeightKg || !packagingTypeId || !receivedAt) {
+      return res.status(400).json({
+        message: "Proveedor, cafe comprado, fecha de llegada, peso y embalaje son obligatorios",
+      });
+    }
+
+    if (!["Pergamino", "Excelso"].includes(presentation)) {
+      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
+    }
+
+    if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
+      return res.status(400).json({ message: "La clasificacion comercial no es valida" });
+    }
+
+    if (
+      regularCategoriesThatNeedExactName.includes(commercialClassification) &&
+      !String(coffeeVariety || "").trim()
+    ) {
+      return res.status(400).json({
+        message: "La clasificacion o codigo exacto del cafe es obligatorio para Regional, Varietal y Exotico",
+      });
+    }
+
+    const supplier = await findSupplierById(supplierId);
+    if (!supplier || !supplier.is_active) {
+      return res.status(404).json({ message: "Proveedor no encontrado o inactivo" });
+    }
+
+    const coffeeType = await findCoffeeTypeById(coffeeTypeId);
+    if (!coffeeType || !coffeeType.is_active) {
+      return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+    }
+
+    const packagingType = await findPackagingTypeById(packagingTypeId);
+    if (!packagingType || !packagingType.is_active) {
+      return res.status(404).json({ message: "Tipo de embalaje no encontrado o inactivo" });
+    }
+
+    const gross = toNumber(grossWeightKg);
+    const packages = Number(packagingQuantity);
+    const bags = innerBagQuantity !== undefined ? Number(innerBagQuantity) : hasInnerBag ? packages : 0;
+    const humidity = toNumber(humidityPercent);
+    const performance = toNumber(performanceFactor);
+
+    if (
+      !isValidNumber(gross) ||
+      !isValidNumber(packages) ||
+      !isValidNumber(bags) ||
+      (humidity !== null && !isValidNumber(humidity)) ||
+      (performance !== null && !isValidNumber(performance))
+    ) {
+      return res.status(400).json({
+        message: "Los pesos, cantidades, humedad y factor deben ser numeros validos",
+      });
+    }
+
+    if (
+      gross <= 0 ||
+      packages < 0 ||
+      bags < 0 ||
+      (humidity !== null && (humidity < 0 || humidity > 100)) ||
+      (performance !== null && performance < 0)
+    ) {
+      return res.status(400).json({
+        message: "Los valores ingresados no son validos",
+      });
+    }
+
+    const tareWeightKg = roundKg(Number(packagingType.tare_kg) * packages + 0.05 * bags);
+    const netWeightKg = roundKg(gross - tareWeightKg);
+
+    if (netWeightKg <= 0) {
+      return res.status(400).json({ message: "El peso neto no puede ser menor o igual a cero" });
+    }
+
+    const lot = await updateLotReceptionData(req.params.id, {
+      supplierId,
+      coffeeTypeId,
+      presentation,
+      grossWeightKg: gross,
+      packagingTypeId,
+      packagingQuantity: packages,
+      innerBagQuantity: bags,
+      tareWeightKg,
+      netWeightKg,
+      humidityPercent: humidity,
+      performanceFactor: performance,
+      receivedAt,
+      coffeeVariety: coffeeVariety || null,
+      commercialClassification: commercialClassification || null,
+      originZone,
+      updatedBy: req.user.id,
+    });
+
+    if (!lot) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (lot.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden corregir datos de recepcion antes de aprobacion de laboratorio",
+        data: lot.lot,
+      });
+    }
+
+    res.json({
+      message: "Datos de recepcion corregidos correctamente",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al corregir datos de recepcion",
       error: error.message,
     });
   }

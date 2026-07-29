@@ -2,6 +2,7 @@ import { Eye, FlaskConical, PackageCheck, Printer, RefreshCw, Save, Truck } from
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
@@ -286,6 +287,7 @@ export const buildWarehouseOrderHtml = (sale) => {
 };
 
 const WarehousePage = () => {
+  const { user } = useAuth();
   const [catalogs, setCatalogs] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [pendingLots, setPendingLots] = useState([]);
@@ -300,6 +302,7 @@ const WarehousePage = () => {
   const [supplierForm, setSupplierForm] = useState(initialSupplier);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [lotForm, setLotForm] = useState(initialLot);
+  const [editingLot, setEditingLot] = useState(null);
   const [stockEntryForm, setStockEntryForm] = useState(initialStockEntry);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -347,6 +350,60 @@ const WarehousePage = () => {
       commercialClassification: purchaseCoffee?.family || "",
       coffeeVariety: purchaseCoffee?.name || "",
     });
+  };
+
+  const getPurchaseCoffeeIdFromLot = (lot) => {
+    const match = receivedPurchaseCoffeeOptions.find((coffee) => (
+      coffee.name === lot.coffee_variety &&
+      coffee.family === lot.commercial_classification &&
+      coffee.process_type === lot.coffee_type_name
+    ));
+
+    return match?.id ? String(match.id) : "";
+  };
+
+  const buildReceptionPayload = () => ({
+    ...lotForm,
+    supplierId: Number(lotForm.supplierId),
+    coffeeTypeId: Number(lotForm.coffeeTypeId),
+    grossWeightKg: Number(lotForm.grossWeightKg),
+    packagingTypeId: Number(lotForm.packagingTypeId),
+    packagingQuantity: Number(lotForm.packagingQuantity),
+    humidityPercent: lotForm.humidityPercent === "" ? null : Number(lotForm.humidityPercent),
+    performanceFactor: lotForm.performanceFactor === "" ? null : Number(lotForm.performanceFactor),
+    commercialClassification: lotForm.commercialClassification || null,
+  });
+
+  const startReceptionEdit = (lot) => {
+    setEditingLot(lot);
+    setLotForm({
+      supplierId: lot.supplier_id ? String(lot.supplier_id) : "",
+      purchaseCoffeeId: getPurchaseCoffeeIdFromLot(lot),
+      coffeeTypeId: lot.coffee_type_id ? String(lot.coffee_type_id) : "",
+      presentation: lot.presentation || "Pergamino",
+      grossWeightKg: lot.gross_weight_kg || "",
+      packagingTypeId: lot.packaging_type_id ? String(lot.packaging_type_id) : "",
+      packagingQuantity: lot.packaging_quantity ?? "",
+      hasInnerBag: Number(lot.inner_bag_quantity || 0) > 0,
+      humidityPercent: lot.humidity_percent ?? "",
+      performanceFactor: lot.performance_factor ?? "",
+      receivedAt: lot.received_at ? String(lot.received_at).slice(0, 10) : new Date().toISOString().slice(0, 10),
+      commercialClassification: lot.commercial_classification || "",
+      coffeeVariety: lot.coffee_variety || "",
+      visualNotes: lot.visual_notes || "",
+      originZone: lot.origin_zone || "",
+      initialComment: lot.initial_comment || "",
+    });
+    setMessage("");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelReceptionEdit = () => {
+    setEditingLot(null);
+    setLotForm(initialLot);
+    setMessage("");
+    setError("");
   };
 
   const loadData = async () => {
@@ -406,11 +463,13 @@ const WarehousePage = () => {
     event.preventDefault();
     setMessage("");
     setError("");
-    setSaving(true);
 
     try {
-      if (!selectedPurchaseCoffee) {
+      if (!editingLot && !selectedPurchaseCoffee) {
         throw new Error("Debe seleccionar uno de los cafes comprados por la empresa.");
+      }
+      if (editingLot && !lotForm.coffeeTypeId) {
+        throw new Error("Debe indicar el cafe comprado antes de guardar la correccion.");
       }
 
       if (
@@ -420,26 +479,24 @@ const WarehousePage = () => {
         throw new Error("Debe indicar la clasificacion, variedad o codigo exacto del cafe.");
       }
 
-      const response = await apiRequest("/lots/received", {
-        method: "POST",
-        body: JSON.stringify({
-          ...lotForm,
-          supplierId: Number(lotForm.supplierId),
-          coffeeTypeId: Number(lotForm.coffeeTypeId),
-          grossWeightKg: Number(lotForm.grossWeightKg),
-          packagingTypeId: Number(lotForm.packagingTypeId),
-          packagingQuantity: Number(lotForm.packagingQuantity),
-          humidityPercent: lotForm.humidityPercent === "" ? null : Number(lotForm.humidityPercent),
-          performanceFactor: lotForm.performanceFactor === "" ? null : Number(lotForm.performanceFactor),
-          commercialClassification: lotForm.commercialClassification || null,
-        }),
+      const actionLabel = editingLot ? `corregir el lote ${editingLot.code}` : "registrar este cafe";
+      const confirmed = window.confirm(`Confirma ${actionLabel}? Revisa empaque, bolsa interna, peso y fecha antes de continuar.`);
+      if (!confirmed) return;
+
+      setSaving(true);
+      const response = await apiRequest(editingLot ? `/lots/${editingLot.id}/reception` : "/lots/received", {
+        method: editingLot ? "PUT" : "POST",
+        body: JSON.stringify(buildReceptionPayload()),
       });
       setLotForm(initialLot);
+      setEditingLot(null);
       await loadData();
       setMessage(
-        response.data.status === "pendiente_revision_fisica"
-          ? "Cafe recibido. Quedo pendiente de revision fisica en bodega."
-          : "Cafe recibido. Quedo pendiente de analisis sensorial en laboratorio."
+        editingLot
+          ? "Datos de ingreso corregidos correctamente."
+          : response.data.status === "pendiente_revision_fisica"
+            ? "Cafe recibido. Quedo pendiente de revision fisica en bodega."
+            : "Cafe recibido. Quedo pendiente de analisis sensorial en laboratorio."
       );
     } catch (requestError) {
       setError(requestError.message);
@@ -892,8 +949,29 @@ const WarehousePage = () => {
           </form>
         </div>
 
-        <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createLot}>
-          <h2 className="text-sm font-semibold text-slate-800">Ingresar cafe recibido</h2>
+        <form
+          className="rounded border border-slate-200 bg-white p-4"
+          onSubmit={createLot}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") {
+              event.preventDefault();
+            }
+          }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-slate-800">
+              {editingLot ? `Corregir ingreso ${editingLot.code}` : "Ingresar cafe recibido"}
+            </h2>
+            {editingLot && (
+              <button
+                className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                type="button"
+                onClick={cancelReceptionEdit}
+              >
+                Cancelar correccion
+              </button>
+            )}
+          </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1005,7 +1083,7 @@ const WarehousePage = () => {
           </div>
           <button className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
             <Save size={16} />
-            Registrar cafe
+            {editingLot ? "Guardar correccion" : "Registrar cafe"}
           </button>
         </form>
       </div>
@@ -1029,14 +1107,26 @@ const WarehousePage = () => {
                     Humedad: {lot.humidity_percent ?? "pendiente"} - Factor: {lot.performance_factor ?? "pendiente"}
                   </p>
                 </div>
-                <button
-                  className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  type="button"
-                  disabled={saving}
-                  onClick={() => completeLotPhysicalReview(lot)}
-                >
-                  Registrar revision fisica
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  {user?.role === "admin" && (
+                    <button
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => startReceptionEdit(lot)}
+                    >
+                      Corregir ingreso
+                    </button>
+                  )}
+                  <button
+                    className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => completeLotPhysicalReview(lot)}
+                  >
+                    Registrar revision fisica
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1066,6 +1156,7 @@ const WarehousePage = () => {
                   <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Llegada</th>
                   <th className="px-3 py-2">Estado</th>
+                  {user?.role === "admin" && <th className="px-3 py-2">Accion</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1083,6 +1174,18 @@ const WarehousePage = () => {
                     <td className="px-3 py-2">
                       <StatusBadge tone="warning">{lot.status}</StatusBadge>
                     </td>
+                    {user?.role === "admin" && (
+                      <td className="px-3 py-2">
+                        <button
+                          className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                          type="button"
+                          disabled={saving}
+                          onClick={() => startReceptionEdit(lot)}
+                        >
+                          Corregir ingreso
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

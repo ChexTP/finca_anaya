@@ -384,6 +384,102 @@ export const createReceivedLot = async (lotData) => {
   }
 };
 
+export const updateLotReceptionData = async (id, lotData) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (!["pendiente_revision_fisica", "pendiente_laboratorio"].includes(currentLot.status)) {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot: currentLot };
+    }
+
+    const nextStatus = lotData.humidityPercent === null || lotData.performanceFactor === null
+      ? "pendiente_revision_fisica"
+      : "pendiente_laboratorio";
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        supplier_id = $1,
+        coffee_type_id = $2,
+        status = $3,
+        presentation = $4,
+        gross_weight_kg = $5,
+        packaging_type_id = $6,
+        packaging_quantity = $7,
+        inner_bag_quantity = $8,
+        tare_weight_kg = $9,
+        net_weight_kg = $10,
+        available_weight_kg = 0,
+        humidity_percent = $11,
+        performance_factor = $12,
+        received_at = $13,
+        coffee_variety = $14,
+        commercial_classification = $15,
+        origin_zone = $16,
+        updated_at = NOW()
+      WHERE id = $17
+      RETURNING *
+      `,
+      [
+        lotData.supplierId,
+        lotData.coffeeTypeId,
+        nextStatus,
+        lotData.presentation || "Pergamino",
+        lotData.grossWeightKg,
+        lotData.packagingTypeId,
+        lotData.packagingQuantity,
+        lotData.innerBagQuantity,
+        lotData.tareWeightKg,
+        lotData.netWeightKg,
+        lotData.humidityPercent,
+        lotData.performanceFactor,
+        lotData.receivedAt,
+        lotData.coffeeVariety,
+        lotData.commercialClassification,
+        lotData.originZone,
+        id,
+      ]
+    );
+    const lot = result.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'correccion_recepcion', $2, $3, $4)
+      `,
+      [lot.id, lot.net_weight_kg, "Correccion administrativa de datos de recepcion", lotData.updatedBy]
+    );
+
+    await client.query("COMMIT");
+    return lot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const updateLotLabReview = async (id, reviewData) => {
   const client = await pool.connect();
 

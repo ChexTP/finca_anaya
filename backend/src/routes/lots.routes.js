@@ -5,6 +5,7 @@ import {
   postReceivedLot,
   postInitialLoad,
   postStockEntry,
+  putReceptionData,
   putLabReview,
   putPhysicalReview,
   putPurchase,
@@ -20,6 +21,7 @@ router.get("/:id", requireAuth, getLot);
 router.post("/received", requireAuth, requireRoles("admin", "warehouse"), postReceivedLot);
 router.post("/stock-entry", requireAuth, requireRoles("admin", "warehouse"), postStockEntry);
 router.post("/initial-load", requireAuth, requireRoles("admin"), postInitialLoad);
+router.put("/:id/reception", requireAuth, requireRoles("admin"), putReceptionData);
 router.put("/:id/lab-review", requireAuth, requireRoles("admin", "laboratory"), putLabReview);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "warehouse"), putPhysicalReview);
 router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting"), putLiquidation);
