@@ -221,7 +221,7 @@ const buildSampleOrderHtml = (sample) => {
           th, td { border: 1px solid #111827; font-size: 12px; padding: 8px; text-align: left; vertical-align: middle; }
           th { background: #f2f2f2; font-weight: 700; text-align: center; }
           td:nth-child(3), td:nth-child(4) { text-align: center; width: 90px; }
-          .logo { border-radius: 3px; height: 54px; object-fit: cover; width: 92px; }
+          .logo { height: 72px; object-fit: contain; width: 150px; }
           .lot-block { margin-top: 16px; page-break-inside: avoid; }
           .instructions { margin-top: 18px; }
           .instructions p { font-size: 12px; margin: 6px 0; }

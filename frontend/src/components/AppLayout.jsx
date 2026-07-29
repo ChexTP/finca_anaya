@@ -64,7 +64,7 @@ const AppLayout = () => {
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <img className="h-8 w-12 rounded object-cover" src={companyBrand.logo} alt="Anaya Coffee" />
+                <img className="h-9 w-24 object-contain" src={companyBrand.logo} alt="Anaya Coffee" />
                 <p className="text-sm font-bold text-ink">Finca Anaya</p>
               </div>
               <p className="text-xs text-slate-500">{roleLabels[user?.role] || user?.role}</p>

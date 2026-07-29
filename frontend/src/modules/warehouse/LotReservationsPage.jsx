@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { formatCoffeeLotOption } from "../../utils/coffeeLots";
 import { formatDate } from "./WarehousePage";
 import { saleStatusLabels, getSaleStatusTone } from "../../utils/workflow";
@@ -103,17 +104,30 @@ const printRows = ({ title, headers, rows, summary }) => {
         <title>${title}</title>
         <style>
           body { font-family: Arial, sans-serif; color: #102033; padding: 24px; }
+          header { align-items: flex-start; display: flex; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
           h1 { font-size: 20px; margin: 0 0 16px; }
           h2 { font-size: 16px; margin: 26px 0 10px; }
+          p { font-size: 12px; margin: 4px 0; }
           table { border-collapse: collapse; width: 100%; font-size: 12px; }
           th, td { border: 1px solid #d7dee8; padding: 7px; text-align: left; vertical-align: top; }
           th { background: #eef2f7; }
+          .company { text-align: right; }
+          .logo { height: 72px; object-fit: contain; width: 150px; }
           .summary th { background: #fff7ed; }
           .summary td:nth-child(2) { font-weight: 700; }
         </style>
       </head>
       <body>
-        <h1>${title}</h1>
+        <header>
+          <div>
+            <h1>${title}</h1>
+            <p>Generado: ${formatDate(new Date())}</p>
+          </div>
+          <div class="company">
+            <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
+            <p><strong>${companyBrand.legalName}</strong></p>
+          </div>
+        </header>
         <table>
           <thead><tr>${tableHeaders}</tr></thead>
           <tbody>${tableRows}</tbody>

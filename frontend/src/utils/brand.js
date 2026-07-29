@@ -1,4 +1,5 @@
-import anayaLogo from "../assets/anaya-logo.png";
+import anayaLogoFull from "../assets/anaya-logo-full.png";
+import anayaLogoMark from "../assets/anaya-logo-mark.png";
 
 export const companyBrand = {
   name: "Anaya Coffee",
@@ -8,9 +9,10 @@ export const companyBrand = {
   phone: "+57 320 6083481",
   email: "fincaanaya@gmail.com",
   instagram: "@fincaanaya",
-  logo: anayaLogo,
+  logo: anayaLogoMark,
+  printableLogo: anayaLogoFull,
 };
 
 export const getPrintableLogo = () => {
-  return new URL(companyBrand.logo, window.location.origin).href;
+  return new URL(companyBrand.printableLogo, window.location.origin).href;
 };

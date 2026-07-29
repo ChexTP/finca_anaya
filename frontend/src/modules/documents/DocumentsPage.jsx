@@ -119,7 +119,7 @@ const buildDocumentHtml = (document) => {
           th, td { border: 1px solid #111827; font-size: 12px; padding: 7px; text-align: center; vertical-align: middle; }
           th { background: #f2f2f2; font-weight: 700; }
           td:nth-child(2) { text-align: left; }
-          .logo { border-radius: 3px; height: 58px; object-fit: cover; width: 98px; }
+          .logo { height: 72px; object-fit: contain; width: 150px; }
           .company { text-align: right; }
           .recipient { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 12px 0 16px; }
           .intro { margin: 16px 0 8px; }
