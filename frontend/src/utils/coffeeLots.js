@@ -36,32 +36,27 @@ export const groupCoffeeLots = (lots) => {
 };
 
 export const formatCoffeeLotOption = (lot) => {
+  return `${formatCoffeeLotCodeName(lot)} - ${lot.available_weight_kg} kg`;
+};
+
+export const getCoffeeLotDescription = (lot) => {
   const descriptors = lot.lot_kind === "PROC"
-    ? [
-        lot.coffee_profile_name,
-        lot.commercial_classification !== "Procesado" ? lot.commercial_classification : null,
-      ]
+    ? [lot.coffee_profile_name || "Cafe procesado", lot.commercial_classification !== "Procesado" ? lot.commercial_classification : "Procesado"]
     : lot.lot_kind === "PASILLA"
-      ? [
-          "Pasilla",
-          lot.coffee_type_name,
-        ]
+      ? ["Pasilla", lot.coffee_type_name]
       : lot.lot_kind === "RECUPERACION"
-        ? [
-            "Recuperacion",
-            lot.commercial_classification,
-            lot.coffee_variety,
-            lot.coffee_type_name,
-          ]
-    : [
-        lot.coffee_type_name,
-        lot.commercial_classification,
-        lot.coffee_variety,
-        lot.coffee_profile_name,
-      ];
+        ? ["Recuperacion", lot.coffee_variety, lot.commercial_classification, lot.coffee_type_name]
+        : [lot.coffee_variety || lot.coffee_profile_name || lot.commercial_classification, lot.commercial_classification, lot.coffee_type_name];
 
   const uniqueDescriptors = [...new Set(descriptors.filter(Boolean))];
-  const coffeeDescription = uniqueDescriptors.length > 0 ? uniqueDescriptors.join(" - ") : "Cafe sin clasificar";
+  const [main, ...details] = uniqueDescriptors;
 
-  return `${lot.code} - ${coffeeDescription} - ${lot.available_weight_kg} kg`;
+  if (!main) return "Cafe sin clasificar";
+  if (details.length === 0) return main;
+
+  return `${main} (${details.join(" / ")})`;
+};
+
+export const formatCoffeeLotCodeName = (lot) => {
+  return `${lot.code || lot.lot_code || "Sin codigo"} - ${getCoffeeLotDescription(lot)}`;
 };

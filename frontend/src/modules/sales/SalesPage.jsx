@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
@@ -84,7 +85,7 @@ const buildWarehouseOrderHtml = (sale) => {
                   (blend) => `
                     <tr>
                       <td>${blend.commercial_classification || "-"}</td>
-                      <td>${blend.lot_code || "-"}</td>
+                      <td>${formatCoffeeLotCodeName(blend)}</td>
                       <td>${blend.percentage}%</td>
                       <td>${blend.calculated_operational_kg || blend.calculated_quantity_kg} kg</td>
                     </tr>
@@ -116,7 +117,7 @@ const buildWarehouseOrderHtml = (sale) => {
                 .map(
                   (input) => `
                     <tr>
-                      <td>${input.lot_code || "-"}</td>
+                      <td>${formatCoffeeLotCodeName(input)}</td>
                       <td>${formatInputLabel(input)}</td>
                       <td>${input.input_percentage}%</td>
                       <td>${input.quantity_kg} kg</td>
@@ -133,7 +134,7 @@ const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${lot.lot_code}</h3>
+              <h3>${formatCoffeeLotCodeName(lot)}</h3>
               <p>${lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind || "-"}</p>
             </div>
             <strong>${lot.quantity_kg} kg a sacar</strong>
@@ -770,7 +771,7 @@ const SalesPage = () => {
                           {item.blend_items.map((blend) => (
                             <div key={blend.id} className="flex items-start justify-between gap-3">
                               <div>
-                                <p className="font-medium text-ink">{blend.lot_code}</p>
+                                <p className="font-medium text-ink">{formatCoffeeLotCodeName(blend)}</p>
                                 <p className="text-xs text-slate-600">
                                   {blend.commercial_classification || formatInputLabel(blend)}
                                 </p>
@@ -796,7 +797,7 @@ const SalesPage = () => {
                     <div key={lot.id} className="rounded bg-slate-50 px-3 py-2 text-sm">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="font-medium text-ink">{lot.lot_code}</p>
+                          <p className="font-medium text-ink">{formatCoffeeLotCodeName(lot)}</p>
                           <p className="text-xs text-slate-500">
                             {lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind}
                           </p>
@@ -810,7 +811,7 @@ const SalesPage = () => {
                             {lot.process_mix.map((input) => (
                               <div key={`${lot.id}-${input.lot_id}`} className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="font-medium text-ink">{input.lot_code}</p>
+                                  <p className="font-medium text-ink">{formatCoffeeLotCodeName(input)}</p>
                                   <p className="text-xs text-slate-600">{formatInputLabel(input)}</p>
                                 </div>
                                 <p className="text-right text-slate-700">

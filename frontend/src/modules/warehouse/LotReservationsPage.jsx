@@ -5,7 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
-import { formatCoffeeLotOption } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, formatCoffeeLotOption } from "../../utils/coffeeLots";
 import { formatDate } from "./WarehousePage";
 import { saleStatusLabels, getSaleStatusTone } from "../../utils/workflow";
 import { useEffect, useMemo, useState } from "react";
@@ -290,7 +290,7 @@ const LotReservationsPage = () => {
       };
 
       current.kg += Number(lot.operational_available_kg || 0);
-      current.lots.push(lot.code);
+      current.lots.push(formatCoffeeLotCodeName(lot));
       grouped[coffee] = current;
     });
 
@@ -385,8 +385,8 @@ const LotReservationsPage = () => {
         filename: "detalle-cafe-libre-operativo.csv",
         headers: ["Lote", "Cafe", "Estado", "Fisico", "Reservado", "Libre operativo"],
         rows: freeLots.map((lot) => ({
-          lot: lot.code,
-          coffee: formatCoffeeLotOption(lot).replace(`${lot.code} - `, ""),
+          lot: formatCoffeeLotCodeName(lot),
+          coffee: getLotCoffeeName(lot),
           status: lot.status,
           physical: formatKg(lot.available_weight_kg),
           reserved: formatKg(lot.reserved_kg),
@@ -463,7 +463,7 @@ const LotReservationsPage = () => {
 
   const releaseAssignment = async (assignment) => {
     const confirmed = window.confirm(
-      `Confirma liberar ${formatKg(assignment.quantity_kg)} del lote ${assignment.lot.code} para la venta ${assignment.sale_code}?`
+      `Confirma liberar ${formatKg(assignment.quantity_kg)} del lote ${formatCoffeeLotCodeName(assignment.lot)} para la venta ${assignment.sale_code}?`
     );
 
     if (!confirmed) return;

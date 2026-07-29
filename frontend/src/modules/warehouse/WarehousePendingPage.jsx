@@ -5,7 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
-import { formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import {
   getSaleNextAction,
   getSaleStatusTone,
@@ -615,7 +615,7 @@ const WarehousePendingPage = () => {
                           {item.blend_items.map((blend) => (
                             <div key={blend.id} className="flex items-start justify-between gap-3">
                               <div>
-                                <p className="font-medium text-ink">{blend.lot_code}</p>
+                                <p className="font-medium text-ink">{formatCoffeeLotCodeName(blend)}</p>
                                 <p className="text-xs text-slate-600">{blend.commercial_classification || formatInputLabel(blend)}</p>
                               </div>
                               <p className="text-right text-slate-700">

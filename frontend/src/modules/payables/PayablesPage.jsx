@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
+import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 
 const initialPayable = {
   categoryId: "",
@@ -198,7 +199,7 @@ const PayablesPage = () => {
                 <option value="">Lote opcional</option>
                 {lots.map((lot) => (
                   <option key={lot.id} value={lot.id}>
-                    {lot.code || `Lote ${lot.id}`}
+                    {formatCoffeeLotCodeName(lot)}
                   </option>
                 ))}
               </select>

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
-import { formatCoffeeLotOption } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, formatCoffeeLotOption } from "../../utils/coffeeLots";
 import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
@@ -810,7 +810,7 @@ const LaboratoryPage = () => {
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-ink">{lot.code}</p>
+                          <p className="font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</p>
                           <p className="text-sm text-slate-500">{lot.supplier_name || "Sin proveedor"}</p>
                         </div>
                         <StatusBadge tone="warning">
@@ -992,7 +992,7 @@ const LaboratoryPage = () => {
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
                           {process.inputs.map((input) => (
                             <div key={`${process.id}-${input.lot_id}`} className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                              <p className="font-semibold text-ink">{input.lot_code}</p>
+                              <p className="font-semibold text-ink">{formatCoffeeLotCodeName(input)}</p>
                               <p className="text-slate-600">{formatInputLabel(input)}</p>
                               <p className="text-slate-500">
                                 {input.quantity_kg} kg - {input.input_percentage}%
@@ -1490,7 +1490,7 @@ const LaboratoryPage = () => {
                     <tbody>
                       {filteredHistory.lots.map((lot) => (
                         <tr key={lot.id} className="border-t border-slate-100">
-                          <td className="px-3 py-2 font-semibold text-ink">{lot.code}</td>
+                          <td className="px-3 py-2 font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</td>
                           <td className="px-3 py-2">
                             {[lot.coffee_type_name, lot.commercial_classification, lot.coffee_variety, lot.coffee_profile_name]
                               .filter(Boolean)

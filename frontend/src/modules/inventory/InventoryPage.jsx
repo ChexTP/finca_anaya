@@ -4,7 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
 import { lotStatusLabels } from "../../utils/workflow";
 
 const initialPurchase = {
@@ -97,7 +97,7 @@ const InventoryPage = () => {
   };
 
   const adjustInventory = async (lot) => {
-    const action = window.prompt(`Ajuste para ${lot.code}: escriba + para sumar o - para restar`, "-");
+    const action = window.prompt(`Ajuste para ${formatCoffeeLotCodeName(lot)}: escriba + para sumar o - para restar`, "-");
     if (!["+", "-"].includes(action)) return;
 
     const quantity = window.prompt("Cantidad kg", "");
@@ -106,7 +106,7 @@ const InventoryPage = () => {
     const reason = window.prompt("Razon del ajuste", action === "-" ? "Salida especial de inventario" : "Ingreso adicional de inventario");
     if (!reason) return;
 
-    if (!window.confirm(`Confirma ajustar ${lot.code} en ${action}${quantity} kg?`)) return;
+    if (!window.confirm(`Confirma ajustar ${formatCoffeeLotCodeName(lot)} en ${action}${quantity} kg?`)) return;
 
     setSaving(true);
     setMessage("");
@@ -187,7 +187,7 @@ const InventoryPage = () => {
                   <tbody className="divide-y divide-slate-100">
                     {unpaidLots.map((lot) => (
                       <tr key={lot.id}>
-                        <td className="px-3 py-2 font-medium">{lot.code}</td>
+                        <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                         <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
                         <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
                         <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
@@ -212,7 +212,7 @@ const InventoryPage = () => {
           <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={registerPurchase}>
             <h2 className="text-sm font-semibold text-slate-800">Pago de lote</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {selectedLot ? `Lote seleccionado: ${selectedLot.code}` : "Seleccione un lote pendiente de pago."}
+              {selectedLot ? `Lote seleccionado: ${formatCoffeeLotCodeName(selectedLot)}` : "Seleccione un lote pendiente de pago."}
             </p>
             <p className="mt-2 rounded bg-sky-50 px-3 py-2 text-xs text-sky-700">
               El lote aprobado por laboratorio ya esta disponible operativamente. Registrar el pago solo completa la informacion financiera.
@@ -325,7 +325,7 @@ const InventoryPage = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredLots.map((lot) => (
                   <tr key={lot.id}>
-                    <td className="px-3 py-2 font-medium">{lot.code}</td>
+                    <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>

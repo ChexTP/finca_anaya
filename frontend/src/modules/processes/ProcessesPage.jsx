@@ -5,6 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
 const initialProcess = {
@@ -455,7 +456,7 @@ const ProcessesPage = () => {
                         onChange={() => toggleLot(lot)}
                       />
                     </td>
-                    <td className="px-3 py-2 font-medium">{lot.code}</td>
+                    <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                     <td className="px-3 py-2">{lot.available_weight_kg} kg</td>
@@ -693,7 +694,7 @@ const ProcessesPage = () => {
                   <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {process.inputs.map((input) => (
                       <div key={`${process.id}-${input.lot_id}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <p className="font-semibold text-ink">{input.lot_code}</p>
+                        <p className="font-semibold text-ink">{formatCoffeeLotCodeName(input)}</p>
                         <p className="text-slate-600">{formatInputLabel(input)}</p>
                         <p className="text-slate-500">
                           {input.quantity_kg} kg - {input.input_percentage}%

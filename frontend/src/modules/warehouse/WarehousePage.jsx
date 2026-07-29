@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 
 const initialSupplier = {
   name: "",
@@ -142,7 +143,7 @@ export const buildWarehouseOrderHtml = (sale) => {
                 .map(
                   (blend) => `
                     <tr>
-                      <td>${blend.lot_code || "-"} - ${blend.commercial_classification || "Cafe"} (${blend.percentage}%)</td>
+                      <td>${formatCoffeeLotCodeName(blend)} (${blend.percentage}%)</td>
                       <td>${blend.coffee_type_name || blend.coffee_profile_name || "-"}</td>
                       <td>${blend.calculated_operational_kg || blend.calculated_quantity_kg}</td>
                       <td></td>
@@ -175,7 +176,7 @@ export const buildWarehouseOrderHtml = (sale) => {
                 .map(
                   (input) => `
                     <tr>
-                      <td>${input.lot_code || "-"} - ${formatInputLabel(input)} (${input.input_percentage}%)</td>
+                      <td>${formatCoffeeLotCodeName(input)} (${input.input_percentage}%)</td>
                       <td>${input.coffee_type_name || input.coffee_profile_name || "-"}</td>
                       <td>${input.quantity_kg}</td>
                       <td></td>
@@ -192,7 +193,7 @@ export const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${lot.lot_code}</h3>
+              <h3>${formatCoffeeLotCodeName(lot)}</h3>
               <p>${lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind || "-"}</p>
             </div>
             <strong>${lot.quantity_kg} kg</strong>
@@ -483,7 +484,7 @@ const WarehousePage = () => {
     if (!humidityPercent) return;
     const performanceFactor = window.prompt("Factor de rendimiento", lot.performance_factor ?? "");
     if (!performanceFactor) return;
-    if (!window.confirm(`Confirma la revision fisica de ${lot.code}?`)) return;
+    if (!window.confirm(`Confirma la revision fisica de ${formatCoffeeLotCodeName(lot)}?`)) return;
 
     setSaving(true);
     setMessage("");
@@ -506,11 +507,11 @@ const WarehousePage = () => {
   };
 
   const withdrawRejectedLot = async (lot) => {
-    const notes = window.prompt(`Observacion de retiro para ${lot.code}`, "Retirado por proveedor");
+    const notes = window.prompt(`Observacion de retiro para ${formatCoffeeLotCodeName(lot)}`, "Retirado por proveedor");
 
     if (notes === null) return;
 
-    const confirmed = window.confirm(`Confirmas marcar el lote ${lot.code} como retirado?`);
+    const confirmed = window.confirm(`Confirmas marcar el lote ${formatCoffeeLotCodeName(lot)} como retirado?`);
 
     if (!confirmed) return;
 
@@ -1004,7 +1005,7 @@ const WarehousePage = () => {
             {physicalReviewLots.map((lot) => (
               <div key={lot.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
-                  <p className="font-semibold text-ink">{lot.code}</p>
+                  <p className="font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</p>
                   <p className="text-sm text-slate-500">{lot.supplier_name || "Sin proveedor"} - {lot.net_weight_kg} kg</p>
                   <p className="text-sm text-slate-500">
                     Humedad: {lot.humidity_percent ?? "pendiente"} - Factor: {lot.performance_factor ?? "pendiente"}
@@ -1051,7 +1052,7 @@ const WarehousePage = () => {
               <tbody className="divide-y divide-slate-100">
                 {pendingLots.map((lot) => (
                   <tr key={lot.id}>
-                    <td className="px-3 py-2 font-medium">{lot.code}</td>
+                    <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.supplier_name}</td>
                     <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
                     <td className="px-3 py-2">{lot.humidity_percent}%</td>
@@ -1096,7 +1097,7 @@ const WarehousePage = () => {
               <tbody className="divide-y divide-slate-100">
                 {rejectedLots.map((lot) => (
                   <tr key={lot.id}>
-                    <td className="px-3 py-2 font-medium">{lot.code}</td>
+                    <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
                     <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
                     <td className="px-3 py-2">{lot.humidity_percent ?? "-"}%</td>
