@@ -22,6 +22,7 @@ import SalesPage from "./modules/sales/SalesPage";
 import SamplesHistoryPage from "./modules/samples/SamplesHistoryPage";
 import SamplesPage from "./modules/samples/SamplesPage";
 import UsersPage from "./modules/users/UsersPage";
+import LotHistoryPage from "./modules/warehouse/LotHistoryPage";
 import LotReservationsPage from "./modules/warehouse/LotReservationsPage";
 import WarehousePage from "./modules/warehouse/WarehousePage";
 import WarehousePendingPage from "./modules/warehouse/WarehousePendingPage";
@@ -121,6 +122,22 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <LotReservationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bodega/historico-aceptados"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <LotHistoryPage type="accepted" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bodega/historico-rechazados"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <LotHistoryPage type="rejected" />
             </ProtectedRoute>
           }
         />

@@ -16,6 +16,7 @@ export const getDashboardData = async ({ role, userId }) => {
     overdueSales,
     overduePayables,
     inventoryNeeds,
+    recentLabReviewedLots,
   ] = await Promise.all([
     getInventorySummary(),
     getLabPendingLots(role),
@@ -29,6 +30,7 @@ export const getDashboardData = async ({ role, userId }) => {
     getOverdueSales(role),
     getOverduePayables(role),
     getInventoryNeeds(role),
+    getRecentLabReviewedLots(role),
   ]);
 
   return {
@@ -42,6 +44,7 @@ export const getDashboardData = async ({ role, userId }) => {
       dispatchedSalesWithDebt,
       overdueSales,
       overduePayables,
+      recentLabReviewedLots,
     }),
     alerts: buildAlerts({
       role,
@@ -97,6 +100,7 @@ const buildAlerts = ({
   dispatchedSalesWithDebt,
   overdueSales,
   overduePayables,
+  recentLabReviewedLots,
 }) => {
   const alerts = [];
 
@@ -123,7 +127,15 @@ const buildAlerts = ({
     }));
   }
 
-  if (["admin", "accounting", "warehouse"].includes(role)) {
+  if (["admin", "warehouse"].includes(role)) {
+    addListAlerts(alerts, "lote_revisado_laboratorio", "alta", recentLabReviewedLots, (lot) => ({
+      message:
+        lot.movement_type === "laboratorio_aprobado"
+          ? `Laboratorio aprobo ${lot.code}; vuelve a bodega para liquidacion o control`
+          : `Laboratorio rechazo ${lot.code}; revisar retiro o historial de rechazados`,
+      data: lot,
+    }));
+
     addListAlerts(alerts, "lote_antiguo_bodega", "baja", oldLots, (lot) => ({
       message: `Lote ${lot.code} lleva mas de 15 dias en bodega`,
       data: lot,
@@ -276,7 +288,7 @@ const getHumidityAlerts = async (role) => {
 };
 
 const getOldLots = async (role) => {
-  if (!["admin", "accounting", "warehouse"].includes(role)) {
+  if (!["admin", "warehouse"].includes(role)) {
     return [];
   }
 
@@ -288,6 +300,37 @@ const getOldLots = async (role) => {
       AND available_weight_kg > 0
       AND created_at <= NOW() - INTERVAL '15 days'
     ORDER BY created_at ASC
+    LIMIT 10
+    `
+  );
+
+  return result.rows;
+};
+
+const getRecentLabReviewedLots = async (role) => {
+  if (!["admin", "warehouse"].includes(role)) {
+    return [];
+  }
+
+  const result = await pool.query(
+    `
+    SELECT
+      coffee_lots.id,
+      coffee_lots.code,
+      coffee_lots.status,
+      coffee_lots.humidity_percent,
+      coffee_lots.lab_score,
+      inventory_movements.movement_type,
+      inventory_movements.created_at AS reviewed_at,
+      suppliers.name AS supplier_name,
+      coffee_types.name AS coffee_type_name
+    FROM inventory_movements
+    INNER JOIN coffee_lots ON coffee_lots.id = inventory_movements.lot_id
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    WHERE inventory_movements.movement_type IN ('laboratorio_aprobado', 'laboratorio_rechazado')
+      AND inventory_movements.created_at >= NOW() - INTERVAL '7 days'
+    ORDER BY inventory_movements.created_at DESC
     LIMIT 10
     `
   );

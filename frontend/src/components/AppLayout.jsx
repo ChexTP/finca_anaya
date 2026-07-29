@@ -29,6 +29,8 @@ const navigation = [
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
   { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "warehouse"] },
+  { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Trilladora", path: "/trilladora", icon: Coffee, roles: ["admin", "warehouse"] },

@@ -1,5 +1,6 @@
 import { Eye, FlaskConical, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -292,6 +293,7 @@ const WarehousePage = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [pendingLots, setPendingLots] = useState([]);
   const [physicalReviewLots, setPhysicalReviewLots] = useState([]);
+  const [acceptedLabLots, setAcceptedLabLots] = useState([]);
   const [rejectedLots, setRejectedLots] = useState([]);
   const [pendingSales, setPendingSales] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
@@ -300,6 +302,7 @@ const WarehousePage = () => {
   const [notes, setNotes] = useState("");
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [supplierForm, setSupplierForm] = useState(initialSupplier);
+  const [editingSupplier, setEditingSupplier] = useState(null);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [lotForm, setLotForm] = useState(initialLot);
   const [editingLot, setEditingLot] = useState(null);
@@ -406,12 +409,34 @@ const WarehousePage = () => {
     setError("");
   };
 
+  const startSupplierEdit = (supplier) => {
+    setEditingSupplier(supplier);
+    setSupplierForm({
+      name: supplier.name || "",
+      phone: supplier.phone || "",
+      address: supplier.address || "",
+      originZone: supplier.origin_zone || "",
+      notes: supplier.notes || "",
+    });
+    setShowSupplierForm(true);
+    setMessage("");
+    setError("");
+  };
+
+  const cancelSupplierEdit = () => {
+    setEditingSupplier(null);
+    setSupplierForm(initialSupplier);
+    setMessage("");
+    setError("");
+  };
+
   const loadData = async () => {
-    const [catalogData, supplierData, lotData, physicalData, rejectedData, saleData, inventoryData] = await Promise.all([
+    const [catalogData, supplierData, lotData, physicalData, acceptedData, rejectedData, saleData, inventoryData] = await Promise.all([
       apiRequest("/catalogs"),
       apiRequest("/suppliers"),
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/lots?status=pendiente_revision_fisica"),
+      apiRequest("/lots?status=pendiente_liquidacion"),
       apiRequest("/lots?status=rechazado"),
       apiRequest("/sales"),
       apiRequest("/inventory/lots"),
@@ -420,6 +445,7 @@ const WarehousePage = () => {
     setSuppliers(supplierData);
     setPendingLots(lotData);
     setPhysicalReviewLots(physicalData);
+    setAcceptedLabLots(acceptedData);
     setRejectedLots(rejectedData);
     setPendingSales(saleData.filter((sale) => activeWarehouseStatuses.includes(sale.status)));
     setAvailableLots(inventoryData);
@@ -445,13 +471,17 @@ const WarehousePage = () => {
     setSaving(true);
 
     try {
-      await apiRequest("/suppliers", {
-        method: "POST",
-        body: JSON.stringify(supplierForm),
+      await apiRequest(editingSupplier ? `/suppliers/${editingSupplier.id}` : "/suppliers", {
+        method: editingSupplier ? "PUT" : "POST",
+        body: JSON.stringify({
+          ...supplierForm,
+          isActive: editingSupplier?.is_active ?? true,
+        }),
       });
       setSupplierForm(initialSupplier);
+      setEditingSupplier(null);
       await loadData();
-      setMessage("Proveedor creado correctamente.");
+      setMessage(editingSupplier ? "Proveedor actualizado correctamente." : "Proveedor creado correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -777,6 +807,26 @@ const WarehousePage = () => {
 
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {(acceptedLabLots.length > 0 || rejectedLots.length > 0) && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">Cafe revisado por laboratorio</p>
+              <p>
+                {acceptedLabLots.length} aceptados pendientes de liquidacion y {rejectedLots.length} rechazados pendientes de retiro.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link className="rounded border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800" to="/bodega/historico-aceptados">
+                Ver aceptados
+              </Link>
+              <Link className="rounded border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800" to="/bodega/historico-rechazados">
+                Ver rechazados
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         <div className="space-y-5">
@@ -784,13 +834,31 @@ const WarehousePage = () => {
             <button
               className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
               type="button"
-              onClick={() => setShowSupplierForm((current) => !current)}
+              onClick={() => {
+                if (showSupplierForm && editingSupplier) {
+                  cancelSupplierEdit();
+                }
+                setShowSupplierForm((current) => !current);
+              }}
             >
-              {showSupplierForm ? "Cerrar nuevo proveedor" : "Agregar nuevo proveedor"}
+              {showSupplierForm ? "Cerrar proveedor" : "Agregar nuevo proveedor"}
             </button>
           {showSupplierForm && (
           <form className="mt-4 border-t border-slate-200 pt-4" onSubmit={createSupplier}>
-            <h2 className="text-sm font-semibold text-slate-800">Nuevo proveedor</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-slate-800">
+                {editingSupplier ? `Editar ${editingSupplier.name}` : "Nuevo proveedor"}
+              </h2>
+              {editingSupplier && (
+                <button
+                  className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={cancelSupplierEdit}
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
             <div className="mt-4 space-y-3">
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -818,10 +886,30 @@ const WarehousePage = () => {
               />
               <button className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
                 <Save size={16} />
-                Guardar proveedor
+                {editingSupplier ? "Guardar cambios" : "Guardar proveedor"}
               </button>
             </div>
           </form>
+          )}
+          {user?.role === "admin" && suppliers.length > 0 && (
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <h2 className="text-sm font-semibold text-slate-800">Proveedores registrados</h2>
+              <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                {suppliers.map((supplier) => (
+                  <div key={supplier.id} className="rounded border border-slate-200 p-3 text-sm">
+                    <p className="font-semibold text-ink">{supplier.name}</p>
+                    <p className="text-xs text-slate-500">{supplier.phone} · {supplier.origin_zone || "Sin zona"}</p>
+                    <button
+                      className="mt-2 rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      type="button"
+                      onClick={() => startSupplierEdit(supplier)}
+                    >
+                      Editar proveedor
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
           </div>
 

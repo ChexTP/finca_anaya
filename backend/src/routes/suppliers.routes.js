@@ -12,7 +12,6 @@ const router = Router();
 router.get("/", requireAuth, getSuppliers);
 router.get("/:id", requireAuth, getSupplier);
 router.post("/", requireAuth, requireRoles("admin", "warehouse"), postSupplier);
-router.put("/:id", requireAuth, requireRoles("admin", "warehouse"), putSupplier);
+router.put("/:id", requireAuth, requireRoles("admin"), putSupplier);
 
 export default router;
-

@@ -227,8 +227,18 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
   const conditions = [];
 
   if (status) {
-    params.push(status);
-    conditions.push(`coffee_lots.status = $${params.length}`);
+    const statuses = String(status)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (statuses.length > 1) {
+      params.push(statuses);
+      conditions.push(`coffee_lots.status = ANY($${params.length})`);
+    } else if (statuses.length === 1) {
+      params.push(statuses[0]);
+      conditions.push(`coffee_lots.status = $${params.length}`);
+    }
   }
 
   if (supplierId) {
