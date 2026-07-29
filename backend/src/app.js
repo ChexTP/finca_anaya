@@ -22,6 +22,7 @@ import reportsRoutes from "./routes/reports.routes.js";
 import backupsRoutes from "./routes/backups.routes.js";
 import documentsRoutes from "./routes/documents.routes.js";
 import managementRoutes from "./routes/management.routes.js";
+import laboratoryRoutes from "./routes/laboratory.routes.js";
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api/samples", samplesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/management", managementRoutes);
+app.use("/api/laboratory", laboratoryRoutes);
 app.use("/api/backups", backupsRoutes);
 app.use("/api/documents", documentsRoutes);
 

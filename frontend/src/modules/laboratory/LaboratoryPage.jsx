@@ -1,4 +1,4 @@
-import { ClipboardCheck, FlaskConical, RefreshCw, Save } from "lucide-react";
+import { ClipboardCheck, FileText, FlaskConical, RefreshCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -130,6 +130,8 @@ const LaboratoryPage = () => {
   const [samples, setSamples] = useState([]);
   const [sales, setSales] = useState([]);
   const [saleLabRequests, setSaleLabRequests] = useState([]);
+  const [history, setHistory] = useState({ lots: [], processes: [] });
+  const [historySearch, setHistorySearch] = useState("");
   const [availableLots, setAvailableLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
@@ -147,13 +149,14 @@ const LaboratoryPage = () => {
   const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
-    const [lotData, processData, sampleData, saleData, availableLotData, catalogData] = await Promise.all([
+    const [lotData, processData, sampleData, saleData, availableLotData, catalogData, historyData] = await Promise.all([
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/processes"),
       apiRequest("/samples?status=pendiente_laboratorio"),
       apiRequest("/sales"),
       apiRequest("/inventory/lots"),
       apiRequest("/catalogs"),
+      apiRequest("/laboratory/history"),
     ]);
 
     setLots(lotData);
@@ -163,6 +166,7 @@ const LaboratoryPage = () => {
     setSaleLabRequests(saleData.filter((sale) => sale.status === "pendiente_laboratorio"));
     setAvailableLots(availableLotData);
     setCatalogs(catalogData);
+    setHistory(historyData);
 
     if (selectedLot) {
       const updatedSelectedLot = lotData.find((lot) => lot.id === selectedLot.id);
@@ -203,6 +207,42 @@ const LaboratoryPage = () => {
   const filteredProcesses = useMemo(() => {
     return processes.filter((process) => processFilter === "all" || process.status === processFilter);
   }, [processes, processFilter]);
+
+  const filteredHistory = useMemo(() => {
+    const term = historySearch.trim().toLowerCase();
+
+    const lots = (history.lots || []).filter((lot) => {
+      const text = [
+        lot.code,
+        lot.coffee_type_name,
+        lot.coffee_profile_name,
+        lot.commercial_classification,
+        lot.coffee_variety,
+        lot.lab_score,
+        lot.reviewed_by_name,
+      ].filter(Boolean).join(" ").toLowerCase();
+
+      return !term || text.includes(term);
+    });
+
+    const processes = (history.processes || []).filter((process) => {
+      const text = [
+        process.code,
+        process.sale_code,
+        process.client_name,
+        ...(process.outputs || []).flatMap((output) => [
+          output.output_lot_code,
+          output.coffee_profile_name,
+          output.lab_score,
+          output.reviewed_by_name,
+        ]),
+      ].filter(Boolean).join(" ").toLowerCase();
+
+      return !term || text.includes(term);
+    });
+
+    return { lots, processes };
+  }, [history, historySearch]);
 
   const selectLot = (lot) => {
     setActivePanel("lots");
@@ -721,6 +761,18 @@ const LaboratoryPage = () => {
               Ventas
             </span>
             <span className="text-xs">{saleLabRequests.length}</span>
+          </button>
+          <button
+            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
+              activePanel === "history" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+            }`}
+            onClick={() => setActivePanel("history")}
+          >
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <FileText size={16} />
+              Historico
+            </span>
+            <span className="text-xs">{(history.lots?.length || 0) + (history.processes?.length || 0)}</span>
           </button>
           <button
             className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
@@ -1392,6 +1444,116 @@ const LaboratoryPage = () => {
                 </div>
               )}
             </form>
+          </div>
+        ) : activePanel === "history" ? (
+          <div className="min-w-0 space-y-4">
+            <div className="rounded border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">Historico de laboratorio</h2>
+                  <p className="text-sm text-slate-500">Analisis guardados de lotes y procesos finalizados.</p>
+                </div>
+                <div className="text-xs text-slate-500">
+                  Lotes: {filteredHistory.lots.length} · Procesos: {filteredHistory.processes.length}
+                </div>
+              </div>
+              <input
+                className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Buscar por codigo, perfil, cliente, score o analista"
+                value={historySearch}
+                onChange={(event) => setHistorySearch(event.target.value)}
+              />
+            </div>
+
+            <div className="rounded border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-800">Lotes analizados</h3>
+              </div>
+              {filteredHistory.lots.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title="Sin lotes en historico" message="Los lotes analizados apareceran aqui." />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-100 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2">Codigo</th>
+                        <th className="px-3 py-2">Cafe</th>
+                        <th className="px-3 py-2">Humedad</th>
+                        <th className="px-3 py-2">Score</th>
+                        <th className="px-3 py-2">Analisis</th>
+                        <th className="px-3 py-2">Fecha</th>
+                        <th className="px-3 py-2">Analista</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredHistory.lots.map((lot) => (
+                        <tr key={lot.id} className="border-t border-slate-100">
+                          <td className="px-3 py-2 font-semibold text-ink">{lot.code}</td>
+                          <td className="px-3 py-2">
+                            {[lot.coffee_type_name, lot.commercial_classification, lot.coffee_variety, lot.coffee_profile_name]
+                              .filter(Boolean)
+                              .join(" - ") || "Cafe"}
+                          </td>
+                          <td className="px-3 py-2">{lot.humidity_percent ?? "-"}%</td>
+                          <td className="px-3 py-2 font-semibold">{lot.lab_score ?? "-"}</td>
+                          <td className="px-3 py-2 text-xs text-slate-600">
+                            Aroma {lot.lab_aroma || "-"} · Sabor {lot.lab_flavor || "-"} · Dulzor {lot.lab_sweetness || "-"} · Cuerpo {lot.lab_body || "-"} · Residual {lot.lab_residual || "-"} · Taza limpia {lot.lab_clean_cup || "-"}
+                          </td>
+                          <td className="px-3 py-2">{formatDate(lot.lab_reviewed_at)}</td>
+                          <td className="px-3 py-2">{lot.reviewed_by_name || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-800">Procesos analizados</h3>
+              </div>
+              {filteredHistory.processes.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title="Sin procesos en historico" message="Los procesos finalizados apareceran aqui." />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredHistory.processes.map((process) => (
+                    <div key={process.id} className="p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-ink">{process.code}</p>
+                          <p className="text-sm text-slate-500">
+                            {process.sale_code ? `${process.sale_code} - ${process.client_name || "Cliente"}` : "Sin venta asociada"}
+                          </p>
+                        </div>
+                        <p className="text-sm text-slate-500">Finalizado: {formatDate(process.finalized_at)}</p>
+                      </div>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                        {(process.outputs || []).map((output, index) => (
+                          <div key={`${process.id}-${output.output_lot_id || index}`} className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+                            <p className="font-semibold text-ink">
+                              {output.output_lot_code || "Sin lote PROC"} - {output.coffee_profile_name || "Cafe procesado"}
+                            </p>
+                            <p className="text-slate-600">
+                              {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
+                            </p>
+                            <p className="mt-2 text-xs text-slate-600">
+                              Aroma {output.lab_aroma || "-"} · Sabor {output.lab_flavor || "-"} · Dulzor {output.lab_sweetness || "-"} · Cuerpo {output.lab_body || "-"} · Residual {output.lab_residual || "-"} · Taza limpia {output.lab_clean_cup || "-"}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-ink">Score: {output.lab_score || "-"}</p>
+                            {output.lab_notes && <p className="mt-1 text-xs text-slate-500">Notas: {output.lab_notes}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
