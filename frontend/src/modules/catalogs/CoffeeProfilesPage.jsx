@@ -10,8 +10,8 @@ const initialProfile = {
   category: "",
   components: [{ purchaseCoffeeId: "" }],
   basePurchaseCoffeeId: "",
-  basePriceCop: "0",
-  basePriceUsd: "0",
+  basePriceCop: "",
+  basePriceUsd: "",
   isActive: true,
 };
 
@@ -104,8 +104,8 @@ const CoffeeProfilesPage = () => {
       category: profile.category || "",
       components: buildProfileComponents(profile),
       basePurchaseCoffeeId: getBasePurchaseCoffeeId(profile),
-      basePriceCop: profile.base_price_cop || "0",
-      basePriceUsd: profile.base_price_usd || "0",
+      basePriceCop: Number(profile.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : "",
+      basePriceUsd: Number(profile.base_price_usd || 0) > 0 ? String(profile.base_price_usd) : "",
       isActive: profile.is_active,
     });
     setMessage("");
