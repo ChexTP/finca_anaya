@@ -179,7 +179,7 @@ export const findProcessById = async (id) => {
   };
 };
 
-export const createProcess = async ({ code, quoteId, saleId, processLocation, notes, inputs, createdBy }) => {
+export const createProcess = async ({ code, quoteId, saleId, processType, processLocation, notes, inputs, createdBy }) => {
   const client = await pool.connect();
 
   try {
@@ -189,11 +189,11 @@ export const createProcess = async ({ code, quoteId, saleId, processLocation, no
 
     const processResult = await client.query(
       `
-      INSERT INTO coffee_processes (code, quote_id, sale_id, process_location, notes, total_input_kg, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO coffee_processes (code, quote_id, sale_id, process_type, process_location, notes, total_input_kg, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
       `,
-      [code, quoteId || null, saleId || null, processLocation || null, notes || null, totalInputKg, createdBy]
+      [code, quoteId || null, saleId || null, processType || "Otro proceso", processLocation || null, notes || null, totalInputKg, createdBy]
     );
     const process = processResult.rows[0];
 
@@ -253,7 +253,7 @@ export const createProcess = async ({ code, quoteId, saleId, processLocation, no
   }
 };
 
-export const startProcess = async ({ processId, processLocation, estimatedReturnDate, notes, startedBy }) => {
+export const startProcess = async ({ processId, processType, processLocation, estimatedReturnDate, notes, startedBy }) => {
   const client = await pool.connect();
 
   try {
@@ -330,7 +330,12 @@ export const startProcess = async ({ processId, processLocation, estimatedReturn
         INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
         VALUES ($1, 'proceso_salida', $2, $3, $4)
         `,
-        [lot.id, quantity, `Cafe enviado al proceso ${process.code}`, startedBy]
+        [
+          lot.id,
+          quantity,
+          `Cafe enviado a ${processType || process.process_type || "proceso"} en ${process.code}`,
+          startedBy,
+        ]
       );
     }
 
@@ -339,15 +344,16 @@ export const startProcess = async ({ processId, processLocation, estimatedReturn
       UPDATE coffee_processes
       SET
         status = 'en_proceso',
-        process_location = COALESCE($1, process_location),
-        estimated_return_date = $2,
-        notes = COALESCE($3, notes),
+        process_type = COALESCE($1, process_type),
+        process_location = COALESCE($2, process_location),
+        estimated_return_date = $3,
+        notes = COALESCE($4, notes),
         started_at = NOW(),
         updated_at = NOW()
-      WHERE id = $4
+      WHERE id = $5
       RETURNING *
       `,
-      [processLocation || null, estimatedReturnDate || null, notes || null, processId]
+      [processType || null, processLocation || null, estimatedReturnDate || null, notes || null, processId]
     );
 
     if (process.sale_id) {

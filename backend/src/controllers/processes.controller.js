@@ -62,7 +62,7 @@ export const getProcess = async (req, res) => {
 
 export const postProcess = async (req, res) => {
   try {
-    const { quoteId, saleId, processLocation, notes, inputs } = req.body;
+    const { quoteId, saleId, processType, processLocation, notes, inputs } = req.body;
 
     if (!Array.isArray(inputs) || inputs.length === 0) {
       return res.status(400).json({ message: "Debe seleccionar al menos un lote de entrada" });
@@ -116,6 +116,7 @@ export const postProcess = async (req, res) => {
       code,
       quoteId,
       saleId,
+      processType,
       processLocation,
       notes,
       inputs: cleanInputs,
@@ -136,7 +137,7 @@ export const postProcess = async (req, res) => {
 
 export const putStartProcess = async (req, res) => {
   try {
-    const { processLocation, estimatedReturnDate, notes } = req.body;
+    const { processType, processLocation, estimatedReturnDate, notes } = req.body;
 
     if (!estimatedReturnDate) {
       return res.status(400).json({ message: "La fecha estimada de regreso a bodega es obligatoria" });
@@ -144,6 +145,7 @@ export const putStartProcess = async (req, res) => {
 
     const result = await startProcess({
       processId: req.params.id,
+      processType,
       processLocation,
       estimatedReturnDate,
       notes,

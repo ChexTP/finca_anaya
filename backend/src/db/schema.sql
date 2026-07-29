@@ -331,6 +331,7 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
   quote_id INTEGER,
   sale_id INTEGER,
   status VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+  process_type VARCHAR(40) NOT NULL DEFAULT 'Otro proceso',
   process_location TEXT,
   estimated_return_date DATE,
   notes TEXT,
@@ -358,6 +359,7 @@ CREATE TABLE IF NOT EXISTS coffee_processes (
 
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS quote_id INTEGER;
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS sale_id INTEGER;
+ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS process_type VARCHAR(40) NOT NULL DEFAULT 'Otro proceso';
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS estimated_return_date DATE;
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
 ALTER TABLE coffee_processes ADD COLUMN IF NOT EXISTS lab_pending_at TIMESTAMP;
@@ -961,10 +963,10 @@ VALUES
   ('Varietal 5', 'Varietal')
 ON CONFLICT (name) DO NOTHING;
 
-UPDATE quote_items
+  UPDATE quote_items
 SET operational_weight_kg = CASE
   WHEN product_form = 'Excelso' AND process_type = 'Natural' THEN ROUND((quantity_kg * 140 / 70)::numeric, 3)
-  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN ROUND((quantity_kg * 94 / 70)::numeric, 3)
+  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN ROUND((quantity_kg * 95 / 70)::numeric, 3)
   ELSE quantity_kg
 END
 WHERE operational_weight_kg IS NULL;
@@ -972,7 +974,7 @@ WHERE operational_weight_kg IS NULL;
 UPDATE sale_items
 SET operational_weight_kg = CASE
   WHEN product_form = 'Excelso' AND process_type = 'Natural' THEN ROUND((quantity_kg * 140 / 70)::numeric, 3)
-  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN ROUND((quantity_kg * 94 / 70)::numeric, 3)
+  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN ROUND((quantity_kg * 95 / 70)::numeric, 3)
   ELSE quantity_kg
 END
 WHERE operational_weight_kg IS NULL;

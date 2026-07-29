@@ -977,7 +977,7 @@ const LaboratoryPage = () => {
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{process.total_input_kg} kg de entrada</p>
                       <p className="text-sm font-medium text-slate-700">{getProcessNextAction(process)}</p>
-                      <p className="text-sm text-slate-500">{process.process_location || "Sin ubicacion"}</p>
+                      <p className="text-sm text-slate-500">{[process.process_type, process.process_location].filter(Boolean).join(" - ") || "Sin ubicacion"}</p>
                       {process.estimated_return_date && (
                         <p className="text-sm text-slate-500">
                           Regreso estimado a bodega: {formatDate(process.estimated_return_date)}

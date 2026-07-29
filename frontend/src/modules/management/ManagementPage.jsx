@@ -541,7 +541,7 @@ const ManagementPage = () => {
                     <td className="px-3 py-2">{formatKg(process.total_input_kg)}</td>
                     <td className="px-3 py-2">{process.output_weight_kg ? formatKg(process.output_weight_kg) : "-"}</td>
                     <td className="px-3 py-2">{formatDate(process.estimated_return_date)}</td>
-                    <td className="px-3 py-2">{process.process_location || "-"}</td>
+                    <td className="px-3 py-2">{[process.process_type, process.process_location].filter(Boolean).join(" - ") || "-"}</td>
                   </tr>
                 ))}
               </tbody>

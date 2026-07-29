@@ -18,7 +18,7 @@ export const calculateOperationalKg = ({ quantityKg, productForm, processType })
   }
 
   if (process === "LAVADO") {
-    return Number((kg * 94 / 70).toFixed(3));
+    return Number((kg * 95 / 70).toFixed(3));
   }
 
   // Semilavado aun no tiene factor confirmado por la empresa.

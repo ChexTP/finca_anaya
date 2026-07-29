@@ -11,14 +11,18 @@ import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow"
 const initialProcess = {
   quoteId: "",
   saleId: "",
+  processType: "Trilladora",
   processLocation: "",
   notes: "",
 };
 
 const initialStartForm = {
+  processType: "Trilladora",
   processLocation: "",
   estimatedReturnDate: "",
 };
+
+const processTypeOptions = ["Trilladora", "Seleccion electronica", "Otro proceso"];
 
 const initialPhysicalReviewForm = {
   outputs: [
@@ -101,6 +105,7 @@ const ProcessesPage = () => {
         process.sale_client_name,
         process.quote_code,
         process.quote_client_name,
+        process.process_type,
         process.process_location,
         process.output_lot_code,
         process.notes,
@@ -208,6 +213,7 @@ const ProcessesPage = () => {
   const openStartForm = (process) => {
     setStartProcessId(process.id);
     setStartForm({
+      processType: process.process_type || "Trilladora",
       processLocation: process.process_location || "",
       estimatedReturnDate: process.estimated_return_date ? String(process.estimated_return_date).slice(0, 10) : "",
     });
@@ -275,6 +281,7 @@ const ProcessesPage = () => {
       await apiRequest(`/processes/${process.id}/start`, {
         method: "PUT",
         body: JSON.stringify({
+          processType: startForm.processType,
           processLocation: startForm.processLocation,
           estimatedReturnDate: startForm.estimatedReturnDate,
         }),
@@ -388,7 +395,7 @@ const ProcessesPage = () => {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={form.quoteId}
@@ -412,6 +419,15 @@ const ProcessesPage = () => {
                 <option key={sale.id} value={sale.id}>
                   {sale.code} - {sale.client_name}
                 </option>
+              ))}
+            </select>
+            <select
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+              value={form.processType}
+              onChange={(event) => setForm({ ...form, processType: event.target.value })}
+            >
+              {processTypeOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
               ))}
             </select>
             <input
@@ -510,7 +526,7 @@ const ProcessesPage = () => {
               </div>
               <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
                 <p>{process.total_input_kg} kg de entrada</p>
-                <p>{process.process_location || "Sin ubicacion"}</p>
+                <p>{[process.process_type, process.process_location].filter(Boolean).join(" - ") || "Sin ubicacion"}</p>
                 <p>{process.output_lot_code || "Sin lote final"}</p>
               </div>
               {process.quote_code && (
@@ -553,7 +569,7 @@ const ProcessesPage = () => {
                 </button>
               )}
               {startProcessId === process.id && (
-                <form className="mt-3 grid min-w-0 gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => startProcess(event, process)}>
+                <form className="mt-3 grid min-w-0 gap-3 rounded border border-emerald-100 bg-emerald-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => startProcess(event, process)}>
                   <label className="text-xs font-medium text-slate-600">
                     Fecha estimada de regreso
                     <input
@@ -562,6 +578,18 @@ const ProcessesPage = () => {
                       value={startForm.estimatedReturnDate}
                       onChange={(event) => setStartForm({ ...startForm, estimatedReturnDate: event.target.value })}
                     />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Destino del cafe
+                    <select
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      value={startForm.processType}
+                      onChange={(event) => setStartForm({ ...startForm, processType: event.target.value })}
+                    >
+                      {processTypeOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
                   </label>
                   <label className="text-xs font-medium text-slate-600">
                     Ubicacion del proceso

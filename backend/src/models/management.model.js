@@ -46,7 +46,7 @@ const calculateExcelsoRequiredKg = ({ requestedKg, benefit, productForm }) => {
   }
 
   if (normalizedBenefit.includes("LAVADO")) {
-    return round2(kg * 94 / 70);
+    return round2(kg * 95 / 70);
   }
 
   return round2(kg);
@@ -196,6 +196,7 @@ const getActiveProcesses = async () => {
       coffee_processes.id,
       coffee_processes.code,
       coffee_processes.status,
+      coffee_processes.process_type,
       coffee_processes.process_location,
       coffee_processes.estimated_return_date,
       coffee_processes.total_input_kg,
@@ -837,7 +838,7 @@ export const flattenManagementReport = (report) => {
       kg_asignado: "",
       kg_en_proceso: process.total_input_kg,
       kg_faltante: "",
-      detalle: `${process.client_name || ""} ${process.process_location || ""}`.trim(),
+      detalle: `${process.client_name || ""} ${process.process_type || ""} ${process.process_location || ""}`.trim(),
     }))
   );
 
