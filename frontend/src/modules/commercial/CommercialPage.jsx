@@ -15,7 +15,7 @@ const initialQuote = {
   currency: "COP",
   paymentTerms: "",
   deliveryTerms: "",
-  shippingCost: "0",
+  shippingCost: "",
   estimatedDeliveryDate: "",
   notes: "",
 };
