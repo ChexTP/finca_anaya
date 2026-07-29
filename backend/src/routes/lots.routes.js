@@ -8,6 +8,7 @@ import {
   putLabReview,
   putPhysicalReview,
   putPurchase,
+  putLiquidation,
   putRejectedLotWithdrawal,
 } from "../controllers/lots.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
@@ -21,6 +22,7 @@ router.post("/stock-entry", requireAuth, requireRoles("admin", "warehouse"), pos
 router.post("/initial-load", requireAuth, requireRoles("admin"), postInitialLoad);
 router.put("/:id/lab-review", requireAuth, requireRoles("admin", "laboratory"), putLabReview);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "warehouse"), putPhysicalReview);
+router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting"), putLiquidation);
 router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting"), putPurchase);
 router.put("/:id/withdraw-rejected", requireAuth, requireRoles("admin", "warehouse"), putRejectedLotWithdrawal);
 

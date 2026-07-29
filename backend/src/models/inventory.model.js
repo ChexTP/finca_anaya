@@ -102,7 +102,61 @@ export const listLotMovements = async (lotId) => {
   return result.rows;
 };
 
+export const listSampleInventoryOutputs = async () => {
+  const result = await pool.query(
+    `
+    SELECT
+      inventory_movements.*,
+      coffee_lots.code AS lot_code,
+      coffee_lots.lot_kind,
+      coffee_lots.commercial_classification,
+      coffee_lots.coffee_variety,
+      coffee_lots.status AS lot_status,
+      coffee_lots.available_weight_kg,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name,
+      users.name AS created_by_name
+    FROM inventory_movements
+    INNER JOIN coffee_lots ON coffee_lots.id = inventory_movements.lot_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN users ON users.id = inventory_movements.created_by
+    WHERE inventory_movements.movement_type = 'salida_muestra'
+    ORDER BY inventory_movements.created_at DESC
+    `
+  );
+
+  return result.rows;
+};
+
 export const adjustLotInventory = async ({ lotId, adjustmentType, quantityKg, reason, userId }) => {
+  return updateLotInventoryByMovement({
+    lotId,
+    quantityKg,
+    notes: reason,
+    userId,
+    adjustmentType,
+    movementType: adjustmentType === "increase" ? "ajuste_aumento" : "ajuste_disminucion",
+  });
+};
+
+export const registerSampleInventoryOutput = async ({ lotId, quantityKg, sampleReference, notes, userId }) => {
+  const reason = [
+    sampleReference ? `Muestras: ${sampleReference}` : "Salida a muestras",
+    notes,
+  ].filter(Boolean).join(" - ");
+
+  return updateLotInventoryByMovement({
+    lotId,
+    quantityKg,
+    notes: reason,
+    userId,
+    adjustmentType: "decrease",
+    movementType: "salida_muestra",
+  });
+};
+
+const updateLotInventoryByMovement = async ({ lotId, adjustmentType, quantityKg, notes, userId, movementType }) => {
   const client = await pool.connect();
 
   try {
@@ -155,14 +209,12 @@ export const adjustLotInventory = async ({ lotId, adjustmentType, quantityKg, re
     );
 
     const lot = result.rows[0];
-    const movementType = adjustmentType === "increase" ? "ajuste_aumento" : "ajuste_disminucion";
-
     await client.query(
       `
       INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
       VALUES ($1, $2, $3, $4, $5)
       `,
-      [lotId, movementType, quantityKg, reason, userId]
+      [lotId, movementType, quantityKg, notes, userId]
     );
 
     await client.query("COMMIT");

@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { getNextCode } from "./codeCounters.model.js";
 
 export const findPayableCategoryById = async (id) => {
   const result = await pool.query("SELECT * FROM payable_categories WHERE id = $1 LIMIT 1", [id]);
@@ -6,23 +7,7 @@ export const findPayableCategoryById = async (id) => {
 };
 
 export const getNextPayableCode = async () => {
-  const year = new Date().getFullYear();
-  const result = await pool.query(
-    `
-    SELECT code
-    FROM accounts_payable
-    WHERE code LIKE $1
-    ORDER BY code DESC
-    LIMIT 1
-    `,
-    [`CXP-${year}-%`]
-  );
-
-  const lastCode = result.rows[0]?.code;
-  const lastNumber = lastCode ? Number(lastCode.split("-")[2]) : 0;
-  const nextNumber = String(lastNumber + 1).padStart(4, "0");
-
-  return `CXP-${year}-${nextNumber}`;
+  return getNextCode({ prefix: "CXP", tableName: "accounts_payable" });
 };
 
 export const listPayables = async ({ status, categoryId, supplierId, lotId }) => {

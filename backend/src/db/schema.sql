@@ -87,6 +87,20 @@ CREATE TABLE IF NOT EXISTS payable_categories (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS code_counters (
+  id SERIAL PRIMARY KEY,
+  prefix VARCHAR(12) NOT NULL,
+  year INTEGER NOT NULL,
+  next_number INTEGER NOT NULL,
+  last_generated_number INTEGER,
+  updated_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(prefix, year),
+  CONSTRAINT code_counters_next_number_check CHECK (next_number > 0),
+  CONSTRAINT code_counters_year_check CHECK (year >= 2000 AND year <= 2100)
+);
+
 CREATE TABLE IF NOT EXISTS suppliers (
   id SERIAL PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
@@ -173,6 +187,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
       'rechazado',
       'retirado',
       'aprobado',
+      'pendiente_liquidacion',
       'disponible',
       'en_proceso',
       'procesado',
@@ -263,6 +278,7 @@ BEGIN
       'rechazado',
       'retirado',
       'aprobado',
+      'pendiente_liquidacion',
       'disponible',
       'en_proceso',
       'procesado',

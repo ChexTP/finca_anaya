@@ -5,6 +5,7 @@ import { getInitialRouteByRole } from "./controllers/authController";
 import { useAuth } from "./context/AuthContext";
 import LoginPage from "./modules/auth/LoginPage";
 import BackupsPage from "./modules/backups/BackupsPage";
+import CodeCountersPage from "./modules/admin/CodeCountersPage";
 import CoffeeProfilesPage from "./modules/catalogs/CoffeeProfilesPage";
 import ClientsPage from "./modules/clients/ClientsPage";
 import CommercialPage from "./modules/commercial/CommercialPage";
@@ -200,6 +201,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin"]}>
               <CoffeeProfilesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/consecutivos"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <CodeCountersPage />
             </ProtectedRoute>
           }
         />

@@ -23,6 +23,7 @@ import backupsRoutes from "./routes/backups.routes.js";
 import documentsRoutes from "./routes/documents.routes.js";
 import managementRoutes from "./routes/management.routes.js";
 import laboratoryRoutes from "./routes/laboratory.routes.js";
+import codeCountersRoutes from "./routes/codeCounters.routes.js";
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use("/api/management", managementRoutes);
 app.use("/api/laboratory", laboratoryRoutes);
 app.use("/api/backups", backupsRoutes);
 app.use("/api/documents", documentsRoutes);
+app.use("/api/code-counters", codeCountersRoutes);
 
 // Respuesta estandar para rutas que no existen.
 app.use((req, res) => {

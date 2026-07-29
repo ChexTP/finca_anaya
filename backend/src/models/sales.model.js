@@ -1,24 +1,9 @@
 import { pool } from "../db.js";
+import { getNextCode } from "./codeCounters.model.js";
 import { logger } from "../utils/logger.js";
 
 export const getNextSaleCode = async () => {
-  const year = new Date().getFullYear();
-  const result = await pool.query(
-    `
-    SELECT code
-    FROM sales
-    WHERE code LIKE $1
-    ORDER BY code DESC
-    LIMIT 1
-    `,
-    [`VEN-${year}-%`]
-  );
-
-  const lastCode = result.rows[0]?.code;
-  const lastNumber = lastCode ? Number(lastCode.split("-")[2]) : 0;
-  const nextNumber = String(lastNumber + 1).padStart(4, "0");
-
-  return `VEN-${year}-${nextNumber}`;
+  return getNextCode({ prefix: "VEN", tableName: "sales" });
 };
 
 export const listSales = async ({ status, paymentStatus, clientId, sellerId }) => {

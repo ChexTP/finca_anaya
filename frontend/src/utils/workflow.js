@@ -24,6 +24,7 @@ export const processStatusLabels = {
 export const lotStatusLabels = {
   pendiente_revision_fisica: "Revision fisica",
   pendiente_laboratorio: "Pendiente laboratorio",
+  pendiente_liquidacion: "Pendiente liquidacion",
   disponible: "Disponible",
   vendido_parcial: "Disponible parcial",
   agotado: "Agotado",

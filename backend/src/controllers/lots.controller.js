@@ -12,6 +12,7 @@ import {
   markRejectedLotAsWithdrawn,
   updateLotLabReview,
   updateLotPhysicalReview,
+  liquidateLot,
   registerLotPurchase,
   createInitialInventoryLot,
 } from "../models/lots.model.js";
@@ -483,6 +484,47 @@ export const putPurchase = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al registrar compra del lote",
+      error: error.message,
+    });
+  }
+};
+
+export const putLiquidation = async (req, res) => {
+  try {
+    const { purchasePricePerKg, notes } = req.body;
+    const price = toNumber(purchasePricePerKg);
+
+    if (purchasePricePerKg !== undefined && purchasePricePerKg !== "" && (!isValidNumber(price) || price < 0)) {
+      return res.status(400).json({
+        message: "El precio pactado por kg debe ser mayor o igual a cero",
+      });
+    }
+
+    const lot = await liquidateLot({
+      id: req.params.id,
+      purchasePricePerKg: price,
+      notes,
+      liquidatedBy: req.user.id,
+    });
+
+    if (!lot) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (lot.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden liquidar lotes pendientes de liquidacion",
+        data: lot.lot,
+      });
+    }
+
+    res.json({
+      message: "Lote liquidado correctamente. Ya queda disponible para uso operativo.",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al liquidar lote",
       error: error.message,
     });
   }

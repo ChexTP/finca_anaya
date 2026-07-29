@@ -14,13 +14,22 @@ const initialPurchase = {
   paidAt: new Date().toISOString().slice(0, 10),
 };
 
+const initialLiquidation = {
+  purchasePricePerKg: "",
+  notes: "",
+};
+
 const InventoryPage = () => {
   const { user } = useAuth();
   const [lots, setLots] = useState([]);
+  const [sampleOutputs, setSampleOutputs] = useState([]);
+  const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
   const [unpaidLots, setUnpaidLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
+  const [selectedLiquidationLot, setSelectedLiquidationLot] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
+  const [liquidationForm, setLiquidationForm] = useState(initialLiquidation);
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -33,23 +42,71 @@ const InventoryPage = () => {
     const requests = [
       apiRequest("/inventory/lots"),
       apiRequest("/lots"),
+      canAdjustInventory ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
     ];
 
     if (canRegisterPurchase) {
       requests.push(apiRequest("/catalogs"));
     }
 
-    const [availableData, allLots, catalogData] = await Promise.all(requests);
+    const [availableData, allLots, sampleOutputData, catalogData] = await Promise.all(requests);
     setLots(availableData);
+    setSampleOutputs(sampleOutputData || []);
+    setPendingLiquidationLots(
+      allLots.filter((lot) => lot.status === "pendiente_liquidacion")
+    );
     setUnpaidLots(
       allLots.filter(
         (lot) =>
           lot.lab_reviewed_at &&
           !lot.purchase_paid &&
-          !["pendiente_laboratorio", "rechazado", "retirado"].includes(lot.status)
+          !["pendiente_laboratorio", "pendiente_liquidacion", "rechazado", "retirado"].includes(lot.status)
       )
     );
     setCatalogs(catalogData || null);
+  };
+
+  const selectLiquidationLot = (lot) => {
+    setSelectedLiquidationLot(lot);
+    setLiquidationForm({
+      purchasePricePerKg: lot.purchase_price_per_kg || "",
+      notes: "",
+    });
+    setMessage("");
+    setError("");
+  };
+
+  const liquidateSelectedLot = async (event) => {
+    event.preventDefault();
+
+    if (!selectedLiquidationLot) {
+      setError("Seleccione un lote pendiente de liquidacion.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma liquidar ${formatCoffeeLotCodeName(selectedLiquidationLot)} y dejarlo disponible para uso?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${selectedLiquidationLot.id}/liquidate`, {
+        method: "PUT",
+        body: JSON.stringify({
+          purchasePricePerKg: liquidationForm.purchasePricePerKg === "" ? null : Number(liquidationForm.purchasePricePerKg),
+          notes: liquidationForm.notes,
+        }),
+      });
+      setSelectedLiquidationLot(null);
+      setLiquidationForm(initialLiquidation);
+      await loadData();
+      setMessage("Lote liquidado. Ya queda disponible para asignar, procesar o vender.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -130,8 +187,45 @@ const InventoryPage = () => {
     }
   };
 
+  const registerSampleOutput = async (lot) => {
+    const quantity = window.prompt(`Cantidad kg que sale a muestras desde ${formatCoffeeLotCodeName(lot)}`, "");
+    if (!quantity) return;
+
+    const sampleReference = window.prompt("Referencia de muestra o cliente", "Muestras");
+    if (sampleReference === null) return;
+
+    const notes = window.prompt("Observacion opcional", "");
+    if (notes === null) return;
+
+    if (!window.confirm(`Confirma sacar ${quantity} kg de ${formatCoffeeLotCodeName(lot)} para muestras?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/inventory/lots/${lot.id}/sample-output`, {
+        method: "POST",
+        body: JSON.stringify({
+          quantityKg: Number(quantity),
+          sampleReference,
+          notes,
+        }),
+      });
+      await loadData();
+      setMessage("Salida a muestras registrada y descontada del inventario.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
     ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
+    : "0";
+  const liquidationTotal = selectedLiquidationLot && liquidationForm.purchasePricePerKg
+    ? Number(Number(selectedLiquidationLot.net_weight_kg) * Number(liquidationForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
 
   const inventoryGroups = groupCoffeeLots(lots);
@@ -162,6 +256,85 @@ const InventoryPage = () => {
 
       {canRegisterPurchase && (
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+          <div className="min-w-0 rounded border border-amber-200 bg-white">
+            <div className="border-b border-amber-100 px-4 py-3">
+              <h2 className="text-sm font-semibold text-amber-900">Lotes pendientes de liquidacion</h2>
+              <p className="mt-1 text-xs text-slate-500">Aprobados por laboratorio, pero aun no disponibles hasta acordar la compra.</p>
+            </div>
+            {pendingLiquidationLots.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="Sin liquidaciones pendientes" message="Los lotes aprobados que falten por negociar apareceran aqui." />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-amber-50 text-amber-900">
+                    <tr>
+                      <th className="px-3 py-2">Lote</th>
+                      <th className="px-3 py-2">Proveedor</th>
+                      <th className="px-3 py-2">Peso</th>
+                      <th className="px-3 py-2">Accion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {pendingLiquidationLots.map((lot) => (
+                      <tr key={lot.id}>
+                        <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
+                        <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
+                        <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
+                        <td className="px-3 py-2">
+                          <button
+                            className="rounded border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                            type="button"
+                            onClick={() => selectLiquidationLot(lot)}
+                          >
+                            Liquidar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <form className="min-w-0 overflow-hidden rounded border border-amber-200 bg-white p-4" onSubmit={liquidateSelectedLot}>
+            <h2 className="text-sm font-semibold text-amber-900">Liquidacion de lote</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {selectedLiquidationLot ? `Lote seleccionado: ${formatCoffeeLotCodeName(selectedLiquidationLot)}` : "Seleccione un lote pendiente de liquidacion."}
+            </p>
+            <p className="mt-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Liquidar significa que la compra ya fue aceptada por ambas partes. Desde ese momento el cafe queda disponible, aunque el pago pueda quedar pendiente.
+            </p>
+            <div className="mt-4 space-y-3">
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Precio pactado por kg opcional"
+                type="number"
+                step="0.01"
+                value={liquidationForm.purchasePricePerKg}
+                onChange={(event) => setLiquidationForm({ ...liquidationForm, purchasePricePerKg: event.target.value })}
+              />
+              <textarea
+                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Notas de liquidacion opcionales"
+                value={liquidationForm.notes}
+                onChange={(event) => setLiquidationForm({ ...liquidationForm, notes: event.target.value })}
+              />
+              <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                Total pactado estimado: <span className="font-semibold text-ink">COP {liquidationTotal}</span>
+              </div>
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                disabled={saving || !selectedLiquidationLot}
+              >
+                <Save size={16} />
+                Liquidar y liberar inventario
+              </button>
+            </div>
+          </form>
+
           <div className="min-w-0 rounded border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-4 py-3">
               <h2 className="text-sm font-semibold text-slate-800">Lotes aprobados pendientes de pago</h2>
@@ -215,7 +388,7 @@ const InventoryPage = () => {
               {selectedLot ? `Lote seleccionado: ${formatCoffeeLotCodeName(selectedLot)}` : "Seleccione un lote pendiente de pago."}
             </p>
             <p className="mt-2 rounded bg-sky-50 px-3 py-2 text-xs text-sky-700">
-              El lote aprobado por laboratorio ya esta disponible operativamente. Registrar el pago solo completa la informacion financiera.
+              El lote liquidado ya esta disponible operativamente. Registrar el pago solo completa la informacion financiera.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -319,7 +492,7 @@ const InventoryPage = () => {
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor</th>
                   <th className="px-3 py-2">Estado</th>
-                  {canAdjustInventory && <th className="px-3 py-2">Ajuste</th>}
+                  {canAdjustInventory && <th className="px-3 py-2">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -339,14 +512,26 @@ const InventoryPage = () => {
                     </td>
                     {canAdjustInventory && (
                       <td className="px-3 py-2">
-                        <button
-                          className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                          type="button"
-                          onClick={() => adjustInventory(lot)}
-                          disabled={saving}
-                        >
-                          Ajustar
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          {["admin", "warehouse"].includes(user?.role) && (
+                            <button
+                              className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                              type="button"
+                              onClick={() => registerSampleOutput(lot)}
+                              disabled={saving}
+                            >
+                              Sacar muestra
+                            </button>
+                          )}
+                          <button
+                            className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                            type="button"
+                            onClick={() => adjustInventory(lot)}
+                            disabled={saving}
+                          >
+                            Ajustar
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -356,6 +541,45 @@ const InventoryPage = () => {
           </div>
         )}
       </div>
+
+      {canAdjustInventory && (
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Historico de cafe usado en muestras</h2>
+            <p className="mt-1 text-xs text-slate-500">Salidas manuales descontadas desde bodega para preparacion de muestras.</p>
+          </div>
+          {sampleOutputs.length === 0 ? (
+            <div className="p-4">
+              <EmptyState title="Sin salidas a muestras" message="Cuando bodega saque cafe para muestras, el registro aparecera aqui." />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Fecha</th>
+                    <th className="px-3 py-2">Lote</th>
+                    <th className="px-3 py-2">Cantidad</th>
+                    <th className="px-3 py-2">Referencia / notas</th>
+                    <th className="px-3 py-2">Usuario</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sampleOutputs.map((movement) => (
+                    <tr key={movement.id}>
+                      <td className="px-3 py-2">{movement.created_at ? new Date(movement.created_at).toLocaleString("es-CO") : "-"}</td>
+                      <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(movement)}</td>
+                      <td className="px-3 py-2">{movement.quantity_kg} kg</td>
+                      <td className="px-3 py-2">{movement.notes || "-"}</td>
+                      <td className="px-3 py-2">{movement.created_by_name || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 };

@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { getNextCode } from "./codeCounters.model.js";
 
 export const findPackagingTypeById = async (id) => {
   const result = await pool.query("SELECT * FROM packaging_types WHERE id = $1 LIMIT 1", [id]);
@@ -27,31 +28,17 @@ export const getNextLotCode = async (lotKind = "LOT") => {
     RECUPERACION: "REC",
   };
 
-  return getNextCodeByPrefix(prefixes[lotKind] || "LOT");
+  return getNextCode({
+    prefix: prefixes[lotKind] || "LOT",
+    tableName: "coffee_lots",
+  });
 };
 
 export const getNextProcessedLotCode = async () => {
-  return getNextCodeByPrefix("PROC");
-};
-
-const getNextCodeByPrefix = async (prefix) => {
-  const year = new Date().getFullYear();
-  const result = await pool.query(
-    `
-    SELECT code
-    FROM coffee_lots
-    WHERE code LIKE $1
-    ORDER BY code DESC
-    LIMIT 1
-    `,
-    [`${prefix}-${year}-%`]
-  );
-
-  const lastCode = result.rows[0]?.code;
-  const lastNumber = lastCode ? Number(lastCode.split("-")[2]) : 0;
-  const nextNumber = String(lastNumber + 1).padStart(4, "0");
-
-  return `${prefix}-${year}-${nextNumber}`;
+  return getNextCode({
+    prefix: "PROC",
+    tableName: "coffee_lots",
+  });
 };
 
 export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
@@ -245,8 +232,8 @@ export const updateLotLabReview = async (id, reviewData) => {
       `
       UPDATE coffee_lots
       SET
-        status = CASE WHEN $1 = 'aprobado' THEN 'disponible' ELSE 'rechazado' END,
-        available_weight_kg = CASE WHEN $1 = 'aprobado' THEN net_weight_kg ELSE 0 END,
+        status = CASE WHEN $1 = 'aprobado' THEN 'pendiente_liquidacion' ELSE 'rechazado' END,
+        available_weight_kg = 0,
         humidity_percent = $2,
         performance_factor = $16,
         lab_aroma = $3,
@@ -304,7 +291,7 @@ export const updateLotLabReview = async (id, reviewData) => {
         reviewData.status === "aprobado" ? "laboratorio_aprobado" : "laboratorio_rechazado",
         lot.net_weight_kg,
         reviewData.status === "aprobado"
-          ? "Lote aprobado y disponible en inventario; pago pendiente"
+          ? "Lote aprobado por laboratorio; pendiente de liquidacion antes de quedar disponible"
           : "Lote rechazado por laboratorio",
         reviewData.reviewedBy,
       ]
@@ -324,6 +311,76 @@ export const updateLotLabReview = async (id, reviewData) => {
         ]
       );
     }
+
+    await client.query("COMMIT");
+    return lot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const liquidateLot = async ({ id, purchasePricePerKg, notes, liquidatedBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (currentLot.status !== "pendiente_liquidacion") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot: currentLot };
+    }
+
+    const purchaseTotal = purchasePricePerKg !== null
+      ? Number((Number(currentLot.net_weight_kg) * Number(purchasePricePerKg)).toFixed(2))
+      : null;
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        status = 'disponible',
+        available_weight_kg = net_weight_kg,
+        purchase_price_per_kg = $1,
+        purchase_total = $2,
+        initial_comment = CASE
+          WHEN $3::text IS NULL OR $3::text = '' THEN initial_comment
+          WHEN initial_comment IS NULL OR initial_comment = '' THEN 'Liquidacion: ' || $3::text
+          ELSE initial_comment || E'\nLiquidacion: ' || $3::text
+        END,
+        updated_at = NOW()
+      WHERE id = $4
+      RETURNING *
+      `,
+      [purchasePricePerKg, purchaseTotal, notes || null, id]
+    );
+    const lot = result.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'lote_liquidado', $2, $3, $4)
+      `,
+      [lot.id, lot.net_weight_kg, notes || "Lote liquidado y disponible para uso", liquidatedBy]
+    );
 
     await client.query("COMMIT");
     return lot;
@@ -443,7 +500,7 @@ export const registerLotPurchase = async (id, purchaseData) => {
     const cannotRegisterPurchase =
       !currentLot.lab_reviewed_at ||
       currentLot.purchase_paid ||
-      ["pendiente_laboratorio", "rechazado", "retirado"].includes(currentLot.status);
+      ["pendiente_laboratorio", "pendiente_liquidacion", "rechazado", "retirado"].includes(currentLot.status);
 
     if (cannotRegisterPurchase) {
       await client.query("ROLLBACK");

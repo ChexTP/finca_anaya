@@ -1,23 +1,8 @@
 import { pool } from "../db.js";
+import { getNextCode, reserveNextCodes } from "./codeCounters.model.js";
 
 export const getNextProcessCode = async () => {
-  const year = new Date().getFullYear();
-  const result = await pool.query(
-    `
-    SELECT code
-    FROM coffee_processes
-    WHERE code LIKE $1
-    ORDER BY code DESC
-    LIMIT 1
-    `,
-    [`PRO-${year}-%`]
-  );
-
-  const lastCode = result.rows[0]?.code;
-  const lastNumber = lastCode ? Number(lastCode.split("-")[2]) : 0;
-  const nextNumber = String(lastNumber + 1).padStart(4, "0");
-
-  return `PRO-${year}-${nextNumber}`;
+  return getNextCode({ prefix: "PRO", tableName: "coffee_processes" });
 };
 
 export const listProcesses = async ({ status }) => {
@@ -630,21 +615,16 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       return reviews;
     }, {});
 
-    const codeResult = await client.query(
-      `
-      SELECT code
-      FROM coffee_lots
-      WHERE code LIKE $1
-      ORDER BY code DESC
-      LIMIT 1
-      `,
-      [`PROC-${new Date().getFullYear()}-%`]
-    );
-    const lastNumber = codeResult.rows[0]?.code ? Number(codeResult.rows[0].code.split("-")[2]) : 0;
+    const outputCodes = await reserveNextCodes({
+      prefix: "PROC",
+      tableName: "coffee_lots",
+      count: outputs.length,
+      client,
+    });
     const createdLots = [];
 
     for (const [index, output] of outputs.entries()) {
-      const code = `PROC-${new Date().getFullYear()}-${String(lastNumber + index + 1).padStart(4, "0")}`;
+      const code = outputCodes[index];
       const outputReview = output.id ? reviewsByOutputId[Number(output.id)] : outputLot;
       const outputInitialComment = [
         outputReview?.initialComment,

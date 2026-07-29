@@ -7,6 +7,7 @@ import {
   DatabaseBackup,
   FileText,
   FlaskConical,
+  Hash,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -42,6 +43,7 @@ const navigation = [
   { label: "Documentos", path: "/documentos", icon: FileText, roles: ["admin", "accounting", "seller"] },
   { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },
   { label: "Cafes comerciales", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin"] },
+  { label: "Consecutivos", path: "/consecutivos", icon: Hash, roles: ["admin"] },
   { label: "Usuarios", path: "/usuarios", icon: UserCog, roles: ["admin"] },
 ];
 
