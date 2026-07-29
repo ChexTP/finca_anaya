@@ -84,7 +84,7 @@ const downloadCsv = ({ filename, headers, rows }) => {
   URL.revokeObjectURL(url);
 };
 
-const printRows = ({ title, headers, rows }) => {
+const printRows = ({ title, headers, rows, summary }) => {
   const printWindow = window.open("", "_blank");
   if (!printWindow) return false;
 
@@ -92,6 +92,10 @@ const printRows = ({ title, headers, rows }) => {
     .map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ""}</td>`).join("")}</tr>`)
     .join("");
   const tableHeaders = headers.map((header) => `<th>${header}</th>`).join("");
+  const summaryRows = summary?.rows
+    ?.map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ""}</td>`).join("")}</tr>`)
+    .join("");
+  const summaryHeaders = summary?.headers?.map((header) => `<th>${header}</th>`).join("");
 
   printWindow.document.write(`
     <html>
@@ -100,9 +104,12 @@ const printRows = ({ title, headers, rows }) => {
         <style>
           body { font-family: Arial, sans-serif; color: #102033; padding: 24px; }
           h1 { font-size: 20px; margin: 0 0 16px; }
+          h2 { font-size: 16px; margin: 26px 0 10px; }
           table { border-collapse: collapse; width: 100%; font-size: 12px; }
           th, td { border: 1px solid #d7dee8; padding: 7px; text-align: left; vertical-align: top; }
           th { background: #eef2f7; }
+          .summary th { background: #fff7ed; }
+          .summary td:nth-child(2) { font-weight: 700; }
         </style>
       </head>
       <body>
@@ -111,6 +118,13 @@ const printRows = ({ title, headers, rows }) => {
           <thead><tr>${tableHeaders}</tr></thead>
           <tbody>${tableRows}</tbody>
         </table>
+        ${summaryRows ? `
+          <h2>Resumen</h2>
+          <table class="summary">
+            <thead><tr>${summaryHeaders}</tr></thead>
+            <tbody>${summaryRows}</tbody>
+          </table>
+        ` : ""}
       </body>
     </html>
   `);
@@ -420,6 +434,12 @@ const LotReservationsPage = () => {
       title: selectedReport.title,
       headers: selectedReport.headers,
       rows: getReportRows(selectedReport),
+      summary: detailModal === "deficit"
+        ? {
+            headers: ["Cafe necesario", "Kg totales", "Tipo"],
+            rows: deficitSummary.map((item) => [item.coffee, formatKg(item.kg), item.category]),
+          }
+        : null,
     });
 
     if (!opened) setError("El navegador bloqueo la ventana de impresion.");
