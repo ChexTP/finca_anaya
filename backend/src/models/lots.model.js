@@ -44,14 +44,41 @@ export const getNextProcessedLotCode = async () => {
 const getLotPayableCategoryId = async (client) => {
   const result = await client.query(
     `
-    SELECT id
+    SELECT id, is_active
     FROM payable_categories
     WHERE name = 'Lote de cafe'
     LIMIT 1
     `
   );
 
-  return result.rows[0]?.id || null;
+  const category = result.rows[0];
+
+  if (category?.id) {
+    if (!category.is_active) {
+      await client.query(
+        `
+        UPDATE payable_categories
+        SET is_active = TRUE
+        WHERE id = $1
+        `,
+        [category.id]
+      );
+    }
+
+    return category.id;
+  }
+
+  const insertResult = await client.query(
+    `
+    INSERT INTO payable_categories (name, is_active)
+    VALUES ('Lote de cafe', TRUE)
+    ON CONFLICT (name) DO UPDATE
+    SET is_active = TRUE
+    RETURNING id
+    `
+  );
+
+  return insertResult.rows[0]?.id || null;
 };
 
 const findPayableByLotForUpdate = async (client, lotId) => {
@@ -78,7 +105,7 @@ const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes
   const categoryId = await getLotPayableCategoryId(client);
 
   if (!categoryId) {
-    throw new Error("No existe la categoria de cuenta por pagar 'Lote de cafe'");
+    throw new Error("No se pudo preparar la categoria de cuenta por pagar 'Lote de cafe'");
   }
 
   const existingPayable = await findPayableByLotForUpdate(client, lot.id);
