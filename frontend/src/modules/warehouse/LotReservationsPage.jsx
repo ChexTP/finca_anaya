@@ -5,6 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { calculateOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption } from "../../utils/coffeeLots";
 import { formatDate } from "./WarehousePage";
 import { saleStatusLabels, getSaleStatusTone } from "../../utils/workflow";
@@ -49,19 +50,39 @@ const getDeficitCoffeeName = (item) => {
 
 const getEstimatedDeficitParts = (item) => {
   const missingKg = Number(item.missing_kg || 0);
+  const requiredKg = Number(item.required_kg || 0);
+  const requestedKg = Number(item.requested_quantity_kg || 0);
   const primaryComponent = getPrimaryComponentName(item);
   const baseComponent = item.base_purchase_coffee_name || "Cafe base estimado";
 
-  if (item.coffee_profile_category !== "Exotico" || !primaryComponent || missingKg <= 0) {
+  if (item.coffee_profile_category !== "Exotico" || !primaryComponent || missingKg <= 0 || requestedKg <= 0) {
     return null;
   }
 
-  // Estimacion interna: 40% proceso con rendimiento 95%, 60% cafe base.
+  const missingFinalKg = requiredKg > 0
+    ? requestedKg * (missingKg / requiredKg)
+    : requestedKg;
+  const processFinalKg = missingFinalKg * 0.4;
+  const baseFinalKg = missingFinalKg * 0.6;
+  const processBeforeYieldKg = processFinalKg / 0.95;
+  const processInputKg = calculateOperationalKg({
+    quantityKg: processBeforeYieldKg,
+    productForm: item.product_form,
+    processType: item.process_type,
+  });
+  const baseKg = calculateOperationalKg({
+    quantityKg: baseFinalKg,
+    productForm: item.product_form,
+    processType: item.process_type,
+  });
+
+  // Estimacion interna: 40% proceso con rendimiento 95%, 60% base y conversion pergamino/excelso por trilladora.
   return {
     processComponentName: `${primaryComponent} para ${item.coffee_profile_name}`,
-    processInputKg: missingKg * 0.4 / 0.95,
+    processInputKg,
     baseComponentName: baseComponent,
-    baseKg: missingKg * 0.6,
+    baseKg,
+    finalMissingKg: missingFinalKg,
   };
 };
 
@@ -345,7 +366,7 @@ const LotReservationsPage = () => {
         reserved: formatKg(item.reserved_kg),
         missing: formatKg(item.missing_kg),
         estimate: estimatedParts
-          ? `${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)} / ${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)}`
+          ? `${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)} / ${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)} / Final faltante: ${formatKg(estimatedParts.finalMissingKg)}`
           : formatKg(item.missing_kg),
         delivery: formatDate(item.estimated_delivery_date),
         assignee: item.order_assignee || "-",
@@ -790,7 +811,7 @@ const LotReservationsPage = () => {
                           <p className="font-semibold text-amber-700">
                             {getEstimatedDeficitParts(item).baseComponentName}: {formatKg(getEstimatedDeficitParts(item).baseKg)}
                           </p>
-                          <p className="text-slate-500">Faltante perfil final: {formatKg(item.missing_kg)}</p>
+                          <p className="text-slate-500">Faltante perfil final: {formatKg(getEstimatedDeficitParts(item).finalMissingKg)}</p>
                         </div>
                       ) : (
                         <span className="font-semibold text-rose-700">{formatKg(item.missing_kg)}</span>
