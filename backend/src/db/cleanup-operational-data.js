@@ -79,6 +79,14 @@ const fullCountQueries = [
   ["suppliers", "SELECT COUNT(*)::int AS count FROM suppliers"],
   ["clients", "SELECT COUNT(*)::int AS count FROM clients"],
   ["backup_exports", "SELECT COUNT(*)::int AS count FROM backup_exports"],
+  ["coffee_profile_components", "SELECT COUNT(*)::int AS count FROM coffee_profile_components"],
+  ["coffee_profiles", "SELECT COUNT(*)::int AS count FROM coffee_profiles"],
+  ["purchase_coffees", "SELECT COUNT(*)::int AS count FROM purchase_coffees"],
+  ["coffee_types", "SELECT COUNT(*)::int AS count FROM coffee_types"],
+  ["packaging_types", "SELECT COUNT(*)::int AS count FROM packaging_types"],
+  ["payment_methods", "SELECT COUNT(*)::int AS count FROM payment_methods"],
+  ["payable_categories", "SELECT COUNT(*)::int AS count FROM payable_categories"],
+  ["code_counters", "SELECT COUNT(*)::int AS count FROM code_counters"],
 ];
 
 const fullDeleteQueries = [
@@ -104,6 +112,14 @@ const fullDeleteQueries = [
   ["suppliers", "DELETE FROM suppliers"],
   ["clients", "DELETE FROM clients"],
   ["backup_exports", "DELETE FROM backup_exports"],
+  ["coffee_profile_components", "DELETE FROM coffee_profile_components"],
+  ["coffee_profiles", "DELETE FROM coffee_profiles"],
+  ["purchase_coffees", "DELETE FROM purchase_coffees"],
+  ["coffee_types", "DELETE FROM coffee_types"],
+  ["packaging_types", "DELETE FROM packaging_types"],
+  ["payment_methods", "DELETE FROM payment_methods"],
+  ["payable_categories", "DELETE FROM payable_categories"],
+  ["code_counters", "DELETE FROM code_counters"],
 ];
 
 const sequenceNames = [
@@ -128,6 +144,14 @@ const sequenceNames = [
   "suppliers_id_seq",
   "clients_id_seq",
   "backup_exports_id_seq",
+  "coffee_profile_components_id_seq",
+  "coffee_profiles_id_seq",
+  "purchase_coffees_id_seq",
+  "coffee_types_id_seq",
+  "packaging_types_id_seq",
+  "payment_methods_id_seq",
+  "payable_categories_id_seq",
+  "code_counters_id_seq",
 ];
 
 const createKeepTables = async (client) => {
@@ -195,7 +219,7 @@ const run = async () => {
       await client.query("ROLLBACK");
       console.log("Dry-run completado. No se elimino ningun dato. Use --execute para aplicar.");
       if (fullReset) {
-        console.log("Modo total activado: tambien se eliminaran historicos, clientes, proveedores y backups guardados.");
+        console.log("Modo total activado: se conservaran solo usuarios y roles.");
       }
       return;
     }
