@@ -413,7 +413,7 @@ export const putLabReview = async (req, res) => {
     res.json({
       message:
         decision === "aprobado"
-          ? "Lote aprobado y disponible en inventario"
+          ? "Lote aprobado y pendiente de liquidacion"
           : "Lote rechazado por laboratorio",
       humidityAlert,
       data: lot,

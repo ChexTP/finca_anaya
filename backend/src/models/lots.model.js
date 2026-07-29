@@ -41,6 +41,187 @@ export const getNextProcessedLotCode = async () => {
   });
 };
 
+const getLotPayableCategoryId = async (client) => {
+  const result = await client.query(
+    `
+    SELECT id
+    FROM payable_categories
+    WHERE name = 'Lote de cafe'
+    LIMIT 1
+    `
+  );
+
+  return result.rows[0]?.id || null;
+};
+
+const findPayableByLotForUpdate = async (client, lotId) => {
+  const result = await client.query(
+    `
+    SELECT *
+    FROM accounts_payable
+    WHERE lot_id = $1
+    ORDER BY id ASC
+    LIMIT 1
+    FOR UPDATE
+    `,
+    [lotId]
+  );
+
+  return result.rows[0] || null;
+};
+
+const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes, userId }) => {
+  if (!purchaseTotal || Number(purchaseTotal) <= 0) {
+    return null;
+  }
+
+  const categoryId = await getLotPayableCategoryId(client);
+
+  if (!categoryId) {
+    throw new Error("No existe la categoria de cuenta por pagar 'Lote de cafe'");
+  }
+
+  const existingPayable = await findPayableByLotForUpdate(client, lot.id);
+  const amountPaid = Number(existingPayable?.amount_paid || 0);
+  const balanceDue = Number((Number(purchaseTotal) - amountPaid).toFixed(2));
+  const status = balanceDue <= 0 ? "pagada" : amountPaid > 0 ? "pago_parcial" : "pendiente";
+  const description = `Compra de cafe del lote ${lot.code}`;
+
+  if (existingPayable) {
+    const result = await client.query(
+      `
+      UPDATE accounts_payable
+      SET
+        category_id = $1,
+        supplier_id = $2,
+        third_party_name = NULL,
+        description = $3,
+        total = $4,
+        balance_due = $5,
+        status = $6,
+        notes = CASE
+          WHEN $7::text IS NULL OR $7::text = '' THEN notes
+          WHEN notes IS NULL OR notes = '' THEN $7::text
+          ELSE notes || E'\n' || $7::text
+        END,
+        updated_at = NOW()
+      WHERE id = $8
+      RETURNING *
+      `,
+      [
+        categoryId,
+        lot.supplier_id || null,
+        description,
+        purchaseTotal,
+        Math.max(balanceDue, 0),
+        status,
+        notes ? `Liquidacion de lote: ${notes}` : "Cuenta actualizada desde liquidacion de lote",
+        existingPayable.id,
+      ]
+    );
+
+    return result.rows[0];
+  }
+
+  const code = await getNextCode({ prefix: "CXP", tableName: "accounts_payable", client });
+  const result = await client.query(
+    `
+    INSERT INTO accounts_payable (
+      code,
+      category_id,
+      supplier_id,
+      lot_id,
+      status,
+      description,
+      total,
+      amount_paid,
+      balance_due,
+      notes,
+      created_by
+    )
+    VALUES ($1, $2, $3, $4, 'pendiente', $5, $6, 0, $6, $7, $8)
+    RETURNING *
+    `,
+    [
+      code,
+      categoryId,
+      lot.supplier_id || null,
+      lot.id,
+      description,
+      purchaseTotal,
+      notes ? `Cuenta generada al liquidar lote. ${notes}` : "Cuenta generada automaticamente al liquidar lote",
+      userId,
+    ]
+  );
+
+  return result.rows[0];
+};
+
+const markLotPayableAsPaid = async ({ client, lot, paymentData }) => {
+  let payable = await findPayableByLotForUpdate(client, lot.id);
+
+  if (!payable && Number(lot.purchase_total || 0) > 0) {
+    payable = await upsertLotPayableOnLiquidation({
+      client,
+      lot,
+      purchaseTotal: Number(lot.purchase_total),
+      notes: "Cuenta creada automaticamente al registrar pago del lote",
+      userId: paymentData.registeredBy,
+    });
+  }
+
+  if (!payable) {
+    return null;
+  }
+
+  const balanceDue = Number(payable.balance_due || 0);
+
+  if (balanceDue <= 0) {
+    return payable;
+  }
+
+  await client.query(
+    `
+    INSERT INTO accounts_payable_payments (
+      payable_id,
+      amount,
+      payment_method_id,
+      payment_reference,
+      paid_at,
+      notes,
+      registered_by
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `,
+    [
+      payable.id,
+      balanceDue,
+      paymentData.paymentMethodId,
+      paymentData.paymentReference,
+      paymentData.paidAt,
+      `Pago registrado desde el lote ${lot.code}`,
+      paymentData.registeredBy,
+    ]
+  );
+
+  const result = await client.query(
+    `
+    UPDATE accounts_payable
+    SET
+      amount_paid = total,
+      balance_due = 0,
+      status = 'pagada',
+      due_date = NULL,
+      updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+    `,
+    [payable.id]
+  );
+
+  return result.rows[0];
+};
+
 export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
   const params = [];
   const conditions = [];
@@ -382,6 +563,14 @@ export const liquidateLot = async ({ id, purchasePricePerKg, notes, liquidatedBy
       [lot.id, lot.net_weight_kg, notes || "Lote liquidado y disponible para uso", liquidatedBy]
     );
 
+    await upsertLotPayableOnLiquidation({
+      client,
+      lot,
+      purchaseTotal,
+      notes,
+      userId: liquidatedBy,
+    });
+
     await client.query("COMMIT");
     return lot;
   } catch (error) {
@@ -548,6 +737,12 @@ export const registerLotPurchase = async (id, purchaseData) => {
         purchaseData.registeredBy,
       ]
     );
+
+    await markLotPayableAsPaid({
+      client,
+      lot,
+      paymentData: purchaseData,
+    });
 
     await client.query("COMMIT");
     return lot;
