@@ -40,7 +40,7 @@ const getDeficitCoffeeName = (item) => {
   const primaryComponent = getPrimaryComponentName(item);
 
   if (item.coffee_profile_category === "Exotico" && primaryComponent && item.coffee_profile_name) {
-    return `${primaryComponent} - ${item.coffee_profile_name}`;
+    return `${primaryComponent} para ${item.coffee_profile_name}`;
   }
 
   return getItemName(item);
@@ -57,7 +57,7 @@ const getEstimatedDeficitParts = (item) => {
 
   // Estimacion interna: 40% proceso con rendimiento 95%, 60% cafe base.
   return {
-    processComponentName: `${primaryComponent} - ${item.coffee_profile_name}`,
+    processComponentName: `${primaryComponent} para ${item.coffee_profile_name}`,
     processInputKg: missingKg * 0.4 / 0.95,
     baseComponentName: baseComponent,
     baseKg: missingKg * 0.6,
