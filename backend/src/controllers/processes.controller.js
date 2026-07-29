@@ -281,6 +281,7 @@ export const putFinishProcess = async (req, res) => {
       score,
       notes,
       initialComment,
+      outputReviews = [],
     } = req.body;
 
     const currentProcess = await findProcessById(req.params.id);
@@ -301,11 +302,45 @@ export const putFinishProcess = async (req, res) => {
       }
     }
 
-    const scoreValue = toNumber(score);
+    const hasDividedOutputs = currentProcess.outputs?.length > 0;
+    const cleanOutputReviews = Array.isArray(outputReviews)
+      ? outputReviews.map((review) => ({
+          processOutputId: Number(review.processOutputId),
+          aroma: review.aroma,
+          fragrance: null,
+          flavor: review.flavor,
+          acidity: null,
+          sweetness: review.sweetness,
+          body: review.body,
+          balance: null,
+          uniformity: null,
+          residual: review.residual,
+          cleanCup: review.cleanCup,
+          score: toNumber(review.score),
+          notes: review.notes,
+          initialComment: review.initialComment,
+        }))
+      : [];
 
+    if (hasDividedOutputs) {
+      const validOutputIds = new Set(currentProcess.outputs.map((output) => Number(output.id)));
+      const invalidReview = cleanOutputReviews.find((review) => (
+        !validOutputIds.has(review.processOutputId) ||
+        requiredCuppingFields.some((field) => !review[field]) ||
+        !Number.isFinite(review.score)
+      ));
+
+      if (cleanOutputReviews.length !== currentProcess.outputs.length || invalidReview) {
+        return res.status(400).json({
+          message: "Debe registrar catacion completa y score para cada salida del proceso",
+        });
+      }
+    }
+
+    const scoreValue = toNumber(score);
     const missingField = requiredCuppingFields.find((field) => !req.body[field]);
 
-    if (missingField || !Number.isFinite(scoreValue)) {
+    if (!hasDividedOutputs && (missingField || !Number.isFinite(scoreValue))) {
       return res.status(400).json({
         message: "Para finalizar el proceso, la catacion completa y el score son obligatorios",
       });
@@ -316,6 +351,7 @@ export const putFinishProcess = async (req, res) => {
       finalizedBy: req.user.id,
       outputLot: {
         coffeeProfileId: coffeeProfileId ? Number(coffeeProfileId) : null,
+        outputReviews: cleanOutputReviews,
         aroma,
         fragrance: null,
         flavor,

@@ -625,6 +625,10 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
           performance_factor: process.physical_performance_factor,
           notes: outputLot.initialComment,
         }];
+    const reviewsByOutputId = (outputLot.outputReviews || []).reduce((reviews, review) => {
+      reviews[Number(review.processOutputId)] = review;
+      return reviews;
+    }, {});
 
     const codeResult = await client.query(
       `
@@ -641,8 +645,9 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
 
     for (const [index, output] of outputs.entries()) {
       const code = `PROC-${new Date().getFullYear()}-${String(lastNumber + index + 1).padStart(4, "0")}`;
+      const outputReview = output.id ? reviewsByOutputId[Number(output.id)] : outputLot;
       const outputInitialComment = [
-        outputLot.initialComment,
+        outputReview?.initialComment,
         output.notes,
       ].filter(Boolean).join("\n");
 
@@ -689,18 +694,18 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
         output.coffee_profile_id,
         output.output_weight_kg,
         output.humidity_percent,
-        outputLot.aroma,
-        outputLot.fragrance,
-        outputLot.flavor,
-        outputLot.acidity,
-        outputLot.sweetness,
-        outputLot.body,
-        outputLot.balance,
-        outputLot.uniformity,
-        outputLot.residual,
-        outputLot.cleanCup,
-        outputLot.score,
-        outputLot.notes,
+        outputReview?.aroma,
+        outputReview?.fragrance,
+        outputReview?.flavor,
+        outputReview?.acidity,
+        outputReview?.sweetness,
+        outputReview?.body,
+        outputReview?.balance,
+        outputReview?.uniformity,
+        outputReview?.residual,
+        outputReview?.cleanCup,
+        outputReview?.score,
+        outputReview?.notes,
         finalizedBy,
         outputInitialComment,
         output.performance_factor,

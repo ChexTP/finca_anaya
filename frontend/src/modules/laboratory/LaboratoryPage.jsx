@@ -23,6 +23,7 @@ const initialReview = {
 
 const initialFinish = {
   coffeeProfileId: "",
+  outputReviews: [],
   aroma: "",
   flavor: "",
   sweetness: "",
@@ -33,6 +34,19 @@ const initialFinish = {
   notes: "",
   initialComment: "",
 };
+
+const buildEmptyProcessOutputReview = (output = {}) => ({
+  processOutputId: output.id || "",
+  aroma: "",
+  flavor: "",
+  sweetness: "",
+  body: "",
+  residual: "",
+  cleanCup: "",
+  score: "",
+  notes: "",
+  initialComment: "",
+});
 
 const initialSampleReview = {
   decision: "aprobada_laboratorio",
@@ -207,9 +221,21 @@ const LaboratoryPage = () => {
     setSelectedProcess(process);
     setFinishForm({
       ...initialFinish,
+      outputReviews: process.outputs?.length
+        ? process.outputs.map((output) => buildEmptyProcessOutputReview(output))
+        : [],
     });
     setMessage("");
     setError("");
+  };
+
+  const updateProcessOutputReview = (index, field, value) => {
+    setFinishForm((current) => ({
+      ...current,
+      outputReviews: (current.outputReviews || []).map((review, reviewIndex) => (
+        reviewIndex === index ? { ...review, [field]: value } : review
+      )),
+    }));
   };
 
   const selectSample = (sample) => {
@@ -578,6 +604,18 @@ const LaboratoryPage = () => {
       return;
     }
 
+    if (selectedProcess.outputs?.length > 0) {
+      const invalidReview = (finishForm.outputReviews || []).find((review) => (
+        cuppingFields.some(([field]) => !review[field]) ||
+        !review.score
+      ));
+
+      if ((finishForm.outputReviews || []).length !== selectedProcess.outputs.length || invalidReview) {
+        setError("Debe registrar analisis completo y score para cada salida del proceso.");
+        return;
+      }
+    }
+
     const confirmed = window.confirm("Confirma finalizar este proceso y crear el lote PROC?");
 
     if (!confirmed) {
@@ -595,6 +633,13 @@ const LaboratoryPage = () => {
           ...finishForm,
           coffeeProfileId: finishForm.coffeeProfileId ? Number(finishForm.coffeeProfileId) : null,
           score: Number(finishForm.score),
+          outputReviews: selectedProcess.outputs?.length
+            ? finishForm.outputReviews.map((review) => ({
+                ...review,
+                processOutputId: Number(review.processOutputId),
+                score: Number(review.score),
+              }))
+            : [],
         }),
       });
       setFinishForm(initialFinish);
@@ -930,21 +975,7 @@ const LaboratoryPage = () => {
               </div>
             ) : (
               <div className="mt-4 space-y-3">
-                {selectedProcess.outputs?.length > 0 ? (
-                  <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
-                    <p className="text-xs font-semibold uppercase text-emerald-900">Salidas definidas por bodega</p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {selectedProcess.outputs.map((output) => (
-                        <div key={output.id} className="rounded border border-emerald-100 bg-white px-3 py-2 text-sm">
-                          <p className="font-semibold text-ink">{output.coffee_profile_name}</p>
-                          <p className="text-slate-600">
-                            {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
+                {selectedProcess.outputs?.length === 0 && (
                   <select
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     value={finishForm.coffeeProfileId}
@@ -962,38 +993,90 @@ const LaboratoryPage = () => {
                   Revision fisica de Bodega: {selectedProcess.output_weight_kg} kg, humedad {selectedProcess.physical_humidity_percent}%, factor {selectedProcess.physical_performance_factor}.
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {cuppingFields.map(([field, label]) => (
-                    <input
-                      key={field}
-                      className="rounded border border-slate-300 px-3 py-2 text-sm"
-                      placeholder={label}
-                      value={finishForm[field]}
-                      onChange={(event) => setFinishForm({ ...finishForm, [field]: event.target.value })}
-                    />
-                  ))}
-                  <input
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Score"
-                    type="number"
-                    step="0.01"
-                    value={finishForm.score}
-                    onChange={(event) => setFinishForm({ ...finishForm, score: event.target.value })}
-                  />
-                </div>
+                {selectedProcess.outputs?.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedProcess.outputs.map((output, index) => {
+                      const outputReview = finishForm.outputReviews?.[index] || buildEmptyProcessOutputReview(output);
 
-                <textarea
-                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Notas del proceso"
-                  value={finishForm.notes}
-                  onChange={(event) => setFinishForm({ ...finishForm, notes: event.target.value })}
-                />
-                <textarea
-                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Comentario inicial del lote PROC"
-                  value={finishForm.initialComment}
-                  onChange={(event) => setFinishForm({ ...finishForm, initialComment: event.target.value })}
-                />
+                      return (
+                        <div key={output.id} className="rounded border border-emerald-200 bg-emerald-50 p-3">
+                          <div className="rounded border border-emerald-100 bg-white px-3 py-2 text-sm">
+                            <p className="font-semibold text-ink">{output.coffee_profile_name}</p>
+                            <p className="text-slate-600">
+                              {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
+                            </p>
+                          </div>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {cuppingFields.map(([field, label]) => (
+                              <input
+                                key={`${output.id}-${field}`}
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder={label}
+                                value={outputReview[field]}
+                                onChange={(event) => updateProcessOutputReview(index, field, event.target.value)}
+                              />
+                            ))}
+                            <input
+                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Score"
+                              type="number"
+                              step="0.01"
+                              value={outputReview.score}
+                              onChange={(event) => updateProcessOutputReview(index, "score", event.target.value)}
+                            />
+                          </div>
+                          <textarea
+                            className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Notas de laboratorio para esta salida"
+                            value={outputReview.notes}
+                            onChange={(event) => updateProcessOutputReview(index, "notes", event.target.value)}
+                          />
+                          <textarea
+                            className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Comentario inicial del lote PROC"
+                            value={outputReview.initialComment}
+                            onChange={(event) => updateProcessOutputReview(index, "initialComment", event.target.value)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {cuppingFields.map(([field, label]) => (
+                        <input
+                          key={field}
+                          className="rounded border border-slate-300 px-3 py-2 text-sm"
+                          placeholder={label}
+                          value={finishForm[field]}
+                          onChange={(event) => setFinishForm({ ...finishForm, [field]: event.target.value })}
+                        />
+                      ))}
+                      <input
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Score"
+                        type="number"
+                        step="0.01"
+                        value={finishForm.score}
+                        onChange={(event) => setFinishForm({ ...finishForm, score: event.target.value })}
+                      />
+                    </div>
+
+                    <textarea
+                      className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Notas del proceso"
+                      value={finishForm.notes}
+                      onChange={(event) => setFinishForm({ ...finishForm, notes: event.target.value })}
+                    />
+                    <textarea
+                      className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Comentario inicial del lote PROC"
+                      value={finishForm.initialComment}
+                      onChange={(event) => setFinishForm({ ...finishForm, initialComment: event.target.value })}
+                    />
+                  </>
+                )}
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={saving || !selectedProcess}
