@@ -1,5 +1,27 @@
 import { pool } from "../db.js";
 
+const requiredPaymentMethods = ["Efectivo", "Transferencia", "Cheque", "Otro"];
+const requiredPayableCategories = ["Lote de cafe"];
+
+const ensureNamedCatalogRows = async (tableName, names) => {
+  for (const name of names) {
+    await pool.query(
+      `
+      INSERT INTO ${tableName} (name, is_active)
+      VALUES ($1, TRUE)
+      ON CONFLICT (name) DO UPDATE
+      SET is_active = TRUE
+      `,
+      [name]
+    );
+  }
+};
+
+export const ensureRequiredCatalogs = async () => {
+  await ensureNamedCatalogRows("payment_methods", requiredPaymentMethods);
+  await ensureNamedCatalogRows("payable_categories", requiredPayableCategories);
+};
+
 export const listCatalog = async (tableName) => {
   const result = await pool.query(
     `

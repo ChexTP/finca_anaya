@@ -1,5 +1,6 @@
 import {
   createCoffeeProfile,
+  ensureRequiredCatalogs,
   listCatalog,
   listCoffeeProfilesForAdmin,
   updateCoffeeProfile,
@@ -19,6 +20,8 @@ const allowedCoffeeProfileCategories = ["Regional", "Varietal", "Exotico"];
 
 export const getCatalogs = async (req, res) => {
   try {
+    await ensureRequiredCatalogs();
+
     const catalogs = {};
 
     for (const [key, tableName] of Object.entries(allowedCatalogs)) {
