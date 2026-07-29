@@ -105,13 +105,13 @@ export const getProfit = async (req, res) => {
     });
 
     if (shouldExportCsv(req)) {
-      return sendCsv(res, "reporte-utilidad-estimada.csv", report);
+      return sendCsv(res, "reporte-margen-estimado-cafe.csv", report);
     }
 
     res.json(report);
   } catch (error) {
     res.status(500).json({
-      message: "Error al obtener reporte de utilidad",
+      message: "Error al obtener reporte de margen estimado",
       error: error.message,
     });
   }
@@ -154,13 +154,13 @@ export const getAccountsPayable = async (req, res) => {
     });
 
     if (shouldExportCsv(req)) {
-      return sendCsv(res, "reporte-cuentas-por-pagar.csv", report);
+      return sendCsv(res, "reporte-pagos-lotes-cafe.csv", report);
     }
 
     res.json(report);
   } catch (error) {
     res.status(500).json({
-      message: "Error al obtener reporte de cuentas por pagar",
+      message: "Error al obtener reporte de pagos de lotes",
       error: error.message,
     });
   }

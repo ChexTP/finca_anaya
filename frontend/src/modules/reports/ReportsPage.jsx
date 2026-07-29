@@ -9,10 +9,10 @@ const reports = [
   { key: "sales-summary", label: "Resumen de ventas", path: "/reports/sales-summary", currency: true, dates: true },
   { key: "sales-by-seller", label: "Ventas por vendedor", path: "/reports/sales-by-seller", currency: true, dates: true },
   { key: "sales-by-profile", label: "Ventas por perfil", path: "/reports/sales-by-profile", currency: true, dates: true },
-  { key: "profit", label: "Utilidad estimada", path: "/reports/profit", currency: true, dates: true },
-  { key: "accounts-receivable", label: "Cuentas por cobrar", path: "/reports/accounts-receivable", currency: true },
-  { key: "accounts-payable", label: "Pagos de lotes", path: "/reports/accounts-payable", payableStatus: true },
-  { key: "inventory", label: "Inventario", path: "/reports/inventory" },
+  { key: "profit", label: "Margen estimado por venta", path: "/reports/profit", currency: true, dates: true },
+  { key: "accounts-receivable", label: "Saldos pendientes de ventas", path: "/reports/accounts-receivable", currency: true },
+  { key: "accounts-payable", label: "Pagos pendientes de lotes", path: "/reports/accounts-payable", payableStatus: true },
+  { key: "inventory", label: "Inventario por cafe", path: "/reports/inventory" },
 ];
 
 const labels = {
@@ -30,14 +30,12 @@ const labels = {
   client_name: "Cliente",
   coffee_revenue: "Venta cafe",
   coffee_cost: "Costo cafe",
-  estimated_profit: "Utilidad",
+  estimated_margin: "Margen estimado",
   code: "Codigo",
   payment_status: "Pago",
   status: "Estado",
   estimated_payment_date: "Fecha pago",
-  category_name: "Categoria",
   supplier_name: "Proveedor",
-  third_party_name: "Tercero",
   description: "Descripcion",
   due_date: "Vence",
   group_type: "Grupo",
@@ -56,7 +54,7 @@ const moneyFields = new Set([
   "balance_due",
   "coffee_revenue",
   "coffee_cost",
-  "estimated_profit",
+  "estimated_margin",
   "estimated_cost_value",
 ]);
 

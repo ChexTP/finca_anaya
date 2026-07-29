@@ -137,7 +137,7 @@ export const getProfitReport = async ({ dateFrom, dateTo, currency }) => {
       COALESCE(SUM(sale_item_lots.quantity_kg * COALESCE(coffee_lots.purchase_price_per_kg, 0)), 0) AS coffee_cost,
       COALESCE(SUM(sale_items.line_total), 0)
         - COALESCE(SUM(sale_item_lots.quantity_kg * COALESCE(coffee_lots.purchase_price_per_kg, 0)), 0)
-        AS estimated_profit
+        AS estimated_margin
     FROM sales
     INNER JOIN clients ON clients.id = sales.client_id
     INNER JOIN users ON users.id = sales.seller_id
@@ -225,9 +225,7 @@ export const getAccountsPayableReport = async ({ status, categoryId, supplierId 
       accounts_payable.id,
       accounts_payable.code,
       accounts_payable.status,
-      payable_categories.name AS category_name,
       suppliers.name AS supplier_name,
-      accounts_payable.third_party_name,
       coffee_lots.code AS lot_code,
       accounts_payable.description,
       accounts_payable.total,
@@ -254,11 +252,15 @@ export const getInventoryReport = async () => {
     SELECT
       CASE
         WHEN coffee_lots.lot_kind = 'PROC' THEN 'perfil'
-        ELSE 'tipo'
+        WHEN coffee_lots.lot_kind = 'PASILLA' THEN 'pasilla'
+        WHEN coffee_lots.lot_kind = 'RECUPERACION' THEN 'recuperacion'
+        ELSE 'cafe comprado'
       END AS group_type,
       CASE
         WHEN coffee_lots.lot_kind = 'PROC' THEN COALESCE(coffee_profiles.name, 'Sin perfil')
-        ELSE COALESCE(coffee_types.name, 'Sin tipo')
+        WHEN coffee_lots.lot_kind = 'PASILLA' THEN 'Pasilla ' || COALESCE(coffee_types.name, 'Sin tipo')
+        WHEN coffee_lots.lot_kind = 'RECUPERACION' THEN 'Recuperacion ' || COALESCE(coffee_lots.commercial_classification, 'Sin categoria') || ' ' || COALESCE(coffee_types.name, '')
+        ELSE COALESCE(coffee_lots.commercial_classification, 'Sin categoria') || ' ' || COALESCE(coffee_types.name, 'Sin tipo')
       END AS group_name,
       COUNT(*) AS lots_count,
       COALESCE(SUM(coffee_lots.available_weight_kg), 0) AS available_weight_kg,
@@ -267,7 +269,7 @@ export const getInventoryReport = async () => {
     FROM coffee_lots
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
-    WHERE coffee_lots.status = 'disponible'
+    WHERE coffee_lots.status IN ('disponible', 'vendido_parcial')
       AND coffee_lots.available_weight_kg > 0
     GROUP BY group_type, group_name
     ORDER BY group_type ASC, group_name ASC
