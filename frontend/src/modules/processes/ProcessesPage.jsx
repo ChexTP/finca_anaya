@@ -9,7 +9,6 @@ import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
 const initialProcess = {
-  quoteId: "",
   saleId: "",
   processType: "Trilladora",
   processLocation: "",
@@ -76,7 +75,6 @@ const ProcessesPage = ({
   const defaultProcessType = fixedProcessType || "Trilladora";
   const [processes, setProcesses] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
-  const [quotes, setQuotes] = useState([]);
   const [sales, setSales] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [form, setForm] = useState({ ...initialProcess, processType: defaultProcessType });
@@ -142,9 +140,7 @@ const ProcessesPage = ({
         process.code,
         process.sale_code,
         process.sale_client_name,
-        process.quote_code,
-        process.quote_client_name,
-        process.process_type,
+    process.process_type,
         process.process_location,
         process.output_lot_code,
         process.notes,
@@ -169,15 +165,13 @@ const ProcessesPage = ({
 
     if (canCreateProcess) {
       requests.push(apiRequest("/inventory/lots"));
-      requests.push(apiRequest("/quotes?status=aceptada"));
       requests.push(apiRequest("/sales"));
       requests.push(apiRequest("/catalogs"));
     }
 
-    const [processData, lotData = [], quoteData = [], saleData = [], catalogData = null] = await Promise.all(requests);
+    const [processData, lotData = [], saleData = [], catalogData = null] = await Promise.all(requests);
     setProcesses(processData);
     setAvailableLots(lotData);
-    setQuotes(quoteData.filter((quote) => quote.quote_type === "preventa"));
     setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
     setCatalogs(catalogData);
   };
@@ -188,7 +182,7 @@ const ProcessesPage = ({
 
   useEffect(() => {
     const saleId = searchParams.get("saleId");
-    if (saleId) setForm((current) => ({ ...current, saleId, quoteId: "" }));
+    if (saleId) setForm((current) => ({ ...current, saleId }));
   }, [searchParams]);
 
   const toggleLot = (lot) => {
@@ -234,7 +228,6 @@ const ProcessesPage = ({
         method: "POST",
         body: JSON.stringify({
           ...form,
-          quoteId: form.quoteId ? Number(form.quoteId) : null,
           saleId: form.saleId ? Number(form.saleId) : null,
           inputs: selectedInputs,
         }),
@@ -451,24 +444,11 @@ const ProcessesPage = ({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-5">
-            <select
-              className="rounded border border-slate-300 px-3 py-2 text-sm"
-              value={form.quoteId}
-              onChange={(event) => setForm({ ...form, quoteId: event.target.value, saleId: "" })}
-              disabled={Boolean(form.saleId)}
-            >
-              <option value="">{form.saleId ? "Proceso asociado a venta" : "Sin preventa asociada"}</option>
-              {quotes.map((quote) => (
-                <option key={quote.id} value={quote.id}>
-                  {quote.code} - {quote.client_name}
-                </option>
-              ))}
-            </select>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={form.saleId}
-              onChange={(event) => setForm({ ...form, saleId: event.target.value, quoteId: "" })}
+              onChange={(event) => setForm({ ...form, saleId: event.target.value })}
             >
               <option value="">Sin venta asociada</option>
               {sales.map((sale) => (
@@ -580,9 +560,7 @@ const ProcessesPage = ({
                   <p className="text-sm text-slate-500">
                     {process.sale_code
                       ? `${process.sale_code} - ${process.sale_client_name}`
-                      : process.quote_code
-                        ? `${process.quote_code} - ${process.quote_client_name}`
-                        : "Sin venta o preventa asociada"}
+                      : "Sin venta asociada"}
                   </p>
                 </div>
                 <StatusBadge tone={getProcessStatusTone(process)}>
@@ -594,11 +572,6 @@ const ProcessesPage = ({
                 <p>{[process.process_type, process.process_location].filter(Boolean).join(" - ") || "Sin ubicacion"}</p>
                 <p>{process.output_lot_code || "Sin lote final"}</p>
               </div>
-              {process.quote_code && (
-                <p className="mt-2 text-sm text-slate-500">
-                  Entrega estimada preventa: {formatDate(process.quote_estimated_delivery_date)}
-                </p>
-              )}
               {process.sale_code && (
                 <p className="mt-2 text-sm text-slate-500">
                   Entrega estimada venta: {formatDate(process.sale_estimated_delivery_date)}

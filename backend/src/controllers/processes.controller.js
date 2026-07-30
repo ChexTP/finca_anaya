@@ -11,7 +11,6 @@ import {
 import {
   findCoffeeProfileById,
 } from "../models/lots.model.js";
-import { findQuoteById } from "../models/quotes.model.js";
 import { findSaleById } from "../models/sales.model.js";
 
 const toNumber = (value) => {
@@ -64,7 +63,7 @@ export const getProcess = async (req, res) => {
 
 export const postProcess = async (req, res) => {
   try {
-    const { quoteId, saleId, processType, processLocation, notes, inputs } = req.body;
+    const { saleId, processType, processLocation, notes, inputs } = req.body;
 
     if (!Array.isArray(inputs) || inputs.length === 0) {
       return res.status(400).json({ message: "Debe seleccionar al menos un lote de entrada" });
@@ -85,22 +84,6 @@ export const postProcess = async (req, res) => {
       });
     }
 
-    if (quoteId) {
-      const quote = await findQuoteById(quoteId);
-
-      if (!quote) {
-        return res.status(404).json({ message: "Preventa no encontrada" });
-      }
-
-      if (quote.quote_type !== "preventa") {
-        return res.status(400).json({ message: "El proceso solo puede asociarse a una preventa" });
-      }
-
-      if (quote.status === "anulada") {
-        return res.status(409).json({ message: "No se puede asociar un proceso a una preventa anulada" });
-      }
-    }
-
     if (saleId) {
       const sale = await findSaleById(saleId);
 
@@ -116,7 +99,7 @@ export const postProcess = async (req, res) => {
     const code = await getNextProcessCode();
     const process = await createProcess({
       code,
-      quoteId,
+      quoteId: null,
       saleId,
       processType,
       processLocation,
