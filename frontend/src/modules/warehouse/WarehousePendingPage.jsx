@@ -936,18 +936,7 @@ const WarehousePendingPage = () => {
                             </div>
                           </div>
 
-                          {suggested ? (
-                            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                              <p className="font-semibold uppercase">Division operativa sugerida, no ensamble final</p>
-                              <p className="mt-1">
-                                Para lote de proceso: <span className="font-semibold">{suggested.processName}</span> · {formatOperationalKg(suggested.processInputKg)}
-                              </p>
-                              <p>
-                                Para lote de base: <span className="font-semibold">{suggested.baseName}</span> · {formatOperationalKg(suggested.baseKg)}
-                              </p>
-                              <p className="mt-1 text-amber-700">Estas dos cantidades suman el operativo de bodega. Laboratorio define la mezcla final y los porcentajes reales.</p>
-                            </div>
-                          ) : (
+                          {!suggested && (
                             <p className="rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
                               Cafe directo: asigne el lote disponible que cumpla las caracteristicas del pedido.
                             </p>
