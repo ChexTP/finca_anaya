@@ -254,6 +254,14 @@ const InventoryPage = () => {
     : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
   const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
+  const getLotOriginLabel = (lot) => {
+    if (!lot.origin_process_type) return null;
+
+    if (lot.origin_process_type === "Trilladora") return `Llego de trilla ${lot.origin_process_code || ""}`.trim();
+    if (lot.origin_process_type === "Seleccion electronica") return `Llego de seleccionadora ${lot.origin_process_code || ""}`.trim();
+
+    return `Llego de proceso ${lot.origin_process_code || ""}`.trim();
+  };
 
   return (
     <section className="space-y-5">
@@ -529,79 +537,76 @@ const InventoryPage = () => {
             <EmptyState title="Sin lotes disponibles" message="Cuando haya inventario disponible aparecera aqui." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-100 text-slate-600">
-                <tr>
-                  <th className="px-3 py-2">Codigo</th>
-                  <th className="px-3 py-2">Presentacion</th>
-                  <th className="px-3 py-2">Tipo</th>
-                  <th className="px-3 py-2">Perfil</th>
-                  <th className="px-3 py-2">Categoria</th>
-                  <th className="px-3 py-2">Clasificacion</th>
-                  <th className="px-3 py-2">Llegada</th>
-                  <th className="px-3 py-2">Fisico</th>
-                  <th className="px-3 py-2">Reservado</th>
-                  <th className="px-3 py-2">Libre operativo</th>
-                  <th className="px-3 py-2">Humedad</th>
-                  <th className="px-3 py-2">Factor</th>
-                  <th className="px-3 py-2">Estado</th>
-                  {canAdjustInventory && <th className="px-3 py-2">Acciones</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredLots.map((lot) => (
-                  <tr key={lot.id}>
-                    <td className="px-3 py-2 font-medium">
-                      <p>{formatCoffeeLotCodeName(lot)}</p>
-                      <p className="mt-1 text-xs font-semibold text-leaf">Libre operativo: {formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}</p>
-                      {Number(lot.reserved_kg || 0) > 0 && (
-                        <p className="text-xs font-semibold text-amber-700">Reservado: {formatKg(lot.reserved_kg)}</p>
+          <div className="divide-y divide-slate-100">
+            {filteredLots.map((lot) => {
+              const originLabel = getLotOriginLabel(lot);
+
+              return (
+                <article key={lot.id} className="p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded bg-slate-100 px-2 py-1 font-semibold text-slate-700">{lot.presentation || "Pergamino"}</span>
+                        <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.coffee_type_name || "Sin tipo"}</span>
+                        <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.commercial_classification || "Sin categoria"}</span>
+                        <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.coffee_variety || lot.coffee_profile_name || "Sin clasificacion"}</span>
+                        {originLabel && (
+                          <span className="rounded bg-emerald-50 px-2 py-1 font-semibold text-leaf">{originLabel}</span>
+                        )}
+                      </div>
+                    </div>
+                    <StatusBadge>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Fisico</p>
+                      <p className="mt-1 font-bold text-ink">{formatKg(lot.available_weight_kg)}</p>
+                    </div>
+                    <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase text-amber-700">Reservado</p>
+                      <p className="mt-1 font-bold text-amber-700">{formatKg(lot.reserved_kg)}</p>
+                    </div>
+                    <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase text-leaf">Libre operativo</p>
+                      <p className="mt-1 font-bold text-leaf">{formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}</p>
+                    </div>
+                    <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Calidad</p>
+                      <p className="mt-1 text-sm text-slate-700">Humedad {lot.humidity_percent || "-"}% · Factor {lot.performance_factor ?? "-"}</p>
+                    </div>
+                    <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Llegada</p>
+                      <p className="mt-1 text-sm text-slate-700">{lot.received_at ? new Date(lot.received_at).toLocaleDateString("es-CO") : "-"}</p>
+                    </div>
+                  </div>
+
+                  {canAdjustInventory && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {["admin", "warehouse"].includes(user?.role) && (
+                        <button
+                          className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                          type="button"
+                          onClick={() => registerSampleOutput(lot)}
+                          disabled={saving}
+                        >
+                          Sacar muestra
+                        </button>
                       )}
-                      <p className="text-xs text-slate-500">Peso neto: {formatKg(lot.net_weight_kg)}</p>
-                    </td>
-                    <td className="px-3 py-2">{lot.presentation || "Pergamino"}</td>
-                    <td className="px-3 py-2">{lot.coffee_type_name || "-"}</td>
-                    <td className="px-3 py-2">{lot.coffee_profile_name || "-"}</td>
-                    <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
-                    <td className="px-3 py-2">{lot.coffee_variety || "-"}</td>
-                    <td className="px-3 py-2">{lot.received_at ? new Date(lot.received_at).toLocaleDateString("es-CO") : "-"}</td>
-                    <td className="px-3 py-2 font-semibold text-ink">{formatKg(lot.available_weight_kg)}</td>
-                    <td className="px-3 py-2 font-semibold text-amber-700">{formatKg(lot.reserved_kg)}</td>
-                    <td className="px-3 py-2 font-semibold text-leaf">{formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}</td>
-                    <td className="px-3 py-2">{lot.humidity_percent || "-"}%</td>
-                    <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
-                    <td className="px-3 py-2">
-                      <StatusBadge>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
-                    </td>
-                    {canAdjustInventory && (
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-2">
-                          {["admin", "warehouse"].includes(user?.role) && (
-                            <button
-                              className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
-                              type="button"
-                              onClick={() => registerSampleOutput(lot)}
-                              disabled={saving}
-                            >
-                              Sacar muestra
-                            </button>
-                          )}
-                          <button
-                            className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                            type="button"
-                            onClick={() => adjustInventory(lot)}
-                            disabled={saving}
-                          >
-                            Ajustar
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <button
+                        className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        type="button"
+                        onClick={() => adjustInventory(lot)}
+                        disabled={saving}
+                      >
+                        Ajustar
+                      </button>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         )}
       </div>

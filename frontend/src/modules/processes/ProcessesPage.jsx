@@ -50,6 +50,13 @@ const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
+const formatProfileLabel = (profile) => {
+  const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
+  const name = profile?.name || profile?.coffee_profile_name || "Perfil";
+
+  return [code, name].filter(Boolean).join(" - ");
+};
+
 const formatDate = (value) => {
   if (!value) return "Sin fecha estimada";
   const [datePart] = String(value).split("T");
@@ -588,7 +595,7 @@ const ProcessesPage = ({
                     {process.outputs.map((output) => (
                       <div key={output.id} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
                         <p className="font-semibold text-ink">
-                          {output.output_lot_code || "Sin lote PROC"} - {output.coffee_profile_name}
+                          {output.output_lot_code || "Sin lote PROC"} - {formatProfileLabel(output)}
                         </p>
                         <p className="text-slate-600">
                           {output.presentation || "Excelso"} · {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
@@ -704,7 +711,7 @@ const ProcessesPage = ({
                           <option value="">Perfil comercial</option>
                           {catalogs?.coffeeProfiles?.map((profile) => (
                             <option key={profile.id} value={profile.id}>
-                              {profile.name}
+                              {formatProfileLabel(profile)}
                             </option>
                           ))}
                         </select>

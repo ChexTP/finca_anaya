@@ -51,16 +51,21 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.created_at,
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.name AS coffee_profile_name,
+      origin_process.code AS origin_process_code,
+      origin_process.process_type AS origin_process_type,
+      origin_process.process_location AS origin_process_location
     FROM coffee_lots
     LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN coffee_process_outputs origin_output ON origin_output.output_lot_id = coffee_lots.id
+    LEFT JOIN coffee_processes origin_process ON origin_process.id = origin_output.process_id OR origin_process.output_lot_id = coffee_lots.id
     LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
     LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
     LEFT JOIN sales ON sales.id = sale_items.sale_id
     WHERE ${conditions.join(" AND ")}
-    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name
+    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name, origin_process.code, origin_process.process_type, origin_process.process_location
     ORDER BY coffee_lots.created_at ASC
     `,
     params

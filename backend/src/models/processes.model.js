@@ -69,6 +69,7 @@ export const listProcesses = async ({ status, processType }) => {
               'id', coffee_process_outputs.id,
               'coffee_profile_id', coffee_process_outputs.coffee_profile_id,
               'coffee_profile_name', coffee_profiles.name,
+              'coffee_profile_code', coffee_profiles.internal_code,
               'presentation', coffee_process_outputs.presentation,
               'output_lot_id', coffee_process_outputs.output_lot_id,
               'output_lot_code', output_lots.code,
@@ -168,6 +169,7 @@ export const findProcessById = async (id) => {
     SELECT
       coffee_process_outputs.*,
       coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.internal_code AS coffee_profile_code,
       output_lots.code AS output_lot_code
     FROM coffee_process_outputs
     INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
@@ -606,7 +608,8 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       `
       SELECT
         coffee_process_outputs.*,
-        coffee_profiles.name AS coffee_profile_name
+        coffee_profiles.name AS coffee_profile_name,
+        coffee_profiles.internal_code AS coffee_profile_code
       FROM coffee_process_outputs
       INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
       WHERE coffee_process_outputs.process_id = $1
