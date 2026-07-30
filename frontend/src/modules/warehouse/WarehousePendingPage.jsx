@@ -143,6 +143,31 @@ const WarehousePendingPage = () => {
     return [prefixes[row.assignmentType] || prefixes.directo, row.notes].filter(Boolean).join(" ");
   };
 
+  const getShortageKindFromNotes = (notes = "") => {
+    const text = String(notes || "").trim();
+    if (text.startsWith("[Falta base]")) return "base";
+    if (text.startsWith("[Falta proceso]")) return "proceso";
+    if (text.startsWith("[Falta base y proceso]")) return "ambos";
+    return "base";
+  };
+
+  const cleanShortageNotes = (notes = "") =>
+    String(notes || "")
+      .replace(/^\[Falta base y proceso\]\s*/i, "")
+      .replace(/^\[Falta base\]\s*/i, "")
+      .replace(/^\[Falta proceso\]\s*/i, "")
+      .trim();
+
+  const buildShortageNotes = ({ kind, notes }) => {
+    const prefixes = {
+      base: "[Falta base]",
+      proceso: "[Falta proceso]",
+      ambos: "[Falta base y proceso]",
+    };
+
+    return [prefixes[kind] || prefixes.ambos, notes].filter(Boolean).join(" ");
+  };
+
   const getSuggestedQuantities = (item) => {
     if (item.coffee_profile_category !== "Exotico") return null;
 
@@ -376,11 +401,22 @@ const WarehousePendingPage = () => {
     if (!selectedSale) return;
 
     const nextMarked = !item.shortage_marked;
-    const notes = nextMarked
-      ? window.prompt("Observacion para gerencia sobre este faltante", item.shortage_notes || "")
-      : item.shortage_notes || "";
+    const suggested = getSuggestedQuantities(item);
+    let shortageKind = getShortageKindFromNotes(item.shortage_notes);
 
-    if (notes === null) return;
+    if (nextMarked && suggested) {
+      const typeAnswer = window.prompt("Que falta para este pedido? Escriba base, proceso o ambos.", shortageKind);
+      if (typeAnswer === null) return;
+
+      const normalizedType = typeAnswer.trim().toLowerCase();
+      shortageKind = ["base", "proceso", "ambos"].includes(normalizedType) ? normalizedType : "ambos";
+    }
+
+    const rawNotes = nextMarked
+      ? window.prompt("Observacion para gerencia sobre este faltante", cleanShortageNotes(item.shortage_notes))
+      : cleanShortageNotes(item.shortage_notes);
+
+    if (rawNotes === null) return;
     if (!window.confirm(nextMarked ? "Confirmas marcar este producto como faltante?" : "Confirmas quitar la marca de faltante?")) return;
 
     setSaving(true);
@@ -392,7 +428,9 @@ const WarehousePendingPage = () => {
         method: "PUT",
         body: JSON.stringify({
           shortageMarked: nextMarked,
-          notes,
+          notes: nextMarked && suggested
+            ? buildShortageNotes({ kind: shortageKind, notes: rawNotes })
+            : rawNotes,
         }),
       });
       setSelectedSale(response.data);
@@ -788,7 +826,7 @@ const WarehousePendingPage = () => {
 
                           {item.shortage_marked && item.shortage_notes && (
                             <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                              Motivo faltante: {item.shortage_notes}
+                              Motivo faltante: {cleanShortageNotes(item.shortage_notes)}
                             </p>
                           )}
 
