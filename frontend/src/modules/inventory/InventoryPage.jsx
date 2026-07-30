@@ -5,7 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
-import { lotStatusLabels } from "../../utils/workflow";
+import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
 
 const initialPurchase = {
   purchasePricePerKg: "",
@@ -47,6 +47,19 @@ const initialAdminLotEdit = {
   changeNote: "",
 };
 
+const initialAdminProcessEdit = {
+  code: "",
+  status: "pendiente",
+  processType: "Otro proceso",
+  processLocation: "",
+  estimatedReturnDate: "",
+  totalInputKg: "",
+  outputWeightKg: "",
+  physicalHumidityPercent: "",
+  physicalPerformanceFactor: "",
+  changeNote: "",
+};
+
 const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
 
 const InventoryPage = () => {
@@ -54,6 +67,7 @@ const InventoryPage = () => {
   const [lots, setLots] = useState([]);
   const [allLots, setAllLots] = useState([]);
   const [sampleOutputs, setSampleOutputs] = useState([]);
+  const [processes, setProcesses] = useState([]);
   const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
   const [unpaidLots, setUnpaidLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
@@ -61,19 +75,23 @@ const InventoryPage = () => {
   const [selectedLot, setSelectedLot] = useState(null);
   const [selectedLiquidationLot, setSelectedLiquidationLot] = useState(null);
   const [selectedAdminLot, setSelectedAdminLot] = useState(null);
+  const [selectedAdminProcess, setSelectedAdminProcess] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
   const [liquidationForm, setLiquidationForm] = useState(initialLiquidation);
   const [adminLotForm, setAdminLotForm] = useState(initialAdminLotEdit);
+  const [adminProcessForm, setAdminProcessForm] = useState(initialAdminProcessEdit);
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [lotCodeSearch, setLotCodeSearch] = useState("");
+  const [processCodeSearch, setProcessCodeSearch] = useState("");
+  const [showInventoryEditModal, setShowInventoryEditModal] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const canRegisterPurchase = ["admin", "accounting"].includes(user?.role);
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
-  const canEditCodes = user?.role === "admin";
+  const canEditCodes = ["admin", "warehouse"].includes(user?.role);
 
   const loadData = async () => {
     const requests = [
@@ -94,7 +112,13 @@ const InventoryPage = () => {
       requests.push(Promise.resolve([]));
     }
 
-    const [availableData, allLots, sampleOutputData, catalogData, supplierData] = await Promise.all(requests);
+    if (canEditCodes) {
+      requests.push(apiRequest("/processes"));
+    } else {
+      requests.push(Promise.resolve([]));
+    }
+
+    const [availableData, allLots, sampleOutputData, catalogData, supplierData, processData] = await Promise.all(requests);
     setLots(availableData);
     setAllLots(allLots);
     setSampleOutputs(sampleOutputData || []);
@@ -113,6 +137,7 @@ const InventoryPage = () => {
     setSuppliers(
       [...(supplierData || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"))
     );
+    setProcesses(processData || []);
   };
 
   const selectLiquidationLot = (lot) => {
@@ -333,9 +358,15 @@ const InventoryPage = () => {
     setError("");
   };
 
+  const openInventoryEditModal = (lot) => {
+    selectAdminLot(lot);
+    setShowInventoryEditModal(true);
+  };
+
   const cancelAdminLotEdit = () => {
     setSelectedAdminLot(null);
     setAdminLotForm(initialAdminLotEdit);
+    setShowInventoryEditModal(false);
     setMessage("");
     setError("");
   };
@@ -409,6 +440,77 @@ const InventoryPage = () => {
     }
   };
 
+  const selectAdminProcess = (process) => {
+    setSelectedAdminProcess(process);
+    setAdminProcessForm({
+      code: process.code || "",
+      status: process.status || "pendiente",
+      processType: process.process_type || "Otro proceso",
+      processLocation: process.process_location || "",
+      estimatedReturnDate: process.estimated_return_date ? String(process.estimated_return_date).slice(0, 10) : "",
+      totalInputKg: process.total_input_kg ?? "",
+      outputWeightKg: process.output_weight_kg ?? "",
+      physicalHumidityPercent: process.physical_humidity_percent ?? "",
+      physicalPerformanceFactor: process.physical_performance_factor ?? "",
+      changeNote: "Correccion administrativa desde inventario",
+    });
+    setMessage("");
+    setError("");
+  };
+
+  const cancelAdminProcessEdit = () => {
+    setSelectedAdminProcess(null);
+    setAdminProcessForm(initialAdminProcessEdit);
+    setMessage("");
+    setError("");
+  };
+
+  const saveAdminProcessData = async (event) => {
+    event.preventDefault();
+
+    if (!selectedAdminProcess) {
+      setError("Seleccione un proceso para editar.");
+      return;
+    }
+
+    if (!adminProcessForm.changeNote.trim()) {
+      setError("Escriba una nota para dejar trazabilidad de la correccion.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma guardar cambios administrativos en ${selectedAdminProcess.code}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/processes/${selectedAdminProcess.id}/admin-data`, {
+        method: "PUT",
+        body: JSON.stringify({
+          code: adminProcessForm.code.trim(),
+          status: adminProcessForm.status,
+          processType: adminProcessForm.processType,
+          processLocation: adminProcessForm.processLocation,
+          estimatedReturnDate: adminProcessForm.estimatedReturnDate || null,
+          totalInputKg: adminProcessForm.totalInputKg === "" ? null : Number(adminProcessForm.totalInputKg),
+          outputWeightKg: adminProcessForm.outputWeightKg === "" ? null : Number(adminProcessForm.outputWeightKg),
+          physicalHumidityPercent: adminProcessForm.physicalHumidityPercent === "" ? null : Number(adminProcessForm.physicalHumidityPercent),
+          physicalPerformanceFactor: adminProcessForm.physicalPerformanceFactor === "" ? null : Number(adminProcessForm.physicalPerformanceFactor),
+          changeNote: adminProcessForm.changeNote,
+        }),
+      });
+
+      cancelAdminProcessEdit();
+      await loadData();
+      setMessage("Datos del proceso actualizados correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
     ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
@@ -467,6 +569,27 @@ const InventoryPage = () => {
         .join(" ")
         .toLowerCase()
         .includes(lotCodeSearchTerm);
+    })
+    .slice(0, 50);
+  const processCodeSearchTerm = processCodeSearch.trim().toLowerCase();
+  const processSearchResults = processes
+    .filter((process) => {
+      if (!processCodeSearchTerm) return true;
+
+      return [
+        process.code,
+        process.status,
+        process.process_type,
+        process.process_location,
+        process.sale_code,
+        process.sale_client_name,
+        process.quote_code,
+        process.quote_client_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(processCodeSearchTerm);
     })
     .slice(0, 50);
 
@@ -764,6 +887,166 @@ const InventoryPage = () => {
               >
                 <Save size={16} />
                 Guardar datos del lote
+              </button>
+            </form>
+          )}
+
+          <div className="border-t border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Buscar y editar procesos</h2>
+            <p className="mt-1 text-xs text-slate-500">Uso administrativo para corregir codigo, estado, ubicacion, pesos y datos fisicos del proceso.</p>
+            <input
+              className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Buscar por codigo, venta, cliente, estado o ubicacion"
+              value={processCodeSearch}
+              onChange={(event) => setProcessCodeSearch(event.target.value)}
+            />
+          </div>
+          <div className="max-h-72 overflow-auto border-t border-slate-100">
+            {processes.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="Sin procesos registrados" message="Cuando existan procesos podras corregir sus datos aqui." />
+              </div>
+            ) : (
+              <table className="min-w-full text-left text-sm">
+                <thead className="sticky top-0 bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Codigo</th>
+                    <th className="px-3 py-2">Venta</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Entrada</th>
+                    <th className="px-3 py-2">Accion</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {processSearchResults.map((process) => (
+                    <tr key={process.id}>
+                      <td className="px-3 py-2 font-semibold text-ink">{process.code}</td>
+                      <td className="px-3 py-2 text-slate-700">
+                        {process.sale_code ? `${process.sale_code} - ${process.sale_client_name || "Cliente"}` : "Sin venta asociada"}
+                      </td>
+                      <td className="px-3 py-2">{processStatusLabels[process.status] || process.status}</td>
+                      <td className="px-3 py-2">{formatKg(process.total_input_kg)}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                          type="button"
+                          disabled={saving}
+                          onClick={() => selectAdminProcess(process)}
+                        >
+                          Editar proceso
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {selectedAdminProcess && (
+            <form className="border-t border-slate-200 p-4" onSubmit={saveAdminProcessData}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Editar proceso {selectedAdminProcess.code}</h3>
+                  <p className="mt-1 text-xs text-amber-700">
+                    Correccion administrativa. Esto cambia datos visibles del proceso, no recalcula inventario reservado automaticamente.
+                  </p>
+                </div>
+                <button
+                  className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={cancelAdminProcessEdit}
+                >
+                  Cancelar
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <input
+                  className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900"
+                  placeholder="Codigo"
+                  value={adminProcessForm.code}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, code: event.target.value })}
+                  required
+                />
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={adminProcessForm.status}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, status: event.target.value })}
+                >
+                  {Object.entries(processStatusLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Tipo de proceso"
+                  value={adminProcessForm.processType}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, processType: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Ubicacion / encargado externo"
+                  value={adminProcessForm.processLocation}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, processLocation: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Regreso estimado"
+                  type="date"
+                  value={adminProcessForm.estimatedReturnDate}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, estimatedReturnDate: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Entrada kg"
+                  type="number"
+                  step="0.001"
+                  value={adminProcessForm.totalInputKg}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, totalInputKg: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Salida kg"
+                  type="number"
+                  step="0.001"
+                  value={adminProcessForm.outputWeightKg}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, outputWeightKg: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Humedad fisica %"
+                  type="number"
+                  step="0.01"
+                  value={adminProcessForm.physicalHumidityPercent}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, physicalHumidityPercent: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Factor fisico"
+                  type="number"
+                  step="0.01"
+                  value={adminProcessForm.physicalPerformanceFactor}
+                  onChange={(event) => setAdminProcessForm({ ...adminProcessForm, physicalPerformanceFactor: event.target.value })}
+                />
+              </div>
+
+              <textarea
+                className="mt-3 min-h-20 w-full rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm"
+                placeholder="Nota obligatoria de correccion"
+                value={adminProcessForm.changeNote}
+                onChange={(event) => setAdminProcessForm({ ...adminProcessForm, changeNote: event.target.value })}
+                required
+              />
+
+              <button
+                className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                disabled={saving}
+              >
+                <Save size={16} />
+                Guardar datos del proceso
               </button>
             </form>
           )}
@@ -1085,7 +1368,7 @@ const InventoryPage = () => {
                       <button
                         className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                         type="button"
-                        onClick={() => adjustInventory(lot)}
+                        onClick={() => (canEditCodes ? openInventoryEditModal(lot) : adjustInventory(lot))}
                         disabled={saving}
                       >
                         Ajustar
@@ -1135,6 +1418,236 @@ const InventoryPage = () => {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {showInventoryEditModal && selectedAdminLot && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+          <form
+            className="my-6 w-full max-w-5xl rounded border border-slate-200 bg-white shadow-xl"
+            onSubmit={saveAdminLotData}
+          >
+            <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+              <div>
+                <h2 className="text-base font-bold text-ink">Ajustar datos de inventario</h2>
+                <p className="text-sm text-slate-500">{formatCoffeeLotCodeName(selectedAdminLot)}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={cancelAdminLotEdit}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving}
+                >
+                  <Save size={16} />
+                  Guardar cambios
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Edicion administrativa completa. Use este formulario para corregir datos cargados manualmente, codigos, pesos,
+                clasificacion, proveedor y analisis de laboratorio.
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Codigo
+                  <input
+                    className="w-full rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold normal-case text-amber-900"
+                    value={adminLotForm.code}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, code: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Proveedor
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.supplierId}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, supplierId: event.target.value })}
+                  >
+                    <option value="">Sin proveedor</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Presentacion
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.presentation}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, presentation: event.target.value })}
+                  >
+                    <option value="Pergamino">Pergamino</option>
+                    <option value="Excelso">Excelso</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Tipo interno
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.lotKind}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, lotKind: event.target.value })}
+                  >
+                    <option value="LOT">Lote normal</option>
+                    <option value="PROC">Proceso listo</option>
+                    <option value="PASILLA">Pasilla</option>
+                    <option value="RECUPERACION">Recuperacion</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Tipo / proceso
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.coffeeTypeId}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, coffeeTypeId: event.target.value })}
+                  >
+                    <option value="">Tipo / proceso</option>
+                    {catalogs?.coffeeTypes?.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Perfil comercial
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.coffeeProfileId}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, coffeeProfileId: event.target.value })}
+                  >
+                    <option value="">Perfil comercial si aplica</option>
+                    {catalogs?.coffeeProfiles?.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Categoria
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.commercialClassification}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, commercialClassification: event.target.value })}
+                  >
+                    <option value="">Categoria</option>
+                    <option value="Base">Base</option>
+                    <option value="Regional">Regional</option>
+                    <option value="Varietal">Varietal</option>
+                    <option value="Exotico">Exotico</option>
+                    <option value="Procesado">Procesado</option>
+                    <option value="Pasilla">Pasilla</option>
+                    <option value="Recuperacion">Recuperacion</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Clasificacion exacta
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.coffeeVariety}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, coffeeVariety: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["grossWeightKg", "Peso bruto kg"],
+                  ["netWeightKg", "Peso neto kg"],
+                  ["availableWeightKg", "Disponible fisico kg"],
+                  ["humidityPercent", "Humedad %"],
+                  ["performanceFactor", "Factor rendimiento"],
+                  ["score", "Score"],
+                ].map(([field, label]) => (
+                  <label key={field} className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                    {label}
+                    <input
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                      type="number"
+                      step="0.001"
+                      value={adminLotForm[field]}
+                      onChange={(event) => setAdminLotForm({ ...adminLotForm, [field]: event.target.value })}
+                      required={["grossWeightKg", "netWeightKg", "availableWeightKg"].includes(field)}
+                    />
+                  </label>
+                ))}
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Fecha llegada
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    type="date"
+                    value={adminLotForm.receivedAt}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, receivedAt: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Zona procedencia
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.originZone}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, originZone: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-slate-500">Datos de laboratorio</h3>
+                <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    ["aroma", "Aroma"],
+                    ["flavor", "Sabor"],
+                    ["sweetness", "Dulzor"],
+                    ["body", "Cuerpo"],
+                    ["residual", "Residual"],
+                    ["cleanCup", "Taza limpia"],
+                  ].map(([field, label]) => (
+                    <input
+                      key={field}
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder={label}
+                      value={adminLotForm[field]}
+                      onChange={(event) => setAdminLotForm({ ...adminLotForm, [field]: event.target.value })}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <textarea
+                  className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Notas de laboratorio"
+                  value={adminLotForm.labNotes}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, labNotes: event.target.value })}
+                />
+                <textarea
+                  className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Comentario interno del lote"
+                  value={adminLotForm.initialComment}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, initialComment: event.target.value })}
+                />
+                <textarea
+                  className="min-h-20 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm"
+                  placeholder="Nota obligatoria de correccion"
+                  value={adminLotForm.changeNote}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, changeNote: event.target.value })}
+                  required
+                />
+              </div>
+            </div>
+          </form>
         </div>
       )}
     </section>

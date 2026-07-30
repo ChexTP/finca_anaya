@@ -189,6 +189,92 @@ export const findProcessById = async (id) => {
   };
 };
 
+export const updateProcessAdminData = async (id, processData) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_processes
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentProcess = currentResult.rows[0];
+
+    if (!currentProcess) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const codeResult = await client.query(
+      `
+      SELECT id
+      FROM coffee_processes
+      WHERE code = $1
+        AND id <> $2
+      LIMIT 1
+      `,
+      [processData.code, id]
+    );
+
+    if (codeResult.rows[0]) {
+      await client.query("ROLLBACK");
+      return { duplicate: true, process: currentProcess };
+    }
+
+    const noteParts = [
+      currentProcess.notes || "",
+      `[Correccion administrativa ${new Date().toISOString().slice(0, 10)}] ${processData.changeNote}`,
+    ].filter(Boolean);
+
+    const result = await client.query(
+      `
+      UPDATE coffee_processes
+      SET
+        code = $1,
+        status = $2,
+        process_type = $3,
+        process_location = $4,
+        estimated_return_date = $5,
+        total_input_kg = $6,
+        output_weight_kg = $7,
+        physical_humidity_percent = $8,
+        physical_performance_factor = $9,
+        notes = $10,
+        updated_at = NOW()
+      WHERE id = $11
+      RETURNING *
+      `,
+      [
+        processData.code,
+        processData.status,
+        processData.processType,
+        processData.processLocation,
+        processData.estimatedReturnDate,
+        processData.totalInputKg,
+        processData.outputWeightKg,
+        processData.physicalHumidityPercent,
+        processData.physicalPerformanceFactor,
+        noteParts.join("\n"),
+        id,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return result.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const createProcess = async ({ code, quoteId, saleId, processType, processLocation, notes, inputs, createdBy }) => {
   const client = await pool.connect();
 

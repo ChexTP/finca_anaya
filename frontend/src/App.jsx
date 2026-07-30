@@ -160,6 +160,14 @@ const App = () => {
           }
         />
         <Route
+          path="/laboratorio/inventario"
+          element={
+            <ProtectedRoute roles={["laboratory"]}>
+              <LaboratoryPage initialPanel="inventory" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/comercial"
           element={
             <ProtectedRoute roles={["admin", "accounting", "seller"]}>

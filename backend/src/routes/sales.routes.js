@@ -29,7 +29,7 @@ router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse", "s
 router.get(
   "/lot-reservations",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "laboratory"),
   getSaleLotReservations
 );
 router.delete(
@@ -85,7 +85,7 @@ router.put(
 router.put(
   "/:id/request-blend",
   requireAuth,
-  requireRoles("admin", "warehouse"),
+  requireRoles("admin", "warehouse", "laboratory"),
   putSaleReadyForBlend
 );
 router.put(
@@ -103,7 +103,7 @@ router.put(
 router.put(
   "/:id/priority",
   requireAuth,
-  requireRoles("admin", "warehouse"),
+  requireRoles("admin", "warehouse", "laboratory"),
   putSalePriority
 );
 router.put(

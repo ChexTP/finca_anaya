@@ -2,6 +2,7 @@ import {
   getNextProcessCode,
   listProcesses,
   findProcessById,
+  updateProcessAdminData,
   createProcess,
   startProcess,
   markProcessPendingLaboratory,
@@ -31,6 +32,7 @@ const requiredCuppingFields = [
 ];
 
 const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
+const processStatuses = ["pendiente", "en_proceso", "pendiente_revision_fisica", "pendiente_laboratorio", "finalizado"];
 
 export const getProcesses = async (req, res) => {
   try {
@@ -56,6 +58,81 @@ export const getProcess = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener proceso",
+      error: error.message,
+    });
+  }
+};
+
+export const putProcessAdminData = async (req, res) => {
+  try {
+    const {
+      code,
+      status,
+      processType,
+      processLocation,
+      estimatedReturnDate,
+      totalInputKg,
+      outputWeightKg,
+      physicalHumidityPercent,
+      physicalPerformanceFactor,
+      changeNote,
+    } = req.body;
+
+    const cleanCode = String(code || "").trim();
+    const inputKg = toNumber(totalInputKg);
+    const outputKg = toNumber(outputWeightKg);
+    const humidity = toNumber(physicalHumidityPercent);
+    const performance = toNumber(physicalPerformanceFactor);
+
+    if (!cleanCode) {
+      return res.status(400).json({ message: "El codigo del proceso es obligatorio" });
+    }
+
+    if (!processStatuses.includes(status)) {
+      return res.status(400).json({ message: "El estado del proceso no es valido" });
+    }
+
+    if (!changeNote || !String(changeNote).trim()) {
+      return res.status(400).json({ message: "Debe escribir una nota de correccion" });
+    }
+
+    if (
+      (inputKg !== null && (!Number.isFinite(inputKg) || inputKg < 0)) ||
+      (outputKg !== null && (!Number.isFinite(outputKg) || outputKg < 0)) ||
+      (humidity !== null && (!Number.isFinite(humidity) || humidity < 0 || humidity > 100)) ||
+      (performance !== null && (!Number.isFinite(performance) || performance < 0))
+    ) {
+      return res.status(400).json({ message: "Pesos, humedad o factor tienen valores invalidos" });
+    }
+
+    const process = await updateProcessAdminData(req.params.id, {
+      code: cleanCode,
+      status,
+      processType: processType || "Otro proceso",
+      processLocation: processLocation || null,
+      estimatedReturnDate: estimatedReturnDate || null,
+      totalInputKg: inputKg || 0,
+      outputWeightKg: outputKg,
+      physicalHumidityPercent: humidity,
+      physicalPerformanceFactor: performance,
+      changeNote: String(changeNote).trim(),
+    });
+
+    if (!process) {
+      return res.status(404).json({ message: "Proceso no encontrado" });
+    }
+
+    if (process.duplicate) {
+      return res.status(409).json({ message: "Ya existe otro proceso con ese codigo" });
+    }
+
+    res.json({
+      message: "Datos administrativos del proceso actualizados",
+      data: process,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar datos administrativos del proceso",
       error: error.message,
     });
   }

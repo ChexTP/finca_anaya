@@ -88,7 +88,7 @@ const ProcessesPage = ({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const canCreateProcess = ["admin", "warehouse"].includes(user?.role);
+  const canCreateProcess = ["admin", "warehouse", "laboratory"].includes(user?.role);
   const actionLabel = fixedProcessType === "Trilladora"
     ? "Enviar a trilladora"
     : fixedProcessType === "Seleccion electronica"
@@ -597,7 +597,7 @@ const ProcessesPage = ({
                   </div>
                 </div>
               )}
-              {["admin", "warehouse"].includes(user?.role) && process.status === "pendiente" && (
+              {["admin", "warehouse", "laboratory"].includes(user?.role) && process.status === "pendiente" && (
                 <button
                   className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   type="button"
@@ -654,7 +654,7 @@ const ProcessesPage = ({
                   </button>
                 </form>
               )}
-              {["admin", "warehouse"].includes(user?.role) && process.status === "en_proceso" && (
+              {["admin", "warehouse", "laboratory"].includes(user?.role) && process.status === "en_proceso" && (
                 <button
                   className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   type="button"
@@ -665,7 +665,7 @@ const ProcessesPage = ({
                   {createsInventoryDirectly(process) ? "Recibir en bodega" : "Recibir para revision fisica"}
                 </button>
               )}
-              {["admin", "warehouse"].includes(user?.role) && process.status === "pendiente_revision_fisica" && (
+              {["admin", "warehouse", "laboratory"].includes(user?.role) && process.status === "pendiente_revision_fisica" && (
                 <button
                   className="mt-3 inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   type="button"

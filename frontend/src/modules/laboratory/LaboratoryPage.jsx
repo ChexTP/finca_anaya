@@ -5,7 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
-import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
+import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, lotStatusLabels, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
   decision: "aprobado",
@@ -59,6 +59,20 @@ const initialSaleReview = {
   decision: "aprobada_laboratorio",
   itemReviews: [],
   notes: "",
+};
+
+const initialInventoryLabEdit = {
+  humidityPercent: "",
+  performanceFactor: "",
+  aroma: "",
+  flavor: "",
+  sweetness: "",
+  body: "",
+  residual: "",
+  cleanCup: "",
+  score: "",
+  notes: "",
+  changeNote: "Correccion de analisis desde laboratorio",
 };
 
 const cuppingFields = [
@@ -152,11 +166,12 @@ const formatDate = (value) => {
   return [day, month, year].filter(Boolean).join("/");
 };
 
-const LaboratoryPage = () => {
+const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const { user } = useAuth();
-  const [activePanel, setActivePanel] = useState("lots");
+  const [activePanel, setActivePanel] = useState(initialPanel);
   const [processFilter, setProcessFilter] = useState("pendiente_laboratorio");
   const [lots, setLots] = useState([]);
+  const [inventoryLots, setInventoryLots] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [samples, setSamples] = useState([]);
   const [sales, setSales] = useState([]);
@@ -165,6 +180,7 @@ const LaboratoryPage = () => {
   const [historySearch, setHistorySearch] = useState("");
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
+  const [selectedInventoryLot, setSelectedInventoryLot] = useState(null);
   const [selectedProcess, setSelectedProcess] = useState(null);
   const [selectedSample, setSelectedSample] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
@@ -174,45 +190,62 @@ const LaboratoryPage = () => {
   const [finishForm, setFinishForm] = useState(initialFinish);
   const [sampleReview, setSampleReview] = useState(initialSampleReview);
   const [saleReview, setSaleReview] = useState(initialSaleReview);
+  const [inventoryLabForm, setInventoryLabForm] = useState(initialInventoryLabEdit);
+  const [inventorySearch, setInventorySearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
-    const [lotData, processData, sampleData, saleData, catalogData, historyData] = await Promise.all([
+    const results = await Promise.allSettled([
       apiRequest("/lots?status=pendiente_laboratorio"),
+      apiRequest("/inventory/lots"),
       apiRequest("/processes"),
       apiRequest("/samples?status=pendiente_laboratorio"),
       apiRequest("/sales"),
       apiRequest("/catalogs"),
       apiRequest("/laboratory/history"),
     ]);
+    const [lotData, inventoryLotData, processData, sampleData, saleData, catalogData, historyData] = results.map((result) => (
+      result.status === "fulfilled" ? result.value : null
+    ));
+    const failedRequests = results.filter((result) => result.status === "rejected");
 
-    setLots(lotData);
-    setProcesses(processData.filter((process) => process.status === "pendiente_laboratorio"));
-    setSamples(sampleData);
-    setSales(saleData.filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
-    setSaleLabRequests(saleData.filter((sale) => sale.status === "pendiente_laboratorio"));
-    setCatalogs(catalogData);
-    setHistory(historyData);
+    setLots(lotData || []);
+    setInventoryLots(inventoryLotData || []);
+    setProcesses((processData || []).filter((process) => process.status === "pendiente_laboratorio"));
+    setSamples(sampleData || []);
+    setSales((saleData || []).filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
+    setSaleLabRequests((saleData || []).filter((sale) => sale.status === "pendiente_laboratorio"));
+    setCatalogs(catalogData || null);
+    setHistory(historyData || { lots: [], processes: [] });
+
+    if (failedRequests.length) {
+      setError(`Algunas secciones no cargaron: ${failedRequests.map((result) => result.reason?.message).filter(Boolean).join(" | ")}`);
+    }
 
     if (selectedLot) {
-      const updatedSelectedLot = lotData.find((lot) => lot.id === selectedLot.id);
+      const updatedSelectedLot = (lotData || []).find((lot) => lot.id === selectedLot.id);
       setSelectedLot(updatedSelectedLot || null);
     }
 
+    if (selectedInventoryLot) {
+      const updatedSelectedInventoryLot = (inventoryLotData || []).find((lot) => lot.id === selectedInventoryLot.id);
+      setSelectedInventoryLot(updatedSelectedInventoryLot || null);
+    }
+
     if (selectedProcess) {
-      const updatedSelectedProcess = processData.find((process) => process.id === selectedProcess.id);
+      const updatedSelectedProcess = (processData || []).find((process) => process.id === selectedProcess.id);
       setSelectedProcess(updatedSelectedProcess || null);
     }
 
     if (selectedSample) {
-      const updatedSelectedSample = sampleData.find((sample) => sample.id === selectedSample.id);
+      const updatedSelectedSample = (sampleData || []).find((sample) => sample.id === selectedSample.id);
       setSelectedSample(updatedSelectedSample || null);
     }
 
     if (selectedSaleReview) {
-      const updatedSaleReview = saleData.find((sale) => sale.id === selectedSaleReview.id);
+      const updatedSaleReview = (saleData || []).find((sale) => sale.id === selectedSaleReview.id);
       setSelectedSaleReview(updatedSaleReview || null);
     }
   };
@@ -235,6 +268,26 @@ const LaboratoryPage = () => {
   const filteredProcesses = useMemo(() => {
     return processes.filter((process) => processFilter === "all" || process.status === processFilter);
   }, [processes, processFilter]);
+
+  const filteredInventoryLots = useMemo(() => {
+    const term = inventorySearch.trim().toLowerCase();
+
+    return inventoryLots.filter((lot) => {
+      const text = [
+        lot.code,
+        lot.presentation,
+        lot.status,
+        lotStatusLabels[lot.status],
+        lot.coffee_type_name,
+        lot.coffee_profile_name,
+        lot.commercial_classification,
+        lot.coffee_variety,
+        lot.lab_score,
+      ].filter(Boolean).join(" ").toLowerCase();
+
+      return !term || text.includes(term);
+    });
+  }, [inventoryLots, inventorySearch]);
 
   const filteredHistory = useMemo(() => {
     const term = historySearch.trim().toLowerCase();
@@ -282,6 +335,71 @@ const LaboratoryPage = () => {
     });
     setMessage("");
     setError("");
+  };
+
+  const selectInventoryLot = (lot) => {
+    setActivePanel("inventory");
+    setSelectedInventoryLot(lot);
+    setInventoryLabForm({
+      humidityPercent: lot.humidity_percent ?? "",
+      performanceFactor: lot.performance_factor ?? "",
+      aroma: lot.lab_aroma || "",
+      flavor: lot.lab_flavor || "",
+      sweetness: lot.lab_sweetness || "",
+      body: lot.lab_body || "",
+      residual: lot.lab_residual || "",
+      cleanCup: lot.lab_clean_cup || "",
+      score: lot.lab_score ?? "",
+      notes: lot.lab_notes || "",
+      changeNote: "Correccion de analisis desde laboratorio",
+    });
+    setMessage("");
+    setError("");
+  };
+
+  const saveInventoryLabData = async (event) => {
+    event.preventDefault();
+
+    if (!selectedInventoryLot) {
+      setError("Seleccione un cafe de inventario para editar.");
+      return;
+    }
+
+    if (!inventoryLabForm.changeNote.trim()) {
+      setError("Escriba una nota para dejar trazabilidad de la correccion.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma guardar el analisis de ${formatCoffeeLotCodeName(selectedInventoryLot)}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${selectedInventoryLot.id}/lab-data`, {
+        method: "PUT",
+        body: JSON.stringify({
+          humidityPercent: inventoryLabForm.humidityPercent === "" ? null : Number(inventoryLabForm.humidityPercent),
+          performanceFactor: inventoryLabForm.performanceFactor === "" ? null : Number(inventoryLabForm.performanceFactor),
+          aroma: inventoryLabForm.aroma,
+          flavor: inventoryLabForm.flavor,
+          sweetness: inventoryLabForm.sweetness,
+          body: inventoryLabForm.body,
+          residual: inventoryLabForm.residual,
+          cleanCup: inventoryLabForm.cleanCup,
+          score: inventoryLabForm.score === "" ? null : Number(inventoryLabForm.score),
+          notes: inventoryLabForm.notes,
+          changeNote: inventoryLabForm.changeNote,
+        }),
+      });
+      await loadData();
+      setMessage("Analisis de inventario actualizado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const editHistoryLotLabData = async (lot) => {
@@ -333,6 +451,67 @@ const LaboratoryPage = () => {
       });
       await loadData();
       setMessage("Datos de laboratorio corregidos correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const editHistoryProcessOutputLabData = async (output) => {
+    if (!output.output_lot_id) {
+      setError("Esta salida de proceso no tiene lote PROC asociado para corregir.");
+      return;
+    }
+
+    const humidityPercent = window.prompt("Humedad (%)", output.humidity_percent ?? "");
+    if (humidityPercent === null) return;
+    const performanceFactor = window.prompt("Factor de rendimiento", output.performance_factor ?? "");
+    if (performanceFactor === null) return;
+    const aroma = window.prompt("Aroma", output.lab_aroma || "");
+    if (aroma === null) return;
+    const flavor = window.prompt("Sabor", output.lab_flavor || "");
+    if (flavor === null) return;
+    const sweetness = window.prompt("Dulzor", output.lab_sweetness || "");
+    if (sweetness === null) return;
+    const body = window.prompt("Cuerpo", output.lab_body || "");
+    if (body === null) return;
+    const residual = window.prompt("Residual", output.lab_residual || "");
+    if (residual === null) return;
+    const cleanCup = window.prompt("Taza limpia", output.lab_clean_cup || "");
+    if (cleanCup === null) return;
+    const score = window.prompt("Score", output.lab_score ?? "");
+    if (score === null) return;
+    const notes = window.prompt("Notas de laboratorio", output.lab_notes || "");
+    if (notes === null) return;
+    const changeNote = window.prompt("Motivo de la correccion", "Correccion de analisis de proceso");
+    if (changeNote === null) return;
+
+    if (!window.confirm(`Confirma corregir el analisis de ${output.output_lot_code || "esta salida"}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${output.output_lot_id}/lab-data`, {
+        method: "PUT",
+        body: JSON.stringify({
+          humidityPercent: humidityPercent === "" ? null : Number(humidityPercent),
+          performanceFactor: performanceFactor === "" ? null : Number(performanceFactor),
+          aroma,
+          flavor,
+          sweetness,
+          body,
+          residual,
+          cleanCup,
+          score: score === "" ? null : Number(score),
+          notes,
+          changeNote,
+        }),
+      });
+      await loadData();
+      setMessage("Analisis del proceso corregido correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -819,6 +998,18 @@ const LaboratoryPage = () => {
           </button>
           <button
             className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
+              activePanel === "inventory" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+            }`}
+            onClick={() => setActivePanel("inventory")}
+          >
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <ClipboardCheck size={16} />
+              Inventario
+            </span>
+            <span className="text-xs">{inventoryLots.length}</span>
+          </button>
+          <button
+            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
               activePanel === "processes" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
             }`}
             onClick={() => setActivePanel("processes")}
@@ -1014,6 +1205,135 @@ const LaboratoryPage = () => {
               </button>
             </div>
           </form>
+          </div>
+        ) : activePanel === "inventory" ? (
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,430px)]">
+            <div className="rounded border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h2 className="text-sm font-semibold text-slate-800">Inventario para laboratorio</h2>
+                <p className="text-sm text-slate-500">Todos los cafes disponibles para consultar o corregir analisis.</p>
+                <input
+                  className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Buscar por codigo, cafe, categoria, estado o score"
+                  value={inventorySearch}
+                  onChange={(event) => setInventorySearch(event.target.value)}
+                />
+              </div>
+              {filteredInventoryLots.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title="Sin cafes en inventario" message="Los cafes disponibles apareceran aqui." />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredInventoryLots.map((lot) => (
+                    <button
+                      key={lot.id}
+                      className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
+                        selectedInventoryLot?.id === lot.id ? "bg-emerald-50" : "bg-white"
+                      }`}
+                      onClick={() => selectInventoryLot(lot)}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {[lot.presentation, lot.coffee_type_name, lot.commercial_classification, lot.coffee_variety || lot.coffee_profile_name]
+                              .filter(Boolean)
+                              .join(" / ") || "Cafe"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Fisico: {formatKg(lot.available_weight_kg)} · Libre operativo: {formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <StatusBadge>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
+                          <span className="text-xs font-semibold text-slate-500">Score {lot.lab_score ?? "-"}</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <form className="rounded border border-slate-200 bg-white p-4" onSubmit={saveInventoryLabData}>
+              <div className="flex items-center gap-2">
+                <FlaskConical size={17} className="text-leaf" />
+                <h2 className="text-sm font-semibold text-slate-800">Editar analisis</h2>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedInventoryLot ? formatCoffeeLotCodeName(selectedInventoryLot) : "Seleccione un cafe de inventario."}
+              </p>
+
+              {!selectedInventoryLot ? (
+                <div className="mt-4">
+                  <EmptyState title="Sin cafe seleccionado" message="Seleccione un cafe de la lista para editar sus datos de laboratorio." />
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Humedad %"
+                      type="number"
+                      step="0.01"
+                      value={inventoryLabForm.humidityPercent}
+                      onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, humidityPercent: event.target.value })}
+                    />
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Factor de rendimiento"
+                      type="number"
+                      step="0.01"
+                      value={inventoryLabForm.performanceFactor}
+                      onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, performanceFactor: event.target.value })}
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {cuppingFields.map(([field, label]) => (
+                      <input
+                        key={`inventory-${field}`}
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder={label}
+                        value={inventoryLabForm[field]}
+                        onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, [field]: event.target.value })}
+                      />
+                    ))}
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Score"
+                      type="number"
+                      step="0.01"
+                      value={inventoryLabForm.score}
+                      onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, score: event.target.value })}
+                    />
+                  </div>
+
+                  <textarea
+                    className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Notas de laboratorio"
+                    value={inventoryLabForm.notes}
+                    onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, notes: event.target.value })}
+                  />
+                  <textarea
+                    className="min-h-20 w-full rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm"
+                    placeholder="Nota obligatoria de correccion"
+                    value={inventoryLabForm.changeNote}
+                    onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, changeNote: event.target.value })}
+                    required
+                  />
+
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={saving}
+                  >
+                    <Save size={16} />
+                    Guardar analisis
+                  </button>
+                </div>
+              )}
+            </form>
           </div>
         ) : activePanel === "processes" ? (
           <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
@@ -1650,6 +1970,16 @@ const LaboratoryPage = () => {
                             </p>
                             <p className="mt-1 text-xs font-semibold text-ink">Score: {output.lab_score || "-"}</p>
                             {output.lab_notes && <p className="mt-1 text-xs text-slate-500">Notas: {output.lab_notes}</p>}
+                            {["admin", "laboratory"].includes(user?.role) && (
+                              <button
+                                className="mt-3 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                disabled={saving}
+                                type="button"
+                                onClick={() => editHistoryProcessOutputLabData(output)}
+                              >
+                                Editar analisis
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
