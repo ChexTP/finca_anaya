@@ -1,8 +1,11 @@
 import {
+  createPurchaseCoffee,
   createCoffeeProfile,
   ensureRequiredCatalogs,
   listCatalog,
   listCoffeeProfilesForAdmin,
+  listPurchaseCoffeesForAdmin,
+  updatePurchaseCoffee,
   updateCoffeeProfile,
 } from "../models/catalogs.model.js";
 import { findCoffeeProfileById } from "../models/lots.model.js";
@@ -17,6 +20,8 @@ const allowedCatalogs = {
 };
 
 const allowedCoffeeProfileCategories = ["Regional", "Varietal", "Exotico"];
+const allowedPurchaseCoffeeFamilies = ["Regional", "Varietal"];
+const allowedPurchaseCoffeeProcesses = ["Lavado", "Natural"];
 
 export const getCatalogs = async (req, res) => {
   try {
@@ -44,6 +49,105 @@ export const getCoffeeProfilesAdmin = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener perfiles comerciales",
+      error: error.message,
+    });
+  }
+};
+
+export const getPurchaseCoffeesAdmin = async (req, res) => {
+  try {
+    await ensureRequiredCatalogs();
+    const coffees = await listPurchaseCoffeesForAdmin();
+    res.json(coffees);
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al obtener perfiles de compra",
+      error: error.message,
+    });
+  }
+};
+
+const validatePurchaseCoffeePayload = ({ name, family, processType }) => {
+  if (!name || !allowedPurchaseCoffeeFamilies.includes(family) || !allowedPurchaseCoffeeProcesses.includes(processType)) {
+    return "Nombre, familia y proceso son obligatorios para el perfil de compra";
+  }
+
+  return null;
+};
+
+export const postPurchaseCoffee = async (req, res) => {
+  try {
+    const {
+      name,
+      family,
+      processType,
+      isActive = true,
+    } = req.body;
+    const validationError = validatePurchaseCoffeePayload({ name, family, processType });
+
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const coffee = await createPurchaseCoffee({
+      name: name.trim(),
+      family,
+      processType,
+      isActive,
+    });
+
+    res.status(201).json({
+      message: "Perfil de compra creado correctamente",
+      data: coffee,
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Ya existe un perfil de compra con ese nombre" });
+    }
+
+    res.status(500).json({
+      message: "Error al crear perfil de compra",
+      error: error.message,
+    });
+  }
+};
+
+export const putPurchaseCoffee = async (req, res) => {
+  try {
+    const {
+      name,
+      family,
+      processType,
+      isActive = true,
+    } = req.body;
+    const validationError = validatePurchaseCoffeePayload({ name, family, processType });
+
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const coffee = await updatePurchaseCoffee(req.params.id, {
+      name: name.trim(),
+      family,
+      processType,
+      isActive,
+    });
+
+    if (!coffee) {
+      return res.status(404).json({ message: "Perfil de compra no encontrado" });
+    }
+
+    res.json({
+      message: "Perfil de compra actualizado correctamente",
+      data: coffee,
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Ya existe un perfil de compra con ese nombre" });
+    }
+
+    res.status(500).json({
+      message: "Error al actualizar perfil de compra",
       error: error.message,
     });
   }

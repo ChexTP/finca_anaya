@@ -189,8 +189,8 @@ const CoffeeProfilesPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Cafes comerciales</h1>
-          <p className="text-sm text-slate-500">Administracion de cafes regionales, varietales y exoticos.</p>
+          <h1 className="text-xl font-bold text-ink">Perfiles de venta</h1>
+          <p className="text-sm text-slate-500">Administracion de cafes regionales, varietales y exoticos para cotizaciones.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -212,7 +212,7 @@ const CoffeeProfilesPage = () => {
 
           {profiles.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin perfiles" message="Los perfiles comerciales apareceran aqui." />
+              <EmptyState title="Sin perfiles" message="Los perfiles de venta apareceran aqui." />
             </div>
           ) : (
             <div className="overflow-x-auto">

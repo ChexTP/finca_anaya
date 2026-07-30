@@ -116,6 +116,63 @@ export const listCoffeeProfilesForAdmin = async () => {
   return result.rows;
 };
 
+export const listPurchaseCoffeesForAdmin = async () => {
+  const result = await pool.query(
+    `
+    SELECT *
+    FROM purchase_coffees
+    ORDER BY is_active DESC, family ASC, process_type ASC, name ASC
+    `
+  );
+
+  return result.rows;
+};
+
+export const createPurchaseCoffee = async ({
+  name,
+  family,
+  processType,
+  isActive = true,
+}) => {
+  const result = await pool.query(
+    `
+    INSERT INTO purchase_coffees (name, family, process_type, is_active)
+    VALUES ($1, $2, $3, $4)
+    RETURNING *
+    `,
+    [name, family, processType, isActive]
+  );
+
+  return result.rows[0];
+};
+
+export const updatePurchaseCoffee = async (
+  id,
+  {
+    name,
+    family,
+    processType,
+    isActive = true,
+  }
+) => {
+  const result = await pool.query(
+    `
+    UPDATE purchase_coffees
+    SET
+      name = $1,
+      family = $2,
+      process_type = $3,
+      is_active = $4,
+      updated_at = NOW()
+    WHERE id = $5
+    RETURNING *
+    `,
+    [name, family, processType, isActive, id]
+  );
+
+  return result.rows[0];
+};
+
 export const createCoffeeProfile = async ({
   name,
   code,

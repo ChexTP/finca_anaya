@@ -7,6 +7,7 @@ import LoginPage from "./modules/auth/LoginPage";
 import BackupsPage from "./modules/backups/BackupsPage";
 import CodeCountersPage from "./modules/admin/CodeCountersPage";
 import CoffeeProfilesPage from "./modules/catalogs/CoffeeProfilesPage";
+import PurchaseCoffeesPage from "./modules/catalogs/PurchaseCoffeesPage";
 import ClientsPage from "./modules/clients/ClientsPage";
 import CommercialPage from "./modules/commercial/CommercialPage";
 import DashboardPage from "./modules/dashboard/DashboardPage";
@@ -242,6 +243,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin"]}>
               <CoffeeProfilesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/perfiles-compra"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <PurchaseCoffeesPage />
             </ProtectedRoute>
           }
         />
