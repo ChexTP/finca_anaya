@@ -814,9 +814,9 @@ export const putSalePendingLaboratory = async (req, res) => {
       return res.status(404).json({ message: "Venta no encontrada" });
     }
 
-    if (!["lote_asignado", "ensamble_definido"].includes(sale.status)) {
+    if (!["lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(sale.status)) {
       return res.status(409).json({
-        message: "Solo se pueden enviar a laboratorio ventas con lotes asignados o ensamble definido",
+        message: "Solo se pueden enviar a laboratorio ventas con lotes asignados o ensamble listo/definido",
         data: sale,
       });
     }

@@ -294,7 +294,7 @@ export const markSalePendingLaboratory = async ({ saleId, notes }) => {
     UPDATE sales
     SET status = 'pendiente_laboratorio', notes = COALESCE($1, notes), updated_at = NOW()
     WHERE id = $2
-      AND status IN ('lote_asignado', 'ensamble_definido')
+      AND status IN ('lote_asignado', 'listo_para_ensamble', 'ensamble_definido')
     RETURNING *
     `,
     [notes || null, saleId]

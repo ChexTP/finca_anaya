@@ -1075,7 +1075,7 @@ const WarehousePendingPage = () => {
               />
 
               <div className="grid gap-2 sm:grid-cols-2">
-                {["lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
+                {["lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(selectedSale.status) && (
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded border border-leaf bg-emerald-50 px-3 py-2 text-sm font-semibold text-leaf disabled:opacity-60"
                   disabled={saving}
@@ -1083,7 +1083,7 @@ const WarehousePendingPage = () => {
                   onClick={() => updateSaleStatus("send-lab")}
                 >
                   <FlaskConical size={16} />
-                  Enviar a laboratorio
+                  Enviar prueba a laboratorio
                 </button>
                 )}
                 {selectedSale.status === "aprobada_laboratorio" && (
