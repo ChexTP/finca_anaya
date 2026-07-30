@@ -416,6 +416,22 @@ export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
         throw new Error("El producto de venta no pertenece a esta venta");
       }
 
+      const assignedLotResult = await client.query(
+        `
+        SELECT id
+        FROM sale_item_lots
+        WHERE sale_item_id = $1
+          AND lot_id = $2
+          AND deducted_at IS NULL
+        LIMIT 1
+        `,
+        [item.saleItemId, item.lotId]
+      );
+
+      if (!assignedLotResult.rows[0]) {
+        throw new Error("El lote del ensamble debe estar asignado por bodega a ese producto");
+      }
+
       const lotResult = await client.query(
         `
         SELECT id, status, available_weight_kg

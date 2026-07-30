@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
-import { formatCoffeeLotCodeName, formatCoffeeLotOption } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
@@ -69,8 +69,6 @@ const cuppingFields = [
   ["cleanCup", "Taza limpia"],
 ];
 
-const commercialCategories = ["Procesado", "Base", "Regional", "Varietal", "Exotico"];
-
 const processFilters = [
   { key: "pendiente_laboratorio", label: "Por analizar" },
 ];
@@ -82,6 +80,31 @@ const formatInputLabel = (input) => {
 const formatRequestedCoffee = (item = {}) => {
   const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
   return [...new Set(details)].join(" - ") || "Cafe sin especificar";
+};
+
+const formatKg = (value) => {
+  return `${Number(value || 0).toLocaleString("es-CO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  })} kg`;
+};
+
+const getAssignmentRole = (notes = "") => {
+  const text = String(notes || "");
+  if (text.startsWith("[Proceso]")) return "Proceso";
+  if (text.startsWith("[Base]")) return "Base";
+  if (text.startsWith("[Directo]")) return "Directo";
+  return "Asignado";
+};
+
+const getAssignedLotsForSaleItem = (sale, saleItemId) => {
+  return (sale?.deductedLots || []).filter(
+    (lot) => Number(lot.sale_item_id) === Number(saleItemId) && !lot.deducted_at
+  );
+};
+
+const formatAssignedLotOption = (lot) => {
+  return `${getAssignmentRole(lot.notes)} - ${formatCoffeeLotCodeName(lot)} - ${formatKg(lot.quantity_kg)} asignados`;
 };
 
 const buildBlankSampleItemReviews = (sample) => {
@@ -132,7 +155,6 @@ const LaboratoryPage = () => {
   const [saleLabRequests, setSaleLabRequests] = useState([]);
   const [history, setHistory] = useState({ lots: [], processes: [] });
   const [historySearch, setHistorySearch] = useState("");
-  const [availableLots, setAvailableLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
   const [selectedProcess, setSelectedProcess] = useState(null);
@@ -149,12 +171,11 @@ const LaboratoryPage = () => {
   const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
-    const [lotData, processData, sampleData, saleData, availableLotData, catalogData, historyData] = await Promise.all([
+    const [lotData, processData, sampleData, saleData, catalogData, historyData] = await Promise.all([
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/processes"),
       apiRequest("/samples?status=pendiente_laboratorio"),
       apiRequest("/sales"),
-      apiRequest("/inventory/lots"),
       apiRequest("/catalogs"),
       apiRequest("/laboratory/history"),
     ]);
@@ -164,7 +185,6 @@ const LaboratoryPage = () => {
     setSamples(sampleData);
     setSales(saleData.filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
     setSaleLabRequests(saleData.filter((sale) => sale.status === "pendiente_laboratorio"));
-    setAvailableLots(availableLotData);
     setCatalogs(catalogData);
     setHistory(historyData);
 
@@ -343,24 +363,32 @@ const LaboratoryPage = () => {
       setSelectedSale(sale);
       const existingRows = sale.blendItems?.map((item) => ({
         saleItemId: String(item.sale_item_id),
-        category: item.commercial_classification || "",
         lotId: String(item.lot_id),
         percentage: String(item.percentage),
         notes: item.notes || "",
       }));
+      const assignedRows = (sale.deductedLots || [])
+        .filter((lot) => !lot.deducted_at)
+        .map((lot) => ({
+          saleItemId: String(lot.sale_item_id),
+          lotId: String(lot.lot_id),
+          percentage: "",
+          notes: getAssignmentRole(lot.notes),
+        }));
 
       setBlendRows(
         existingRows?.length
           ? existingRows
-          : [
-              {
-                saleItemId: sale.items?.[0]?.id ? String(sale.items[0].id) : "",
-                category: "",
-                lotId: "",
-                percentage: "",
-                notes: "",
-              },
-            ]
+          : assignedRows.length
+            ? assignedRows
+            : [
+                {
+                  saleItemId: sale.items?.[0]?.id ? String(sale.items[0].id) : "",
+                  lotId: "",
+                  percentage: "",
+                  notes: "",
+                },
+              ]
       );
     } catch (requestError) {
       setError(requestError.message);
@@ -377,7 +405,7 @@ const LaboratoryPage = () => {
         return {
           ...row,
           [field]: value,
-          ...(field === "category" ? { lotId: "" } : {}),
+          ...(field === "saleItemId" ? { lotId: "" } : {}),
         };
       })
     );
@@ -388,7 +416,6 @@ const LaboratoryPage = () => {
       ...currentRows,
       {
         saleItemId: selectedSale?.items?.[0]?.id ? String(selectedSale.items[0].id) : "",
-        category: "",
         lotId: "",
         percentage: "",
         notes: "",
@@ -1611,16 +1638,14 @@ const LaboratoryPage = () => {
 
                   <div className="space-y-3">
                     {blendRows.map((row, index) => {
-                      const filteredLots = availableLots.filter((lot) => {
-                        if (!row.category) return true;
-                        return lot.commercial_classification === row.category;
-                      });
+                      const assignedLots = getAssignedLotsForSaleItem(selectedSale, row.saleItemId);
+                      const selectedAssignedLot = assignedLots.find((lot) => String(lot.lot_id) === String(row.lotId));
 
                       return (
                         <div key={`blend-${index}`} className="min-w-0 overflow-hidden rounded border border-slate-200 p-3">
                           <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                             <select
-                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
                               value={row.saleItemId}
                               onChange={(event) => updateBlendRow(index, "saleItemId", event.target.value)}
                               required
@@ -1632,29 +1657,32 @@ const LaboratoryPage = () => {
                                 </option>
                               ))}
                             </select>
-                            <select
-                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
-                              value={row.category}
-                              onChange={(event) => updateBlendRow(index, "category", event.target.value)}
-                              required
-                            >
-                              <option value="">Categoria</option>
-                              {commercialCategories.map((category) => (
-                                <option key={category} value={category}>
-                                  {category}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">
+                              <p className="font-semibold">Lotes asignados por bodega para este producto</p>
+                              {assignedLots.length ? (
+                                <div className="mt-1 space-y-1">
+                                  {assignedLots.map((lot) => (
+                                    <p key={lot.id || `${lot.lot_id}-${lot.quantity_kg}`}>
+                                      {formatAssignedLotOption(lot)}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-1">
+                                  Bodega aun no ha asignado lotes a este producto. Primero debe quedar la asignacion operativa.
+                                </p>
+                              )}
+                            </div>
                             <select
                               className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
                               value={row.lotId}
                               onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
                               required
                             >
-                              <option value="">Lote de la categoria</option>
-                              {filteredLots.map((lot) => (
-                                <option key={lot.id} value={lot.id}>
-                                  {formatCoffeeLotOption(lot)}
+                              <option value="">Lote asignado por bodega</option>
+                              {assignedLots.map((lot) => (
+                                <option key={lot.id || `${lot.lot_id}-${lot.quantity_kg}`} value={lot.lot_id}>
+                                  {formatAssignedLotOption(lot)}
                                 </option>
                               ))}
                             </select>
@@ -1669,6 +1697,11 @@ const LaboratoryPage = () => {
                               onChange={(event) => updateBlendRow(index, "percentage", event.target.value)}
                               required
                             />
+                            {selectedAssignedLot && (
+                              <div className="rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                Cantidad asignada: {formatKg(selectedAssignedLot.quantity_kg)}
+                              </div>
+                            )}
                           </div>
                           <textarea
                             className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
