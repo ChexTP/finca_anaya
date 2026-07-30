@@ -19,6 +19,8 @@ const initialLiquidation = {
   notes: "",
 };
 
+const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
+
 const InventoryPage = () => {
   const { user } = useAuth();
   const [lots, setLots] = useState([]);
@@ -294,7 +296,7 @@ const InventoryPage = () => {
                       <tr key={lot.id}>
                         <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                         <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
-                        <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
+                        <td className="px-3 py-2">{formatKg(lot.net_weight_kg)}</td>
                         <td className="px-3 py-2">
                           <button
                             className="rounded border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
@@ -375,7 +377,7 @@ const InventoryPage = () => {
                       <tr key={lot.id}>
                         <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                         <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
-                        <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
+                        <td className="px-3 py-2">{formatKg(lot.net_weight_kg)}</td>
                         <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                         <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                         <td className="px-3 py-2">{lot.lab_score || "-"}</td>
@@ -466,7 +468,7 @@ const InventoryPage = () => {
               }}
             >
               <span className="block font-semibold">Todo</span>
-              <span className="text-xs">{lots.length} lotes - {allAvailableKg.toFixed(3)} kg</span>
+              <span className="text-xs">{lots.length} lotes - {formatKg(allAvailableKg)}</span>
             </button>
             {presentationOptions.map((option) => (
               <button
@@ -481,7 +483,7 @@ const InventoryPage = () => {
                 }}
               >
                 <span className="block font-semibold">{option.presentation}</span>
-                <span className="text-xs">{option.count} lotes - {option.kg.toFixed(3)} kg</span>
+                <span className="text-xs">{option.count} lotes - {formatKg(option.kg)}</span>
               </button>
             ))}
           </div>
@@ -494,7 +496,7 @@ const InventoryPage = () => {
               onClick={() => setSelectedGroup("all")}
             >
               <span className="block font-semibold">Todos los tipos</span>
-              <span className="text-xs">{presentationFilteredLots.length} lotes - {totalAvailableKg.toFixed(3)} kg</span>
+              <span className="text-xs">{presentationFilteredLots.length} lotes - {formatKg(totalAvailableKg)}</span>
             </button>
             {groupCards.map((group) => (
               <button
@@ -506,7 +508,7 @@ const InventoryPage = () => {
                 onClick={() => setSelectedGroup(group.name)}
               >
                 <span className="block font-semibold">{group.name}</span>
-                <span className="text-xs">{group.count} lotes - {group.kg.toFixed(3)} kg</span>
+                <span className="text-xs">{group.count} lotes - {formatKg(group.kg)}</span>
               </button>
             ))}
           </div>
@@ -543,14 +545,18 @@ const InventoryPage = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredLots.map((lot) => (
                   <tr key={lot.id}>
-                    <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <p>{formatCoffeeLotCodeName(lot)}</p>
+                      <p className="mt-1 text-xs font-semibold text-leaf">Disponible: {formatKg(lot.available_weight_kg)}</p>
+                      <p className="text-xs text-slate-500">Peso neto: {formatKg(lot.net_weight_kg)}</p>
+                    </td>
                     <td className="px-3 py-2">{lot.presentation || "Pergamino"}</td>
                     <td className="px-3 py-2">{lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                     <td className="px-3 py-2">{lot.coffee_variety || "-"}</td>
                     <td className="px-3 py-2">{lot.received_at ? new Date(lot.received_at).toLocaleDateString("es-CO") : "-"}</td>
-                    <td className="px-3 py-2">{lot.available_weight_kg} kg</td>
+                    <td className="px-3 py-2 font-semibold text-ink">{formatKg(lot.available_weight_kg)}</td>
                     <td className="px-3 py-2">{lot.humidity_percent || "-"}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                     <td className="px-3 py-2">
@@ -615,7 +621,7 @@ const InventoryPage = () => {
                     <tr key={movement.id}>
                       <td className="px-3 py-2">{movement.created_at ? new Date(movement.created_at).toLocaleString("es-CO") : "-"}</td>
                       <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(movement)}</td>
-                      <td className="px-3 py-2">{movement.quantity_kg} kg</td>
+                      <td className="px-3 py-2">{formatKg(movement.quantity_kg)}</td>
                       <td className="px-3 py-2">{movement.notes || "-"}</td>
                       <td className="px-3 py-2">{movement.created_by_name || "-"}</td>
                     </tr>
