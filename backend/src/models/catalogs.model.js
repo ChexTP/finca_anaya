@@ -2,6 +2,21 @@ import { pool } from "../db.js";
 
 const requiredPaymentMethods = ["Efectivo", "Transferencia", "Cheque", "Otro"];
 const requiredPayableCategories = ["Lote de cafe"];
+const requiredCoffeeTypes = ["Lavado", "Natural", "Semilavado"];
+const requiredPackagingTypes = [
+  ["Costal o saco de fique", 0.7],
+  ["Tula o estopa", 0.2],
+  ["Bolsa interna", 0.05],
+];
+const requiredPurchaseCoffees = [
+  ["Regional Lavado", "Regional", "Lavado"],
+  ["Regional Natural", "Regional", "Natural"],
+  ["Rosado Lavado", "Varietal", "Lavado"],
+  ["Rosado Natural", "Varietal", "Natural"],
+  ["Desco Lavado", "Varietal", "Lavado"],
+  ["Geisha Lavado", "Varietal", "Lavado"],
+  ["Geisha Natural", "Varietal", "Natural"],
+];
 
 const ensureNamedCatalogRows = async (tableName, names) => {
   for (const name of names) {
@@ -18,8 +33,37 @@ const ensureNamedCatalogRows = async (tableName, names) => {
 };
 
 export const ensureRequiredCatalogs = async () => {
+  await ensureNamedCatalogRows("coffee_types", requiredCoffeeTypes);
   await ensureNamedCatalogRows("payment_methods", requiredPaymentMethods);
   await ensureNamedCatalogRows("payable_categories", requiredPayableCategories);
+
+  for (const [name, tareKg] of requiredPackagingTypes) {
+    await pool.query(
+      `
+      INSERT INTO packaging_types (name, tare_kg, is_active)
+      VALUES ($1, $2, TRUE)
+      ON CONFLICT (name) DO UPDATE
+      SET tare_kg = EXCLUDED.tare_kg,
+          is_active = TRUE
+      `,
+      [name, tareKg]
+    );
+  }
+
+  for (const [name, family, processType] of requiredPurchaseCoffees) {
+    await pool.query(
+      `
+      INSERT INTO purchase_coffees (name, family, process_type, is_active)
+      VALUES ($1, $2, $3, TRUE)
+      ON CONFLICT (name) DO UPDATE
+      SET family = EXCLUDED.family,
+          process_type = EXCLUDED.process_type,
+          is_active = TRUE,
+          updated_at = NOW()
+      `,
+      [name, family, processType]
+    );
+  }
 };
 
 export const listCatalog = async (tableName) => {

@@ -932,10 +932,19 @@ ALTER TABLE sample_item_blends ALTER COLUMN lot_id DROP NOT NULL;
 INSERT INTO packaging_types (name, tare_kg)
 VALUES
   ('Costal o saco de fique', 0.700),
-  ('Tula o estopa', 0.200)
+  ('Tula o estopa', 0.200),
+  ('Bolsa interna', 0.050)
 ON CONFLICT (name) DO UPDATE
 SET tare_kg = EXCLUDED.tare_kg,
     is_active = TRUE;
+
+INSERT INTO payment_methods (name)
+VALUES ('Efectivo'), ('Transferencia'), ('Cheque'), ('Otro')
+ON CONFLICT (name) DO UPDATE SET is_active = TRUE;
+
+INSERT INTO payable_categories (name)
+VALUES ('Lote de cafe')
+ON CONFLICT (name) DO UPDATE SET is_active = TRUE;
 
 -- Los tipos activos corresponden al beneficio con el que llega el cafe a bodega.
 INSERT INTO coffee_types (name) VALUES ('Lavado'), ('Natural'), ('Semilavado')
@@ -959,9 +968,17 @@ SET family = EXCLUDED.family,
     is_active = TRUE,
     updated_at = NOW();
 
--- Rol gerencial para consultar informes de produccion y necesidades de cafe.
+-- Roles internos base del sistema. Se reponen en cada arranque para evitar
+-- fallos si una limpieza de datos deja usuarios sin su rol de referencia.
 INSERT INTO roles (name, label)
-VALUES ('management', 'Gerencia')
+VALUES
+  ('admin', 'Administrador'),
+  ('warehouse', 'Bodega'),
+  ('laboratory', 'Laboratorio'),
+  ('accounting', 'Contabilidad'),
+  ('seller', 'Vendedor'),
+  ('samples', 'Muestras'),
+  ('management', 'Gerencia')
 ON CONFLICT (name) DO UPDATE SET label = EXCLUDED.label;
 
 INSERT INTO users (name, username, password_hash, role_id)
