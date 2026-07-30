@@ -168,6 +168,81 @@ const WarehousePendingPage = () => {
     return [prefixes[kind] || prefixes.ambos, notes].filter(Boolean).join(" ");
   };
 
+  const isShortageActiveForType = (item, assignmentType) => {
+    if (!item.shortage_marked) return false;
+    if (assignmentType === "directo") return true;
+
+    const shortageKind = getShortageKindFromNotes(item.shortage_notes);
+    return shortageKind === "ambos" || shortageKind === assignmentType;
+  };
+
+  const getNextShortageKind = (item, assignmentType) => {
+    if (assignmentType === "directo") {
+      return item.shortage_marked ? null : "ambos";
+    }
+
+    if (!item.shortage_marked) return assignmentType;
+
+    const currentKind = getShortageKindFromNotes(item.shortage_notes);
+
+    if (currentKind === "ambos") {
+      return assignmentType === "base" ? "proceso" : "base";
+    }
+
+    if (currentKind === assignmentType) return null;
+
+    return "ambos";
+  };
+
+  const getShortageButtonLabel = (assignmentType, active) => {
+    if (active) return "Quitar faltante";
+    if (assignmentType === "proceso") return "No hay proceso";
+    if (assignmentType === "base") return "No hay base";
+    return "No hay cafe";
+  };
+
+  const getShortageStatusLabel = (item) => {
+    if (!item.shortage_marked) return "No";
+
+    const noteText = String(item.shortage_notes || "").trim();
+    const hasShortagePrefix = noteText.startsWith("[Falta ");
+    if (!hasShortagePrefix && item.coffee_profile_category !== "Exotico") return "Si";
+
+    const shortageKind = getShortageKindFromNotes(item.shortage_notes);
+    if (shortageKind === "base") return "Base";
+    if (shortageKind === "proceso") return "Proceso";
+    if (shortageKind === "ambos") return "Base y proceso";
+    return "Si";
+  };
+
+  const buildCleanAssignments = ({ exclude } = {}) =>
+    assignmentRows
+      .filter((row) => !exclude || !(
+        String(row.saleItemId) === String(exclude.saleItemId) &&
+        (row.assignmentType || "directo") === exclude.assignmentType
+      ))
+      .map((row) => ({
+        saleItemId: Number(row.saleItemId),
+        lotId: Number(row.lotId),
+        quantityKg: Number(row.quantityKg),
+        notes: buildAssignmentNotes(row),
+      }))
+      .filter((row) => row.saleItemId && row.lotId && row.quantityKg > 0);
+
+  const persistValidAssignments = async ({ exclude } = {}) => {
+    if (!selectedSale) return null;
+
+    const cleanAssignments = buildCleanAssignments({ exclude });
+    if (cleanAssignments.length === 0) return null;
+
+    return apiRequest(`/sales/${selectedSale.id}/lot-assignments`, {
+      method: "PUT",
+      body: JSON.stringify({
+        items: cleanAssignments,
+      }),
+    });
+  };
+
   const getSuggestedQuantities = (item) => {
     if (item.coffee_profile_category !== "Exotico") return null;
 
@@ -336,14 +411,7 @@ const WarehousePendingPage = () => {
   const saveAssignments = async () => {
     if (!selectedSale) return;
 
-    const cleanAssignments = assignmentRows
-      .map((row) => ({
-        saleItemId: Number(row.saleItemId),
-        lotId: Number(row.lotId),
-        quantityKg: Number(row.quantityKg),
-        notes: buildAssignmentNotes(row),
-      }))
-      .filter((row) => row.saleItemId && row.lotId && row.quantityKg > 0);
+    const cleanAssignments = buildCleanAssignments();
 
     if (cleanAssignments.length === 0) {
       setError("Agregue al menos un lote y una cantidad para guardar la asignacion.");
@@ -397,45 +465,51 @@ const WarehousePendingPage = () => {
     }
   };
 
-  const toggleItemShortage = async (item) => {
+  const toggleItemShortage = async (item, assignmentType = "directo") => {
     if (!selectedSale) return;
 
-    const nextMarked = !item.shortage_marked;
+    const nextKind = getNextShortageKind(item, assignmentType);
+    const nextMarked = Boolean(nextKind);
     const suggested = getSuggestedQuantities(item);
-    let shortageKind = getShortageKindFromNotes(item.shortage_notes);
-
-    if (nextMarked && suggested) {
-      const typeAnswer = window.prompt("Que falta para este pedido? Escriba base, proceso o ambos.", shortageKind);
-      if (typeAnswer === null) return;
-
-      const normalizedType = typeAnswer.trim().toLowerCase();
-      shortageKind = ["base", "proceso", "ambos"].includes(normalizedType) ? normalizedType : "ambos";
-    }
 
     const rawNotes = nextMarked
       ? window.prompt("Observacion para gerencia sobre este faltante", cleanShortageNotes(item.shortage_notes))
       : cleanShortageNotes(item.shortage_notes);
 
     if (rawNotes === null) return;
-    if (!window.confirm(nextMarked ? "Confirmas marcar este producto como faltante?" : "Confirmas quitar la marca de faltante?")) return;
+    if (!window.confirm(nextMarked ? "Confirmas marcar este faltante?" : "Confirmas quitar esta marca de faltante?")) return;
 
     setSaving(true);
     setMessage("");
     setError("");
 
     try {
+      if (nextMarked) {
+        try {
+          await persistValidAssignments();
+        } catch {
+          await persistValidAssignments({
+            exclude: {
+              saleItemId: item.id,
+              assignmentType,
+            },
+          });
+        }
+      }
+
       const response = await apiRequest(`/sales/${selectedSale.id}/items/${item.id}/shortage`, {
         method: "PUT",
         body: JSON.stringify({
           shortageMarked: nextMarked,
           notes: nextMarked && suggested
-            ? buildShortageNotes({ kind: shortageKind, notes: rawNotes })
+            ? buildShortageNotes({ kind: nextKind, notes: rawNotes })
             : rawNotes,
         }),
       });
       setSelectedSale(response.data);
       await loadData();
-      setMessage(nextMarked ? "Producto marcado como faltante." : "Marca de faltante retirada.");
+      await loadSaleDetail(selectedSale.id, false);
+      setMessage(nextMarked ? "Faltante marcado sin borrar asignaciones validas." : "Marca de faltante retirada.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -445,12 +519,28 @@ const WarehousePendingPage = () => {
 
   const renderAssignmentBlock = (item, { assignmentType, title, description, addLabel }) => {
     const rows = getItemAssignmentRowsByType(item, assignmentType);
+    const shortageActive = isShortageActiveForType(item, assignmentType);
 
     return (
       <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
-        <div>
-          <p className="text-xs font-semibold uppercase text-slate-500">{title}</p>
-          {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase text-slate-500">{title}</p>
+            {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
+          </div>
+          <button
+            className={`inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
+              shortageActive
+                ? "border-amber-300 bg-amber-50 text-amber-700"
+                : "border-rose-300 text-rose-700 hover:bg-rose-50"
+            }`}
+            type="button"
+            onClick={() => toggleItemShortage(item, assignmentType)}
+            disabled={saving}
+          >
+            <AlertTriangle size={13} />
+            {getShortageButtonLabel(assignmentType, shortageActive)}
+          </button>
         </div>
         {rows.map((row) => {
           const rowIndex = assignmentRows.indexOf(row);
@@ -788,23 +878,10 @@ const WarehousePendingPage = () => {
                                 <span className="text-amber-700">Reservado: {formatOperationalKg(item.reserved_kg)}</span>
                                 {" · "}
                                 <span className={item.shortage_marked ? "font-semibold text-rose-700" : "font-semibold text-slate-500"}>
-                                  Marcado faltante: {item.shortage_marked ? "Si" : "No"}
+                                  Marcado faltante: {getShortageStatusLabel(item)}
                                 </span>
                               </p>
                             </div>
-                            <button
-                              className={`inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
-                                item.shortage_marked
-                                  ? "border-amber-300 bg-amber-50 text-amber-700"
-                                  : "border-slate-300 text-slate-600 hover:bg-slate-50"
-                              }`}
-                              type="button"
-                              onClick={() => toggleItemShortage(item)}
-                              disabled={saving}
-                            >
-                              <AlertTriangle size={13} />
-                              {item.shortage_marked ? "Faltante" : "No hay cafe"}
-                            </button>
                           </div>
 
                           {suggested ? (
