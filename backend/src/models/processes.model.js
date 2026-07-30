@@ -1,6 +1,8 @@
 import { pool } from "../db.js";
 import { getNextCode, reserveNextCodes } from "./codeCounters.model.js";
 
+const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
+
 export const getNextProcessCode = async () => {
   return getNextCode({ prefix: "PRO", tableName: "coffee_processes" });
 };
@@ -477,6 +479,7 @@ export const completeProcessPhysicalReview = async ({
         }];
 
     const totalOutputKg = cleanOutputs.reduce((total, output) => total + Number(output.outputWeightKg || 0), 0);
+    const createsInventoryDirectly = directInventoryProcessTypes.includes(process.process_type);
 
     if (totalOutputKg <= 0 || totalOutputKg > Number(process.total_input_kg)) {
       await client.query("ROLLBACK");
@@ -484,6 +487,7 @@ export const completeProcessPhysicalReview = async ({
     }
 
     await client.query("DELETE FROM coffee_process_outputs WHERE process_id = $1", [processId]);
+    const savedOutputs = [];
 
     for (const output of cleanOutputs) {
       if (!output.coffeeProfileId) {
@@ -500,7 +504,7 @@ export const completeProcessPhysicalReview = async ({
         throw new Error("Perfil comercial de salida no encontrado o inactivo");
       }
 
-      await client.query(
+      const insertedOutput = await client.query(
         `
         INSERT INTO coffee_process_outputs (
           process_id,
@@ -512,6 +516,7 @@ export const completeProcessPhysicalReview = async ({
           notes
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
         `,
         [
           processId,
@@ -523,16 +528,125 @@ export const completeProcessPhysicalReview = async ({
           output.notes || null,
         ]
       );
+      savedOutputs.push(insertedOutput.rows[0]);
+    }
+
+    if (createsInventoryDirectly) {
+      const outputCodes = await reserveNextCodes({
+        prefix: "PROC",
+        tableName: "coffee_lots",
+        count: savedOutputs.length,
+        client,
+      });
+      const createdLots = [];
+
+      for (const [index, output] of savedOutputs.entries()) {
+        const code = outputCodes[index];
+        const outputResult = await client.query(
+          `
+          INSERT INTO coffee_lots (
+            code,
+            coffee_profile_id,
+            status,
+            presentation,
+            lot_kind,
+            commercial_classification,
+            gross_weight_kg,
+            tare_weight_kg,
+            net_weight_kg,
+            available_weight_kg,
+            humidity_percent,
+            performance_factor,
+            initial_comment,
+            created_by
+          )
+          VALUES ($1, $2, 'disponible', $3, 'PROC', 'Procesado', $4, 0, $4, $4, NULL, NULL, $5, $6)
+          RETURNING *
+          `,
+          [
+            code,
+            output.coffee_profile_id,
+            output.presentation || "Excelso",
+            output.output_weight_kg,
+            [
+              `Lote generado por ${process.process_type} ${process.code}`,
+              output.notes,
+            ].filter(Boolean).join("\n"),
+            reviewedBy,
+          ]
+        );
+        const newLot = outputResult.rows[0];
+        createdLots.push(newLot);
+
+        await client.query(
+          `
+          UPDATE coffee_process_outputs
+          SET output_lot_id = $1, updated_at = NOW()
+          WHERE id = $2
+          `,
+          [newLot.id, output.id]
+        );
+
+        await client.query(
+          `
+          INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+          VALUES ($1, 'proceso_entrada', $2, $3, $4)
+          `,
+          [newLot.id, output.output_weight_kg, `Lote generado por ${process.process_type} ${process.code}`, reviewedBy]
+        );
+      }
+
+      const firstLot = createdLots[0];
+
+      await client.query(
+        `
+        UPDATE coffee_processes
+        SET
+          status = 'finalizado',
+          output_lot_id = $1,
+          output_weight_kg = $2,
+          physical_humidity_percent = NULL,
+          physical_performance_factor = NULL,
+          physical_reviewed_by = $3,
+          physical_reviewed_at = NOW(),
+          finalized_by = $3,
+          finalized_at = NOW(),
+          updated_at = NOW()
+        WHERE id = $4
+        RETURNING *
+        `,
+        [firstLot.id, Number(totalOutputKg.toFixed(3)), reviewedBy, processId]
+      );
+
+      await client.query(
+        `
+        UPDATE coffee_lots
+        SET status = 'agotado', updated_at = NOW()
+        WHERE id IN (
+          SELECT lot_id
+          FROM coffee_process_inputs
+          WHERE process_id = $1
+        )
+        AND available_weight_kg = 0
+        `,
+        [processId]
+      );
+
+      await client.query("COMMIT");
+      return createdLots.length === 1 ? createdLots[0] : createdLots;
     }
 
     const weightedHumidity = cleanOutputs.reduce(
       (total, output) => total + Number(output.humidityPercent || 0) * Number(output.outputWeightKg || 0),
       0
     ) / totalOutputKg;
-    const weightedPerformance = cleanOutputs.reduce(
-      (total, output) => total + Number(output.performanceFactor || 0) * Number(output.outputWeightKg || 0),
-      0
-    ) / totalOutputKg;
+    const hasPerformanceFactor = cleanOutputs.some((output) => output.performanceFactor !== null && output.performanceFactor !== undefined);
+    const weightedPerformance = hasPerformanceFactor
+      ? cleanOutputs.reduce(
+          (total, output) => total + Number(output.performanceFactor || 0) * Number(output.outputWeightKg || 0),
+          0
+        ) / totalOutputKg
+      : null;
 
     const updateResult = await client.query(
       `
@@ -552,7 +666,7 @@ export const completeProcessPhysicalReview = async ({
       [
         Number(totalOutputKg.toFixed(3)),
         Number(weightedHumidity.toFixed(2)),
-        Number(weightedPerformance.toFixed(2)),
+        weightedPerformance === null ? null : Number(weightedPerformance.toFixed(2)),
         reviewedBy,
         processId,
       ]
@@ -598,7 +712,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
     if (
       !process.output_weight_kg ||
       process.physical_humidity_percent === null ||
-      process.physical_performance_factor === null
+      (process.process_type !== "Trilladora" && process.physical_performance_factor === null)
     ) {
       await client.query("ROLLBACK");
       return { missingPhysicalReview: true, process };

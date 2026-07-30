@@ -23,6 +23,7 @@ const initialStartForm = {
 };
 
 const processTypeOptions = ["Trilladora", "Seleccion electronica", "Otro proceso"];
+const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
 
 const initialPhysicalReviewForm = {
   outputs: [
@@ -111,6 +112,9 @@ const ProcessesPage = ({
       ? "Enviar a seleccionadora"
       : "Iniciar proceso";
   const operationLabel = fixedProcessType ? "envio" : "proceso";
+  const createsInventoryDirectly = (process) => directInventoryProcessTypes.includes(process?.process_type);
+  const requiresProcessPerformanceFactor = (process) => !createsInventoryDirectly(process);
+  const requiresProcessHumidity = (process) => !createsInventoryDirectly(process);
 
   const selectedInputs = useMemo(() => {
     return Object.entries(selectedLots)
@@ -335,13 +339,16 @@ const ProcessesPage = ({
   };
 
   const sendProcessToLaboratory = async (process) => {
-    if (!window.confirm(`Confirma que ${process.code} regreso a bodega para revision fisica?`)) return;
+    const directInventory = createsInventoryDirectly(process);
+    if (!window.confirm(`Confirma que ${process.code} regreso a bodega${directInventory ? "" : " para revision fisica"}?`)) return;
     setSaving(true);
     setError("");
     try {
       await apiRequest(`/processes/${process.id}/pending-laboratory`, { method: "PUT", body: JSON.stringify({}) });
       await loadData();
-      setMessage("Cafe recibido. Bodega debe completar la revision fisica.");
+      setMessage(directInventory
+        ? "Cafe recibido. Registre el peso de regreso para llevarlo a inventario."
+        : "Cafe recibido. Bodega debe completar la revision fisica.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -351,21 +358,29 @@ const ProcessesPage = ({
 
   const completePhysicalReview = async (event, process) => {
     event.preventDefault();
+    const requiresPerformanceFactor = requiresProcessPerformanceFactor(process);
+    const requiresHumidity = requiresProcessHumidity(process);
 
     const invalidOutput = physicalReviewForm.outputs.find((output) => (
       !output.coffeeProfileId ||
       !output.presentation ||
       !output.outputWeightKg ||
-      !output.humidityPercent ||
-      !output.performanceFactor
+      (requiresHumidity && !output.humidityPercent) ||
+      (requiresPerformanceFactor && !output.performanceFactor)
     ));
 
     if (invalidOutput) {
-      setError("Cada salida debe tener perfil comercial, presentacion, cantidad final, humedad y factor.");
+      setError(createsInventoryDirectly(process)
+        ? "Cada salida debe tener perfil comercial, presentacion y cantidad final."
+        : requiresPerformanceFactor
+        ? "Cada salida debe tener perfil comercial, presentacion, cantidad final, humedad y factor."
+        : "Cada salida debe tener perfil comercial, presentacion, cantidad final y humedad.");
       return;
     }
 
-    if (!window.confirm(`Confirma la revision fisica de ${process.code}?`)) return;
+    if (!window.confirm(createsInventoryDirectly(process)
+      ? `Confirma registrar el regreso de ${process.code}?`
+      : `Confirma la revision fisica de ${process.code}?`)) return;
 
     setSaving(true);
     setError("");
@@ -377,8 +392,8 @@ const ProcessesPage = ({
             coffeeProfileId: Number(output.coffeeProfileId),
             presentation: output.presentation,
             outputWeightKg: Number(output.outputWeightKg),
-            humidityPercent: Number(output.humidityPercent),
-            performanceFactor: Number(output.performanceFactor),
+            humidityPercent: output.humidityPercent === "" ? null : Number(output.humidityPercent),
+            performanceFactor: output.performanceFactor === "" ? null : Number(output.performanceFactor),
             notes: output.notes || null,
           })),
         }),
@@ -386,7 +401,9 @@ const ProcessesPage = ({
       setPhysicalReviewProcessId(null);
       setPhysicalReviewForm(initialPhysicalReviewForm);
       await loadData();
-      setMessage(`Revision fisica guardada. El ${operationLabel} ya aparece en Laboratorio.`);
+      setMessage(createsInventoryDirectly(process)
+        ? `Cafe recibido. El ${operationLabel} ya quedo disponible en inventario.`
+        : `Revision fisica guardada. El ${operationLabel} ya aparece en Laboratorio.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -598,7 +615,9 @@ const ProcessesPage = ({
                           {output.output_lot_code || "Sin lote PROC"} - {formatProfileLabel(output)}
                         </p>
                         <p className="text-slate-600">
-                          {output.presentation || "Excelso"} · {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
+                          {output.presentation || "Excelso"} · {output.output_weight_kg} kg
+                          {output.humidity_percent !== null && output.humidity_percent !== undefined ? ` · Humedad ${output.humidity_percent}%` : ""}
+                          {output.performance_factor !== null && output.performance_factor !== undefined ? ` · Factor ${output.performance_factor}` : ""}
                         </p>
                       </div>
                     ))}
@@ -670,7 +689,7 @@ const ProcessesPage = ({
                   onClick={() => sendProcessToLaboratory(process)}
                 >
                   <Save size={16} />
-                  Recibir para revision fisica
+                  {createsInventoryDirectly(process) ? "Recibir en bodega" : "Recibir para revision fisica"}
                 </button>
               )}
               {["admin", "warehouse"].includes(user?.role) && process.status === "pendiente_revision_fisica" && (
@@ -681,7 +700,7 @@ const ProcessesPage = ({
                   onClick={() => openPhysicalReviewForm(process)}
                 >
                   <Save size={16} />
-                  Registrar revision fisica
+                  {createsInventoryDirectly(process) ? "Registrar peso de regreso" : "Registrar revision fisica"}
                 </button>
               )}
               {physicalReviewProcessId === process.id && (
@@ -689,7 +708,13 @@ const ProcessesPage = ({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-ink">{fixedProcessType ? "Salidas del envio" : "Salidas del proceso"}</p>
-                      <p className="text-xs text-slate-600">Divida el cafe recibido por perfil comercial, peso, humedad y factor.</p>
+                      <p className="text-xs text-slate-600">
+                        {requiresProcessPerformanceFactor(process)
+                          ? "Divida el cafe recibido por perfil comercial, peso, humedad y factor."
+                          : createsInventoryDirectly(process)
+                            ? "Registre el cafe recibido por perfil comercial, presentacion y peso. No requiere laboratorio."
+                            : "Divida el cafe recibido por perfil comercial, peso y humedad."}
+                      </p>
                     </div>
                     <button
                       className="inline-flex items-center gap-1 rounded border border-leaf bg-white px-3 py-2 text-xs font-semibold text-leaf hover:bg-emerald-50"
@@ -732,25 +757,29 @@ const ProcessesPage = ({
                           value={output.outputWeightKg}
                           onChange={(event) => updatePhysicalOutput(index, "outputWeightKg", event.target.value)}
                         />
-                        <input
-                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
-                          placeholder="Humedad %"
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={output.humidityPercent}
-                          onChange={(event) => updatePhysicalOutput(index, "humidityPercent", event.target.value)}
-                        />
-                        <input
-                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
-                          placeholder="Factor"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={output.performanceFactor}
-                          onChange={(event) => updatePhysicalOutput(index, "performanceFactor", event.target.value)}
-                        />
+                        {requiresProcessHumidity(process) && (
+                          <input
+                            className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Humedad %"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={output.humidityPercent}
+                            onChange={(event) => updatePhysicalOutput(index, "humidityPercent", event.target.value)}
+                          />
+                        )}
+                        {requiresProcessPerformanceFactor(process) && (
+                          <input
+                            className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Factor"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={output.performanceFactor}
+                            onChange={(event) => updatePhysicalOutput(index, "performanceFactor", event.target.value)}
+                          />
+                        )}
                       </div>
                       <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                         <input
@@ -774,7 +803,7 @@ const ProcessesPage = ({
                     className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     disabled={saving}
                   >
-                    Guardar revision
+                    {createsInventoryDirectly(process) ? "Guardar y llevar a inventario" : "Guardar revision"}
                   </button>
                 </form>
               )}

@@ -31,6 +31,8 @@ const requiredCuppingFields = [
   "cleanCup",
 ];
 
+const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
+
 export const getProcesses = async (req, res) => {
   try {
     const processes = await listProcesses({ status: req.query.status, processType: req.query.processType });
@@ -207,6 +209,15 @@ export const putProcessPendingLaboratory = async (req, res) => {
 
 export const putProcessPhysicalReview = async (req, res) => {
   try {
+    const currentProcess = await findProcessById(req.params.id);
+
+    if (!currentProcess) {
+      return res.status(404).json({ message: "Proceso no encontrado" });
+    }
+
+    const createsInventoryDirectly = directInventoryProcessTypes.includes(currentProcess.process_type);
+    const requiresHumidity = !createsInventoryDirectly;
+    const requiresPerformanceFactor = !createsInventoryDirectly;
     const outputs = Array.isArray(req.body.outputs)
       ? req.body.outputs.map((output) => ({
           coffeeProfileId: Number(output.coffeeProfileId),
@@ -228,26 +239,29 @@ export const putProcessPhysicalReview = async (req, res) => {
       !Number.isFinite(output.outputWeightKg) ||
       output.outputWeightKg <= 0 ||
       !["Pergamino", "Excelso"].includes(output.presentation) ||
-      !Number.isFinite(output.humidityPercent) ||
-      output.humidityPercent < 0 ||
-      output.humidityPercent > 100 ||
-      !Number.isFinite(output.performanceFactor) ||
-      output.performanceFactor < 0
+      (requiresHumidity && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
+      (!requiresHumidity && output.humidityPercent !== null && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
+      (requiresPerformanceFactor && (!Number.isFinite(output.performanceFactor) || output.performanceFactor < 0)) ||
+      (!requiresPerformanceFactor && output.performanceFactor !== null && (!Number.isFinite(output.performanceFactor) || output.performanceFactor < 0))
     ));
 
     if (outputs.length > 0 && invalidOutput) {
       return res.status(400).json({
-        message: "Cada salida debe tener perfil comercial, presentacion, peso, humedad y factor validos",
+        message: createsInventoryDirectly
+          ? "Cada salida debe tener perfil comercial, presentacion y peso validos"
+          : requiresPerformanceFactor
+          ? "Cada salida debe tener perfil comercial, presentacion, peso, humedad y factor validos"
+          : "Cada salida debe tener perfil comercial, presentacion, peso y humedad validos",
       });
     }
 
     if (!Number.isFinite(outputWeight) || outputWeight <= 0) {
       return res.status(400).json({ message: "La cantidad final debe ser mayor a cero" });
     }
-    if (outputs.length === 0 && (!Number.isFinite(humidity) || humidity < 0 || humidity > 100)) {
+    if (outputs.length === 0 && requiresHumidity && (!Number.isFinite(humidity) || humidity < 0 || humidity > 100)) {
       return res.status(400).json({ message: "La humedad debe estar entre 0 y 100" });
     }
-    if (outputs.length === 0 && (!Number.isFinite(performance) || performance < 0)) {
+    if (outputs.length === 0 && requiresPerformanceFactor && (!Number.isFinite(performance) || performance < 0)) {
       return res.status(400).json({ message: "El factor de rendimiento es obligatorio" });
     }
 
@@ -266,7 +280,12 @@ export const putProcessPhysicalReview = async (req, res) => {
       });
     }
 
-    res.json({ message: "Revision fisica guardada. El proceso paso a laboratorio", data: process });
+    res.json({
+      message: createsInventoryDirectly
+        ? "Cafe recibido y disponible en inventario"
+        : "Revision fisica guardada. El proceso paso a laboratorio",
+      data: process,
+    });
   } catch (error) {
     res.status(500).json({ message: "Error al guardar revision fisica del proceso", error: error.message });
   }
