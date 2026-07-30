@@ -404,31 +404,51 @@ export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
       return null;
     }
 
+    const saleItemsResult = await client.query(
+      `
+      SELECT id, COALESCE(operational_weight_kg, quantity_kg) AS required_kg
+      FROM sale_items
+      WHERE sale_id = $1
+      `,
+      [saleId]
+    );
+    const saleItemsById = saleItemsResult.rows.reduce((itemsById, item) => {
+      itemsById[item.id] = item;
+      return itemsById;
+    }, {});
+
+    const existingAssignmentsResult = await client.query(
+      `
+      SELECT sale_item_lots.*
+      FROM sale_item_lots
+      INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+      WHERE sale_items.sale_id = $1
+        AND sale_item_lots.deducted_at IS NULL
+      FOR UPDATE
+      `,
+      [saleId]
+    );
+    const existingAssignmentsByKey = existingAssignmentsResult.rows.reduce((assignments, assignment) => {
+      assignments[`${assignment.sale_item_id}-${assignment.lot_id}`] = assignment;
+      return assignments;
+    }, {});
+
     await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [saleId]);
 
-    for (const item of items) {
-      const saleItemResult = await client.query(
-        "SELECT id FROM sale_items WHERE id = $1 AND sale_id = $2 LIMIT 1",
-        [item.saleItemId, saleId]
-      );
+    const desiredAssignments = new Map();
+    const desiredByLot = new Map();
 
-      if (!saleItemResult.rows[0]) {
+    for (const item of items) {
+      const saleItem = saleItemsById[item.saleItemId];
+
+      if (!saleItem) {
         throw new Error("El producto de venta no pertenece a esta venta");
       }
 
-      const assignedLotResult = await client.query(
-        `
-        SELECT id
-        FROM sale_item_lots
-        WHERE sale_item_id = $1
-          AND lot_id = $2
-          AND deducted_at IS NULL
-        LIMIT 1
-        `,
-        [item.saleItemId, item.lotId]
-      );
+      const assignmentKey = `${item.saleItemId}-${item.lotId}`;
+      const existingAssignment = existingAssignmentsByKey[assignmentKey];
 
-      if (!assignedLotResult.rows[0]) {
+      if (!existingAssignment) {
         throw new Error("El lote del ensamble debe estar asignado por bodega a ese producto");
       }
 
@@ -447,12 +467,78 @@ export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
         throw new Error("El lote seleccionado para mezcla no esta disponible en inventario");
       }
 
+      const calculatedQuantityKg = Number((Number(saleItem.required_kg || 0) * Number(item.percentage || 0) / 100).toFixed(3));
+      const desiredAssignment = desiredAssignments.get(assignmentKey) || {
+        saleItemId: item.saleItemId,
+        lotId: item.lotId,
+        quantityKg: 0,
+        notes: existingAssignment.notes || item.notes || null,
+      };
+      desiredAssignment.quantityKg = Number((desiredAssignment.quantityKg + calculatedQuantityKg).toFixed(3));
+      desiredAssignments.set(assignmentKey, desiredAssignment);
+      desiredByLot.set(item.lotId, Number(((desiredByLot.get(item.lotId) || 0) + calculatedQuantityKg).toFixed(3)));
+
       await client.query(
         `
         INSERT INTO sale_blend_items (sale_id, sale_item_id, lot_id, percentage, notes, created_by)
         VALUES ($1, $2, $3, $4, $5, $6)
         `,
         [saleId, item.saleItemId, item.lotId, item.percentage, item.notes || null, createdBy]
+      );
+    }
+
+    for (const [lotId, desiredQuantityKg] of desiredByLot.entries()) {
+      const lotAvailabilityResult = await client.query(
+        `
+        SELECT
+          coffee_lots.id,
+          coffee_lots.code,
+          coffee_lots.available_weight_kg,
+          COALESCE(SUM(other_assignments.quantity_kg) FILTER (WHERE other_sales.id IS NOT NULL), 0) AS reserved_other_sales_kg
+        FROM coffee_lots
+        LEFT JOIN sale_item_lots other_assignments
+          ON other_assignments.lot_id = coffee_lots.id
+          AND other_assignments.deducted_at IS NULL
+        LEFT JOIN sale_items other_items
+          ON other_items.id = other_assignments.sale_item_id
+        LEFT JOIN sales other_sales
+          ON other_sales.id = other_items.sale_id
+          AND other_sales.id <> $2
+          AND other_sales.status NOT IN ('despachada', 'anulada')
+        WHERE coffee_lots.id = $1
+        GROUP BY coffee_lots.id
+        LIMIT 1
+        `,
+        [lotId, saleId]
+      );
+      const lotAvailability = lotAvailabilityResult.rows[0];
+      const freeOperationalKg = Number(lotAvailability?.available_weight_kg || 0) - Number(lotAvailability?.reserved_other_sales_kg || 0);
+
+      if (!lotAvailability || freeOperationalKg < desiredQuantityKg) {
+        throw new Error(`El lote ${lotAvailability?.code || lotId} no tiene cantidad suficiente para el ensamble final`);
+      }
+    }
+
+    await client.query(
+      `
+      DELETE FROM sale_item_lots
+      WHERE sale_item_id IN (
+        SELECT id
+        FROM sale_items
+        WHERE sale_id = $1
+      )
+      AND deducted_at IS NULL
+      `,
+      [saleId]
+    );
+
+    for (const assignment of desiredAssignments.values()) {
+      await client.query(
+        `
+        INSERT INTO sale_item_lots (sale_item_id, lot_id, quantity_kg, notes, created_by)
+        VALUES ($1, $2, $3, $4, $5)
+        `,
+        [assignment.saleItemId, assignment.lotId, assignment.quantityKg, assignment.notes, createdBy]
       );
     }
 

@@ -417,11 +417,11 @@ const LaboratoryPage = () => {
     );
   };
 
-  const addBlendRow = () => {
+  const addBlendRow = (saleItemId = null) => {
     setBlendRows((currentRows) => [
       ...currentRows,
       {
-        saleItemId: selectedSale?.items?.[0]?.id ? String(selectedSale.items[0].id) : "",
+        saleItemId: saleItemId ? String(saleItemId) : selectedSale?.items?.[0]?.id ? String(selectedSale.items[0].id) : "",
         lotId: "",
         percentage: "",
         notes: "",
@@ -1642,29 +1642,38 @@ const LaboratoryPage = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {blendRows.map((row, index) => {
-                      const assignedLots = getAssignedLotsForSaleItem(selectedSale, row.saleItemId);
-                      const selectedAssignedLot = assignedLots.find((lot) => String(lot.lot_id) === String(row.lotId));
+                  <div className="space-y-5">
+                    {selectedSale.items?.map((saleItem, productIndex) => {
+                      const productRows = blendRows
+                        .map((row, index) => ({ row, index }))
+                        .filter(({ row }) => String(row.saleItemId) === String(saleItem.id));
+                      const assignedLots = getAssignedLotsForSaleItem(selectedSale, saleItem.id);
+                      const productLabel =
+                        saleItem.description || saleItem.coffee_profile_name || saleItem.coffee_type_name || "Producto";
+                      const totalPercentage = productRows.reduce((total, { row }) => total + Number(row.percentage || 0), 0);
 
                       return (
-                        <div key={`blend-${index}`} className="min-w-0 overflow-hidden rounded border border-slate-200 p-3">
-                          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                            <select
-                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
-                              value={row.saleItemId}
-                              onChange={(event) => updateBlendRow(index, "saleItemId", event.target.value)}
-                              required
-                            >
-                              <option value="">Producto vendido</option>
-                              {selectedSale.items?.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.quantity_kg} kg
-                                </option>
-                              ))}
-                            </select>
-                            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">
-                              <p className="font-semibold">Lotes asignados por bodega para este producto</p>
+                        <section
+                          key={`blend-product-${saleItem.id}`}
+                          className="overflow-hidden rounded border-2 border-emerald-200 bg-white shadow-sm"
+                        >
+                          <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3">
+                            <p className="text-xs font-semibold uppercase text-emerald-800">
+                              Producto {productIndex + 1} para definir ensamble
+                            </p>
+                            <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                              <h3 className="text-base font-bold text-ink">
+                                {productLabel} - {formatKg(saleItem.quantity_kg)}
+                              </h3>
+                              <StatusBadge tone={totalPercentage === 100 ? "success" : "warning"}>
+                                Total mezcla: {totalPercentage}%
+                              </StatusBadge>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 p-4">
+                            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                              <p className="font-semibold">Reservas operativas enviadas por bodega</p>
                               {assignedLots.length ? (
                                 <div className="mt-1 space-y-1">
                                   {assignedLots.map((lot) => (
@@ -1679,52 +1688,80 @@ const LaboratoryPage = () => {
                                 </p>
                               )}
                             </div>
-                            <select
-                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
-                              value={row.lotId}
-                              onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
-                              required
-                            >
-                              <option value="">Lote asignado por bodega</option>
-                              {assignedLots.map((lot) => (
-                                <option key={lot.id || `${lot.lot_id}-${lot.quantity_kg}`} value={lot.lot_id}>
-                                  {formatAssignedLotOption(lot)}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
-                              placeholder="Porcentaje %"
-                              type="text"
-                              inputMode="numeric"
-                              min="1"
-                              max="100"
-                              step="1"
-                              value={row.percentage}
-                              onChange={(event) => updateBlendRow(index, "percentage", normalizePercentageInput(event.target.value))}
-                              required
-                            />
-                            {selectedAssignedLot && (
-                              <div className="rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                                Cantidad asignada: {formatKg(selectedAssignedLot.quantity_kg)}
+
+                            {productRows.length === 0 && (
+                              <div className="rounded border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
+                                Sin componentes agregados para este producto.
                               </div>
                             )}
+
+                            {productRows.map(({ row, index }, rowIndex) => {
+                              const selectedAssignedLot = assignedLots.find((lot) => String(lot.lot_id) === String(row.lotId));
+
+                              return (
+                                <div key={`blend-${index}`} className="rounded border border-slate-200 bg-slate-50 p-3">
+                                  <p className="mb-2 text-xs font-semibold uppercase text-slate-500">
+                                    Componente {rowIndex + 1} de {productLabel}
+                                  </p>
+                                  <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                                    <select
+                                      className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:col-span-2"
+                                      value={row.lotId}
+                                      onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
+                                      required
+                                    >
+                                      <option value="">Lote asignado por bodega</option>
+                                      {assignedLots.map((lot) => (
+                                        <option key={lot.id || `${lot.lot_id}-${lot.quantity_kg}`} value={lot.lot_id}>
+                                          {formatAssignedLotOption(lot)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <input
+                                      className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                                      placeholder="Porcentaje %"
+                                      type="text"
+                                      inputMode="numeric"
+                                      min="1"
+                                      max="100"
+                                      step="1"
+                                      value={row.percentage}
+                                      onChange={(event) => updateBlendRow(index, "percentage", normalizePercentageInput(event.target.value))}
+                                      required
+                                    />
+                                    {selectedAssignedLot && (
+                                      <div className="rounded bg-white px-3 py-2 text-xs text-slate-600">
+                                        Reserva actual: {formatKg(selectedAssignedLot.quantity_kg)}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <textarea
+                                    className="mt-3 min-h-16 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                                    placeholder="Observacion opcional"
+                                    value={row.notes}
+                                    onChange={(event) => updateBlendRow(index, "notes", event.target.value)}
+                                  />
+                                  <button
+                                    className="mt-2 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                    type="button"
+                                    onClick={() => removeBlendRow(index)}
+                                    disabled={blendRows.length === 1}
+                                  >
+                                    Quitar componente
+                                  </button>
+                                </div>
+                              );
+                            })}
+
+                            <button
+                              className="rounded border border-emerald-300 px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                              type="button"
+                              onClick={() => addBlendRow(saleItem.id)}
+                            >
+                              Agregar componente a este cafe
+                            </button>
                           </div>
-                          <textarea
-                            className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                            placeholder="Observacion opcional"
-                            value={row.notes}
-                            onChange={(event) => updateBlendRow(index, "notes", event.target.value)}
-                          />
-                          <button
-                            className="mt-2 rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                            type="button"
-                            onClick={() => removeBlendRow(index)}
-                            disabled={blendRows.length === 1}
-                          >
-                            Quitar linea
-                          </button>
-                        </div>
+                        </section>
                       );
                     })}
                   </div>
@@ -1740,13 +1777,6 @@ const LaboratoryPage = () => {
                       No requiere mezcla
                     </button>
                     )}
-                    <button
-                      className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      type="button"
-                      onClick={addBlendRow}
-                    >
-                      Agregar lote
-                    </button>
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                       disabled={saving}

@@ -34,7 +34,7 @@ router.get(
 router.delete(
   "/lot-assignments/:assignmentId",
   requireAuth,
-  requireRoles("admin", "warehouse"),
+  requireRoles("admin", "warehouse", "laboratory"),
   deleteSaleLotAssignment
 );
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
@@ -107,19 +107,19 @@ router.put(
 router.put(
   "/:id/order-assignee",
   requireAuth,
-  requireRoles("admin", "warehouse", "accounting"),
+  requireRoles("admin", "warehouse", "accounting", "laboratory"),
   putSaleOrderAssignee
 );
 router.put(
   "/:id/items/:itemId/shortage",
   requireAuth,
-  requireRoles("admin", "warehouse", "accounting"),
+  requireRoles("admin", "warehouse", "accounting", "laboratory"),
   putSaleItemShortage
 );
 router.put(
   "/:id/lot-assignments",
   requireAuth,
-  requireRoles("admin", "warehouse"),
+  requireRoles("admin", "warehouse", "laboratory"),
   putSaleLotAssignments
 );
 router.post(
