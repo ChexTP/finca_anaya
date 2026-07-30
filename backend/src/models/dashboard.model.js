@@ -59,6 +59,7 @@ export const getDashboardData = async ({ role, userId }) => {
       dispatchedSalesWithDebt,
       overdueSales,
       overduePayables,
+      recentLabReviewedLots,
     }),
     inventoryNeeds,
   };
