@@ -48,6 +48,7 @@ const LotHistoryPage = ({ type = "accepted" }) => {
     to: "",
   });
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -93,6 +94,38 @@ const LotHistoryPage = ({ type = "accepted" }) => {
   }, [filters, lots]);
 
   const totalKg = filteredLots.reduce((sum, lot) => sum + Number(lot.net_weight_kg || 0), 0);
+
+  const confirmRejectedReturn = async (lot) => {
+    const notes = window.prompt(
+      `Observacion de devolucion para ${formatCoffeeLotCodeName(lot)}`,
+      "Devuelto al proveedor"
+    );
+
+    if (notes === null) return;
+
+    const confirmed = window.confirm(
+      `Confirmas que el lote ${formatCoffeeLotCodeName(lot)} ya fue devuelto y no sigue en bodega?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${lot.id}/withdraw-rejected`, {
+        method: "PUT",
+        body: JSON.stringify({ notes }),
+      });
+      await loadData();
+      setMessage("Lote rechazado marcado como devuelto al proveedor.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <section className="space-y-5">
@@ -159,6 +192,7 @@ const LotHistoryPage = ({ type = "accepted" }) => {
                   <th className="px-4 py-3">Disponible</th>
                   <th className="px-4 py-3">Laboratorio</th>
                   <th className="px-4 py-3">Estado</th>
+                  {type === "rejected" && <th className="px-4 py-3">Devolucion</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -181,6 +215,22 @@ const LotHistoryPage = ({ type = "accepted" }) => {
                     <td className="px-4 py-3">
                       <StatusBadge tone={getStatusTone(lot.status)}>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
                     </td>
+                    {type === "rejected" && (
+                      <td className="px-4 py-3">
+                        {lot.status === "rechazado" ? (
+                          <button
+                            className="rounded border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                            disabled={saving}
+                            type="button"
+                            onClick={() => confirmRejectedReturn(lot)}
+                          >
+                            Confirmar devolucion
+                          </button>
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-500">Devuelto</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
