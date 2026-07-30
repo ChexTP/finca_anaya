@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
-import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
+import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import {
   getSaleNextAction,
@@ -118,23 +118,37 @@ const WarehousePendingPage = () => {
   const getItemAssignmentRows = (item) =>
     assignmentRows.filter((row) => String(row.saleItemId) === String(item.id));
 
+  const getItemAssignmentRowsByType = (item, assignmentType) =>
+    assignmentRows.filter((row) => (
+      String(row.saleItemId) === String(item.id) &&
+      (row.assignmentType || "directo") === assignmentType
+    ));
+
+  const getAssignmentTypeFromNotes = (notes = "") => {
+    if (String(notes).startsWith("[Proceso]")) return "proceso";
+    if (String(notes).startsWith("[Base]")) return "base";
+    return "directo";
+  };
+
+  const cleanAssignmentNotes = (notes = "") =>
+    String(notes).replace(/^\[(Proceso|Base|Directo)\]\s*/i, "");
+
+  const buildAssignmentNotes = (row) => {
+    const prefixes = {
+      proceso: "[Proceso]",
+      base: "[Base]",
+      directo: "[Directo]",
+    };
+
+    return [prefixes[row.assignmentType] || prefixes.directo, row.notes].filter(Boolean).join(" ");
+  };
+
   const getSuggestedQuantities = (item) => {
     if (item.coffee_profile_category !== "Exotico") return null;
 
     const requiredKg = Number(item.operational_weight_kg || item.quantity_kg || 0);
-    const processFinalKg = requiredKg * 0.4;
-    const processInputBeforeConversionKg = processFinalKg / 0.95;
-    const baseFinalKg = requiredKg * 0.6;
-    const processInputKg = calculateOperationalKg({
-      quantityKg: processInputBeforeConversionKg,
-      productForm: item.product_form,
-      processType: item.process_type,
-    });
-    const baseKg = calculateOperationalKg({
-      quantityKg: baseFinalKg,
-      productForm: item.product_form,
-      processType: item.process_type,
-    });
+    const processInputKg = requiredKg * 0.4;
+    const baseKg = requiredKg * 0.6;
     const processName = item.profile_components?.[0]?.purchase_coffee_name || item.process_purchase_coffee_name || "Cafe para proceso";
     const baseName = item.base_purchase_coffee_name || "Cafe base";
 
@@ -180,17 +194,40 @@ const WarehousePendingPage = () => {
         sale.items?.flatMap((item) => {
           const rows = (sale.deductedLots || []).filter((lot) => Number(lot.sale_item_id) === Number(item.id));
 
-          return rows.length
-            ? rows.map((lot) => ({
+          if (rows.length) {
+            return rows.map((lot) => ({
               saleItemId: String(lot.sale_item_id),
               lotId: String(lot.lot_id),
               quantityKg: String(lot.quantity_kg),
-              notes: lot.notes || "",
-            }))
+              assignmentType: getAssignmentTypeFromNotes(lot.notes),
+              notes: cleanAssignmentNotes(lot.notes),
+            }));
+          }
+
+          const suggested = getSuggestedQuantities(item);
+
+          return suggested
+            ? [
+                {
+                  saleItemId: String(item.id),
+                  lotId: "",
+                  quantityKg: String(suggested.processInputKg || ""),
+                  assignmentType: "proceso",
+                  notes: "",
+                },
+                {
+                  saleItemId: String(item.id),
+                  lotId: "",
+                  quantityKg: String(suggested.baseKg || ""),
+                  assignmentType: "base",
+                  notes: "",
+                },
+              ]
             : [{
               saleItemId: String(item.id),
               lotId: "",
               quantityKg: "",
+              assignmentType: "directo",
               notes: "",
             }];
         }) || []
@@ -254,13 +291,14 @@ const WarehousePendingPage = () => {
     );
   };
 
-  const addItemAssignmentRow = (item) => {
+  const addItemAssignmentRow = (item, assignmentType = "directo") => {
     setAssignmentRows((currentRows) => [
       ...currentRows,
       {
         saleItemId: String(item.id),
         lotId: "",
         quantityKg: "",
+        assignmentType,
         notes: "",
       },
     ]);
@@ -278,7 +316,7 @@ const WarehousePendingPage = () => {
         saleItemId: Number(row.saleItemId),
         lotId: Number(row.lotId),
         quantityKg: Number(row.quantityKg),
-        notes: row.notes || null,
+        notes: buildAssignmentNotes(row),
       }))
       .filter((row) => row.saleItemId && row.lotId && row.quantityKg > 0);
 
@@ -365,6 +403,75 @@ const WarehousePendingPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const renderAssignmentBlock = (item, { assignmentType, title, description, addLabel }) => {
+    const rows = getItemAssignmentRowsByType(item, assignmentType);
+
+    return (
+      <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-slate-500">{title}</p>
+          {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
+        </div>
+        {rows.map((row) => {
+          const rowIndex = assignmentRows.indexOf(row);
+
+          return (
+            <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-2">
+              <select
+                className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                value={row.lotId}
+                onChange={(event) => updateAssignmentRow(rowIndex, "lotId", event.target.value)}
+              >
+                <option value="">Lote disponible</option>
+                {availableLotGroups.map((group) => (
+                  <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
+                    {group.lots.map((lot) => (
+                      <option key={lot.id} value={lot.id}>
+                        {formatCoffeeLotOption(lot)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder="Cantidad kg"
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={row.quantityKg}
+                  onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
+                />
+                <button
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  type="button"
+                  onClick={() => removeAssignmentRow(rowIndex)}
+                  disabled={rows.length === 1}
+                >
+                  Quitar
+                </button>
+              </div>
+              <input
+                className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                placeholder="Observacion opcional"
+                value={row.notes}
+                onChange={(event) => updateAssignmentRow(rowIndex, "notes", event.target.value)}
+              />
+            </div>
+          );
+        })}
+        <button
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          type="button"
+          onClick={() => addItemAssignmentRow(item, assignmentType)}
+        >
+          {addLabel}
+        </button>
+      </div>
+    );
   };
 
   const updateSaleStatus = async (action) => {
@@ -627,7 +734,6 @@ const WarehousePendingPage = () => {
                   <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
                     {(() => {
                       const suggested = getSuggestedQuantities(item);
-                      const rows = getItemAssignmentRows(item);
 
                       return (
                         <div className="space-y-3">
@@ -665,14 +771,14 @@ const WarehousePendingPage = () => {
 
                           {suggested ? (
                             <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                              <p className="font-semibold uppercase">Estimacion operativa, no ensamble final</p>
+                              <p className="font-semibold uppercase">Division operativa sugerida, no ensamble final</p>
                               <p className="mt-1">
-                                Cafe para proceso sugerido: <span className="font-semibold">{suggested.processName}</span> · {formatOperationalKg(suggested.processInputKg)}
+                                Para lote de proceso: <span className="font-semibold">{suggested.processName}</span> · {formatOperationalKg(suggested.processInputKg)}
                               </p>
                               <p>
-                                Cafe base sugerido: <span className="font-semibold">{suggested.baseName}</span> · {formatOperationalKg(suggested.baseKg)}
+                                Para lote de base: <span className="font-semibold">{suggested.baseName}</span> · {formatOperationalKg(suggested.baseKg)}
                               </p>
-                              <p className="mt-1 text-amber-700">Laboratorio define la mezcla final y los porcentajes reales.</p>
+                              <p className="mt-1 text-amber-700">Estas dos cantidades suman el operativo de bodega. Laboratorio define la mezcla final y los porcentajes reales.</p>
                             </div>
                           ) : (
                             <p className="rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
@@ -687,65 +793,29 @@ const WarehousePendingPage = () => {
                           )}
 
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
-                            <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-xs font-semibold uppercase text-slate-500">Asignar lote a este cafe</p>
-                              {rows.map((row) => {
-                                const rowIndex = assignmentRows.indexOf(row);
-
-                                return (
-                                  <div key={`assignment-${item.id}-${rowIndex}`} className="grid min-w-0 gap-2">
-                                    <select
-                                      className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                                      value={row.lotId}
-                                      onChange={(event) => updateAssignmentRow(rowIndex, "lotId", event.target.value)}
-                                    >
-                                      <option value="">Lote disponible</option>
-                                      {availableLotGroups.map((group) => (
-                                        <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
-                                          {group.lots.map((lot) => (
-                                            <option key={lot.id} value={lot.id}>
-                                              {formatCoffeeLotOption(lot)}
-                                            </option>
-                                          ))}
-                                        </optgroup>
-                                      ))}
-                                    </select>
-                                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                                      <input
-                                        className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                                        placeholder="Cantidad kg"
-                                        type="number"
-                                        min="0.001"
-                                        step="0.001"
-                                        value={row.quantityKg}
-                                        onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
-                                      />
-                                      <button
-                                        className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                                        type="button"
-                                        onClick={() => removeAssignmentRow(rowIndex)}
-                                        disabled={rows.length === 1}
-                                      >
-                                        Quitar
-                                      </button>
-                                    </div>
-                                    <input
-                                      className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                                      placeholder="Observacion opcional"
-                                      value={row.notes}
-                                      onChange={(event) => updateAssignmentRow(rowIndex, "notes", event.target.value)}
-                                    />
-                                  </div>
-                                );
-                              })}
-                              <button
-                                className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                type="button"
-                                onClick={() => addItemAssignmentRow(item)}
-                              >
-                                Agregar otro lote a este cafe
-                              </button>
-                            </div>
+                            suggested ? (
+                              <div className="space-y-3">
+                                {renderAssignmentBlock(item, {
+                                  assignmentType: "proceso",
+                                  title: "Asignar lote para proceso",
+                                  description: `Separe hasta ${formatOperationalKg(suggested.processInputKg)} de ${suggested.processName} para el proceso.`,
+                                  addLabel: "Agregar otro lote para proceso",
+                                })}
+                                {renderAssignmentBlock(item, {
+                                  assignmentType: "base",
+                                  title: "Asignar lote para base",
+                                  description: `Separe hasta ${formatOperationalKg(suggested.baseKg)} de ${suggested.baseName} como base.`,
+                                  addLabel: "Agregar otro lote para base",
+                                })}
+                              </div>
+                            ) : (
+                              renderAssignmentBlock(item, {
+                                assignmentType: "directo",
+                                title: "Asignar lote a este cafe",
+                                description: "Use uno o varios lotes hasta completar la cantidad solicitada.",
+                                addLabel: "Agregar otro lote a este cafe",
+                              })
+                            )
                           )}
                         </div>
                       );
