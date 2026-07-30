@@ -53,7 +53,8 @@ const getShortageKindFromNotes = (notes = "") => {
   if (text.startsWith("[Falta base]")) return "base";
   if (text.startsWith("[Falta proceso]")) return "proceso";
   if (text.startsWith("[Falta base y proceso]")) return "ambos";
-  return "base";
+  if (text) return "base";
+  return null;
 };
 
 const getEstimatedDeficitParts = (item) => {

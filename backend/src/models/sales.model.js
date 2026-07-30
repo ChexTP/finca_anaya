@@ -885,8 +885,12 @@ export const getOperationalLotReservations = async () => {
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
     LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
     WHERE sales.status NOT IN ('despachada', 'anulada')
-      AND sale_items.shortage_marked = TRUE
     GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.id, coffee_profiles.name, coffee_profiles.category, base_purchase.name
+    HAVING sale_items.shortage_marked = TRUE
+      OR (
+        COALESCE(SUM(sale_item_lots.quantity_kg), 0) > 0
+        AND COALESCE(SUM(sale_item_lots.quantity_kg), 0) < COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg)
+      )
     ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_items.id ASC
     `
   );
