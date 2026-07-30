@@ -373,6 +373,112 @@ export const updateLotCode = async ({ id, code }) => {
   return existingLot;
 };
 
+export const updateLotAdminData = async (id, lotData) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        supplier_id = $1,
+        coffee_type_id = $2,
+        coffee_profile_id = $3,
+        presentation = $4,
+        lot_kind = $5,
+        commercial_classification = $6,
+        coffee_variety = $7,
+        gross_weight_kg = $8,
+        net_weight_kg = $9,
+        available_weight_kg = $10,
+        humidity_percent = $11,
+        performance_factor = $12,
+        lab_aroma = $13,
+        lab_flavor = $14,
+        lab_sweetness = $15,
+        lab_body = $16,
+        lab_residual = $17,
+        lab_clean_cup = $18,
+        lab_score = $19,
+        lab_notes = $20,
+        received_at = $21,
+        origin_zone = $22,
+        initial_comment = $23,
+        updated_at = NOW()
+      WHERE id = $24
+      RETURNING *
+      `,
+      [
+        lotData.supplierId,
+        lotData.coffeeTypeId,
+        lotData.coffeeProfileId,
+        lotData.presentation,
+        lotData.lotKind,
+        lotData.commercialClassification,
+        lotData.coffeeVariety,
+        lotData.grossWeightKg,
+        lotData.netWeightKg,
+        lotData.availableWeightKg,
+        lotData.humidityPercent,
+        lotData.performanceFactor,
+        lotData.aroma,
+        lotData.flavor,
+        lotData.sweetness,
+        lotData.body,
+        lotData.residual,
+        lotData.cleanCup,
+        lotData.score,
+        lotData.labNotes,
+        lotData.receivedAt,
+        lotData.originZone,
+        lotData.initialComment,
+        id,
+      ]
+    );
+
+    const lot = result.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'correccion_administrativa_lote', $2, $3, $4)
+      `,
+      [
+        lot.id,
+        lot.net_weight_kg,
+        lotData.changeNote || "Correccion administrativa de datos de inventario",
+        lotData.updatedBy,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return lot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const createReceivedLot = async (lotData) => {
   const client = await pool.connect();
 

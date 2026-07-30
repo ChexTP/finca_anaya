@@ -19,6 +19,34 @@ const initialLiquidation = {
   notes: "",
 };
 
+const initialAdminLotEdit = {
+  code: "",
+  supplierId: "",
+  coffeeTypeId: "",
+  coffeeProfileId: "",
+  presentation: "Pergamino",
+  lotKind: "LOT",
+  commercialClassification: "",
+  coffeeVariety: "",
+  grossWeightKg: "",
+  netWeightKg: "",
+  availableWeightKg: "",
+  humidityPercent: "",
+  performanceFactor: "",
+  aroma: "",
+  flavor: "",
+  sweetness: "",
+  body: "",
+  residual: "",
+  cleanCup: "",
+  score: "",
+  labNotes: "",
+  receivedAt: new Date().toISOString().slice(0, 10),
+  originZone: "",
+  initialComment: "",
+  changeNote: "",
+};
+
 const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
 
 const InventoryPage = () => {
@@ -29,10 +57,13 @@ const InventoryPage = () => {
   const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
   const [unpaidLots, setUnpaidLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
+  const [suppliers, setSuppliers] = useState([]);
   const [selectedLot, setSelectedLot] = useState(null);
   const [selectedLiquidationLot, setSelectedLiquidationLot] = useState(null);
+  const [selectedAdminLot, setSelectedAdminLot] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
   const [liquidationForm, setLiquidationForm] = useState(initialLiquidation);
+  const [adminLotForm, setAdminLotForm] = useState(initialAdminLotEdit);
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [lotCodeSearch, setLotCodeSearch] = useState("");
@@ -51,11 +82,19 @@ const InventoryPage = () => {
       canAdjustInventory ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
     ];
 
-    if (canRegisterPurchase) {
+    if (canRegisterPurchase || canEditCodes) {
       requests.push(apiRequest("/catalogs"));
+    } else {
+      requests.push(Promise.resolve(null));
     }
 
-    const [availableData, allLots, sampleOutputData, catalogData] = await Promise.all(requests);
+    if (canEditCodes) {
+      requests.push(apiRequest("/suppliers"));
+    } else {
+      requests.push(Promise.resolve([]));
+    }
+
+    const [availableData, allLots, sampleOutputData, catalogData, supplierData] = await Promise.all(requests);
     setLots(availableData);
     setAllLots(allLots);
     setSampleOutputs(sampleOutputData || []);
@@ -71,6 +110,9 @@ const InventoryPage = () => {
       )
     );
     setCatalogs(catalogData || null);
+    setSuppliers(
+      [...(supplierData || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"))
+    );
   };
 
   const selectLiquidationLot = (lot) => {
@@ -258,6 +300,115 @@ const InventoryPage = () => {
     }
   };
 
+  const selectAdminLot = (lot) => {
+    setSelectedAdminLot(lot);
+    setAdminLotForm({
+      code: lot.code || "",
+      supplierId: lot.supplier_id ? String(lot.supplier_id) : "",
+      coffeeTypeId: lot.coffee_type_id ? String(lot.coffee_type_id) : "",
+      coffeeProfileId: lot.coffee_profile_id ? String(lot.coffee_profile_id) : "",
+      presentation: lot.presentation || "Pergamino",
+      lotKind: lot.lot_kind || "LOT",
+      commercialClassification: lot.commercial_classification || "",
+      coffeeVariety: lot.coffee_variety || "",
+      grossWeightKg: lot.gross_weight_kg ?? "",
+      netWeightKg: lot.net_weight_kg ?? "",
+      availableWeightKg: lot.available_weight_kg ?? "",
+      humidityPercent: lot.humidity_percent ?? "",
+      performanceFactor: lot.performance_factor ?? "",
+      aroma: lot.lab_aroma || "",
+      flavor: lot.lab_flavor || "",
+      sweetness: lot.lab_sweetness || "",
+      body: lot.lab_body || "",
+      residual: lot.lab_residual || "",
+      cleanCup: lot.lab_clean_cup || "",
+      score: lot.lab_score ?? "",
+      labNotes: lot.lab_notes || "",
+      receivedAt: lot.received_at ? String(lot.received_at).slice(0, 10) : new Date().toISOString().slice(0, 10),
+      originZone: lot.origin_zone || "",
+      initialComment: lot.initial_comment || "",
+      changeNote: "Correccion administrativa desde inventario",
+    });
+    setMessage("");
+    setError("");
+  };
+
+  const cancelAdminLotEdit = () => {
+    setSelectedAdminLot(null);
+    setAdminLotForm(initialAdminLotEdit);
+    setMessage("");
+    setError("");
+  };
+
+  const saveAdminLotData = async (event) => {
+    event.preventDefault();
+
+    if (!selectedAdminLot) {
+      setError("Seleccione un lote para editar.");
+      return;
+    }
+
+    if (!adminLotForm.changeNote.trim()) {
+      setError("Escriba una nota para dejar trazabilidad de la correccion.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma guardar cambios administrativos en ${formatCoffeeLotCodeName(selectedAdminLot)}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const cleanCode = adminLotForm.code.trim();
+
+      if (cleanCode && cleanCode !== selectedAdminLot.code) {
+        await apiRequest(`/lots/${selectedAdminLot.id}/code`, {
+          method: "PUT",
+          body: JSON.stringify({ code: cleanCode }),
+        });
+      }
+
+      await apiRequest(`/lots/${selectedAdminLot.id}/admin-data`, {
+        method: "PUT",
+        body: JSON.stringify({
+          supplierId: adminLotForm.supplierId ? Number(adminLotForm.supplierId) : null,
+          coffeeTypeId: adminLotForm.coffeeTypeId ? Number(adminLotForm.coffeeTypeId) : null,
+          coffeeProfileId: adminLotForm.coffeeProfileId ? Number(adminLotForm.coffeeProfileId) : null,
+          presentation: adminLotForm.presentation,
+          lotKind: adminLotForm.lotKind,
+          commercialClassification: adminLotForm.commercialClassification || null,
+          coffeeVariety: adminLotForm.coffeeVariety || null,
+          grossWeightKg: Number(adminLotForm.grossWeightKg),
+          netWeightKg: Number(adminLotForm.netWeightKg),
+          availableWeightKg: Number(adminLotForm.availableWeightKg),
+          humidityPercent: adminLotForm.humidityPercent === "" ? null : Number(adminLotForm.humidityPercent),
+          performanceFactor: adminLotForm.performanceFactor === "" ? null : Number(adminLotForm.performanceFactor),
+          aroma: adminLotForm.aroma,
+          flavor: adminLotForm.flavor,
+          sweetness: adminLotForm.sweetness,
+          body: adminLotForm.body,
+          residual: adminLotForm.residual,
+          cleanCup: adminLotForm.cleanCup,
+          score: adminLotForm.score === "" ? null : Number(adminLotForm.score),
+          labNotes: adminLotForm.labNotes,
+          receivedAt: adminLotForm.receivedAt,
+          originZone: adminLotForm.originZone,
+          initialComment: adminLotForm.initialComment,
+          changeNote: adminLotForm.changeNote,
+        }),
+      });
+
+      cancelAdminLotEdit();
+      await loadData();
+      setMessage("Datos del lote actualizados correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
     ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
@@ -341,8 +492,8 @@ const InventoryPage = () => {
       {canEditCodes && (
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-800">Buscar y editar codigos de lotes</h2>
-            <p className="mt-1 text-xs text-slate-500">Uso administrativo para igualar los codigos del sistema con talonarios o registros fisicos.</p>
+            <h2 className="text-sm font-semibold text-slate-800">Buscar y editar lotes</h2>
+            <p className="mt-1 text-xs text-slate-500">Uso administrativo para corregir codigos, datos del cafe, pesos y laboratorio.</p>
             <input
               className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Buscar por codigo, cafe, proveedor, estado o presentacion"
@@ -374,14 +525,24 @@ const InventoryPage = () => {
                       <td className="px-3 py-2">{lotStatusLabels[lot.status] || lot.status}</td>
                       <td className="px-3 py-2">{formatKg(lot.available_weight_kg ?? lot.net_weight_kg)}</td>
                       <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                            type="button"
+                            disabled={saving}
+                            onClick={() => selectAdminLot(lot)}
+                          >
+                            Editar datos
+                          </button>
                         <button
-                          className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                          className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                           type="button"
                           disabled={saving}
                           onClick={() => editLotCode(lot)}
                         >
                           Editar codigo
                         </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -389,6 +550,223 @@ const InventoryPage = () => {
               </table>
             )}
           </div>
+          {selectedAdminLot && (
+            <form className="border-t border-slate-200 p-4" onSubmit={saveAdminLotData}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Editar {formatCoffeeLotCodeName(selectedAdminLot)}</h3>
+                  <p className="mt-1 text-xs text-amber-700">
+                    Correccion administrativa. Revise bien antes de guardar porque cambia datos visibles del inventario.
+                  </p>
+                </div>
+                <button
+                  className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={cancelAdminLotEdit}
+                >
+                  Cancelar
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <input
+                  className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900"
+                  placeholder="Codigo"
+                  value={adminLotForm.code}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, code: event.target.value })}
+                  required
+                />
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={adminLotForm.supplierId}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, supplierId: event.target.value })}
+                >
+                  <option value="">Sin proveedor</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={adminLotForm.presentation}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, presentation: event.target.value })}
+                >
+                  <option value="Pergamino">Pergamino</option>
+                  <option value="Excelso">Excelso</option>
+                </select>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={adminLotForm.lotKind}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, lotKind: event.target.value })}
+                >
+                  <option value="LOT">Lote normal</option>
+                  <option value="PROC">Proceso listo</option>
+                  <option value="PASILLA">Pasilla</option>
+                  <option value="RECUPERACION">Recuperacion</option>
+                </select>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={adminLotForm.coffeeTypeId}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, coffeeTypeId: event.target.value })}
+                >
+                  <option value="">Tipo / proceso</option>
+                  {catalogs?.coffeeTypes?.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={adminLotForm.coffeeProfileId}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, coffeeProfileId: event.target.value })}
+                >
+                  <option value="">Perfil comercial si aplica</option>
+                  {catalogs?.coffeeProfiles?.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={adminLotForm.commercialClassification}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, commercialClassification: event.target.value })}
+                >
+                  <option value="">Categoria</option>
+                  <option value="Base">Base</option>
+                  <option value="Regional">Regional</option>
+                  <option value="Varietal">Varietal</option>
+                  <option value="Exotico">Exotico</option>
+                  <option value="Procesado">Procesado</option>
+                  <option value="Pasilla">Pasilla</option>
+                  <option value="Recuperacion">Recuperacion</option>
+                </select>
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Clasificacion / nombre exacto"
+                  value={adminLotForm.coffeeVariety}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, coffeeVariety: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Peso bruto kg"
+                  type="number"
+                  step="0.001"
+                  value={adminLotForm.grossWeightKg}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, grossWeightKg: event.target.value })}
+                  required
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Peso neto kg"
+                  type="number"
+                  step="0.001"
+                  value={adminLotForm.netWeightKg}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, netWeightKg: event.target.value })}
+                  required
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Disponible fisico kg"
+                  type="number"
+                  step="0.001"
+                  value={adminLotForm.availableWeightKg}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, availableWeightKg: event.target.value })}
+                  required
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Fecha llegada"
+                  type="date"
+                  value={adminLotForm.receivedAt}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, receivedAt: event.target.value })}
+                  required
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Humedad %"
+                  type="number"
+                  step="0.01"
+                  value={adminLotForm.humidityPercent}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, humidityPercent: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Factor rendimiento"
+                  type="number"
+                  step="0.01"
+                  value={adminLotForm.performanceFactor}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, performanceFactor: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Score"
+                  type="number"
+                  step="0.01"
+                  value={adminLotForm.score}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, score: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Zona procedencia"
+                  value={adminLotForm.originZone}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, originZone: event.target.value })}
+                />
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                  ["aroma", "Aroma"],
+                  ["flavor", "Sabor"],
+                  ["sweetness", "Dulzor"],
+                  ["body", "Cuerpo"],
+                  ["residual", "Residual"],
+                  ["cleanCup", "Taza limpia"],
+                ].map(([field, label]) => (
+                  <input
+                    key={field}
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder={label}
+                    value={adminLotForm[field]}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, [field]: event.target.value })}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <textarea
+                  className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Notas de laboratorio"
+                  value={adminLotForm.labNotes}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, labNotes: event.target.value })}
+                />
+                <textarea
+                  className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Comentario interno del lote"
+                  value={adminLotForm.initialComment}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, initialComment: event.target.value })}
+                />
+                <textarea
+                  className="min-h-20 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm"
+                  placeholder="Nota obligatoria de correccion"
+                  value={adminLotForm.changeNote}
+                  onChange={(event) => setAdminLotForm({ ...adminLotForm, changeNote: event.target.value })}
+                  required
+                />
+              </div>
+
+              <button
+                className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                disabled={saving}
+              >
+                <Save size={16} />
+                Guardar datos del lote
+              </button>
+            </form>
+          )}
         </div>
       )}
 

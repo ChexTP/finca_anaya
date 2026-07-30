@@ -9,6 +9,7 @@ import {
   listLots,
   findLotById,
   updateLotCode,
+  updateLotAdminData,
   createReceivedLot,
   updateLotReceptionData,
   markRejectedLotAsWithdrawn,
@@ -103,6 +104,135 @@ export const putLotCode = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al actualizar codigo de lote",
+      error: error.message,
+    });
+  }
+};
+
+export const putLotAdminData = async (req, res) => {
+  try {
+    const {
+      supplierId,
+      coffeeTypeId,
+      coffeeProfileId,
+      presentation,
+      lotKind,
+      commercialClassification,
+      coffeeVariety,
+      grossWeightKg,
+      netWeightKg,
+      availableWeightKg,
+      humidityPercent,
+      performanceFactor,
+      aroma,
+      flavor,
+      sweetness,
+      body,
+      residual,
+      cleanCup,
+      score,
+      labNotes,
+      receivedAt,
+      originZone,
+      initialComment,
+      changeNote,
+    } = req.body;
+
+    if (!["Pergamino", "Excelso"].includes(presentation)) {
+      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
+    }
+
+    if (!["LOT", "PROC", "PASILLA", "RECUPERACION"].includes(lotKind)) {
+      return res.status(400).json({ message: "El tipo interno debe ser LOT, PROC, PASILLA o RECUPERACION" });
+    }
+
+    if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
+      return res.status(400).json({ message: "La categoria comercial no es valida" });
+    }
+
+    const gross = toNumber(grossWeightKg);
+    const net = toNumber(netWeightKg);
+    const available = toNumber(availableWeightKg);
+    const humidity = toNumber(humidityPercent);
+    const performance = toNumber(performanceFactor);
+    const scoreValue = toNumber(score);
+
+    if (
+      !isValidNumber(gross) ||
+      !isValidNumber(net) ||
+      !isValidNumber(available) ||
+      gross < 0 ||
+      net < 0 ||
+      available < 0 ||
+      (humidity !== null && (!isValidNumber(humidity) || humidity < 0 || humidity > 100)) ||
+      (performance !== null && (!isValidNumber(performance) || performance < 0)) ||
+      (scoreValue !== null && !isValidNumber(scoreValue))
+    ) {
+      return res.status(400).json({
+        message: "Pesos, humedad, factor o score tienen valores invalidos",
+      });
+    }
+
+    if (supplierId) {
+      const supplier = await findSupplierById(supplierId);
+      if (!supplier || !supplier.is_active) {
+        return res.status(404).json({ message: "Proveedor no encontrado o inactivo" });
+      }
+    }
+
+    if (coffeeTypeId) {
+      const coffeeType = await findCoffeeTypeById(coffeeTypeId);
+      if (!coffeeType || !coffeeType.is_active) {
+        return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+      }
+    }
+
+    if (coffeeProfileId) {
+      const coffeeProfile = await findCoffeeProfileById(coffeeProfileId);
+      if (!coffeeProfile || !coffeeProfile.is_active) {
+        return res.status(404).json({ message: "Perfil comercial no encontrado o inactivo" });
+      }
+    }
+
+    const lot = await updateLotAdminData(req.params.id, {
+      supplierId: supplierId || null,
+      coffeeTypeId: coffeeTypeId || null,
+      coffeeProfileId: coffeeProfileId || null,
+      presentation,
+      lotKind,
+      commercialClassification: commercialClassification || null,
+      coffeeVariety: coffeeVariety || null,
+      grossWeightKg: gross,
+      netWeightKg: net,
+      availableWeightKg: available,
+      humidityPercent: humidity,
+      performanceFactor: performance,
+      aroma,
+      flavor,
+      sweetness,
+      body,
+      residual,
+      cleanCup,
+      score: scoreValue,
+      labNotes,
+      receivedAt: receivedAt || new Date(),
+      originZone,
+      initialComment,
+      changeNote,
+      updatedBy: req.user.id,
+    });
+
+    if (!lot) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    res.json({
+      message: "Datos administrativos del lote actualizados",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar datos administrativos del lote",
       error: error.message,
     });
   }
