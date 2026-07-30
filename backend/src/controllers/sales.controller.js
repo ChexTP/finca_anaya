@@ -56,6 +56,36 @@ const requiredSaleLabFields = [
   "score",
 ];
 
+const maxDispatchReceiptSize = 4 * 1024 * 1024;
+
+const parseDispatchReceipt = (body) => {
+  const receipt = body.dispatchReceipt || {};
+  const image = receipt.image || body.receiptImage;
+  const fileName = receipt.fileName || body.receiptFileName || null;
+  const mimeType = receipt.mimeType || body.receiptMimeType || null;
+
+  if (!image || typeof image !== "string" || !image.startsWith("data:image/")) {
+    return { error: "Debe cargar una foto valida del recibo antes de despachar la venta" };
+  }
+
+  if (mimeType && !String(mimeType).startsWith("image/")) {
+    return { error: "El archivo del recibo debe ser una imagen" };
+  }
+
+  const base64Size = Math.ceil((image.length * 3) / 4);
+  if (base64Size > maxDispatchReceiptSize) {
+    return { error: "La foto del recibo no debe superar 4 MB" };
+  }
+
+  return {
+    receipt: {
+      image,
+      fileName,
+      mimeType,
+    },
+  };
+};
+
 const sanitizeSaleForSeller = (sale) => {
   if (!sale) {
     return sale;
@@ -983,6 +1013,12 @@ export const putSalePrepared = async (req, res) => {
 
 export const putSaleDispatched = async (req, res) => {
   try {
+    const parsedReceipt = parseDispatchReceipt(req.body);
+
+    if (parsedReceipt.error) {
+      return res.status(400).json({ message: parsedReceipt.error });
+    }
+
     const sale = await findSaleById(req.params.id);
 
     if (!sale) {
@@ -1001,6 +1037,7 @@ export const putSaleDispatched = async (req, res) => {
       status: "despachada",
       notes: req.body.notes,
       userId: req.user.id,
+      dispatchReceipt: parsedReceipt.receipt,
     });
 
     res.json({

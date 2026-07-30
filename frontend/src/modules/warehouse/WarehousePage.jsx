@@ -1,4 +1,4 @@
-import { Eye, FlaskConical, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
+import { Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -7,6 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
+import { readImageFileAsDataUrl } from "../../utils/files";
 
 const initialSupplier = {
   name: "",
@@ -300,6 +301,7 @@ const WarehousePage = () => {
   const [selectedSale, setSelectedSale] = useState(null);
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [notes, setNotes] = useState("");
+  const [dispatchReceiptFile, setDispatchReceiptFile] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [supplierForm, setSupplierForm] = useState(initialSupplier);
   const [editingSupplier, setEditingSupplier] = useState(null);
@@ -310,6 +312,10 @@ const WarehousePage = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDispatchReceiptFile(null);
+  }, [selectedSale?.id]);
 
   const selectedPackaging = useMemo(() => {
     return catalogs?.packagingTypes?.find((packaging) => String(packaging.id) === String(lotForm.packagingTypeId));
@@ -741,6 +747,12 @@ const WarehousePage = () => {
         : action === "prepare"
           ? "marcar esta venta como alistada"
           : "marcar esta venta como despachada";
+
+    if (action === "dispatch" && !dispatchReceiptFile) {
+      setError("Antes de despachar debe cargar la foto del recibo.");
+      return;
+    }
+
     const confirmed = window.confirm(`Confirmas ${label}?`);
 
     if (!confirmed) return;
@@ -750,11 +762,28 @@ const WarehousePage = () => {
     setError("");
 
     try {
+      const payload = { notes };
+
+      if (action === "dispatch") {
+        const image = await readImageFileAsDataUrl(
+          dispatchReceiptFile,
+          "No se pudo leer la foto del recibo"
+        );
+        payload.dispatchReceipt = {
+          image,
+          fileName: dispatchReceiptFile.name,
+          mimeType: dispatchReceiptFile.type,
+        };
+      }
+
       await apiRequest(`/sales/${selectedSale.id}/${action}`, {
         method: "PUT",
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify(payload),
       });
       await loadData();
+      if (action === "dispatch") {
+        setDispatchReceiptFile(null);
+      }
       setMessage(
         action === "send-lab"
           ? "Venta enviada a laboratorio."

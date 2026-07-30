@@ -116,6 +116,12 @@ export const buildSaleDocument = async ({ id, includePayments = false }) => {
       lotCode: lot.lot_code,
       quantityKg: lot.quantity_kg,
     })),
+    dispatchReceipt: {
+      fileName: sale.dispatch_receipt_file_name,
+      mimeType: sale.dispatch_receipt_mime_type,
+      uploadedAt: sale.dispatch_receipt_uploaded_at,
+      hasImage: Boolean(sale.dispatch_receipt_image),
+    },
     totals: {
       currency: sale.currency,
       subtotal: sale.subtotal,

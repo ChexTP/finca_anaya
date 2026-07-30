@@ -1,4 +1,4 @@
-import { Eye, FileDown, FlaskConical, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
+import { Eye, FileDown, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
+import { readImageFileAsDataUrl } from "../../utils/files";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
 
@@ -284,6 +285,7 @@ const SalesPage = () => {
   const [selectedSale, setSelectedSale] = useState(null);
   const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
+  const [dispatchReceiptFile, setDispatchReceiptFile] = useState(null);
   const [paymentForm, setPaymentForm] = useState(initialPayment);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -292,6 +294,10 @@ const SalesPage = () => {
   const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDispatchReceiptFile(null);
+  }, [selectedSale?.id]);
 
   const canManageDispatch = ["admin", "accounting", "warehouse"].includes(user?.role);
   const showFinancialData = ["admin", "accounting"].includes(user?.role);
@@ -459,6 +465,12 @@ const SalesPage = () => {
         : action === "prepare"
           ? "marcar esta venta como alistada"
           : "marcar esta venta como despachada";
+
+    if (action === "dispatch" && !dispatchReceiptFile) {
+      setError("Antes de despachar debe cargar la foto del recibo.");
+      return;
+    }
+
     const confirmed = window.confirm(`Confirma ${label}?`);
 
     if (!confirmed) {
@@ -470,12 +482,29 @@ const SalesPage = () => {
     setError("");
 
     try {
+      const payload = { notes };
+
+      if (action === "dispatch") {
+        const image = await readImageFileAsDataUrl(
+          dispatchReceiptFile,
+          "No se pudo leer la foto del recibo"
+        );
+        payload.dispatchReceipt = {
+          image,
+          fileName: dispatchReceiptFile.name,
+          mimeType: dispatchReceiptFile.type,
+        };
+      }
+
       await apiRequest(`/sales/${sale.id}/${action}`, {
         method: "PUT",
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify(payload),
       });
       await loadSales();
       await loadSaleDetail(sale.id, false);
+      if (action === "dispatch") {
+        setDispatchReceiptFile(null);
+      }
       setMessage(
         action === "send-lab"
           ? "Venta enviada a laboratorio."
@@ -846,6 +875,33 @@ const SalesPage = () => {
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                   />
+                  {selectedSale.status === "alistada" && (
+                    <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-amber-900">Recibo obligatorio para despacho</p>
+                          <p className="text-xs text-slate-600">
+                            Cargue la foto del recibo generado antes de marcar la venta como despachada.
+                          </p>
+                          {dispatchReceiptFile && (
+                            <p className="mt-1 text-xs font-semibold text-emerald-700">
+                              Archivo seleccionado: {dispatchReceiptFile.name}
+                            </p>
+                          )}
+                        </div>
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">
+                          <ImagePlus size={15} />
+                          {dispatchReceiptFile ? "Cambiar recibo" : "Subir recibo"}
+                          <input
+                            className="hidden"
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => setDispatchReceiptFile(event.target.files?.[0] || null)}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid gap-2 sm:grid-cols-2">
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded border border-leaf bg-emerald-50 px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-100 disabled:opacity-60"
@@ -873,7 +929,7 @@ const SalesPage = () => {
                     </button>
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                      disabled={saving || selectedSale.status !== "alistada"}
+                      disabled={saving || selectedSale.status !== "alistada" || !dispatchReceiptFile}
                       onClick={() => updateStatus(selectedSale, "dispatch")}
                       type="button"
                     >

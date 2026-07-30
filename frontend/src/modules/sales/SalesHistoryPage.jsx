@@ -88,6 +88,34 @@ const SalesHistoryPage = () => {
     }
   };
 
+  const viewDispatchReceipt = (sale) => {
+    if (!sale.dispatch_receipt_image) return;
+
+    const win = window.open("", "_blank", "noopener,noreferrer");
+    if (!win) {
+      setError("El navegador bloqueo la ventana para ver el recibo.");
+      return;
+    }
+
+    win.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Recibo de despacho ${sale.code}</title>
+          <style>
+            body { margin: 0; background: #111827; display: grid; place-items: center; min-height: 100vh; }
+            img { max-width: 100%; max-height: 100vh; object-fit: contain; background: white; }
+          </style>
+        </head>
+        <body>
+          <img src="${sale.dispatch_receipt_image}" alt="Recibo de despacho ${sale.code}" />
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -214,6 +242,37 @@ const SalesHistoryPage = () => {
                                     <p className="font-semibold text-ink">{selectedSale.code}</p>
                                     <p className="text-slate-500">{selectedSale.client_name}</p>
                                     <p className="text-slate-500">{formatDate(selectedSale.created_at)}</p>
+                                    <div className={`mt-3 rounded border p-3 ${
+                                      selectedSale.dispatch_receipt_image
+                                        ? "border-emerald-200 bg-emerald-50"
+                                        : "border-slate-200 bg-slate-50"
+                                    }`}>
+                                      <p className={`text-xs font-semibold uppercase ${
+                                        selectedSale.dispatch_receipt_image ? "text-emerald-800" : "text-slate-500"
+                                      }`}>
+                                        Recibo de despacho
+                                      </p>
+                                      <p className="mt-1 text-xs text-slate-600">
+                                        {selectedSale.dispatch_receipt_image
+                                          ? `Recibo cargado${selectedSale.dispatch_receipt_file_name ? `: ${selectedSale.dispatch_receipt_file_name}` : ""}`
+                                          : "Esta venta aun no tiene recibo de despacho."}
+                                      </p>
+                                      {selectedSale.dispatch_receipt_uploaded_at && (
+                                        <p className="text-xs text-slate-500">
+                                          Subido: {formatDate(selectedSale.dispatch_receipt_uploaded_at)}
+                                        </p>
+                                      )}
+                                      {selectedSale.dispatch_receipt_image && (
+                                        <button
+                                          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                          onClick={() => viewDispatchReceipt(selectedSale)}
+                                          type="button"
+                                        >
+                                          <Eye size={14} />
+                                          Ver recibo
+                                        </button>
+                                      )}
+                                    </div>
                                     <button
                                       className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
                                       onClick={() => printSaleDocument(selectedSale.id)}

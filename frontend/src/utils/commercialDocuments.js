@@ -191,6 +191,16 @@ export const buildCommercialDocumentHtml = (document) => {
         }
 
         ${document.notes ? `<h3>Notas</h3><p>${escapeHtml(document.notes)}</p>` : ""}
+
+        ${
+          document.dispatchReceipt?.hasImage
+            ? `
+              <h3>Soporte de despacho</h3>
+              <p>Recibo cargado${document.dispatchReceipt.fileName ? `: ${escapeHtml(document.dispatchReceipt.fileName)}` : ""}</p>
+              <p>Fecha soporte: ${formatDocumentDate(document.dispatchReceipt.uploadedAt)}</p>
+            `
+            : ""
+        }
       </body>
     </html>
   `;
