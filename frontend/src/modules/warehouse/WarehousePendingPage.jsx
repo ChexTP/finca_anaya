@@ -90,30 +90,16 @@ const WarehousePendingPage = () => {
     );
   }, [sales]);
 
-  const currentReservedByLot = useMemo(() => {
-    return (selectedSale?.deductedLots || []).reduce((totals, lot) => {
-      if (lot.deducted_at) return totals;
-      const lotId = Number(lot.lot_id);
-      totals[lotId] = (totals[lotId] || 0) + Number(lot.quantity_kg || 0);
-      return totals;
-    }, {});
-  }, [selectedSale]);
-
   const availableLotGroups = useMemo(() => {
     const assignableLots = availableLots
-      .map((lot) => {
-        const currentReservedKg = currentReservedByLot[Number(lot.id)] || 0;
-        const effectiveOperationalKg = Number(lot.operational_available_kg || 0) + currentReservedKg;
-
-        return {
-          ...lot,
-          available_weight_kg: Number(effectiveOperationalKg.toFixed(3)),
-        };
-      })
+      .map((lot) => ({
+        ...lot,
+        available_weight_kg: Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
+      }))
       .filter((lot) => Number(lot.available_weight_kg || 0) > 0);
 
     return Object.values(groupCoffeeLots(assignableLots)).sort((left, right) => left.name.localeCompare(right.name));
-  }, [availableLots, currentReservedByLot]);
+  }, [availableLots]);
 
   const getItemAssignmentRows = (item) =>
     assignmentRows.filter((row) => String(row.saleItemId) === String(item.id));
@@ -123,6 +109,54 @@ const WarehousePendingPage = () => {
       String(row.saleItemId) === String(item.id) &&
       (row.assignmentType || "directo") === assignmentType
     ));
+
+  const getAssignmentBlockTargetKg = (item, assignmentType) => {
+    const suggested = getSuggestedQuantities(item);
+
+    if (assignmentType === "proceso") return Number(suggested?.processInputKg || 0);
+    if (assignmentType === "base") return Number(suggested?.baseKg || 0);
+
+    return Number(item.operational_weight_kg || item.quantity_kg || 0);
+  };
+
+  const getAssignmentBlockTotals = (item, assignmentType) => {
+    const assignedKg = getItemAssignmentRowsByType(item, assignmentType)
+      .reduce((total, row) => total + Number(row.quantityKg || 0), 0);
+    const targetKg = getAssignmentBlockTargetKg(item, assignmentType);
+
+    return {
+      assignedKg: Number(assignedKg.toFixed(3)),
+      targetKg: Number(targetKg.toFixed(3)),
+      missingKg: Number(Math.max(targetKg - assignedKg, 0).toFixed(3)),
+    };
+  };
+
+  const getSelectedLotOption = (row) => {
+    if (!row?.lotId) return null;
+
+    const assignedLot = (selectedSale?.deductedLots || []).find((lot) => String(lot.lot_id) === String(row.lotId));
+    if (assignedLot) {
+      return {
+        value: row.lotId,
+        label: `Asignado a este pedido: ${formatCoffeeLotCodeName(assignedLot)} - ${formatOperationalKg(assignedLot.quantity_kg)}`,
+      };
+    }
+
+    const catalogLot = availableLots.find((lot) => String(lot.id) === String(row.lotId));
+    const availableInSelector = availableLotGroups.some((group) => group.lots.some((lot) => String(lot.id) === String(row.lotId)));
+
+    if (catalogLot && !availableInSelector) {
+      return {
+        value: row.lotId,
+        label: `Lote seleccionado: ${formatCoffeeLotOption(catalogLot)}`,
+      };
+    }
+
+    return {
+      value: row.lotId,
+      label: `Lote asignado ${row.lotId}`,
+    };
+  };
 
   const getAssignmentTypeFromNotes = (notes = "") => {
     if (String(notes).startsWith("[Proceso]")) return "proceso";
@@ -520,6 +554,7 @@ const WarehousePendingPage = () => {
   const renderAssignmentBlock = (item, { assignmentType, title, description, addLabel }) => {
     const rows = getItemAssignmentRowsByType(item, assignmentType);
     const shortageActive = isShortageActiveForType(item, assignmentType);
+    const totals = getAssignmentBlockTotals(item, assignmentType);
 
     return (
       <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
@@ -527,6 +562,15 @@ const WarehousePendingPage = () => {
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-slate-500">{title}</p>
             {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
+            <p className="mt-1 text-xs text-slate-600">
+              Sugerido: <span className="font-semibold">{formatOperationalKg(totals.targetKg)}</span>
+              {" · "}
+              Asignado: <span className="font-semibold text-amber-700">{formatOperationalKg(totals.assignedKg)}</span>
+              {" · "}
+              Faltante: <span className={totals.missingKg > 0 ? "font-semibold text-rose-700" : "font-semibold text-leaf"}>
+                {formatOperationalKg(totals.missingKg)}
+              </span>
+            </p>
           </div>
           <button
             className={`inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
@@ -544,6 +588,7 @@ const WarehousePendingPage = () => {
         </div>
         {rows.map((row) => {
           const rowIndex = assignmentRows.indexOf(row);
+          const selectedLotOption = getSelectedLotOption(row);
 
           return (
             <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-2">
@@ -553,9 +598,14 @@ const WarehousePendingPage = () => {
                 onChange={(event) => updateAssignmentRow(rowIndex, "lotId", event.target.value)}
               >
                 <option value="">Lote disponible</option>
+                {selectedLotOption && (
+                  <option value={selectedLotOption.value}>{selectedLotOption.label}</option>
+                )}
                 {availableLotGroups.map((group) => (
                   <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
-                    {group.lots.map((lot) => (
+                    {group.lots
+                      .filter((lot) => !(selectedLotOption && String(lot.id) === String(row.lotId)))
+                      .map((lot) => (
                       <option key={lot.id} value={lot.id}>
                         {formatCoffeeLotOption(lot)}
                       </option>
