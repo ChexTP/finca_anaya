@@ -236,19 +236,24 @@ const InventoryPage = () => {
     return {
       presentation,
       count: presentationLots.length,
-      kg: presentationLots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0),
+      kg: presentationLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
     };
   });
   const presentationFilteredLots = selectedPresentation === "all"
     ? lots
     : lots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
-  const inventoryGroups = groupCoffeeLots(presentationFilteredLots);
+  const inventoryGroups = groupCoffeeLots(
+    presentationFilteredLots.map((lot) => ({
+      ...lot,
+      available_weight_kg: lot.operational_available_kg ?? lot.available_weight_kg,
+    }))
+  );
   const groupCards = Object.values(inventoryGroups).sort((left, right) => left.name.localeCompare(right.name));
   const filteredLots = selectedGroup === "all"
     ? presentationFilteredLots
     : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
-  const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0);
-  const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0);
+  const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
+  const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
 
   return (
     <section className="space-y-5">
@@ -535,7 +540,9 @@ const InventoryPage = () => {
                   <th className="px-3 py-2">Categoria</th>
                   <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Llegada</th>
-                  <th className="px-3 py-2">Disponible</th>
+                  <th className="px-3 py-2">Fisico</th>
+                  <th className="px-3 py-2">Reservado</th>
+                  <th className="px-3 py-2">Libre operativo</th>
                   <th className="px-3 py-2">Humedad</th>
                   <th className="px-3 py-2">Factor</th>
                   <th className="px-3 py-2">Estado</th>
@@ -547,7 +554,10 @@ const InventoryPage = () => {
                   <tr key={lot.id}>
                     <td className="px-3 py-2 font-medium">
                       <p>{formatCoffeeLotCodeName(lot)}</p>
-                      <p className="mt-1 text-xs font-semibold text-leaf">Disponible: {formatKg(lot.available_weight_kg)}</p>
+                      <p className="mt-1 text-xs font-semibold text-leaf">Libre operativo: {formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}</p>
+                      {Number(lot.reserved_kg || 0) > 0 && (
+                        <p className="text-xs font-semibold text-amber-700">Reservado: {formatKg(lot.reserved_kg)}</p>
+                      )}
                       <p className="text-xs text-slate-500">Peso neto: {formatKg(lot.net_weight_kg)}</p>
                     </td>
                     <td className="px-3 py-2">{lot.presentation || "Pergamino"}</td>
@@ -557,6 +567,8 @@ const InventoryPage = () => {
                     <td className="px-3 py-2">{lot.coffee_variety || "-"}</td>
                     <td className="px-3 py-2">{lot.received_at ? new Date(lot.received_at).toLocaleDateString("es-CO") : "-"}</td>
                     <td className="px-3 py-2 font-semibold text-ink">{formatKg(lot.available_weight_kg)}</td>
+                    <td className="px-3 py-2 font-semibold text-amber-700">{formatKg(lot.reserved_kg)}</td>
+                    <td className="px-3 py-2 font-semibold text-leaf">{formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}</td>
                     <td className="px-3 py-2">{lot.humidity_percent || "-"}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                     <td className="px-3 py-2">

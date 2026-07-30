@@ -33,6 +33,17 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.status,
       coffee_lots.net_weight_kg,
       coffee_lots.available_weight_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+        WHERE sale_item_lots.deducted_at IS NULL
+          AND sales.status NOT IN ('despachada', 'anulada')
+      ), 0) AS reserved_kg,
+      GREATEST(
+        coffee_lots.available_weight_kg - COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+          WHERE sale_item_lots.deducted_at IS NULL
+            AND sales.status NOT IN ('despachada', 'anulada')
+        ), 0),
+        0
+      ) AS operational_available_kg,
       coffee_lots.humidity_percent,
       coffee_lots.performance_factor,
       coffee_lots.received_at,
@@ -45,7 +56,11 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
     LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
+    LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+    LEFT JOIN sales ON sales.id = sale_items.sale_id
     WHERE ${conditions.join(" AND ")}
+    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name
     ORDER BY coffee_lots.created_at ASC
     `,
     params
@@ -72,10 +87,23 @@ export const getGroupedInventory = async () => {
       END AS group_name,
       COUNT(*) AS lots_count,
       SUM(coffee_lots.available_weight_kg) AS available_weight_kg,
+      COALESCE(SUM(reservations.reserved_kg), 0) AS reserved_kg,
+      GREATEST(SUM(coffee_lots.available_weight_kg) - COALESCE(SUM(reservations.reserved_kg), 0), 0) AS operational_available_kg,
       MIN(coffee_lots.created_at) AS oldest_lot_date
     FROM coffee_lots
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN (
+      SELECT
+        sale_item_lots.lot_id,
+        SUM(sale_item_lots.quantity_kg) AS reserved_kg
+      FROM sale_item_lots
+      INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+      INNER JOIN sales ON sales.id = sale_items.sale_id
+      WHERE sale_item_lots.deducted_at IS NULL
+        AND sales.status NOT IN ('despachada', 'anulada')
+      GROUP BY sale_item_lots.lot_id
+    ) reservations ON reservations.lot_id = coffee_lots.id
     WHERE coffee_lots.status IN ('disponible', 'vendido_parcial')
       AND coffee_lots.available_weight_kg > 0
     GROUP BY group_type, group_id, group_name
