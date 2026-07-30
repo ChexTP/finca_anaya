@@ -684,6 +684,97 @@ export const updateLotLabReview = async (id, reviewData) => {
   }
 };
 
+export const updateLotLabData = async (id, reviewData) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        humidity_percent = $1,
+        performance_factor = $2,
+        lab_aroma = $3,
+        lab_fragrance = $4,
+        lab_flavor = $5,
+        lab_acidity = $6,
+        lab_sweetness = $7,
+        lab_body = $8,
+        lab_balance = $9,
+        lab_uniformity = $10,
+        lab_residual = $11,
+        lab_clean_cup = $12,
+        lab_score = $13,
+        lab_notes = $14,
+        lab_reviewed_by = $15,
+        lab_reviewed_at = COALESCE(lab_reviewed_at, NOW()),
+        updated_at = NOW()
+      WHERE id = $16
+      RETURNING *
+      `,
+      [
+        reviewData.humidityPercent,
+        reviewData.performanceFactor,
+        reviewData.aroma,
+        reviewData.fragrance,
+        reviewData.flavor,
+        reviewData.acidity,
+        reviewData.sweetness,
+        reviewData.body,
+        reviewData.balance,
+        reviewData.uniformity,
+        reviewData.residual,
+        reviewData.cleanCup,
+        reviewData.score,
+        reviewData.notes,
+        reviewData.reviewedBy,
+        id,
+      ]
+    );
+
+    const lot = result.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'laboratorio_corregido', $2, $3, $4)
+      `,
+      [
+        lot.id,
+        lot.net_weight_kg,
+        reviewData.changeNote || "Correccion de datos de laboratorio",
+        reviewData.reviewedBy,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return lot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const liquidateLot = async ({ id, purchasePricePerKg, notes, liquidatedBy }) => {
   const client = await pool.connect();
 

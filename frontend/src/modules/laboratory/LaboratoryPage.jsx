@@ -2,6 +2,7 @@ import { ClipboardCheck, FileText, FlaskConical, RefreshCw, Save } from "lucide-
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
@@ -152,6 +153,7 @@ const formatDate = (value) => {
 };
 
 const LaboratoryPage = () => {
+  const { user } = useAuth();
   const [activePanel, setActivePanel] = useState("lots");
   const [processFilter, setProcessFilter] = useState("pendiente_laboratorio");
   const [lots, setLots] = useState([]);
@@ -280,6 +282,62 @@ const LaboratoryPage = () => {
     });
     setMessage("");
     setError("");
+  };
+
+  const editHistoryLotLabData = async (lot) => {
+    const humidityPercent = window.prompt("Humedad (%)", lot.humidity_percent ?? "");
+    if (humidityPercent === null) return;
+    const performanceFactor = window.prompt("Factor de rendimiento", lot.performance_factor ?? "");
+    if (performanceFactor === null) return;
+    const aroma = window.prompt("Aroma", lot.lab_aroma || "");
+    if (aroma === null) return;
+    const flavor = window.prompt("Sabor", lot.lab_flavor || "");
+    if (flavor === null) return;
+    const sweetness = window.prompt("Dulzor", lot.lab_sweetness || "");
+    if (sweetness === null) return;
+    const body = window.prompt("Cuerpo", lot.lab_body || "");
+    if (body === null) return;
+    const residual = window.prompt("Residual", lot.lab_residual || "");
+    if (residual === null) return;
+    const cleanCup = window.prompt("Taza limpia", lot.lab_clean_cup || "");
+    if (cleanCup === null) return;
+    const score = window.prompt("Score", lot.lab_score ?? "");
+    if (score === null) return;
+    const notes = window.prompt("Notas de laboratorio", lot.lab_notes || "");
+    if (notes === null) return;
+    const changeNote = window.prompt("Motivo de la correccion", "Correccion de datos cargados en pruebas");
+    if (changeNote === null) return;
+
+    if (!window.confirm(`Confirma corregir los datos de laboratorio de ${formatCoffeeLotCodeName(lot)}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${lot.id}/lab-data`, {
+        method: "PUT",
+        body: JSON.stringify({
+          humidityPercent: humidityPercent === "" ? null : Number(humidityPercent),
+          performanceFactor: performanceFactor === "" ? null : Number(performanceFactor),
+          aroma,
+          flavor,
+          sweetness,
+          body,
+          residual,
+          cleanCup,
+          score: score === "" ? null : Number(score),
+          notes,
+          changeNote,
+        }),
+      });
+      await loadData();
+      setMessage("Datos de laboratorio corregidos correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const selectProcess = (process) => {
@@ -1518,6 +1576,7 @@ const LaboratoryPage = () => {
                         <th className="px-3 py-2">Analisis</th>
                         <th className="px-3 py-2">Fecha</th>
                         <th className="px-3 py-2">Analista</th>
+                        {["admin", "laboratory"].includes(user?.role) && <th className="px-3 py-2">Accion</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1536,6 +1595,18 @@ const LaboratoryPage = () => {
                           </td>
                           <td className="px-3 py-2">{formatDate(lot.lab_reviewed_at)}</td>
                           <td className="px-3 py-2">{lot.reviewed_by_name || "-"}</td>
+                          {["admin", "laboratory"].includes(user?.role) && (
+                            <td className="px-3 py-2">
+                              <button
+                                className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                disabled={saving}
+                                type="button"
+                                onClick={() => editHistoryLotLabData(lot)}
+                              >
+                                Editar analisis
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

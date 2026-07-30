@@ -8,6 +8,7 @@ import {
   putLotCode,
   putReceptionData,
   putLabReview,
+  putLabData,
   putPhysicalReview,
   putPurchase,
   putLiquidation,
@@ -25,6 +26,7 @@ router.post("/initial-load", requireAuth, requireRoles("admin"), postInitialLoad
 router.put("/:id/code", requireAuth, requireRoles("admin", "warehouse"), putLotCode);
 router.put("/:id/reception", requireAuth, requireRoles("admin", "warehouse"), putReceptionData);
 router.put("/:id/lab-review", requireAuth, requireRoles("admin", "laboratory"), putLabReview);
+router.put("/:id/lab-data", requireAuth, requireRoles("admin", "laboratory"), putLabData);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "warehouse"), putPhysicalReview);
 router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting"), putLiquidation);
 router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting"), putPurchase);

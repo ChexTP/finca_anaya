@@ -38,8 +38,9 @@ const initialLot = {
 };
 
 const initialStockEntry = {
-  lotKind: "PASILLA",
+  lotKind: "LOT",
   coffeeTypeId: "",
+  coffeeProfileId: "",
   commercialClassification: "Regional",
   presentation: "Pergamino",
   coffeeVariety: "",
@@ -48,6 +49,8 @@ const initialStockEntry = {
   receivedAt: new Date().toISOString().slice(0, 10),
   originZone: "",
   initialComment: "",
+  manualCodeNumber: "",
+  manualCodeYear: new Date().getFullYear(),
 };
 
 export const activeWarehouseStatuses = [
@@ -340,6 +343,24 @@ const WarehousePage = () => {
     });
   }, [catalogs, stockEntryForm.commercialClassification, stockEntryForm.coffeeTypeId]);
 
+  const stockCoffeeProfileOptions = useMemo(() => {
+    return (catalogs?.coffeeProfiles || [])
+      .filter((profile) => profile.is_active !== false)
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
+  }, [catalogs]);
+
+  const stockEntryCodePrefix = stockEntryForm.lotKind === "PROC"
+    ? "PROC"
+    : stockEntryForm.lotKind === "PASILLA"
+      ? "PAS"
+      : stockEntryForm.lotKind === "RECUPERACION"
+        ? "REC"
+        : "LOT";
+
+  const stockEntryCodePreview = stockEntryForm.manualCodeNumber
+    ? `${stockEntryCodePrefix}-${stockEntryForm.manualCodeYear || new Date().getFullYear()}-${String(Number(stockEntryForm.manualCodeNumber) || 0).padStart(4, "0")}`
+    : `${stockEntryCodePrefix}-${stockEntryForm.manualCodeYear || new Date().getFullYear()}-automatico`;
+
   const estimatedNetWeight = useMemo(() => {
     const gross = Number(lotForm.grossWeightKg || 0);
     const packages = Number(lotForm.packagingQuantity || 0);
@@ -450,7 +471,9 @@ const WarehousePage = () => {
       apiRequest("/inventory/lots"),
     ]);
     setCatalogs(catalogData);
-    setSuppliers(supplierData);
+    setSuppliers(
+      [...supplierData].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"))
+    );
     setPendingLots(lotData);
     setPhysicalReviewLots(physicalData);
     setAcceptedLabLots(acceptedData);
@@ -556,19 +579,29 @@ const WarehousePage = () => {
     setSaving(true);
 
     try {
-      if (stockEntryForm.lotKind === "RECUPERACION" && !stockEntryForm.coffeeVariety.trim()) {
-        throw new Error("La recuperacion necesita nombre, variedad o codigo exacto.");
+      if (["LOT", "RECUPERACION"].includes(stockEntryForm.lotKind) && !stockEntryForm.coffeeVariety.trim()) {
+        throw new Error("El cafe necesita nombre, variedad o codigo exacto.");
+      }
+
+      if (stockEntryForm.lotKind === "PROC" && !stockEntryForm.coffeeProfileId) {
+        throw new Error("Seleccione el perfil comercial del proceso listo.");
       }
 
       const response = await apiRequest("/lots/stock-entry", {
         method: "POST",
         body: JSON.stringify({
           ...stockEntryForm,
-          coffeeTypeId: Number(stockEntryForm.coffeeTypeId),
+          coffeeTypeId: stockEntryForm.coffeeTypeId ? Number(stockEntryForm.coffeeTypeId) : null,
+          coffeeProfileId: stockEntryForm.coffeeProfileId ? Number(stockEntryForm.coffeeProfileId) : null,
           weightKg: Number(stockEntryForm.weightKg),
           humidityPercent: stockEntryForm.humidityPercent === "" ? null : Number(stockEntryForm.humidityPercent),
+          manualCodeNumber: stockEntryForm.manualCodeNumber === "" ? null : Number(stockEntryForm.manualCodeNumber),
           commercialClassification:
-            stockEntryForm.lotKind === "PASILLA" ? "Pasilla" : stockEntryForm.commercialClassification,
+            stockEntryForm.lotKind === "PROC"
+              ? "Procesado"
+              : stockEntryForm.lotKind === "PASILLA"
+                ? "Pasilla"
+                : stockEntryForm.commercialClassification,
         }),
       });
 
@@ -958,36 +991,77 @@ const WarehousePage = () => {
 
           <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createStockEntry}>
             <h2 className="text-sm font-semibold text-slate-800">Entrada rapida de stock</h2>
-            <p className="mt-1 text-xs text-slate-500">Para pasillas recurrentes y recuperaciones que ya deben quedar disponibles.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Para cargar inventario fisico actual que ya debe quedar disponible.
+            </p>
             <div className="mt-4 space-y-3">
               <select
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={stockEntryForm.lotKind}
                 onChange={(event) => setStockEntryForm({ ...initialStockEntry, lotKind: event.target.value })}
               >
+                <option value="LOT">Cafe disponible</option>
                 <option value="PASILLA">Pasilla</option>
                 <option value="RECUPERACION">Recuperacion</option>
+                <option value="PROC">Proceso listo</option>
               </select>
-              <select
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                value={stockEntryForm.coffeeTypeId}
-                onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeTypeId: event.target.value })}
-                required
-              >
-                <option value="">Proceso</option>
-                {catalogs?.coffeeTypes
-                  ?.filter((type) =>
-                    stockEntryForm.lotKind === "PASILLA"
-                      ? ["Lavado", "Natural"].includes(type.name)
-                      : ["Lavado", "Natural", "Semilavado"].includes(type.name)
-                  )
-                  .map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  min="1"
+                  placeholder={`Numero ${stockEntryCodePrefix}`}
+                  type="number"
+                  value={stockEntryForm.manualCodeNumber}
+                  onChange={(event) => setStockEntryForm({ ...stockEntryForm, manualCodeNumber: event.target.value })}
+                />
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  min="2020"
+                  placeholder="Ano"
+                  type="number"
+                  value={stockEntryForm.manualCodeYear}
+                  onChange={(event) => setStockEntryForm({ ...stockEntryForm, manualCodeYear: event.target.value })}
+                />
+              </div>
+              <p className="rounded bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                Codigo: {stockEntryCodePreview}
+              </p>
+              {stockEntryForm.lotKind === "PROC" ? (
+                <select
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={stockEntryForm.coffeeProfileId}
+                  onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeProfileId: event.target.value })}
+                  required
+                >
+                  <option value="">Perfil comercial del proceso</option>
+                  {stockCoffeeProfileOptions.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name}
                     </option>
                   ))}
-              </select>
-              {stockEntryForm.lotKind === "RECUPERACION" && (
+                </select>
+              ) : (
+                <select
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={stockEntryForm.coffeeTypeId}
+                  onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeTypeId: event.target.value })}
+                  required
+                >
+                  <option value="">Proceso</option>
+                  {catalogs?.coffeeTypes
+                    ?.filter((type) =>
+                      stockEntryForm.lotKind === "PASILLA"
+                        ? ["Lavado", "Natural"].includes(type.name)
+                        : ["Lavado", "Natural", "Semilavado"].includes(type.name)
+                    )
+                    .map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                </select>
+              )}
+              {["LOT", "RECUPERACION"].includes(stockEntryForm.lotKind) && (
                 <>
                   <select
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
