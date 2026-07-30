@@ -1225,7 +1225,7 @@ const WarehousePage = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {user?.role === "admin" && (
+                  {["admin", "warehouse"].includes(user?.role) && (
                     <button
                       className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                       type="button"
@@ -1273,7 +1273,7 @@ const WarehousePage = () => {
                   <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Llegada</th>
                   <th className="px-3 py-2">Estado</th>
-                  {user?.role === "admin" && <th className="px-3 py-2">Accion</th>}
+                  {["admin", "warehouse"].includes(user?.role) && <th className="px-3 py-2">Accion</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1291,7 +1291,7 @@ const WarehousePage = () => {
                     <td className="px-3 py-2">
                       <StatusBadge tone="warning">{lot.status}</StatusBadge>
                     </td>
-                    {user?.role === "admin" && (
+                    {["admin", "warehouse"].includes(user?.role) && (
                       <td className="px-3 py-2">
                         <button
                           className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
