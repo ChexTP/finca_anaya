@@ -52,11 +52,29 @@ const getEstimatedDeficitParts = (item) => {
   const missingKg = Number(item.missing_kg || 0);
   const requiredKg = Number(item.required_kg || 0);
   const requestedKg = Number(item.requested_quantity_kg || 0);
+  const reservedProcessKg = Number(item.reserved_process_kg || 0);
+  const reservedBaseKg = Number(item.reserved_base_kg || 0);
+  const hasSeparatedReservations = reservedProcessKg > 0 || reservedBaseKg > 0;
   const primaryComponent = getPrimaryComponentName(item);
   const baseComponent = item.base_purchase_coffee_name || "Cafe base estimado";
 
   if (item.coffee_profile_category !== "Exotico" || !primaryComponent || missingKg <= 0 || requestedKg <= 0) {
     return null;
+  }
+
+  if (hasSeparatedReservations && requiredKg > 0) {
+    const processTargetKg = requiredKg * 0.4;
+    const baseTargetKg = requiredKg * 0.6;
+    const processInputKg = Math.max(processTargetKg - reservedProcessKg, 0);
+    const baseKg = Math.max(baseTargetKg - reservedBaseKg, 0);
+
+    return {
+      processComponentName: `${primaryComponent} para ${item.coffee_profile_name}`,
+      processInputKg: Number(processInputKg.toFixed(3)),
+      baseComponentName: baseComponent,
+      baseKg: Number(baseKg.toFixed(3)),
+      finalMissingKg: Number((processInputKg + baseKg).toFixed(3)),
+    };
   }
 
   const missingFinalKg = requiredKg > 0
@@ -263,7 +281,7 @@ const LotReservationsPage = () => {
                 category: "Base estimada",
                 kg: estimatedParts.baseKg,
               },
-            ]
+            ].filter((part) => Number(part.kg || 0) > 0)
           : [
               {
                 coffee: getDeficitCoffeeName(item),
@@ -366,7 +384,15 @@ const LotReservationsPage = () => {
         reserved: formatKg(item.reserved_kg),
         missing: formatKg(item.missing_kg),
         estimate: estimatedParts
-          ? `${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)} / ${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)} / Final faltante: ${formatKg(estimatedParts.finalMissingKg)}`
+          ? [
+              Number(estimatedParts.processInputKg || 0) > 0
+                ? `${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)}`
+                : null,
+              Number(estimatedParts.baseKg || 0) > 0
+                ? `${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)}`
+                : null,
+              `Final faltante: ${formatKg(estimatedParts.finalMissingKg)}`,
+            ].filter(Boolean).join(" / ")
           : formatKg(item.missing_kg),
         delivery: formatDate(item.estimated_delivery_date),
         assignee: item.order_assignee || "-",
@@ -805,12 +831,16 @@ const LotReservationsPage = () => {
                     <td className="px-3 py-2">
                       {getEstimatedDeficitParts(item) ? (
                         <div className="space-y-1 text-xs">
-                          <p className="font-semibold text-rose-700">
-                            {getEstimatedDeficitParts(item).processComponentName}: {formatKg(getEstimatedDeficitParts(item).processInputKg)}
-                          </p>
-                          <p className="font-semibold text-amber-700">
-                            {getEstimatedDeficitParts(item).baseComponentName}: {formatKg(getEstimatedDeficitParts(item).baseKg)}
-                          </p>
+                          {Number(getEstimatedDeficitParts(item).processInputKg || 0) > 0 && (
+                            <p className="font-semibold text-rose-700">
+                              {getEstimatedDeficitParts(item).processComponentName}: {formatKg(getEstimatedDeficitParts(item).processInputKg)}
+                            </p>
+                          )}
+                          {Number(getEstimatedDeficitParts(item).baseKg || 0) > 0 && (
+                            <p className="font-semibold text-amber-700">
+                              {getEstimatedDeficitParts(item).baseComponentName}: {formatKg(getEstimatedDeficitParts(item).baseKg)}
+                            </p>
+                          )}
                           <p className="text-slate-500">Faltante perfil final: {formatKg(getEstimatedDeficitParts(item).finalMissingKg)}</p>
                         </div>
                       ) : (

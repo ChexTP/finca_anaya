@@ -302,13 +302,14 @@ export const putSaleItemShortage = async (req, res) => {
   try {
     const shortageMarked = Boolean(req.body.shortageMarked);
     const notes = String(req.body.notes || "").trim();
+    const markedBy = Number(req.user?.id);
 
     const item = await updateSaleItemShortage({
       saleId: req.params.id,
       saleItemId: Number(req.params.itemId),
       shortageMarked,
       notes,
-      markedBy: req.user.id,
+      markedBy: Number.isInteger(markedBy) ? markedBy : null,
     });
 
     if (!item) {

@@ -587,13 +587,13 @@ export const updateSaleItemShortage = async ({ saleId, saleItemId, shortageMarke
     SET
       shortage_marked = $1,
       shortage_notes = $2,
-      shortage_marked_by = CASE WHEN $1 THEN $3 ELSE NULL END,
+      shortage_marked_by = CASE WHEN $1 THEN $3::integer ELSE NULL END,
       shortage_marked_at = CASE WHEN $1 THEN NOW() ELSE NULL END
     WHERE id = $4
       AND sale_id = $5
     RETURNING *
     `,
-    [shortageMarked, notes || null, markedBy, saleItemId, saleId]
+    [shortageMarked, notes || null, markedBy || null, saleItemId, saleId]
   );
 
   return result.rows[0];
@@ -852,6 +852,8 @@ export const getOperationalLotReservations = async () => {
       sale_items.shortage_marked,
       sale_items.shortage_notes,
       COALESCE(SUM(sale_item_lots.quantity_kg), 0) AS reserved_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.notes ILIKE '[Proceso]%'), 0) AS reserved_process_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.notes ILIKE '[Base]%'), 0) AS reserved_base_kg,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.id AS coffee_profile_id,
       coffee_profiles.name AS coffee_profile_name,
