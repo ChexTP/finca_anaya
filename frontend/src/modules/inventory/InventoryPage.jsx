@@ -1316,7 +1316,10 @@ const InventoryPage = () => {
                 <article key={lot.id} className="p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</p>
+                      <p className="font-semibold text-ink">
+                        {formatCoffeeLotCodeName(lot)}
+                        {lot.supplier_name ? ` - ${lot.supplier_name}` : ""}
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs">
                         <span className="rounded bg-slate-100 px-2 py-1 font-semibold text-slate-700">{lot.presentation || "Pergamino"}</span>
                         <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.coffee_type_name || "Sin tipo"}</span>
