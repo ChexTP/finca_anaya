@@ -83,6 +83,27 @@ const ProcessesPage = ({
   const [saving, setSaving] = useState(false);
 
   const canCreateProcess = ["admin", "warehouse"].includes(user?.role);
+  const actionLabel = fixedProcessType === "Trilladora"
+    ? "Enviar a trilladora"
+    : fixedProcessType === "Seleccion electronica"
+      ? "Enviar a seleccionadora"
+      : "Solicitar proceso";
+  const actionDescription = fixedProcessType === "Trilladora"
+    ? "Seleccione los lotes y cantidades que salen hacia trilladora. Bodega o administracion controlan el regreso fisico."
+    : fixedProcessType === "Seleccion electronica"
+      ? "Seleccione los lotes y cantidades que salen hacia seleccionadora. Bodega o administracion controlan el regreso fisico."
+      : "Seleccione la venta, los lotes y las cantidades. Bodega o administracion controlan el inicio y el regreso fisico.";
+  const startActionLabel = fixedProcessType === "Trilladora"
+    ? "Confirmar envio a trilladora"
+    : fixedProcessType === "Seleccion electronica"
+      ? "Confirmar envio a seleccionadora"
+      : "Confirmar inicio";
+  const startButtonLabel = fixedProcessType === "Trilladora"
+    ? "Enviar a trilladora"
+    : fixedProcessType === "Seleccion electronica"
+      ? "Enviar a seleccionadora"
+      : "Iniciar proceso";
+  const operationLabel = fixedProcessType ? "envio" : "proceso";
 
   const selectedInputs = useMemo(() => {
     return Object.entries(selectedLots)
@@ -187,7 +208,7 @@ const ProcessesPage = ({
       return;
     }
 
-    const confirmed = window.confirm("Confirma solicitar este proceso para laboratorio?");
+    const confirmed = window.confirm(`Confirma ${actionLabel.toLowerCase()}?`);
 
     if (!confirmed) {
       return;
@@ -210,7 +231,7 @@ const ProcessesPage = ({
       setForm({ ...initialProcess, processType: defaultProcessType });
       setSelectedLots({});
       await loadData();
-      setMessage("Solicitud de proceso creada. Bodega debe confirmar cuando el cafe entre a procesamiento.");
+      setMessage(`${actionLabel} creado correctamente. Bodega debe confirmar cuando el cafe salga.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -282,7 +303,7 @@ const ProcessesPage = ({
       return;
     }
 
-    if (!window.confirm(`Confirma iniciar el proceso ${process.code}?`)) return;
+    if (!window.confirm(`Confirma ${startActionLabel.toLowerCase()} ${process.code}?`)) return;
 
     setSaving(true);
     setError("");
@@ -298,7 +319,7 @@ const ProcessesPage = ({
       setStartProcessId(null);
       setStartForm({ ...initialStartForm, processType: defaultProcessType });
       await loadData();
-      setMessage("Proceso iniciado correctamente.");
+      setMessage(`${startActionLabel} correctamente.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -313,7 +334,7 @@ const ProcessesPage = ({
     try {
       await apiRequest(`/processes/${process.id}/pending-laboratory`, { method: "PUT", body: JSON.stringify({}) });
       await loadData();
-      setMessage("Proceso recibido. Bodega debe completar la revision fisica.");
+      setMessage("Cafe recibido. Bodega debe completar la revision fisica.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -358,7 +379,7 @@ const ProcessesPage = ({
       setPhysicalReviewProcessId(null);
       setPhysicalReviewForm(initialPhysicalReviewForm);
       await loadData();
-      setMessage("Revision fisica guardada. El proceso ya aparece en Laboratorio.");
+      setMessage(`Revision fisica guardada. El ${operationLabel} ya aparece en Laboratorio.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -388,7 +409,7 @@ const ProcessesPage = ({
       <div className="rounded border border-slate-200 bg-white p-3">
         <input
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-          placeholder="Buscar proceso por perfil, lote, cliente, venta o ubicacion"
+          placeholder="Buscar por perfil, lote, cliente, venta o ubicacion"
           value={processSearch}
           onChange={(event) => setProcessSearch(event.target.value)}
         />
@@ -398,8 +419,8 @@ const ProcessesPage = ({
         <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createProcess}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-800">Solicitar proceso</h2>
-              <p className="text-sm text-slate-500">Seleccione la venta, los lotes y las cantidades. Bodega o administracion controlan el inicio y el regreso fisico.</p>
+              <h2 className="text-sm font-semibold text-slate-800">{actionLabel}</h2>
+              <p className="text-sm text-slate-500">{actionDescription}</p>
             </div>
             <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">
               Total: <span className="font-semibold text-ink">{totalSelectedKg} kg</span>
@@ -449,7 +470,7 @@ const ProcessesPage = ({
             )}
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Ubicacion del proceso"
+              placeholder={fixedProcessType ? "Ubicacion o destino" : "Ubicacion del proceso"}
               value={form.processLocation}
               onChange={(event) => setForm({ ...form, processLocation: event.target.value })}
             />
@@ -476,7 +497,7 @@ const ProcessesPage = ({
                   <th className="px-3 py-2">Tipo / Perfil</th>
                   <th className="px-3 py-2">Clasificacion</th>
                   <th className="px-3 py-2">Disponible</th>
-                  <th className="px-3 py-2">Cantidad a procesar</th>
+                  <th className="px-3 py-2">{fixedProcessType ? "Cantidad a enviar" : "Cantidad a procesar"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -515,13 +536,16 @@ const ProcessesPage = ({
             disabled={saving || selectedInputs.length === 0}
           >
             <Plus size={16} />
-            Solicitar proceso
+            {actionLabel}
           </button>
         </form>
       )}
 
       {filteredProcesses.length === 0 ? (
-        <EmptyState title="Sin procesos" message="Los procesos creados desde bodega apareceran aqui." />
+        <EmptyState
+          title={fixedProcessType ? "Sin envios" : "Sin procesos"}
+          message={fixedProcessType ? "Los envios creados desde bodega apareceran aqui." : "Los procesos creados desde bodega apareceran aqui."}
+        />
       ) : (
         <div className="grid gap-3">
           {filteredProcesses.map((process) => (
@@ -582,7 +606,7 @@ const ProcessesPage = ({
                   onClick={() => openStartForm(process)}
                 >
                   <Save size={16} />
-                  Iniciar proceso
+                  {startButtonLabel}
                 </button>
               )}
               {startProcessId === process.id && (
@@ -615,7 +639,7 @@ const ProcessesPage = ({
                     </label>
                   )}
                   <label className="text-xs font-medium text-slate-600">
-                    Ubicacion del proceso
+                    {fixedProcessType ? "Ubicacion o destino" : "Ubicacion del proceso"}
                     <input
                       className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       placeholder="Finca, bodega o lugar"
@@ -627,7 +651,7 @@ const ProcessesPage = ({
                     className="self-end rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     disabled={saving}
                   >
-                    Confirmar inicio
+                    {startActionLabel}
                   </button>
                 </form>
               )}
@@ -657,7 +681,7 @@ const ProcessesPage = ({
                 <form className="mt-3 min-w-0 space-y-3 rounded border border-emerald-100 bg-emerald-50 p-3" onSubmit={(event) => completePhysicalReview(event, process)}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-ink">Salidas del proceso</p>
+                      <p className="text-sm font-semibold text-ink">{fixedProcessType ? "Salidas del envio" : "Salidas del proceso"}</p>
                       <p className="text-xs text-slate-600">Divida el cafe recibido por perfil comercial, peso, humedad y factor.</p>
                     </div>
                     <button
@@ -749,7 +773,7 @@ const ProcessesPage = ({
               )}
               {process.inputs?.length > 0 && (
                 <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase text-slate-500">Mezcla del proceso</p>
+                  <p className="text-xs font-semibold uppercase text-slate-500">{fixedProcessType ? "Mezcla del envio" : "Mezcla del proceso"}</p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {process.inputs.map((input) => (
                       <div key={`${process.id}-${input.lot_id}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">

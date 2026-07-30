@@ -85,7 +85,7 @@ const App = () => {
               <ProcessesPage
                 fixedProcessType="Trilladora"
                 title="Trilladora"
-                description="Cafe enviado a trilladora, retorno fisico y paso a laboratorio."
+                description="Envios a trilladora, retorno fisico y paso a laboratorio."
               />
             </ProtectedRoute>
           }
@@ -97,7 +97,7 @@ const App = () => {
               <ProcessesPage
                 fixedProcessType="Seleccion electronica"
                 title="Seleccionadora"
-                description="Cafe enviado a seleccion electronica, retorno fisico y paso a laboratorio."
+                description="Envios a seleccion electronica, retorno fisico y paso a laboratorio."
               />
             </ProtectedRoute>
           }
