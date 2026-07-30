@@ -61,6 +61,7 @@ const initialAdminProcessEdit = {
 };
 
 const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
+const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
 
 const InventoryPage = () => {
   const { user } = useAuth();
@@ -1071,7 +1072,8 @@ const InventoryPage = () => {
                     <tr>
                       <th className="px-3 py-2">Lote</th>
                       <th className="px-3 py-2">Proveedor</th>
-                      <th className="px-3 py-2">Peso</th>
+                      <th className="px-3 py-2">Peso bruto</th>
+                      <th className="px-3 py-2">Peso neto</th>
                       <th className="px-3 py-2">Accion</th>
                     </tr>
                   </thead>
@@ -1080,7 +1082,8 @@ const InventoryPage = () => {
                       <tr key={lot.id}>
                         <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                         <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
-                        <td className="px-3 py-2">{formatKg(lot.net_weight_kg)}</td>
+                        <td className="px-3 py-2">{formatOptionalKg(lot.gross_weight_kg)}</td>
+                        <td className="px-3 py-2">{formatOptionalKg(lot.net_weight_kg)}</td>
                         <td className="px-3 py-2">
                           <button
                             className="rounded border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
@@ -1149,6 +1152,7 @@ const InventoryPage = () => {
                     <tr>
                       <th className="px-3 py-2">Codigo</th>
                       <th className="px-3 py-2">Proveedor</th>
+                      <th className="px-3 py-2">Peso bruto</th>
                       <th className="px-3 py-2">Peso neto</th>
                       <th className="px-3 py-2">Clasificacion</th>
                       <th className="px-3 py-2">Factor</th>
@@ -1161,7 +1165,8 @@ const InventoryPage = () => {
                       <tr key={lot.id}>
                         <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                         <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
-                        <td className="px-3 py-2">{formatKg(lot.net_weight_kg)}</td>
+                        <td className="px-3 py-2">{formatOptionalKg(lot.gross_weight_kg)}</td>
+                        <td className="px-3 py-2">{formatOptionalKg(lot.net_weight_kg)}</td>
                         <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
                         <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                         <td className="px-3 py-2">{lot.lab_score || "-"}</td>
@@ -1332,7 +1337,15 @@ const InventoryPage = () => {
                     <StatusBadge>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
                   </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+                    <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Peso bruto</p>
+                      <p className="mt-1 font-bold text-ink">{formatOptionalKg(lot.gross_weight_kg)}</p>
+                    </div>
+                    <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Peso neto</p>
+                      <p className="mt-1 font-bold text-ink">{formatOptionalKg(lot.net_weight_kg)}</p>
+                    </div>
                     <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-xs font-semibold uppercase text-slate-500">Fisico</p>
                       <p className="mt-1 font-bold text-ink">{formatKg(lot.available_weight_kg)}</p>

@@ -31,6 +31,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.commercial_classification,
       coffee_lots.coffee_variety,
       coffee_lots.status,
+      coffee_lots.gross_weight_kg,
       coffee_lots.net_weight_kg,
       coffee_lots.available_weight_kg,
       COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
