@@ -133,18 +133,19 @@ export const putSaleBlendOrder = async (req, res) => {
         !Number.isInteger(item.saleItemId) ||
         !Number.isInteger(item.lotId) ||
         !Number.isFinite(item.percentage) ||
+        !Number.isInteger(item.percentage) ||
         item.percentage <= 0 ||
         item.percentage > 100
     );
 
     if (invalidItem) {
       return res.status(400).json({
-        message: "Cada linea debe tener producto de venta, lote y porcentaje entre 0 y 100",
+        message: "Cada linea debe tener producto de venta, lote y porcentaje entero entre 1 y 100",
       });
     }
 
     const totalsBySaleItem = cleanItems.reduce((totals, item) => {
-      totals[item.saleItemId] = Number(((totals[item.saleItemId] || 0) + item.percentage).toFixed(2));
+      totals[item.saleItemId] = (totals[item.saleItemId] || 0) + item.percentage;
       return totals;
     }, {});
 

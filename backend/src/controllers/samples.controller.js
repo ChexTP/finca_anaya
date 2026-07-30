@@ -326,13 +326,14 @@ export const putSampleBlend = async (req, res) => {
         !Number.isInteger(item.sampleItemId) ||
         !item.componentDescription ||
         !isValidNumber(item.percentage) ||
+        !Number.isInteger(item.percentage) ||
         item.percentage <= 0 ||
         item.percentage > 100
     );
-    if (invalid) return res.status(400).json({ message: "Cafe, descripcion del componente y porcentaje son obligatorios" });
+    if (invalid) return res.status(400).json({ message: "Cafe, descripcion del componente y porcentaje entero entre 1 y 100 son obligatorios" });
 
     const totals = items.reduce((result, item) => {
-      result[item.sampleItemId] = Number(((result[item.sampleItemId] || 0) + item.percentage).toFixed(2));
+      result[item.sampleItemId] = (result[item.sampleItemId] || 0) + item.percentage;
       return result;
     }, {});
     const allComplete = sample.items.every((item) => totals[item.id] === 100);

@@ -107,6 +107,12 @@ const formatAssignedLotOption = (lot) => {
   return `${getAssignmentRole(lot.notes)} - ${formatCoffeeLotCodeName(lot)} - ${formatKg(lot.quantity_kg)} asignados`;
 };
 
+const normalizePercentageInput = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return String(Math.min(Number(digits), 100));
+};
+
 const buildBlankSampleItemReviews = (sample) => {
   return (sample.items || []).map((item) => ({
     sampleItemId: item.id,
@@ -1689,12 +1695,13 @@ const LaboratoryPage = () => {
                             <input
                               className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
                               placeholder="Porcentaje %"
-                              type="number"
-                              min="0.01"
+                              type="text"
+                              inputMode="numeric"
+                              min="1"
                               max="100"
-                              step="0.01"
+                              step="1"
                               value={row.percentage}
-                              onChange={(event) => updateBlendRow(index, "percentage", event.target.value)}
+                              onChange={(event) => updateBlendRow(index, "percentage", normalizePercentageInput(event.target.value))}
                               required
                             />
                             {selectedAssignedLot && (

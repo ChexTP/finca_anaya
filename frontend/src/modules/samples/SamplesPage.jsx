@@ -113,6 +113,12 @@ const hasCompleteSampleBlend = (sample) => {
   });
 };
 
+const normalizePercentageInput = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return String(Math.min(Number(digits), 100));
+};
+
 const buildSampleLabSummary = (sample) => {
   if (!hasCompleteSampleLabReview(sample)) return null;
 
@@ -1004,12 +1010,13 @@ const SamplesPage = () => {
                               <input
                                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                                 placeholder="Porcentaje %"
-                                type="number"
-                                min="0.01"
+                                type="text"
+                                inputMode="numeric"
+                                min="1"
                                 max="100"
-                                step="0.01"
+                                step="1"
                                 value={row.percentage}
-                                onChange={(event) => updateBlendRow(index, "percentage", event.target.value)}
+                                onChange={(event) => updateBlendRow(index, "percentage", normalizePercentageInput(event.target.value))}
                               />
                             </div>
                             <div className="mt-2 flex items-center justify-between gap-3">
