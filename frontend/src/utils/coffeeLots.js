@@ -61,5 +61,8 @@ export const getCoffeeLotDescription = (lot) => {
 };
 
 export const formatCoffeeLotCodeName = (lot) => {
-  return `${lot.code || lot.lot_code || "Sin codigo"} - ${getCoffeeLotDescription(lot)}`;
+  const baseName = `${lot.code || lot.lot_code || "Sin codigo"} - ${getCoffeeLotDescription(lot)}`;
+  const supplierName = lot.supplier_name || lot.lot_supplier_name || lot.supplierName;
+
+  return supplierName ? `${baseName} - ${supplierName}` : baseName;
 };

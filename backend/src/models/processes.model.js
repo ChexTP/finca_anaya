@@ -48,15 +48,17 @@ export const listProcesses = async ({ status, processType }) => {
                   WHEN coffee_processes.total_input_kg > 0
                   THEN ROUND((coffee_process_inputs.quantity_kg / coffee_processes.total_input_kg * 100)::numeric, 2)
                   ELSE 0
-                END,
+              END,
               'coffee_type_name', coffee_types.name,
               'coffee_profile_name', coffee_profiles.name,
+              'supplier_name', suppliers.name,
               'commercial_classification', coffee_lots.commercial_classification
             )
             ORDER BY coffee_process_inputs.created_at ASC
           )
           FROM coffee_process_inputs
           INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
+          LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
           LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
           LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
           WHERE coffee_process_inputs.process_id = coffee_processes.id
@@ -148,6 +150,7 @@ export const findProcessById = async (id) => {
       coffee_lots.code AS lot_code,
       coffee_lots.available_weight_kg AS current_available_weight_kg,
       coffee_lots.commercial_classification,
+      suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       CASE
@@ -158,6 +161,7 @@ export const findProcessById = async (id) => {
     FROM coffee_process_inputs
     INNER JOIN coffee_processes ON coffee_processes.id = coffee_process_inputs.process_id
     INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     WHERE coffee_process_inputs.process_id = $1

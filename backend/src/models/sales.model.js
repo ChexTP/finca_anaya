@@ -90,6 +90,7 @@ export const findSaleById = async (id) => {
     SELECT
       sale_items.*,
       coffee_lots.code AS lot_code,
+      suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.category AS coffee_profile_category,
@@ -117,6 +118,7 @@ export const findSaleById = async (id) => {
       ) AS profile_components
     FROM sale_items
     LEFT JOIN coffee_lots ON coffee_lots.id = sale_items.lot_id
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
     LEFT JOIN purchase_coffees process_purchase ON process_purchase.id = coffee_profiles.process_purchase_coffee_id
@@ -136,6 +138,7 @@ export const findSaleById = async (id) => {
       coffee_lots.lot_kind,
       coffee_lots.presentation,
       coffee_lots.commercial_classification,
+      suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       COALESCE(
@@ -150,9 +153,10 @@ export const findSaleById = async (id) => {
                   WHEN coffee_processes.total_input_kg > 0
                   THEN ROUND((coffee_process_inputs.quantity_kg / coffee_processes.total_input_kg * 100)::numeric, 2)
                   ELSE 0
-                END,
+              END,
               'coffee_type_name', input_types.name,
               'coffee_profile_name', input_profiles.name,
+              'supplier_name', input_suppliers.name,
               'commercial_classification', input_lots.commercial_classification
             )
             ORDER BY coffee_process_inputs.created_at ASC
@@ -160,6 +164,7 @@ export const findSaleById = async (id) => {
           FROM coffee_processes
           INNER JOIN coffee_process_inputs ON coffee_process_inputs.process_id = coffee_processes.id
           INNER JOIN coffee_lots input_lots ON input_lots.id = coffee_process_inputs.lot_id
+          LEFT JOIN suppliers input_suppliers ON input_suppliers.id = input_lots.supplier_id
           LEFT JOIN coffee_types input_types ON input_types.id = input_lots.coffee_type_id
           LEFT JOIN coffee_profiles input_profiles ON input_profiles.id = input_lots.coffee_profile_id
           WHERE coffee_processes.output_lot_id = coffee_lots.id
@@ -169,6 +174,7 @@ export const findSaleById = async (id) => {
     FROM sale_item_lots
     INNER JOIN coffee_lots ON coffee_lots.id = sale_item_lots.lot_id
     INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     WHERE sale_items.sale_id = $1
@@ -203,11 +209,13 @@ export const findSaleById = async (id) => {
       coffee_lots.lot_kind,
       coffee_lots.presentation,
       coffee_lots.commercial_classification,
+      suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name
     FROM sale_blend_items
     INNER JOIN sale_items ON sale_items.id = sale_blend_items.sale_item_id
     INNER JOIN coffee_lots ON coffee_lots.id = sale_blend_items.lot_id
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     WHERE sale_blend_items.sale_id = $1
@@ -921,6 +929,7 @@ export const getOperationalLotReservations = async () => {
       coffee_lots.coffee_variety,
       coffee_lots.available_weight_kg,
       coffee_lots.status,
+      suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
@@ -928,13 +937,14 @@ export const getOperationalLotReservations = async () => {
           AND sales.status NOT IN ('despachada', 'anulada')
       ), 0) AS reserved_kg
     FROM coffee_lots
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
     LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
     LEFT JOIN sales ON sales.id = sale_items.sale_id
     WHERE coffee_lots.status IN ('disponible', 'vendido_parcial', 'agotado')
-    GROUP BY coffee_lots.id, coffee_types.name, coffee_profiles.name
+    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name
     HAVING coffee_lots.available_weight_kg > 0
       OR COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
         WHERE sale_item_lots.deducted_at IS NULL
