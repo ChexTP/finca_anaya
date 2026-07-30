@@ -499,6 +499,25 @@ export const markSaleWithoutBlend = async ({ saleId }) => {
   }
 };
 
+export const markSaleReadyForBlend = async ({ saleId, notes }) => {
+  const result = await pool.query(
+    `
+    UPDATE sales
+    SET
+      status = 'listo_para_ensamble',
+      blend_required = TRUE,
+      notes = COALESCE($2, notes),
+      updated_at = NOW()
+    WHERE id = $1
+      AND status IN ('pendiente_alistamiento', 'pendiente_bodega', 'lote_asignado', 'proceso_solicitado', 'en_proceso', 'listo_para_ensamble', 'ensamble_definido')
+    RETURNING *
+    `,
+    [saleId, notes || null]
+  );
+
+  return result.rows[0];
+};
+
 export const updateSaleWarehousePriority = async ({ saleId, priority }) => {
   const result = await pool.query(
     `
@@ -830,6 +849,8 @@ export const getOperationalLotReservations = async () => {
       sale_items.variety,
       sale_items.quantity_kg AS requested_quantity_kg,
       COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg) AS required_kg,
+      sale_items.shortage_marked,
+      sale_items.shortage_notes,
       COALESCE(SUM(sale_item_lots.quantity_kg), 0) AS reserved_kg,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.id AS coffee_profile_id,
@@ -862,6 +883,7 @@ export const getOperationalLotReservations = async () => {
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
     LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
     WHERE sales.status NOT IN ('despachada', 'anulada')
+      AND sale_items.shortage_marked = TRUE
     GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.id, coffee_profiles.name, coffee_profiles.category, base_purchase.name
     ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_items.id ASC
     `

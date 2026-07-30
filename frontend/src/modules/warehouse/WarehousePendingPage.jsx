@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
-import { formatOperationalKg } from "../../utils/coffeeCalculations";
+import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import {
   getSaleNextAction,
@@ -115,6 +115,37 @@ const WarehousePendingPage = () => {
     return Object.values(groupCoffeeLots(assignableLots)).sort((left, right) => left.name.localeCompare(right.name));
   }, [availableLots, currentReservedByLot]);
 
+  const getItemAssignmentRows = (item) =>
+    assignmentRows.filter((row) => String(row.saleItemId) === String(item.id));
+
+  const getSuggestedQuantities = (item) => {
+    if (item.coffee_profile_category !== "Exotico") return null;
+
+    const requiredKg = Number(item.operational_weight_kg || item.quantity_kg || 0);
+    const processFinalKg = requiredKg * 0.4;
+    const processInputBeforeConversionKg = processFinalKg / 0.95;
+    const baseFinalKg = requiredKg * 0.6;
+    const processInputKg = calculateOperationalKg({
+      quantityKg: processInputBeforeConversionKg,
+      productForm: item.product_form,
+      processType: item.process_type,
+    });
+    const baseKg = calculateOperationalKg({
+      quantityKg: baseFinalKg,
+      productForm: item.product_form,
+      processType: item.process_type,
+    });
+    const processName = item.profile_components?.[0]?.purchase_coffee_name || item.process_purchase_coffee_name || "Cafe para proceso";
+    const baseName = item.base_purchase_coffee_name || "Cafe base";
+
+    return {
+      processName,
+      baseName,
+      processInputKg: Number(processInputKg.toFixed(3)),
+      baseKg: Number(baseKg.toFixed(3)),
+    };
+  };
+
   const loadData = async () => {
     const [saleData, reservationData] = await Promise.all([
       apiRequest("/sales"),
@@ -146,21 +177,23 @@ const WarehousePendingPage = () => {
       setSelectedSale(sale);
       setOrderAssignee(sale.order_assignee || "");
       setAssignmentRows(
-        sale.deductedLots?.length
-          ? sale.deductedLots.map((lot) => ({
+        sale.items?.flatMap((item) => {
+          const rows = (sale.deductedLots || []).filter((lot) => Number(lot.sale_item_id) === Number(item.id));
+
+          return rows.length
+            ? rows.map((lot) => ({
               saleItemId: String(lot.sale_item_id),
               lotId: String(lot.lot_id),
               quantityKg: String(lot.quantity_kg),
               notes: lot.notes || "",
             }))
-          : [
-              {
-                saleItemId: sale.items?.[0]?.id ? String(sale.items[0].id) : "",
-                lotId: "",
-                quantityKg: "",
-                notes: "",
-              },
-            ]
+            : [{
+              saleItemId: String(item.id),
+              lotId: "",
+              quantityKg: "",
+              notes: "",
+            }];
+        }) || []
       );
       setNotes("");
     } catch (requestError) {
@@ -221,11 +254,11 @@ const WarehousePendingPage = () => {
     );
   };
 
-  const addAssignmentRow = () => {
+  const addItemAssignmentRow = (item) => {
     setAssignmentRows((currentRows) => [
       ...currentRows,
       {
-        saleItemId: selectedSale?.items?.[0]?.id ? String(selectedSale.items[0].id) : "",
+        saleItemId: String(item.id),
         lotId: "",
         quantityKg: "",
         notes: "",
@@ -240,6 +273,20 @@ const WarehousePendingPage = () => {
   const saveAssignments = async () => {
     if (!selectedSale) return;
 
+    const cleanAssignments = assignmentRows
+      .map((row) => ({
+        saleItemId: Number(row.saleItemId),
+        lotId: Number(row.lotId),
+        quantityKg: Number(row.quantityKg),
+        notes: row.notes || null,
+      }))
+      .filter((row) => row.saleItemId && row.lotId && row.quantityKg > 0);
+
+    if (cleanAssignments.length === 0) {
+      setError("Agregue al menos un lote y una cantidad para guardar la asignacion.");
+      return;
+    }
+
     const confirmed = window.confirm("Confirmas guardar los lotes asignados a esta venta?");
     if (!confirmed) return;
 
@@ -251,17 +298,35 @@ const WarehousePendingPage = () => {
       const response = await apiRequest(`/sales/${selectedSale.id}/lot-assignments`, {
         method: "PUT",
         body: JSON.stringify({
-          items: assignmentRows.map((row) => ({
-            saleItemId: Number(row.saleItemId),
-            lotId: Number(row.lotId),
-            quantityKg: Number(row.quantityKg),
-            notes: row.notes || null,
-          })),
+          items: cleanAssignments,
         }),
       });
       setSelectedSale(response.data);
       await loadData();
       setMessage("Lotes asignados correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const requestLaboratoryBlend = async () => {
+    if (!selectedSale) return;
+    if (!window.confirm("Confirma enviar esta venta a laboratorio para definir ensamble?")) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/${selectedSale.id}/request-blend`, {
+        method: "PUT",
+        body: JSON.stringify({ notes }),
+      });
+      setSelectedSale(response.data);
+      await loadData();
+      setMessage("Venta enviada a laboratorio para definir ensamble.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -494,6 +559,18 @@ const WarehousePendingPage = () => {
                 <p className="mt-2 rounded bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
                   {getSaleNextAction(selectedSale)}
                 </p>
+                {selectedSale.items?.some((item) => item.shortage_marked) && (
+                  <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                    <p className="font-semibold">Alerta de deficit</p>
+                    <p>Hay cafe marcado como faltante. Revise el modulo Lotes asignados para ver cuanto comprar con la estimacion 40/60.</p>
+                  </div>
+                )}
+                {selectedSale.status === "ensamble_definido" && selectedSale.notes && (
+                  <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <p className="font-semibold">Reajuste de ensamble solicitado por laboratorio</p>
+                    <p>{selectedSale.notes}</p>
+                  </div>
+                )}
               </div>
 
               <div className="rounded border border-slate-200 p-3">
@@ -548,47 +625,131 @@ const WarehousePendingPage = () => {
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
                 {selectedSale.items?.map((item) => (
                   <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-medium text-ink">{getWarehouseItemLabel(item)}</p>
-                      <button
-                        className={`inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
-                          item.shortage_marked
-                            ? "border-amber-300 bg-amber-50 text-amber-700"
-                            : "border-slate-300 text-slate-600 hover:bg-slate-50"
-                        }`}
-                        type="button"
-                        onClick={() => toggleItemShortage(item)}
-                        disabled={saving}
-                      >
-                        <AlertTriangle size={13} />
-                        {item.shortage_marked ? "Faltante" : "No hay"}
-                      </button>
-                    </div>
-                    <p className="text-slate-500">
-                      Pedido: {formatOperationalKg(item.quantity_kg)}
-                      {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) && (
-                        <> · Operativo bodega: {formatOperationalKg(item.operational_weight_kg)}</>
-                      )}
-                    </p>
-                    <p className="mt-1 text-xs">
-                      <span className="text-amber-700">Reservado: {formatOperationalKg(item.reserved_kg)}</span>
-                      {" · "}
-                      <span className={Number(item.missing_kg || 0) > 0 ? "font-semibold text-rose-700" : "font-semibold text-emerald-700"}>
-                        Faltante: {formatOperationalKg(item.missing_kg)}
-                      </span>
-                    </p>
-                    {item.shortage_marked && item.shortage_notes && (
-                      <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                        Faltante: {item.shortage_notes}
-                      </p>
-                    )}
-                    {getWarehouseItemComponentSummary(item) && (
-                      <div className="mt-1 space-y-0.5 text-xs text-amber-700">
-                        {getWarehouseItemComponentSummary(item).split("<br>").map((line) => (
-                          <p key={line}>{line}</p>
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const suggested = getSuggestedQuantities(item);
+                      const rows = getItemAssignmentRows(item);
+
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-ink">{getWarehouseItemLabel(item)}</p>
+                              <p className="text-slate-500">
+                                Pedido: {formatOperationalKg(item.quantity_kg)}
+                                {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) && (
+                                  <> · Operativo bodega: {formatOperationalKg(item.operational_weight_kg)}</>
+                                )}
+                              </p>
+                              <p className="mt-1 text-xs">
+                                <span className="text-amber-700">Reservado: {formatOperationalKg(item.reserved_kg)}</span>
+                                {" · "}
+                                <span className={item.shortage_marked ? "font-semibold text-rose-700" : "font-semibold text-slate-500"}>
+                                  Marcado faltante: {item.shortage_marked ? "Si" : "No"}
+                                </span>
+                              </p>
+                            </div>
+                            <button
+                              className={`inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
+                                item.shortage_marked
+                                  ? "border-amber-300 bg-amber-50 text-amber-700"
+                                  : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                              }`}
+                              type="button"
+                              onClick={() => toggleItemShortage(item)}
+                              disabled={saving}
+                            >
+                              <AlertTriangle size={13} />
+                              {item.shortage_marked ? "Faltante" : "No hay cafe"}
+                            </button>
+                          </div>
+
+                          {suggested ? (
+                            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                              <p className="font-semibold uppercase">Estimacion operativa, no ensamble final</p>
+                              <p className="mt-1">
+                                Cafe para proceso sugerido: <span className="font-semibold">{suggested.processName}</span> · {formatOperationalKg(suggested.processInputKg)}
+                              </p>
+                              <p>
+                                Cafe base sugerido: <span className="font-semibold">{suggested.baseName}</span> · {formatOperationalKg(suggested.baseKg)}
+                              </p>
+                              <p className="mt-1 text-amber-700">Laboratorio define la mezcla final y los porcentajes reales.</p>
+                            </div>
+                          ) : (
+                            <p className="rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                              Cafe directo: asigne el lote disponible que cumpla las caracteristicas del pedido.
+                            </p>
+                          )}
+
+                          {item.shortage_marked && item.shortage_notes && (
+                            <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                              Motivo faltante: {item.shortage_notes}
+                            </p>
+                          )}
+
+                          {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
+                            <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+                              <p className="text-xs font-semibold uppercase text-slate-500">Asignar lote a este cafe</p>
+                              {rows.map((row) => {
+                                const rowIndex = assignmentRows.indexOf(row);
+
+                                return (
+                                  <div key={`assignment-${item.id}-${rowIndex}`} className="grid min-w-0 gap-2">
+                                    <select
+                                      className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                                      value={row.lotId}
+                                      onChange={(event) => updateAssignmentRow(rowIndex, "lotId", event.target.value)}
+                                    >
+                                      <option value="">Lote disponible</option>
+                                      {availableLotGroups.map((group) => (
+                                        <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
+                                          {group.lots.map((lot) => (
+                                            <option key={lot.id} value={lot.id}>
+                                              {formatCoffeeLotOption(lot)}
+                                            </option>
+                                          ))}
+                                        </optgroup>
+                                      ))}
+                                    </select>
+                                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                                      <input
+                                        className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                                        placeholder="Cantidad kg"
+                                        type="number"
+                                        min="0.001"
+                                        step="0.001"
+                                        value={row.quantityKg}
+                                        onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
+                                      />
+                                      <button
+                                        className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                        type="button"
+                                        onClick={() => removeAssignmentRow(rowIndex)}
+                                        disabled={rows.length === 1}
+                                      >
+                                        Quitar
+                                      </button>
+                                    </div>
+                                    <input
+                                      className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                                      placeholder="Observacion opcional"
+                                      value={row.notes}
+                                      onChange={(event) => updateAssignmentRow(rowIndex, "notes", event.target.value)}
+                                    />
+                                  </div>
+                                );
+                              })}
+                              <button
+                                className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                type="button"
+                                onClick={() => addItemAssignmentRow(item)}
+                              >
+                                Agregar otro lote a este cafe
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -633,73 +794,7 @@ const WarehousePendingPage = () => {
               )}
 
               {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
-              <div className="min-w-0 space-y-3 overflow-hidden rounded border border-slate-200 p-3">
-                <p className="text-xs font-semibold uppercase text-slate-500">Asignar lotes</p>
-                {assignmentRows.map((row, index) => (
-                  <div key={`assignment-${index}`} className="min-w-0 rounded border border-slate-200 p-3">
-                    <div className="grid min-w-0 gap-2">
-                      <select
-                        className="min-w-0 max-w-full truncate rounded border border-slate-300 px-3 py-2 text-sm"
-                        value={row.saleItemId}
-                        onChange={(event) => updateAssignmentRow(index, "saleItemId", event.target.value)}
-                      >
-                        <option value="">Producto vendido</option>
-                        {selectedSale.items?.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {getWarehouseItemLabel(item)} - {item.operational_weight_kg || item.quantity_kg} kg operativos
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="min-w-0 max-w-full truncate rounded border border-slate-300 px-3 py-2 text-sm"
-                        value={row.lotId}
-                        onChange={(event) => updateAssignmentRow(index, "lotId", event.target.value)}
-                      >
-                        <option value="">Lote disponible</option>
-                        {availableLotGroups.map((group) => (
-                          <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
-                            {group.lots.map((lot) => (
-                              <option key={lot.id} value={lot.id}>
-                                {formatCoffeeLotOption(lot)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      <input
-                        className="min-w-0 max-w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Cantidad kg"
-                        type="number"
-                        min="0.001"
-                        step="0.001"
-                        value={row.quantityKg}
-                        onChange={(event) => updateAssignmentRow(index, "quantityKg", event.target.value)}
-                      />
-                      <input
-                        className="min-w-0 max-w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Observacion opcional"
-                        value={row.notes}
-                        onChange={(event) => updateAssignmentRow(index, "notes", event.target.value)}
-                      />
-                    </div>
-                    <button
-                      className="mt-2 rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                      type="button"
-                      onClick={() => removeAssignmentRow(index)}
-                      disabled={assignmentRows.length === 1}
-                    >
-                      Quitar linea
-                    </button>
-                  </div>
-                ))}
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    type="button"
-                    onClick={addAssignmentRow}
-                  >
-                    Agregar lote
-                  </button>
                   <button
                     className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     type="button"
@@ -709,16 +804,32 @@ const WarehousePendingPage = () => {
                     Guardar asignacion
                   </button>
                 </div>
-              </div>
               )}
 
-              {["pendiente_alistamiento", "pendiente_bodega"].includes(selectedSale.status) && (
-                <Link
-                  className="inline-flex w-full items-center justify-center rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
-                  to={`/procesos?saleId=${selectedSale.id}`}
-                >
-                  Solicitar proceso para este pedido
-                </Link>
+              {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "proceso_solicitado", "en_proceso"].includes(selectedSale.status) && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {["pendiente_alistamiento", "pendiente_bodega"].includes(selectedSale.status) ? (
+                    <Link
+                      className="inline-flex w-full items-center justify-center rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                      to={`/procesos?saleId=${selectedSale.id}`}
+                    >
+                      Solicitar proceso para este pedido
+                    </Link>
+                  ) : (
+                    <span className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm text-slate-500">
+                      Proceso o lote ya gestionado
+                    </span>
+                  )}
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
+                    type="button"
+                    onClick={requestLaboratoryBlend}
+                    disabled={saving}
+                  >
+                    <FlaskConical size={16} />
+                    Enviar a ensamble de laboratorio
+                  </button>
+                </div>
               )}
 
               <button

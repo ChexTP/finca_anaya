@@ -408,7 +408,7 @@ const LaboratoryPage = () => {
       return;
     }
 
-    const confirmed = window.confirm("Confirma guardar esta orden de mezcla para bodega?");
+    const confirmed = window.confirm("Confirma guardar esta orden de ensamble para bodega?");
 
     if (!confirmed) return;
 
@@ -429,7 +429,7 @@ const LaboratoryPage = () => {
         }),
       });
       await selectSaleForBlend(selectedSale.id);
-      setMessage("Orden de mezcla guardada. Bodega ya puede imprimir el documento.");
+      setMessage("Orden de ensamble guardada. Bodega ya puede imprimir el documento.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -782,7 +782,7 @@ const LaboratoryPage = () => {
           >
             <span className="inline-flex items-center gap-2 font-semibold">
               <FlaskConical size={16} />
-              Mezclas
+              Ensambles de venta
             </span>
             <span className="text-xs">{sales.length}</span>
           </button>
@@ -1559,11 +1559,11 @@ const LaboratoryPage = () => {
           <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
-                <h2 className="text-sm font-semibold text-slate-800">Ventas para mezcla</h2>
+                <h2 className="text-sm font-semibold text-slate-800">Ventas para ensamble</h2>
               </div>
               {sales.length === 0 ? (
                 <div className="p-4">
-                  <EmptyState title="Sin ventas pendientes" message="Las ventas pendientes o alistadas apareceran aqui." />
+                  <EmptyState title="Sin ventas pendientes" message="Las ventas enviadas por bodega para ensamble apareceran aqui." />
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -1591,7 +1591,7 @@ const LaboratoryPage = () => {
             </div>
 
             <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={saveBlendOrder}>
-              <h2 className="text-sm font-semibold text-slate-800">Orden final de mezcla</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Orden final de ensamble</h2>
               <p className="mt-1 text-sm text-slate-500">
                 {selectedSale ? `Venta seleccionada: ${selectedSale.code}` : "Seleccione una venta pendiente."}
               </p>
@@ -1712,7 +1712,7 @@ const LaboratoryPage = () => {
                       disabled={saving}
                     >
                       <Save size={16} />
-                      Guardar mezcla
+                      Guardar ensamble
                     </button>
                   </div>
                 </div>

@@ -8,6 +8,7 @@ import {
   putSaleDispatched,
   postSalePayment,
   putSaleCancelled,
+  putSaleReadyForBlend,
   putSaleBlendOrder,
   putSaleWithoutBlend,
   putSalePriority,
@@ -78,6 +79,12 @@ router.put(
   requireAuth,
   requireRoles("admin", "accounting"),
   putSaleCancelled
+);
+router.put(
+  "/:id/request-blend",
+  requireAuth,
+  requireRoles("admin", "warehouse"),
+  putSaleReadyForBlend
 );
 router.put(
   "/:id/blend-order",

@@ -5,7 +5,7 @@ export const saleStatusLabels = {
   proceso_solicitado: "Proceso solicitado",
   en_proceso: "En proceso",
   listo_para_ensamble: "Listo para ensamble",
-  ensamble_definido: "Ensamble definido",
+  ensamble_definido: "Ensamble definido / reajuste",
   pendiente_laboratorio: "Pendiente laboratorio",
   aprobada_laboratorio: "Aprobada laboratorio",
   alistada: "Alistada",
@@ -63,13 +63,13 @@ export const getSaleNextAction = (sale) => {
   }
 
   const actions = {
-    pendiente_alistamiento: "Bodega debe decidir si asigna lote o solicita proceso",
-    pendiente_bodega: "Bodega debe asignar cafe o solicitar proceso",
-    lote_asignado: "Bodega debe alistar el pedido",
+    pendiente_alistamiento: "Bodega debe asignar cafe, solicitar proceso o marcar deficit",
+    pendiente_bodega: "Bodega debe asignar cafe, solicitar proceso o marcar deficit",
+    lote_asignado: "Bodega debe enviar a laboratorio para aprobar los lotes",
     proceso_solicitado: "Administracion debe confirmar el inicio del proceso",
     en_proceso: "Esperando finalizacion para enviar a examen de laboratorio",
-    listo_para_ensamble: "Bodega debe revisar la orden de mezcla o alistar",
-    ensamble_definido: "Bodega debe enviar a laboratorio despues del ensamble",
+    listo_para_ensamble: "Laboratorio debe definir el ensamble final",
+    ensamble_definido: "Bodega debe mezclar o reajustar y enviar muestra a laboratorio",
     pendiente_laboratorio: "Laboratorio debe aprobar las caracteristicas de cada producto",
     aprobada_laboratorio: "Bodega puede alistar y descontar inventario",
     alistada: "Bodega puede despachar",
@@ -96,7 +96,7 @@ export const getSaleStatusTone = (sale) => {
   if (sale?.status === "despachada") return "success";
   if (sale?.status === "anulada") return "danger";
   if (sale?.status === "alistada") return "success";
-  if (["proceso_solicitado", "en_proceso", "listo_para_ensamble", "pendiente_laboratorio"].includes(sale?.status)) return "warning";
+  if (["proceso_solicitado", "en_proceso", "listo_para_ensamble", "ensamble_definido", "pendiente_laboratorio"].includes(sale?.status)) return "warning";
   if (sale?.status === "aprobada_laboratorio") return "success";
   return "neutral";
 };

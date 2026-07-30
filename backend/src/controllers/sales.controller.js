@@ -8,6 +8,7 @@ import {
   cancelSale,
   registerSalePayment,
   replaceSaleBlendOrder,
+  markSaleReadyForBlend,
   markSaleWithoutBlend,
   updateSaleWarehousePriority,
   updateSaleOrderAssignee,
@@ -202,6 +203,33 @@ export const putSaleWithoutBlend = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al liberar la venta sin mezcla",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleReadyForBlend = async (req, res) => {
+  try {
+    const sale = await markSaleReadyForBlend({
+      saleId: req.params.id,
+      notes: req.body.notes,
+    });
+
+    if (!sale) {
+      return res.status(404).json({
+        message: "Venta no encontrada o no disponible para enviar a ensamble",
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Venta enviada a laboratorio para definir ensamble",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al enviar venta a ensamble de laboratorio",
       error: error.message,
     });
   }
