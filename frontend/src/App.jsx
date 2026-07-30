@@ -266,7 +266,7 @@ const App = () => {
         <Route
           path="/consecutivos"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={["admin", "warehouse"]}>
               <CodeCountersPage />
             </ProtectedRoute>
           }

@@ -18,6 +18,7 @@ const initialSupplier = {
 };
 
 const initialLot = {
+  code: "",
   supplierId: "",
   purchaseCoffeeId: "",
   coffeeTypeId: "",
@@ -386,6 +387,7 @@ const WarehousePage = () => {
   const startReceptionEdit = (lot) => {
     setEditingLot(lot);
     setLotForm({
+      code: lot.code || "",
       supplierId: lot.supplier_id ? String(lot.supplier_id) : "",
       purchaseCoffeeId: getPurchaseCoffeeIdFromLot(lot),
       coffeeTypeId: lot.coffee_type_id ? String(lot.coffee_type_id) : "",
@@ -520,6 +522,12 @@ const WarehousePage = () => {
       if (!confirmed) return;
 
       setSaving(true);
+      if (editingLot && lotForm.code.trim() && lotForm.code.trim() !== editingLot.code) {
+        await apiRequest(`/lots/${editingLot.id}/code`, {
+          method: "PUT",
+          body: JSON.stringify({ code: lotForm.code.trim() }),
+        });
+      }
       const response = await apiRequest(editingLot ? `/lots/${editingLot.id}/reception` : "/lots/received", {
         method: editingLot ? "PUT" : "POST",
         body: JSON.stringify(buildReceptionPayload()),
@@ -1090,6 +1098,15 @@ const WarehousePage = () => {
             )}
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {editingLot && (
+              <input
+                className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900"
+                placeholder="Codigo del lote"
+                value={lotForm.code}
+                onChange={(event) => setLotForm({ ...lotForm, code: event.target.value })}
+                required
+              />
+            )}
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={lotForm.supplierId}

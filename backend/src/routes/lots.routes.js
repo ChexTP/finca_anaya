@@ -22,7 +22,7 @@ router.get("/:id", requireAuth, getLot);
 router.post("/received", requireAuth, requireRoles("admin", "warehouse"), postReceivedLot);
 router.post("/stock-entry", requireAuth, requireRoles("admin", "warehouse"), postStockEntry);
 router.post("/initial-load", requireAuth, requireRoles("admin"), postInitialLoad);
-router.put("/:id/code", requireAuth, requireRoles("admin"), putLotCode);
+router.put("/:id/code", requireAuth, requireRoles("admin", "warehouse"), putLotCode);
 router.put("/:id/reception", requireAuth, requireRoles("admin", "warehouse"), putReceptionData);
 router.put("/:id/lab-review", requireAuth, requireRoles("admin", "laboratory"), putLabReview);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "warehouse"), putPhysicalReview);

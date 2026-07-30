@@ -50,7 +50,7 @@ const navigation = [
   { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },
   { label: "Perfiles de venta", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin"] },
   { label: "Perfiles de compra", path: "/perfiles-compra", icon: Coffee, roles: ["admin"] },
-  { label: "Consecutivos", path: "/consecutivos", icon: Hash, roles: ["admin"] },
+  { label: "Consecutivos", path: "/consecutivos", icon: Hash, roles: ["admin", "warehouse"] },
   { label: "Usuarios", path: "/usuarios", icon: UserCog, roles: ["admin"] },
 ];
 

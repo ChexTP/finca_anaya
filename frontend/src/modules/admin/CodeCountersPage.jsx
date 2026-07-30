@@ -77,6 +77,9 @@ const CodeCountersPage = () => {
 
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Ajuste estos consecutivos solo durante carga inicial o correcciones controladas. El numero guardado sera el proximo codigo que generara el sistema.
+      </p>
 
       <div className="rounded border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
