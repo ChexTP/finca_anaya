@@ -327,6 +327,52 @@ export const findLotById = async (id) => {
   return result.rows[0];
 };
 
+export const updateLotCode = async ({ id, code }) => {
+  const cleanCode = String(code || "").trim();
+
+  const result = await pool.query(
+    `
+    UPDATE coffee_lots
+    SET code = $1, updated_at = NOW()
+    WHERE id = $2
+      AND NOT EXISTS (
+        SELECT 1
+        FROM coffee_lots duplicated
+        WHERE duplicated.code = $1
+          AND duplicated.id <> coffee_lots.id
+      )
+    RETURNING *
+    `,
+    [cleanCode, id]
+  );
+
+  if (result.rows[0]) {
+    return result.rows[0];
+  }
+
+  const existingLot = await findLotById(id);
+  if (!existingLot) {
+    return null;
+  }
+
+  const duplicateResult = await pool.query(
+    `
+    SELECT id
+    FROM coffee_lots
+    WHERE code = $1
+      AND id <> $2
+    LIMIT 1
+    `,
+    [cleanCode, id]
+  );
+
+  if (duplicateResult.rows[0]) {
+    return { duplicate: true, lot: existingLot };
+  }
+
+  return existingLot;
+};
+
 export const createReceivedLot = async (lotData) => {
   const client = await pool.connect();
 

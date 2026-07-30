@@ -8,6 +8,7 @@ import {
   getNextProcessedLotCode,
   listLots,
   findLotById,
+  updateLotCode,
   createReceivedLot,
   updateLotReceptionData,
   markRejectedLotAsWithdrawn,
@@ -62,6 +63,34 @@ export const getLot = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener lote",
+      error: error.message,
+    });
+  }
+};
+
+export const putLotCode = async (req, res) => {
+  try {
+    const code = String(req.body.code || "").trim();
+
+    if (!code) {
+      return res.status(400).json({ message: "El codigo del lote es obligatorio" });
+    }
+
+    const result = await updateLotCode({ id: req.params.id, code });
+
+    if (!result) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (result.duplicate) {
+      return res.status(409).json({ message: "Ya existe un lote con ese codigo", data: result.lot });
+    }
+
+    const lot = await findLotById(req.params.id);
+    res.json({ message: "Codigo de lote actualizado", data: lot });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar codigo de lote",
       error: error.message,
     });
   }

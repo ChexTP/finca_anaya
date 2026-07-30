@@ -265,6 +265,52 @@ export const findSaleById = async (id) => {
   };
 };
 
+export const updateSaleCode = async ({ id, code }) => {
+  const cleanCode = String(code || "").trim();
+
+  const result = await pool.query(
+    `
+    UPDATE sales
+    SET code = $1, updated_at = NOW()
+    WHERE id = $2
+      AND NOT EXISTS (
+        SELECT 1
+        FROM sales duplicated
+        WHERE duplicated.code = $1
+          AND duplicated.id <> sales.id
+      )
+    RETURNING *
+    `,
+    [cleanCode, id]
+  );
+
+  if (result.rows[0]) {
+    return result.rows[0];
+  }
+
+  const existingSale = await findSaleById(id);
+  if (!existingSale) {
+    return null;
+  }
+
+  const duplicateResult = await pool.query(
+    `
+    SELECT id
+    FROM sales
+    WHERE code = $1
+      AND id <> $2
+    LIMIT 1
+    `,
+    [cleanCode, id]
+  );
+
+  if (duplicateResult.rows[0]) {
+    return { duplicate: true, sale: existingSale };
+  }
+
+  return existingSale;
+};
+
 export const haveCompleteSaleItemReviews = async (saleId) => {
   const result = await pool.query(
     `

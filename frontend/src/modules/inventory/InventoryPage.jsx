@@ -24,6 +24,7 @@ const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maxi
 const InventoryPage = () => {
   const { user } = useAuth();
   const [lots, setLots] = useState([]);
+  const [allLots, setAllLots] = useState([]);
   const [sampleOutputs, setSampleOutputs] = useState([]);
   const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
   const [unpaidLots, setUnpaidLots] = useState([]);
@@ -34,12 +35,14 @@ const InventoryPage = () => {
   const [liquidationForm, setLiquidationForm] = useState(initialLiquidation);
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
+  const [lotCodeSearch, setLotCodeSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const canRegisterPurchase = ["admin", "accounting"].includes(user?.role);
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
+  const canEditCodes = user?.role === "admin";
 
   const loadData = async () => {
     const requests = [
@@ -54,6 +57,7 @@ const InventoryPage = () => {
 
     const [availableData, allLots, sampleOutputData, catalogData] = await Promise.all(requests);
     setLots(availableData);
+    setAllLots(allLots);
     setSampleOutputs(sampleOutputData || []);
     setPendingLiquidationLots(
       allLots.filter((lot) => lot.status === "pendiente_liquidacion")
@@ -224,6 +228,36 @@ const InventoryPage = () => {
     }
   };
 
+  const editLotCode = async (lot) => {
+    const newCode = window.prompt(`Nuevo codigo para ${formatCoffeeLotCodeName(lot)}`, lot.code || "");
+    if (newCode === null) return;
+
+    const cleanCode = newCode.trim();
+    if (!cleanCode) {
+      setError("El codigo del lote es obligatorio.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma cambiar el codigo ${lot.code} por ${cleanCode}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${lot.id}/code`, {
+        method: "PUT",
+        body: JSON.stringify({ code: cleanCode }),
+      });
+      await loadData();
+      setMessage("Codigo de lote actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
     ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
@@ -262,6 +296,28 @@ const InventoryPage = () => {
 
     return `Llego de proceso ${lot.origin_process_code || ""}`.trim();
   };
+  const lotCodeSearchTerm = lotCodeSearch.trim().toLowerCase();
+  const lotCodeSearchResults = allLots
+    .filter((lot) => {
+      if (!lotCodeSearchTerm) return true;
+
+      return [
+        lot.code,
+        formatCoffeeLotCodeName(lot),
+        lot.supplier_name,
+        lot.status,
+        lot.presentation,
+        lot.coffee_type_name,
+        lot.commercial_classification,
+        lot.coffee_variety,
+        lot.coffee_profile_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(lotCodeSearchTerm);
+    })
+    .slice(0, 50);
 
   return (
     <section className="space-y-5">
@@ -281,6 +337,60 @@ const InventoryPage = () => {
 
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+
+      {canEditCodes && (
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Buscar y editar codigos de lotes</h2>
+            <p className="mt-1 text-xs text-slate-500">Uso administrativo para igualar los codigos del sistema con talonarios o registros fisicos.</p>
+            <input
+              className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Buscar por codigo, cafe, proveedor, estado o presentacion"
+              value={lotCodeSearch}
+              onChange={(event) => setLotCodeSearch(event.target.value)}
+            />
+          </div>
+          <div className="max-h-72 overflow-auto">
+            {allLots.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="Sin lotes registrados" message="Cuando se registren lotes podras buscarlos y ajustar su codigo aqui." />
+              </div>
+            ) : (
+              <table className="min-w-full text-left text-sm">
+                <thead className="sticky top-0 bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Codigo</th>
+                    <th className="px-3 py-2">Cafe</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Peso</th>
+                    <th className="px-3 py-2">Accion</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {lotCodeSearchResults.map((lot) => (
+                    <tr key={lot.id}>
+                      <td className="px-3 py-2 font-semibold text-ink">{lot.code}</td>
+                      <td className="px-3 py-2 text-slate-700">{formatCoffeeLotCodeName(lot)}</td>
+                      <td className="px-3 py-2">{lotStatusLabels[lot.status] || lot.status}</td>
+                      <td className="px-3 py-2">{formatKg(lot.available_weight_kg ?? lot.net_weight_kg)}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                          type="button"
+                          disabled={saving}
+                          onClick={() => editLotCode(lot)}
+                        >
+                          Editar codigo
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
 
       {canRegisterPurchase && (
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">

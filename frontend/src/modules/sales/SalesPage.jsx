@@ -292,6 +292,7 @@ const SalesPage = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
+  const [saleCodeSearch, setSaleCodeSearch] = useState("");
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -301,6 +302,7 @@ const SalesPage = () => {
 
   const canManageDispatch = ["admin", "accounting", "warehouse"].includes(user?.role);
   const showFinancialData = ["admin", "accounting"].includes(user?.role);
+  const canEditCodes = user?.role === "admin";
   const pageCopy = roleCopy[user?.role] || {
     title: "Ventas",
     subtitle: "Alistamiento, despacho y seguimiento operativo.",
@@ -331,13 +333,28 @@ const SalesPage = () => {
   }, [sales]);
 
   const filteredSales = useMemo(() => {
+    const searchTerm = saleCodeSearch.trim().toLowerCase();
+
     return sales.filter((sale) => {
       const matchesStatus = statusFilter === "all" || getOperationalFilterKey(sale.status) === statusFilter;
       const matchesPayment = paymentFilter === "all" || sale.payment_status === paymentFilter;
       const matchesAssignee = assigneeFilter === "all" || (sale.order_assignee || "Sin encargado") === assigneeFilter;
-      return matchesStatus && matchesPayment && matchesAssignee;
+      const matchesSearch = !searchTerm || [
+        sale.code,
+        sale.client_name,
+        sale.quote_code,
+        sale.order_assignee,
+        sale.status,
+        sale.payment_status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(searchTerm);
+
+      return matchesStatus && matchesPayment && matchesAssignee && matchesSearch;
     });
-  }, [sales, statusFilter, paymentFilter, assigneeFilter]);
+  }, [sales, statusFilter, paymentFilter, assigneeFilter, saleCodeSearch]);
 
   const assigneeOptions = useMemo(() => {
     return [...new Set(sales.map((sale) => sale.order_assignee || "Sin encargado"))].sort((left, right) =>
@@ -447,6 +464,39 @@ const SalesPage = () => {
       setOrderAssignee(response.data.order_assignee || "");
       await loadSales();
       setMessage("Encargado de pedido actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const editSaleCode = async (sale) => {
+    const newCode = window.prompt(`Nuevo codigo para ${sale.code}`, sale.code || "");
+    if (newCode === null) return;
+
+    const cleanCode = newCode.trim();
+    if (!cleanCode) {
+      setError("El codigo de la venta es obligatorio.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma cambiar el codigo ${sale.code} por ${cleanCode}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${sale.id}/code`, {
+        method: "PUT",
+        body: JSON.stringify({ code: cleanCode }),
+      });
+      await loadSales();
+      if (selectedSale?.id === sale.id) {
+        await loadSaleDetail(sale.id, false);
+      }
+      setMessage("Codigo de venta actualizado.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -630,6 +680,14 @@ const SalesPage = () => {
                 </select>
               </div>
             )}
+            {canEditCodes && (
+              <input
+                className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Buscar ventas por codigo, cliente, cotizacion, encargado o estado"
+                value={saleCodeSearch}
+                onChange={(event) => setSaleCodeSearch(event.target.value)}
+              />
+            )}
           </div>
           {filteredSales.length === 0 ? (
             <div className="p-4">
@@ -681,6 +739,16 @@ const SalesPage = () => {
                             >
                               <FileDown size={14} />
                               PDF cotizacion
+                            </button>
+                          )}
+                          {canEditCodes && (
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                              disabled={saving}
+                              onClick={() => editSaleCode(sale)}
+                              type="button"
+                            >
+                              Editar codigo
                             </button>
                           )}
                         </div>

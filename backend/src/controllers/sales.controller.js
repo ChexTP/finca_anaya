@@ -2,6 +2,7 @@ import {
   getNextSaleCode,
   listSales,
   findSaleById,
+  updateSaleCode,
   convertQuoteToSale,
   createDirectSale,
   updateSaleOperationalStatus,
@@ -138,6 +139,34 @@ export const getSale = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener venta",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleCode = async (req, res) => {
+  try {
+    const code = String(req.body.code || "").trim();
+
+    if (!code) {
+      return res.status(400).json({ message: "El codigo de la venta es obligatorio" });
+    }
+
+    const result = await updateSaleCode({ id: req.params.id, code });
+
+    if (!result) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (result.duplicate) {
+      return res.status(409).json({ message: "Ya existe una venta con ese codigo", data: result.sale });
+    }
+
+    const sale = await findSaleById(req.params.id);
+    res.json({ message: "Codigo de venta actualizado", data: sale });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar codigo de venta",
       error: error.message,
     });
   }

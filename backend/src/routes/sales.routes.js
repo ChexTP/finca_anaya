@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   getSales,
   getSale,
+  putSaleCode,
   postSaleFromQuote,
   postDirectSale,
   putSalePrepared,
@@ -38,6 +39,7 @@ router.delete(
   deleteSaleLotAssignment
 );
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
+router.put("/:id/code", requireAuth, requireRoles("admin"), putSaleCode);
 router.post(
   "/from-quote/:quoteId",
   requireAuth,

@@ -2,6 +2,7 @@ import { Download, Eye, Printer, RefreshCw } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
@@ -25,6 +26,7 @@ const formatSaleItemName = (item) => {
 };
 
 const SalesHistoryPage = () => {
+  const { user } = useAuth();
   const [sales, setSales] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [filters, setFilters] = useState({
@@ -35,6 +37,7 @@ const SalesHistoryPage = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const canEditCodes = user?.role === "admin";
 
   const loadSales = async () => {
     setError("");
@@ -49,13 +52,56 @@ const SalesHistoryPage = () => {
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
       const saleDate = toDateOnly(sale.created_at);
-      const matchesClient = !filters.client.trim() || String(sale.client_name || "").toLowerCase().includes(filters.client.trim().toLowerCase());
+      const searchTerm = filters.client.trim().toLowerCase();
+      const matchesClient = !searchTerm || [
+        sale.client_name,
+        sale.code,
+        sale.quote_code,
+        sale.order_assignee,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(searchTerm);
       const matchesFrom = !filters.from || saleDate >= filters.from;
       const matchesTo = !filters.to || saleDate <= filters.to;
 
       return matchesClient && matchesFrom && matchesTo;
     });
   }, [sales, filters]);
+
+  const editSaleCode = async (sale) => {
+    const newCode = window.prompt(`Nuevo codigo para ${sale.code}`, sale.code || "");
+    if (newCode === null) return;
+
+    const cleanCode = newCode.trim();
+    if (!cleanCode) {
+      setError("El codigo de la venta es obligatorio.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma cambiar el codigo ${sale.code} por ${cleanCode}?`)) return;
+
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${sale.id}/code`, {
+        method: "PUT",
+        body: JSON.stringify({ code: cleanCode }),
+      });
+      await loadSales();
+      if (selectedSale?.id === sale.id) {
+        await loadSaleDetail(sale.id);
+      }
+      setMessage("Codigo de venta actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadSaleDetail = async (saleId) => {
     setLoading(true);
@@ -142,7 +188,7 @@ const SalesHistoryPage = () => {
             <div className="mt-3 grid gap-2 md:grid-cols-3">
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Filtrar por cliente"
+                placeholder="Filtrar por cliente, codigo, cotizacion o encargado"
                 value={filters.client}
                 onChange={(event) => setFilters({ ...filters, client: event.target.value })}
               />
@@ -210,6 +256,16 @@ const SalesHistoryPage = () => {
                                 <Download size={14} />
                                 PDF
                               </button>
+                              {canEditCodes && (
+                                <button
+                                  className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                                  disabled={loading}
+                                  onClick={() => editSaleCode(sale)}
+                                  type="button"
+                                >
+                                  Editar codigo
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
