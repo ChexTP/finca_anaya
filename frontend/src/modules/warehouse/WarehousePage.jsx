@@ -112,7 +112,7 @@ export const buildWarehouseOrderHtml = (sale) => {
         return `
         <tr>
           <td>${itemLabel}</td>
-          <td>${[processSummary, componentSummary].filter(Boolean).join("<br>") || "-"}</td>
+          <td>${[item.product_form ? `<strong>${item.product_form}</strong>` : "", processSummary, componentSummary].filter(Boolean).join("<br>") || "-"}</td>
           <td>${item.quantity_kg}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${item.operational_weight_kg}</span>` : ""}</td>
           <td></td>
         </tr>
@@ -129,7 +129,7 @@ export const buildWarehouseOrderHtml = (sale) => {
           <div class="lot-head">
             <div>
               <h3>${getWarehouseItemLabel(item)}</h3>
-              <p>${item.quantity_kg} kg solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${item.operational_weight_kg} kg operativos` : ""}</p>
+              <p><strong>${item.product_form || "Presentacion no definida"}</strong> · ${item.quantity_kg} kg solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${item.operational_weight_kg} kg operativos` : ""}</p>
             </div>
             <strong>Mezcla final</strong>
           </div>
@@ -242,7 +242,7 @@ export const buildWarehouseOrderHtml = (sale) => {
           <div>
             <h1>${sale.client_name || "Cliente"} - ORDEN DE PEDIDO - COTIZACION ${sale.quote_code || sale.code}</h1>
             <p><strong>Fecha de Inicio orden:</strong> ${formatDate(new Date())}</p>
-            <p><strong>Categoria:</strong> ${sale.items?.[0]?.product_form || "CAFE"}</p>
+            <p><strong>Presentaciones del pedido:</strong> ${[...new Set((sale.items || []).map((item) => item.product_form).filter(Boolean))].join(" / ") || "CAFE"}</p>
             <p><strong>Cliente:</strong> ${sale.client_name || "-"}</p>
             <p><strong>Encargado de pedido:</strong> ${sale.order_assignee || "-"}</p>
             <p><strong>Dia estimado de despacho:</strong> ${formatDate(sale.estimated_delivery_date)}</p>

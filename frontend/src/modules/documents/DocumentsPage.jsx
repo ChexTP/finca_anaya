@@ -38,6 +38,7 @@ const buildDocumentHtml = (document) => {
       (item) => `
         <tr>
           <td>Anaya</td>
+          <td><strong>${item.productForm || "-"}</strong></td>
           <td>${item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-"}</td>
           <td>${item.processType || "-"}</td>
           <td>${formatMoney(currency, item.unitPrice)}</td>
@@ -165,6 +166,7 @@ const buildDocumentHtml = (document) => {
           <thead>
             <tr>
               <th>FARM</th>
+              <th>PRESENTACION</th>
               <th>VARIETY</th>
               <th>PROCESS</th>
               <th>KG-CPS</th>

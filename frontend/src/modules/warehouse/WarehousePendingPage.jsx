@@ -919,6 +919,8 @@ const WarehousePendingPage = () => {
                             <div>
                               <p className="font-medium text-ink">{getWarehouseItemLabel(item)}</p>
                               <p className="text-slate-500">
+                                <span className="font-semibold text-slate-700">{item.product_form || "Sin presentacion"}</span>
+                                {" · "}
                                 Pedido: {formatOperationalKg(item.quantity_kg)}
                                 {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) && (
                                   <> · Operativo bodega: {formatOperationalKg(item.operational_weight_kg)}</>

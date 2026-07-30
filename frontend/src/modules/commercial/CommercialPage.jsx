@@ -668,7 +668,7 @@ const CommercialPage = () => {
                     <div key={`${item.productForm}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                       <div>
                         <p className="font-medium text-slate-800">
-                          Cafe {index + 1}: {item.productForm} · {item.processType}
+                          Cafe {index + 1}: <span className="font-bold text-leaf">{item.productForm}</span> · {item.processType}
                         </p>
                         <p className="text-slate-500">
                           {item.description || item.variety || "Perfil seleccionado"} · {item.quantityKg} kg
@@ -832,7 +832,9 @@ const CommercialPage = () => {
                       {item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code}
                     </p>
                     <p className="text-slate-500">
-                      {[item.product_form, item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantity_kg} kg · {formatMoney(selectedQuote.currency, item.unit_price)}
+                      <span className="font-semibold text-slate-700">{item.product_form || "Sin presentacion"}</span>
+                      {" · "}
+                      {[item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantity_kg} kg · {formatMoney(selectedQuote.currency, item.unit_price)}
                       {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg)
                         ? ` · ${item.operational_weight_kg} kg operativos`
                         : ""}

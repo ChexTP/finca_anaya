@@ -41,6 +41,7 @@ export const buildCommercialDocumentHtml = (document) => {
       return `
         <tr>
           <td>Anaya</td>
+          <td><strong>${escapeHtml(item.productForm || "-")}</strong></td>
           <td>${escapeHtml(description)}</td>
           <td>${escapeHtml(item.processType || "-")}</td>
           <td>${formatDocumentMoney(currency, item.unitPrice)}</td>
@@ -136,6 +137,7 @@ export const buildCommercialDocumentHtml = (document) => {
           <thead>
             <tr>
               <th>FARM</th>
+              <th>PRESENTACION</th>
               <th>VARIETY</th>
               <th>PROCESS</th>
               <th>KG-CPS</th>
