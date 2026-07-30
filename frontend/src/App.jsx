@@ -22,6 +22,7 @@ import SalesHistoryPage from "./modules/sales/SalesHistoryPage";
 import SalesPage from "./modules/sales/SalesPage";
 import SamplesHistoryPage from "./modules/samples/SamplesHistoryPage";
 import SamplesPage from "./modules/samples/SamplesPage";
+import SuppliersPage from "./modules/suppliers/SuppliersPage";
 import UsersPage from "./modules/users/UsersPage";
 import LotHistoryPage from "./modules/warehouse/LotHistoryPage";
 import LotReservationsPage from "./modules/warehouse/LotReservationsPage";
@@ -139,6 +140,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin", "warehouse"]}>
               <LotHistoryPage type="rejected" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/proveedores"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <SuppliersPage />
             </ProtectedRoute>
           }
         />

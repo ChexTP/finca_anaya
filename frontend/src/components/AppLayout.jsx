@@ -37,6 +37,7 @@ const navigation = [
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Trilladora", path: "/trilladora", icon: Coffee, roles: ["admin", "warehouse", "laboratory"] },
   { label: "Seleccionadora", path: "/seleccionadora", icon: SlidersHorizontal, roles: ["admin", "warehouse", "laboratory"] },
+  { label: "Proveedores", path: "/proveedores", icon: Users, roles: ["admin", "warehouse"] },
   { label: "Comercial", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
   { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
