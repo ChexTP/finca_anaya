@@ -133,6 +133,7 @@ const CommercialPage = () => {
   const [saving, setSaving] = useState(false);
 
   const canConvertToSale = ["admin", "accounting"].includes(user?.role);
+  const canDeleteRecords = user?.role === "admin";
 
   const itemOperationalKg = useMemo(() => calculateOperationalKg({
     quantityKg: toItemQuantityKg(itemForm),
@@ -409,6 +410,36 @@ const CommercialPage = () => {
       await loadData();
       await loadQuoteDetail(quote.id);
       setMessage("Estado de cotizacion actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteQuote = async (quote) => {
+    const confirmation = window.prompt(
+      `Esto eliminara la cotizacion ${quote.code} y sus items de prueba. Escriba ELIMINAR para confirmar.`
+    );
+
+    if (confirmation !== "ELIMINAR") return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/quotes/${quote.id}`, { method: "DELETE" });
+      if (selectedQuote?.id === quote.id) {
+        setSelectedQuote(null);
+      }
+      if (editingQuoteId === quote.id) {
+        setEditingQuoteId(null);
+        setQuoteForm(initialQuote);
+        setQuoteItems([]);
+      }
+      await loadData();
+      setMessage(`Cotizacion ${quote.code} eliminada correctamente.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -755,6 +786,11 @@ const CommercialPage = () => {
                             <button className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60" disabled={saving} onClick={() => printQuotePdf(quote.id, "en")} type="button">
                               <FileDown size={14} /> PDF EN
                             </button>
+                            {canDeleteRecords && (
+                              <button className="inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={saving} onClick={() => deleteQuote(quote)} type="button">
+                                <Trash2 size={14} /> Eliminar
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -794,6 +830,11 @@ const CommercialPage = () => {
               <button className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => loadQuoteForEdit(selectedQuote.id)}>
                 <Edit size={17} /> Editar esta cotizacion
               </button>
+              {canDeleteRecords && (
+                <button className="inline-flex w-full items-center justify-center gap-2 rounded border border-rose-300 px-3 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={saving} type="button" onClick={() => deleteQuote(selectedQuote)}>
+                  <Trash2 size={17} /> Eliminar cotizacion de prueba
+                </button>
+              )}
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
                 {selectedQuote.items?.map((item) => (

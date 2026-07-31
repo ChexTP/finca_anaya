@@ -7,6 +7,7 @@ import {
   createDirectSale,
   updateSaleOperationalStatus,
   cancelSale,
+  deleteSaleById,
   registerSalePayment,
   replaceSaleBlendOrder,
   markSaleReadyForBlend,
@@ -1123,6 +1124,72 @@ export const putSaleCancelled = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al anular venta",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteSale = async (req, res) => {
+  try {
+    const existingSale = await findSaleById(req.params.id);
+
+    if (!existingSale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (existingSale.status === "despachada") {
+      return res.status(409).json({
+        message: "No se puede eliminar una venta despachada. Anule el flujo solo si necesita corregir pruebas antes del despacho.",
+      });
+    }
+
+    if (existingSale.status !== "anulada") {
+      const cancelled = await cancelSale({
+        saleId: req.params.id,
+        notes: "Venta eliminada desde administracion durante pruebas",
+        cancelledBy: req.user.id,
+      });
+
+      if (cancelled?.alreadyDispatched) {
+        return res.status(409).json({
+          message: "No se puede eliminar una venta despachada",
+          data: cancelled.sale,
+        });
+      }
+
+      if (cancelled?.invalidStatus) {
+        return res.status(409).json({
+          message: "La venta no se puede eliminar en su estado actual",
+          data: cancelled.sale,
+        });
+      }
+    }
+
+    const deletedSale = await deleteSaleById(req.params.id);
+
+    if (!deletedSale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (deletedSale.alreadyDispatched) {
+      return res.status(409).json({
+        message: "No se puede eliminar una venta despachada",
+        data: deletedSale.sale,
+      });
+    }
+
+    res.json({
+      message: "Venta eliminada correctamente para pruebas",
+      data: existingSale,
+    });
+  } catch (error) {
+    logControllerError("Error al eliminar venta", error, {
+      saleId: req.params.id,
+      userId: req.user?.id,
+    });
+
+    res.status(500).json({
+      message: "Error al eliminar venta",
       error: error.message,
     });
   }

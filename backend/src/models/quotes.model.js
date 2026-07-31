@@ -326,3 +326,16 @@ export const quoteHasProcess = async (id) => {
   const result = await pool.query("SELECT id FROM coffee_processes WHERE quote_id = $1 LIMIT 1", [id]);
   return Boolean(result.rows[0]);
 };
+
+export const deleteQuoteById = async (id) => {
+  const result = await pool.query(
+    `
+    DELETE FROM quotes
+    WHERE id = $1
+    RETURNING *
+    `,
+    [id]
+  );
+
+  return result.rows[0];
+};

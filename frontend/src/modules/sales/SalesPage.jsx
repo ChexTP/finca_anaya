@@ -1,4 +1,4 @@
-import { Eye, FileDown, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
+import { Eye, FileDown, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -305,6 +305,7 @@ const SalesPage = () => {
   // Datos financieros desactivados: pagos, totales y saldos se manejan en software contable externo.
   const showFinancialData = false;
   const canEditCodes = ["admin", "accounting"].includes(user?.role);
+  const canDeleteRecords = user?.role === "admin";
   const pageCopy = roleCopy[user?.role] || {
     title: "Ordenes",
     subtitle: "Alistamiento, despacho y seguimiento operativo.",
@@ -499,6 +500,34 @@ const SalesPage = () => {
         await loadSaleDetail(sale.id, false);
       }
       setMessage("Codigo de venta actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteSale = async (sale) => {
+    const confirmation = window.prompt(
+      `Esto eliminara la venta ${sale.code} y liberara sus reservas de prueba. Escriba ELIMINAR para confirmar.`
+    );
+
+    if (confirmation !== "ELIMINAR") return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${sale.id}`, { method: "DELETE" });
+      if (selectedSale?.id === sale.id) {
+        setSelectedSale(null);
+        setOrderAssignee("");
+        setNotes("");
+        setDispatchReceiptFile(null);
+      }
+      await loadSales();
+      setMessage(`Venta ${sale.code} eliminada correctamente.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -753,6 +782,17 @@ const SalesPage = () => {
                               Editar codigo
                             </button>
                           )}
+                          {canDeleteRecords && (
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                              disabled={saving || sale.status === "despachada"}
+                              onClick={() => deleteSale(sale)}
+                              type="button"
+                            >
+                              <Trash2 size={14} />
+                              Eliminar
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -835,6 +875,17 @@ const SalesPage = () => {
                 >
                   <FileDown size={17} />
                   Imprimir / guardar PDF de cotizacion
+                </button>
+              )}
+              {canDeleteRecords && (
+                <button
+                  className="inline-flex w-full items-center justify-center gap-2 rounded border border-rose-300 px-3 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                  disabled={saving || selectedSale.status === "despachada"}
+                  onClick={() => deleteSale(selectedSale)}
+                  type="button"
+                >
+                  <Trash2 size={17} />
+                  Eliminar venta de prueba
                 </button>
               )}
 

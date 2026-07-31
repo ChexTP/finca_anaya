@@ -1671,6 +1671,62 @@ export const cancelSale = async ({ saleId, notes, cancelledBy }) => {
   }
 };
 
+export const deleteSaleById = async (saleId) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query(
+      `
+      SELECT *
+      FROM sales
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [saleId]
+    );
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (sale.status === "despachada") {
+      await client.query("ROLLBACK");
+      return { alreadyDispatched: true, sale };
+    }
+
+    // Los procesos fisicos no se borran: solo se desligan de la venta de prueba eliminada.
+    await client.query(
+      `
+      UPDATE coffee_processes
+      SET sale_id = NULL, updated_at = NOW()
+      WHERE sale_id = $1
+      `,
+      [saleId]
+    );
+
+    const deletedResult = await client.query(
+      `
+      DELETE FROM sales
+      WHERE id = $1
+      RETURNING *
+      `,
+      [saleId]
+    );
+
+    await client.query("COMMIT");
+    return deletedResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const registerSalePayment = async ({
   saleId,
   amount,

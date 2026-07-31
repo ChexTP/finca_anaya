@@ -13,6 +13,7 @@ import {
   updateQuoteStatus,
   quoteHasSale,
   quoteHasProcess,
+  deleteQuoteById,
 } from "../models/quotes.model.js";
 import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 
@@ -316,6 +317,40 @@ export const putQuoteStatus = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al actualizar estado de cotizacion",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteQuote = async (req, res) => {
+  try {
+    const quote = await findQuoteById(req.params.id);
+
+    if (!quote) {
+      return res.status(404).json({ message: "Cotizacion no encontrada" });
+    }
+
+    if (await quoteHasSale(req.params.id)) {
+      return res.status(409).json({
+        message: "No se puede eliminar una cotizacion que ya fue convertida en venta. Elimine primero la venta asociada.",
+      });
+    }
+
+    if (await quoteHasProcess(req.params.id)) {
+      return res.status(409).json({
+        message: "No se puede eliminar una cotizacion con procesos asociados.",
+      });
+    }
+
+    await deleteQuoteById(req.params.id);
+
+    res.json({
+      message: "Cotizacion eliminada correctamente",
+      data: quote,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al eliminar cotizacion",
       error: error.message,
     });
   }
