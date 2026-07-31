@@ -989,6 +989,27 @@ const WarehousePage = () => {
             <p className="text-sm text-slate-500">Peso neto calculado con empaque y bolsa interna.</p>
           </div>
 
+          <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
+            <h2 className="text-sm font-semibold text-emerald-900">Catalogos rapidos</h2>
+            <p className="mt-1 text-xs text-emerald-800">
+              Use estos botones si llega un cafe nuevo o si debe corregir una presentacion, proceso o perfil de compra.
+            </p>
+            <div className="mt-3 grid gap-2">
+              <Link
+                className="inline-flex items-center justify-center rounded border border-leaf bg-white px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-100"
+                to="/tipos-cafe"
+              >
+                Editar presentaciones y procesos
+              </Link>
+              <Link
+                className="inline-flex items-center justify-center rounded border border-leaf bg-white px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-100"
+                to="/perfiles-compra"
+              >
+                Editar perfiles de compra
+              </Link>
+            </div>
+          </div>
+
           <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createStockEntry}>
             <h2 className="text-sm font-semibold text-slate-800">Entrada rapida de stock</h2>
             <p className="mt-1 text-xs text-slate-500">
