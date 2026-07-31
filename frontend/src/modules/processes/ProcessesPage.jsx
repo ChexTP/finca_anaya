@@ -5,6 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
 import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
@@ -65,7 +66,7 @@ const formatDate = (value) => {
   return [day, month, year].filter(Boolean).join("/");
 };
 
-const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
+const formatKg = formatOperationalKg;
 
 const ProcessesPage = ({
   fixedProcessType = null,
@@ -128,7 +129,7 @@ const ProcessesPage = ({
   }, [selectedLots]);
 
   const totalSelectedKg = useMemo(() => {
-    return selectedInputs.reduce((total, input) => total + input.quantityKg, 0).toFixed(3);
+    return selectedInputs.reduce((total, input) => total + input.quantityKg, 0);
   }, [selectedInputs]);
 
   const selectedSale = useMemo(() => {
@@ -518,7 +519,7 @@ const ProcessesPage = ({
               <p className="text-sm text-slate-500">{actionDescription}</p>
             </div>
             <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              Total: <span className="font-semibold text-ink">{totalSelectedKg} kg</span>
+              Total: <span className="font-semibold text-ink">{formatKg(totalSelectedKg)}</span>
             </div>
           </div>
 
@@ -711,7 +712,7 @@ const ProcessesPage = ({
                 </StatusBadge>
               </div>
               <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
-                <p>{process.total_input_kg} kg de entrada</p>
+                <p>{formatKg(process.total_input_kg)} de entrada</p>
                 <p>{[process.process_type, process.process_location].filter(Boolean).join(" - ") || "Sin ubicacion"}</p>
                 <p>{process.output_lot_code || "Sin lote final"}</p>
               </div>
@@ -731,7 +732,7 @@ const ProcessesPage = ({
                           {output.output_lot_code || "Sin lote PROC"} - {formatProfileLabel(output)}
                         </p>
                         <p className="text-slate-600">
-                          {output.presentation || "Excelso"} · {output.output_weight_kg} kg
+                          {output.presentation || "Excelso"} · {formatKg(output.output_weight_kg)}
                           {output.humidity_percent !== null && output.humidity_percent !== undefined ? ` · Humedad ${output.humidity_percent}%` : ""}
                           {output.performance_factor !== null && output.performance_factor !== undefined ? ` · Factor ${output.performance_factor}` : ""}
                         </p>
@@ -935,7 +936,7 @@ const ProcessesPage = ({
                         <p className="font-semibold text-ink">{formatCoffeeLotCodeName(input)}</p>
                         <p className="text-slate-600">{formatInputLabel(input)}</p>
                         <p className="text-slate-500">
-                          {input.quantity_kg} kg - {input.input_percentage}%
+                          {formatKg(input.quantity_kg)} - {input.input_percentage}%
                         </p>
                       </div>
                     ))}

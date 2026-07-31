@@ -1044,11 +1044,6 @@ export const getOperationalLotReservations = async () => {
     LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
     WHERE sales.status NOT IN ('despachada', 'anulada')
     GROUP BY sale_items.id, sales.id, clients.name, coffee_types.name, coffee_profiles.id, coffee_profiles.name, coffee_profiles.category, base_purchase.name
-    HAVING sale_items.shortage_marked = TRUE
-      OR (
-        COALESCE(SUM(sale_item_lots.quantity_kg), 0) > 0
-        AND COALESCE(SUM(sale_item_lots.quantity_kg), 0) < COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg)
-      )
     ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_items.id ASC
     `
   );
@@ -1076,15 +1071,31 @@ export const getOperationalLotReservations = async () => {
     .map((item) => {
       const requiredKg = Number(item.required_kg || 0);
       const reservedKg = Number(item.reserved_kg || 0);
+      const reservedProcessKg = Number(item.reserved_process_kg || 0);
+      const reservedBaseKg = Number(item.reserved_base_kg || 0);
+      const isExoticProfile = item.coffee_profile_category === "Exotico";
+      const processTargetKg = isExoticProfile ? Number((requiredKg * 0.4).toFixed(3)) : 0;
+      const baseTargetKg = isExoticProfile ? Number((requiredKg * 0.6).toFixed(3)) : 0;
+      const processMissingKg = Number(Math.max(processTargetKg - reservedProcessKg, 0).toFixed(3));
+      const baseMissingKg = Number(Math.max(baseTargetKg - reservedBaseKg, 0).toFixed(3));
+      const missingKg = isExoticProfile
+        ? Number((processMissingKg + baseMissingKg).toFixed(3))
+        : Number(Math.max(requiredKg - reservedKg, 0).toFixed(3));
 
       return {
         ...item,
         required_kg: Number(requiredKg.toFixed(3)),
         reserved_kg: Number(reservedKg.toFixed(3)),
-        missing_kg: Number(Math.max(requiredKg - reservedKg, 0).toFixed(3)),
+        reserved_process_kg: Number(reservedProcessKg.toFixed(3)),
+        reserved_base_kg: Number(reservedBaseKg.toFixed(3)),
+        process_target_kg: processTargetKg,
+        base_target_kg: baseTargetKg,
+        process_missing_kg: processMissingKg,
+        base_missing_kg: baseMissingKg,
+        missing_kg: missingKg,
       };
     })
-    .filter((item) => item.missing_kg > 0);
+    .filter((item) => item.shortage_marked || item.missing_kg > 0);
 
   return {
     lots,

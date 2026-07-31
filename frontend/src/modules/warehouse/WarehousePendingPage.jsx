@@ -107,6 +107,46 @@ const WarehousePendingPage = () => {
     return Object.values(groupCoffeeLots(assignableLots)).sort((left, right) => left.name.localeCompare(right.name));
   }, [availableLots]);
 
+  const getSavedSaleLotQuantity = (lotId) => {
+    if (!selectedSale?.deductedLots?.length) return 0;
+
+    return selectedSale.deductedLots
+      .filter((lot) => String(lot.lot_id) === String(lotId))
+      .reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0);
+  };
+
+  const getCatalogLotAvailableKg = (lotId) => {
+    const lot = availableLots.find((availableLot) => String(availableLot.id) === String(lotId));
+    return Number(lot?.operational_available_kg ?? lot?.available_weight_kg ?? 0);
+  };
+
+  const getLotAssignableKg = (lotId) => {
+    if (!lotId) return 0;
+
+    return getCatalogLotAvailableKg(lotId) + getSavedSaleLotQuantity(lotId);
+  };
+
+  const getCurrentRowsReservedForLot = (lotId, excludedRowIndex = null) => {
+    if (!lotId) return 0;
+
+    return assignmentRows.reduce((total, row, index) => {
+      if (excludedRowIndex !== null && index === excludedRowIndex) return total;
+      if (String(row.lotId) !== String(lotId)) return total;
+
+      return total + Number(row.quantityKg || 0);
+    }, 0);
+  };
+
+  const getLotAvailableForAssignmentRow = (lotId, rowIndex) => {
+    const availableKg = getLotAssignableKg(lotId) - getCurrentRowsReservedForLot(lotId, rowIndex);
+    return Math.max(Number(availableKg.toFixed(3)), 0);
+  };
+
+  const getLotOptionForRow = (lot, rowIndex) => ({
+    ...lot,
+    available_weight_kg: getLotAvailableForAssignmentRow(lot.id, rowIndex),
+  });
+
   const getItemAssignmentRows = (item) =>
     assignmentRows.filter((row) => String(row.saleItemId) === String(item.id));
 
@@ -595,6 +635,8 @@ const WarehousePendingPage = () => {
         {rows.map((row) => {
           const rowIndex = assignmentRows.indexOf(row);
           const selectedLotOption = getSelectedLotOption(row);
+          const selectedAvailableKg = row.lotId ? getLotAvailableForAssignmentRow(row.lotId, rowIndex) : 0;
+          const quantityExceedsAvailable = row.lotId && Number(row.quantityKg || 0) > selectedAvailableKg;
 
           return (
             <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-2">
@@ -608,12 +650,15 @@ const WarehousePendingPage = () => {
                   <option value={selectedLotOption.value}>{selectedLotOption.label}</option>
                 )}
                 {availableLotGroups.map((group) => (
-                  <optgroup key={group.name} label={`${group.name} (${group.kg.toFixed(3)} kg)`}>
+                  <optgroup key={group.name} label={`${group.name} (${formatOperationalKg(group.kg)})`}>
                     {group.lots
-                      .filter((lot) => !(selectedLotOption && String(lot.id) === String(row.lotId)))
+                      .filter((lot) => {
+                        if (selectedLotOption && String(lot.id) === String(row.lotId)) return false;
+                        return getLotAvailableForAssignmentRow(lot.id, rowIndex) > 0;
+                      })
                       .map((lot) => (
                       <option key={lot.id} value={lot.id}>
-                        {formatCoffeeLotOption(lot)}
+                        {formatCoffeeLotOption(getLotOptionForRow(lot, rowIndex))}
                       </option>
                     ))}
                   </optgroup>
@@ -626,6 +671,7 @@ const WarehousePendingPage = () => {
                   type="number"
                   min="0.001"
                   step="0.001"
+                  max={row.lotId ? selectedAvailableKg : undefined}
                   value={row.quantityKg}
                   onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
                 />
@@ -638,6 +684,12 @@ const WarehousePendingPage = () => {
                   Quitar
                 </button>
               </div>
+              {row.lotId && (
+                <p className={`text-xs ${quantityExceedsAvailable ? "font-semibold text-rose-700" : "text-slate-500"}`}>
+                  Disponible para esta linea: {formatOperationalKg(selectedAvailableKg)}
+                  {quantityExceedsAvailable ? " · La cantidad supera lo disponible para este lote." : ""}
+                </p>
+              )}
               <input
                 className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
                 placeholder="Observacion opcional"
@@ -1037,7 +1089,7 @@ const WarehousePendingPage = () => {
                               <p className="text-right text-slate-700">
                                 {blend.percentage}%<br />
                                 <span className="text-xs text-slate-500">
-                                  {blend.calculated_operational_kg || blend.calculated_quantity_kg} kg estimados
+                                  {formatOperationalKg(blend.calculated_operational_kg || blend.calculated_quantity_kg)} estimados
                                 </span>
                               </p>
                             </div>

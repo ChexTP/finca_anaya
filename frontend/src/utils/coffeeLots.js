@@ -1,3 +1,5 @@
+import { formatOperationalKg } from "./coffeeCalculations";
+
 export const getCoffeeLotGroup = (lot) => {
   const presentation = lot.presentation || "Pergamino";
 
@@ -38,7 +40,7 @@ export const groupCoffeeLots = (lots) => {
 };
 
 export const formatCoffeeLotOption = (lot) => {
-  return `${formatCoffeeLotCodeName(lot)} - ${lot.available_weight_kg} kg`;
+  return `${formatCoffeeLotCodeName(lot)} - ${formatOperationalKg(lot.available_weight_kg)}`;
 };
 
 export const getCoffeeLotDescription = (lot) => {

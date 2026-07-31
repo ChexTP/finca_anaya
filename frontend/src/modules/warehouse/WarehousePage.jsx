@@ -6,6 +6,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { readImageFileAsDataUrl } from "../../utils/files";
 
@@ -119,7 +120,7 @@ export const buildWarehouseOrderHtml = (sale) => {
         <tr>
           <td>${itemLabel}</td>
           <td>${[item.product_form ? `<strong>${item.product_form}</strong>` : "", processSummary, componentSummary].filter(Boolean).join("<br>") || "-"}</td>
-          <td>${item.quantity_kg}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${item.operational_weight_kg}</span>` : ""}</td>
+          <td>${formatOperationalKg(item.quantity_kg)}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${formatOperationalKg(item.operational_weight_kg)}</span>` : ""}</td>
           <td></td>
         </tr>
       `;
@@ -135,7 +136,7 @@ export const buildWarehouseOrderHtml = (sale) => {
           <div class="lot-head">
             <div>
               <h3>${getWarehouseItemLabel(item)}</h3>
-              <p><strong>${item.product_form || "Presentacion no definida"}</strong> · ${item.quantity_kg} kg solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${item.operational_weight_kg} kg operativos` : ""}</p>
+              <p><strong>${item.product_form || "Presentacion no definida"}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
             </div>
             <strong>Mezcla final</strong>
           </div>
@@ -155,7 +156,7 @@ export const buildWarehouseOrderHtml = (sale) => {
                     <tr>
                       <td>${formatCoffeeLotCodeName(blend)} (${blend.percentage}%)</td>
                       <td>${blend.coffee_type_name || blend.coffee_profile_name || "-"}</td>
-                      <td>${blend.calculated_operational_kg || blend.calculated_quantity_kg}</td>
+                      <td>${formatOperationalKg(blend.calculated_operational_kg || blend.calculated_quantity_kg)}</td>
                       <td></td>
                     </tr>
                   `
@@ -188,7 +189,7 @@ export const buildWarehouseOrderHtml = (sale) => {
                     <tr>
                       <td>${formatCoffeeLotCodeName(input)} (${input.input_percentage}%)</td>
                       <td>${input.coffee_type_name || input.coffee_profile_name || "-"}</td>
-                      <td>${input.quantity_kg}</td>
+                      <td>${formatOperationalKg(input.quantity_kg)}</td>
                       <td></td>
                     </tr>
                   `
@@ -206,7 +207,7 @@ export const buildWarehouseOrderHtml = (sale) => {
               <h3>${formatCoffeeLotCodeName(lot)}</h3>
               <p>${lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind || "-"}</p>
             </div>
-            <strong>${lot.quantity_kg} kg</strong>
+            <strong>${formatOperationalKg(lot.quantity_kg)}</strong>
           </div>
           ${mixRows}
         </section>
@@ -362,7 +363,7 @@ const WarehousePage = () => {
     const tare = Number(selectedPackaging?.tare_kg || 0) * packages;
     const innerBag = lotForm.hasInnerBag ? 0.05 * packages : 0;
     const net = gross - tare - innerBag;
-    return net > 0 ? net.toFixed(3) : "0.000";
+    return net > 0 ? net : 0;
   }, [lotForm, selectedPackaging]);
 
   const handleReceivedPurchaseCoffeeChange = (purchaseCoffeeId) => {
@@ -998,7 +999,7 @@ const WarehousePage = () => {
 
           <div className="rounded border border-slate-200 bg-white p-4">
             <h2 className="text-sm font-semibold text-slate-800">Peso estimado</h2>
-            <p className="mt-2 text-3xl font-bold text-ink">{estimatedNetWeight} kg</p>
+            <p className="mt-2 text-3xl font-bold text-ink">{formatOperationalKg(estimatedNetWeight)}</p>
             <p className="text-sm text-slate-500">Peso neto calculado con empaque y bolsa interna.</p>
           </div>
 
@@ -1306,7 +1307,7 @@ const WarehousePage = () => {
               <div key={lot.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
                   <p className="font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</p>
-                  <p className="text-sm text-slate-500">{lot.supplier_name || "Sin proveedor"} - {lot.net_weight_kg} kg</p>
+                  <p className="text-sm text-slate-500">{lot.supplier_name || "Sin proveedor"} - {formatOperationalKg(lot.net_weight_kg)}</p>
                   <p className="text-sm text-slate-500">
                     Humedad: {lot.humidity_percent ?? "pendiente"} - Factor: {lot.performance_factor ?? "pendiente"}
                   </p>
@@ -1369,7 +1370,7 @@ const WarehousePage = () => {
                     <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.supplier_name}</td>
                     <td className="px-3 py-2">{lot.presentation || "Pergamino"}</td>
-                    <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
+                    <td className="px-3 py-2">{formatOperationalKg(lot.net_weight_kg)}</td>
                     <td className="px-3 py-2">{lot.humidity_percent}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
@@ -1426,7 +1427,7 @@ const WarehousePage = () => {
                   <tr key={lot.id}>
                     <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
-                    <td className="px-3 py-2">{lot.net_weight_kg} kg</td>
+                    <td className="px-3 py-2">{formatOperationalKg(lot.net_weight_kg)}</td>
                     <td className="px-3 py-2">{lot.humidity_percent ?? "-"}%</td>
                     <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>

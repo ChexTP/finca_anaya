@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
+import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { lotStatusLabels } from "../../utils/workflow";
 
@@ -168,7 +169,7 @@ const LotHistoryPage = ({ type = "accepted" }) => {
           />
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          Mostrando {filteredLots.length} lotes. Peso neto historico: {totalKg.toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg.
+          Mostrando {filteredLots.length} lotes. Peso neto historico: {formatOperationalKg(totalKg)}.
         </p>
       </div>
 
@@ -205,8 +206,8 @@ const LotHistoryPage = ({ type = "accepted" }) => {
                       <p className="text-xs text-slate-500">{[lot.presentation, lot.commercial_classification].filter(Boolean).join(" · ") || "-"}</p>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(lot.received_at || lot.created_at)}</td>
-                    <td className="px-4 py-3 text-slate-600">{Number(lot.net_weight_kg || 0).toLocaleString("es-CO")} kg</td>
-                    <td className="px-4 py-3 text-slate-600">{Number(lot.available_weight_kg || 0).toLocaleString("es-CO")} kg</td>
+                    <td className="px-4 py-3 text-slate-600">{formatOperationalKg(lot.net_weight_kg)}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatOperationalKg(lot.available_weight_kg)}</td>
                     <td className="px-4 py-3 text-slate-600">
                       <p>Humedad: {lot.humidity_percent ?? "-"}%</p>
                       <p>Score: {lot.lab_score ?? "-"}</p>

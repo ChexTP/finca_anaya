@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
+import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
 
@@ -60,7 +61,7 @@ const initialAdminProcessEdit = {
   changeNote: "",
 };
 
-const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
+const formatKg = formatOperationalKg;
 const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
 
 const InventoryPage = ({ mode = "inventory" }) => {

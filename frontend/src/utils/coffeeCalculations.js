@@ -11,8 +11,18 @@ export const calculateOperationalKg = ({ quantityKg, productForm, processType })
   return Number(kg.toFixed(3));
 };
 
-export const formatOperationalKg = (value) =>
-  `${Number(value || 0).toLocaleString("es-CO", {
+export const roundKgUpToHalf = (value) => {
+  const kg = Number(value || 0);
+  if (!Number.isFinite(kg) || kg <= 0) return 0;
+
+  return Math.ceil((kg - Number.EPSILON) * 2) / 2;
+};
+
+export const formatOperationalKg = (value) => {
+  const roundedKg = roundKgUpToHalf(value);
+
+  return `${roundedKg.toLocaleString("es-CO", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
+    maximumFractionDigits: 1,
   })} kg`;
+};

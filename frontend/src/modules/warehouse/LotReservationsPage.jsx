@@ -5,16 +5,13 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
-import { calculateOperationalKg } from "../../utils/coffeeCalculations";
+import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption } from "../../utils/coffeeLots";
 import { formatDate } from "./WarehousePage";
 import { saleStatusLabels, getSaleStatusTone } from "../../utils/workflow";
 import { useEffect, useMemo, useState } from "react";
 
-const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 3,
-})} kg`;
+const formatKg = formatOperationalKg;
 
 const getItemName = (item) => {
   return item.description || item.coffee_profile_name || item.coffee_type_name || item.variety || "Cafe solicitado";
