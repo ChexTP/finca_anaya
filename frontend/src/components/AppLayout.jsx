@@ -32,14 +32,13 @@ const navigation = [
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
   { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Asignar lotes", path: "/bodega/pendientes", icon: ClipboardList, roles: ["laboratory"] },
 
   { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "accounting", "warehouse", "laboratory"] },
-  { label: "Trilladora", path: "/trilladora", icon: Coffee, roles: ["admin", "accounting", "warehouse", "laboratory"] },
-  { label: "Seleccionadora", path: "/seleccionadora", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse", "laboratory"] },
+  { label: "Trilladora", path: "/trilladora", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Seleccionadora", path: "/seleccionadora", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "accounting", "laboratory"] },
 
-  { label: "Crear orden", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting"] },
+  { label: "Cotizaciones", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting"] },
   { label: "Ordenes", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
 

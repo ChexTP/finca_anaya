@@ -29,13 +29,13 @@ router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse", "s
 router.get(
   "/lot-reservations",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse"),
   getSaleLotReservations
 );
 router.delete(
   "/lot-assignments/:assignmentId",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse"),
   deleteSaleLotAssignment
 );
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
@@ -115,13 +115,13 @@ router.put(
 router.put(
   "/:id/items/:itemId/shortage",
   requireAuth,
-  requireRoles("admin", "warehouse", "accounting", "laboratory"),
+  requireRoles("admin", "warehouse", "accounting"),
   putSaleItemShortage
 );
 router.put(
   "/:id/lot-assignments",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse"),
   putSaleLotAssignments
 );
 router.post(

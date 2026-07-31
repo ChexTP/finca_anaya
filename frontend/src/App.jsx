@@ -92,7 +92,7 @@ const App = () => {
         <Route
           path="/trilladora"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <ProcessesPage
                 fixedProcessType="Trilladora"
                 title="Trilladora"
@@ -104,7 +104,7 @@ const App = () => {
         <Route
           path="/seleccionadora"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <ProcessesPage
                 fixedProcessType="Seleccion electronica"
                 title="Seleccionadora"
@@ -124,7 +124,7 @@ const App = () => {
         <Route
           path="/bodega/pendientes"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <WarehousePendingPage />
             </ProtectedRoute>
           }

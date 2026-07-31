@@ -9,6 +9,7 @@ import {
   listQuotes,
   findQuoteById,
   createQuote,
+  updateQuote,
   updateQuoteStatus,
   quoteHasSale,
   quoteHasProcess,
@@ -24,6 +25,158 @@ const toNumber = (value) => {
 };
 
 const allowedStatuses = ["borrador", "enviada", "aceptada", "anulada"];
+
+const buildCleanQuoteData = async ({
+  code,
+  clientId,
+  quoteType,
+  status = "borrador",
+  currency,
+  paymentTerms,
+  deliveryTerms,
+  shippingCost = 0,
+  estimatedDeliveryDate,
+  notes,
+  items,
+}) => {
+  if (!clientId || !quoteType || !currency || !estimatedDeliveryDate || !Array.isArray(items) || items.length === 0) {
+    const error = new Error("Cliente, tipo de cotizacion, moneda, fecha de entrega e items son obligatorios");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!["inventario_disponible", "preventa"].includes(quoteType)) {
+    const error = new Error("El tipo de cotizacion debe ser inventario_disponible o preventa");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!allowedStatuses.includes(status)) {
+    const error = new Error("Estado de cotizacion invalido");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!["COP", "USD"].includes(currency)) {
+    const error = new Error("La moneda debe ser COP o USD");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const client = await findClientById(clientId);
+
+  if (!client || !client.is_active) {
+    const error = new Error("Cliente no encontrado o inactivo");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const cleanItems = [];
+
+  for (const item of items) {
+    if (item.productForm !== undefined && !item.productForm?.trim()) {
+      const error = new Error("La presentacion del cafe es obligatoria");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (item.processType !== undefined && !item.processType?.trim()) {
+      const error = new Error("El proceso o beneficio del cafe es obligatorio");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const quantityKg = toNumber(item.quantityKg);
+    const unitPrice = toNumber(item.unitPrice);
+
+    if (!Number.isFinite(quantityKg) || quantityKg <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
+      const error = new Error("Cada item debe tener cantidad mayor a cero y precio valido");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (item.lotId) {
+      const lot = await findLotById(item.lotId);
+
+      if (!lot || !["disponible", "vendido_parcial"].includes(lot.status)) {
+        const error = new Error("Lote no encontrado o no disponible");
+        error.statusCode = 404;
+        throw error;
+      }
+    }
+
+    if (item.coffeeTypeId) {
+      const coffeeType = await findCoffeeTypeById(item.coffeeTypeId);
+
+      if (!coffeeType || !coffeeType.is_active) {
+        const error = new Error("Tipo de cafe no encontrado o inactivo");
+        error.statusCode = 404;
+        throw error;
+      }
+    }
+
+    if (item.coffeeProfileId) {
+      const profile = await findCoffeeProfileById(item.coffeeProfileId);
+
+      if (!profile || !profile.is_active) {
+        const error = new Error("Perfil comercial no encontrado o inactivo");
+        error.statusCode = 404;
+        throw error;
+      }
+    }
+
+    if (!item.lotId && !item.coffeeTypeId && !item.coffeeProfileId && !item.description) {
+      const error = new Error("Cada item debe indicar lote, tipo, perfil o descripcion");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    cleanItems.push({
+      lotId: item.lotId || null,
+      coffeeTypeId: item.coffeeTypeId || null,
+      coffeeProfileId: item.coffeeProfileId || null,
+      description: item.description || null,
+      productForm: item.productForm || null,
+      processType: item.processType || null,
+      variety: item.variety || null,
+      quantityKg,
+      operationalWeightKg: calculateOperationalKg({
+        quantityKg,
+        productForm: item.productForm,
+        processType: item.processType,
+      }),
+      unitPrice,
+      lineTotal: Number((quantityKg * unitPrice).toFixed(2)),
+    });
+  }
+
+  const shipping = toNumber(shippingCost);
+
+  if (!Number.isFinite(shipping) || shipping < 0) {
+    const error = new Error("El costo de envio debe ser valido");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const subtotal = cleanItems.reduce((total, item) => total + item.lineTotal, 0);
+  const total = Number((subtotal + shipping).toFixed(2));
+
+  return {
+    code: code ? String(code).trim().toUpperCase() : null,
+    clientId,
+    quoteType,
+    status,
+    currency,
+    paymentTerms: paymentTerms || null,
+    deliveryTerms: deliveryTerms || null,
+    shippingCost: shipping,
+    estimatedDeliveryDate,
+    notes: notes || null,
+    subtotal,
+    total,
+    items: cleanItems,
+  };
+};
 
 export const getQuotes = async (req, res) => {
   try {
@@ -66,139 +219,13 @@ export const getQuote = async (req, res) => {
 
 export const postQuote = async (req, res) => {
   try {
-    const {
-      clientId,
-      quoteType,
-      status = "borrador",
-      currency,
-      paymentTerms,
-      deliveryTerms,
-      shippingCost = 0,
-      estimatedDeliveryDate,
-      notes,
-      items,
-    } = req.body;
-
-    if (!clientId || !quoteType || !currency || !estimatedDeliveryDate || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        message: "Cliente, tipo de cotizacion, moneda, fecha de entrega e items son obligatorios",
-      });
-    }
-
-    if (!["inventario_disponible", "preventa"].includes(quoteType)) {
-      return res.status(400).json({
-        message: "El tipo de cotizacion debe ser inventario_disponible o preventa",
-      });
-    }
-
-    if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({ message: "Estado de cotizacion invalido" });
-    }
-
-    if (!["COP", "USD"].includes(currency)) {
-      return res.status(400).json({ message: "La moneda debe ser COP o USD" });
-    }
-
-    const client = await findClientById(clientId);
-
-    if (!client || !client.is_active) {
-      return res.status(404).json({ message: "Cliente no encontrado o inactivo" });
-    }
-
-    const cleanItems = [];
-
-    for (const item of items) {
-      if (item.productForm !== undefined && !item.productForm?.trim()) {
-        return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
-      }
-
-      if (item.processType !== undefined && !item.processType?.trim()) {
-        return res.status(400).json({ message: "El proceso o beneficio del cafe es obligatorio" });
-      }
-
-      const quantityKg = toNumber(item.quantityKg);
-      const unitPrice = toNumber(item.unitPrice);
-
-      if (!Number.isFinite(quantityKg) || quantityKg <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
-        return res.status(400).json({
-          message: "Cada item debe tener cantidad mayor a cero y precio valido",
-        });
-      }
-
-      if (item.lotId) {
-        const lot = await findLotById(item.lotId);
-
-        if (!lot || lot.status !== "disponible") {
-          return res.status(404).json({ message: "Lote no encontrado o no disponible" });
-        }
-      }
-
-      if (item.coffeeTypeId) {
-        const coffeeType = await findCoffeeTypeById(item.coffeeTypeId);
-
-        if (!coffeeType || !coffeeType.is_active) {
-          return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
-        }
-      }
-
-      if (item.coffeeProfileId) {
-        const profile = await findCoffeeProfileById(item.coffeeProfileId);
-
-        if (!profile || !profile.is_active) {
-          return res.status(404).json({ message: "Perfil comercial no encontrado o inactivo" });
-        }
-      }
-
-      if (!item.lotId && !item.coffeeTypeId && !item.coffeeProfileId && !item.description) {
-        return res.status(400).json({
-          message: "Cada item debe indicar lote, tipo, perfil o descripcion",
-        });
-      }
-
-      cleanItems.push({
-        lotId: item.lotId || null,
-        coffeeTypeId: item.coffeeTypeId || null,
-        coffeeProfileId: item.coffeeProfileId || null,
-        description: item.description || null,
-        productForm: item.productForm || null,
-        processType: item.processType || null,
-        variety: item.variety || null,
-        quantityKg,
-        operationalWeightKg: calculateOperationalKg({
-          quantityKg,
-          productForm: item.productForm,
-          processType: item.processType,
-        }),
-        unitPrice,
-        lineTotal: Number((quantityKg * unitPrice).toFixed(2)),
-      });
-    }
-
-    const shipping = toNumber(shippingCost);
-
-    if (!Number.isFinite(shipping) || shipping < 0) {
-      return res.status(400).json({ message: "El costo de envio debe ser valido" });
-    }
-
-    const subtotal = cleanItems.reduce((total, item) => total + item.lineTotal, 0);
-    const total = Number((subtotal + shipping).toFixed(2));
-    const code = await getNextQuoteCode();
+    const quoteData = await buildCleanQuoteData(req.body);
+    const code = quoteData.code || await getNextQuoteCode();
 
     const quote = await createQuote({
+      ...quoteData,
       code,
-      clientId,
       sellerId: req.user.id,
-      quoteType,
-      status,
-      currency,
-      paymentTerms: paymentTerms || null,
-      deliveryTerms: deliveryTerms || null,
-      shippingCost: shipping,
-      estimatedDeliveryDate,
-      notes: notes || null,
-      subtotal,
-      total,
-      items: cleanItems,
     });
 
     const fullQuote = await findQuoteById(quote.id);
@@ -208,8 +235,43 @@ export const postQuote = async (req, res) => {
       data: fullQuote,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       message: "Error al crear cotizacion",
+      error: error.message,
+    });
+  }
+};
+
+export const putQuote = async (req, res) => {
+  try {
+    const existingQuote = await findQuoteById(req.params.id);
+
+    if (!existingQuote) {
+      return res.status(404).json({ message: "Cotizacion no encontrada" });
+    }
+
+    if (req.user.role === "seller" && existingQuote.seller_id !== req.user.id) {
+      return res.status(403).json({ message: "No tiene permisos para editar esta cotizacion" });
+    }
+
+    if (await quoteHasSale(req.params.id)) {
+      return res.status(409).json({ message: "No se puede editar una cotizacion que ya fue convertida en venta" });
+    }
+
+    const quoteData = await buildCleanQuoteData({
+      ...req.body,
+      code: req.body.code || existingQuote.code,
+    });
+    const quote = await updateQuote(req.params.id, quoteData);
+    const fullQuote = await findQuoteById(quote.id);
+
+    res.json({
+      message: "Cotizacion actualizada correctamente",
+      data: fullQuote,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      message: "Error al actualizar cotizacion",
       error: error.message,
     });
   }

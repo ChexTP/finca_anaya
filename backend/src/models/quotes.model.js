@@ -206,6 +206,103 @@ export const createQuote = async (quoteData) => {
   }
 };
 
+export const updateQuote = async (id, quoteData) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const quoteResult = await client.query(
+      `
+      UPDATE quotes
+      SET
+        code = $1,
+        client_id = $2,
+        quote_type = $3,
+        status = $4,
+        currency = $5,
+        payment_terms = $6,
+        delivery_terms = $7,
+        shipping_cost = $8,
+        estimated_delivery_date = $9,
+        notes = $10,
+        subtotal = $11,
+        total = $12,
+        updated_at = NOW()
+      WHERE id = $13
+      RETURNING *
+      `,
+      [
+        quoteData.code,
+        quoteData.clientId,
+        quoteData.quoteType,
+        quoteData.status,
+        quoteData.currency,
+        quoteData.paymentTerms,
+        quoteData.deliveryTerms,
+        quoteData.shippingCost,
+        quoteData.estimatedDeliveryDate,
+        quoteData.notes,
+        quoteData.subtotal,
+        quoteData.total,
+        id,
+      ]
+    );
+    const quote = quoteResult.rows[0];
+
+    if (!quote) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    await client.query("DELETE FROM quote_items WHERE quote_id = $1", [id]);
+
+    for (const item of quoteData.items) {
+      await client.query(
+        `
+        INSERT INTO quote_items (
+          quote_id,
+          lot_id,
+          coffee_type_id,
+          coffee_profile_id,
+          description,
+          product_form,
+          process_type,
+          variety,
+          quantity_kg,
+          operational_weight_kg,
+          unit_price,
+          line_total
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `,
+        [
+          id,
+          item.lotId,
+          item.coffeeTypeId,
+          item.coffeeProfileId,
+          item.description,
+          item.productForm,
+          item.processType,
+          item.variety,
+          item.quantityKg,
+          item.operationalWeightKg,
+          item.unitPrice,
+          item.lineTotal,
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+    return quote;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const updateQuoteStatus = async (id, status) => {
   const result = await pool.query(
     `

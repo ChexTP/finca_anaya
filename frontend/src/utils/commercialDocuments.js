@@ -32,10 +32,56 @@ const escapeHtml = (value) => {
     .replaceAll("'", "&#039;");
 };
 
-export const buildCommercialDocumentHtml = (document) => {
+const labels = {
+  es: {
+    quote: "Cotizacion de cafe",
+    customer: "Cliente",
+    date: "Fecha",
+    quoteCode: "Cotizacion",
+    intro: "De acuerdo con su solicitud, presentamos la siguiente cotizacion de cafe.",
+    farm: "FINCA",
+    presentation: "PRESENTACION",
+    variety: "CAFE / PERFIL",
+    process: "PROCESO",
+    unitPrice: "PRECIO KG",
+    quantity: "CANTIDAD (Kg)",
+    lineTotal: "TOTAL",
+    deliveryTime: "Tiempo de entrega",
+    paymentTerms: "Condiciones de pago",
+    deliveryTerms: "Condiciones de entrega",
+    subtotal: "Subtotal",
+    shipping: "Envio",
+    total: "Total",
+    notes: "Notas",
+  },
+  en: {
+    quote: "Coffee quotation",
+    customer: "Customer",
+    date: "Date",
+    quoteCode: "Quotation",
+    intro: "According to your request, we are pleased to present the following coffee quotation.",
+    farm: "FARM",
+    presentation: "PRESENTATION",
+    variety: "COFFEE / PROFILE",
+    process: "PROCESS",
+    unitPrice: "PRICE KG",
+    quantity: "QTY (Kg)",
+    lineTotal: "TOTAL",
+    deliveryTime: "Delivery time",
+    paymentTerms: "Payment terms",
+    deliveryTerms: "Delivery terms",
+    subtotal: "Subtotal",
+    shipping: "Shipping",
+    total: "Total",
+    notes: "Notes",
+  },
+};
+
+export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) => {
+  const text = labels[language] || labels.es;
   const currency = document.totals?.currency || "COP";
   const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
-  const showCommercialAmounts = false;
+  const showCommercialAmounts = isQuote;
   const rows = document.items
     ?.map((item) => {
       const description = item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-";
@@ -47,6 +93,7 @@ export const buildCommercialDocumentHtml = (document) => {
           <td>${escapeHtml(item.processType || "-")}</td>
           ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.unitPrice)}</td>` : ""}
           <td>${escapeHtml(item.quantityKg || "-")}</td>
+          ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.lineTotal)}</td>` : ""}
         </tr>
       `;
     })
@@ -99,7 +146,7 @@ export const buildCommercialDocumentHtml = (document) => {
           .totals { margin-left: auto; margin-top: 16px; width: 280px; }
           .totals p { display: flex; justify-content: space-between; }
           .total { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; }
-          .terms { margin-top: 18px; width: 420px; }
+          .terms { margin-top: 18px; width: 520px; }
           .terms td { text-align: left; }
           @media print { body { margin: 18px; } }
         </style>
@@ -121,28 +168,31 @@ export const buildCommercialDocumentHtml = (document) => {
 
         <section class="recipient">
           <div>
-            <p>Mr,</p>
+            <p><strong>${text.customer}</strong></p>
             <p>${escapeHtml(document.client?.name || "-")}</p>
             <p>${escapeHtml(document.client?.address || "")}</p>
+            <p>${escapeHtml(document.client?.phone || "")}</p>
+            <p>${escapeHtml(document.client?.email || "")}</p>
           </div>
           <div class="company">
-            <p>Date: ${formatDocumentDate(document.dates?.createdAt)}</p>
-            <p>Orden operativa ${escapeHtml(document.code)}</p>
-            <!-- Referencias de factura externa desactivadas: el documento queda como orden operativa. -->
+            <p>${text.date}: ${formatDocumentDate(document.dates?.createdAt)}</p>
+            <p>${text.quoteCode}: ${escapeHtml(document.code)}</p>
           </div>
         </section>
 
-        <p class="intro">Detalle operativo del pedido para gestion interna de inventario, bodega y laboratorio.</p>
+        <h1>${text.quote}</h1>
+        <p class="intro">${text.intro}</p>
 
         <table>
           <thead>
             <tr>
-              <th>FARM</th>
-              <th>PRESENTACION</th>
-              <th>VARIETY</th>
-              <th>PROCESS</th>
-              ${showCommercialAmounts ? "<th>KG-CPS</th>" : ""}
-              <th>QTY (Kg)</th>
+              <th>${text.farm}</th>
+              <th>${text.presentation}</th>
+              <th>${text.variety}</th>
+              <th>${text.process}</th>
+              ${showCommercialAmounts ? `<th>${text.unitPrice}</th>` : ""}
+              <th>${text.quantity}</th>
+              ${showCommercialAmounts ? `<th>${text.lineTotal}</th>` : ""}
             </tr>
           </thead>
           <tbody>${rows || ""}</tbody>
@@ -150,21 +200,18 @@ export const buildCommercialDocumentHtml = (document) => {
 
         <table class="terms">
           <tbody>
-            <tr><td><strong>Tiempo de entrega:</strong></td><td>${formatDocumentDate(document.dates?.estimatedDeliveryDate || document.dates?.estimatedPaymentDate)}</td></tr>
-            <tr><td><strong>Empaque:</strong></td><td>${escapeHtml(document.terms?.deliveryTerms || "-")}</td></tr>
-            <tr><td><strong>Estado operativo:</strong></td><td>${escapeHtml(document.status || "-")}</td></tr>
-            <!-- Datos comerciales desactivados: pagos y bancos se manejan en software contable externo.
-            <tr><td><strong>Datos Bancarios:</strong></td><td>Bancolombia - Ahorros - 453 0000 6876</td></tr>
-            -->
+            <tr><td><strong>${text.deliveryTime}:</strong></td><td>${formatDocumentDate(document.dates?.estimatedDeliveryDate || document.dates?.estimatedPaymentDate)}</td></tr>
+            <tr><td><strong>${text.paymentTerms}:</strong></td><td>${escapeHtml(document.terms?.paymentTerms || "-")}</td></tr>
+            <tr><td><strong>${text.deliveryTerms}:</strong></td><td>${escapeHtml(document.terms?.deliveryTerms || "-")}</td></tr>
             <tr><td><strong>Empresa:</strong></td><td>${escapeHtml(companyBrand.legalName)}</td></tr>
             <tr><td><strong>Nit:</strong></td><td>${escapeHtml(companyBrand.nit)}</td></tr>
           </tbody>
         </table>
 
         ${showCommercialAmounts ? `<div class="totals">
-          <p><span>Subtotal</span><span>${formatDocumentMoney(currency, document.totals?.subtotal)}</span></p>
-          <p><span>Envio</span><span>${formatDocumentMoney(currency, document.totals?.shippingCost)}</span></p>
-          <p class="total"><span>Total</span><span>${formatDocumentMoney(currency, document.totals?.total)}</span></p>
+          <p><span>${text.subtotal}</span><span>${formatDocumentMoney(currency, document.totals?.subtotal)}</span></p>
+          <p><span>${text.shipping}</span><span>${formatDocumentMoney(currency, document.totals?.shippingCost)}</span></p>
+          <p class="total"><span>${text.total}</span><span>${formatDocumentMoney(currency, document.totals?.total)}</span></p>
         </div>` : ""}
 
         ${
@@ -192,7 +239,7 @@ export const buildCommercialDocumentHtml = (document) => {
             : ""
         }
 
-        ${document.notes ? `<h3>Notas</h3><p>${escapeHtml(document.notes)}</p>` : ""}
+        ${document.notes ? `<h3>${text.notes}</h3><p>${escapeHtml(document.notes)}</p>` : ""}
 
         ${
           document.dispatchReceipt?.hasImage
@@ -208,14 +255,14 @@ export const buildCommercialDocumentHtml = (document) => {
   `;
 };
 
-export const openCommercialDocumentPrint = (document) => {
+export const openCommercialDocumentPrint = (document, options = {}) => {
   const printWindow = window.open("", "_blank");
 
   if (!printWindow) {
     throw new Error("El navegador bloqueo la ventana de impresion.");
   }
 
-  printWindow.document.write(buildCommercialDocumentHtml(document));
+  printWindow.document.write(buildCommercialDocumentHtml(document, options));
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
