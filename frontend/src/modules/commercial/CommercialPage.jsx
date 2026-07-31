@@ -573,14 +573,17 @@ const CommercialPage = () => {
                 value={quoteForm.shippingCost}
                 onChange={(event) => setQuoteForm({ ...quoteForm, shippingCost: event.target.value })}
               />
-              <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                type="date"
-                value={quoteForm.estimatedDeliveryDate}
-                onChange={(event) => setQuoteForm({ ...quoteForm, estimatedDeliveryDate: event.target.value })}
-                required
-                aria-label="Fecha de entrega"
-              />
+              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                Entrega estimada del producto
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                  type="date"
+                  value={quoteForm.estimatedDeliveryDate}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, estimatedDeliveryDate: event.target.value })}
+                  required
+                  aria-label="Entrega estimada del producto"
+                />
+              </label>
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Condiciones de pago"

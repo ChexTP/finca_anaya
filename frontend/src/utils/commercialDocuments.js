@@ -36,7 +36,8 @@ const labels = {
   es: {
     quote: "Cotizacion de cafe",
     customer: "Cliente",
-    date: "Fecha",
+    date: "Fecha cotizacion",
+    estimatedDeliveryDate: "Entrega estimada",
     quoteCode: "Cotizacion",
     intro: "De acuerdo con su solicitud, presentamos la siguiente cotizacion de cafe.",
     farm: "FINCA",
@@ -66,7 +67,8 @@ const labels = {
   en: {
     quote: "Coffee quotation",
     customer: "Customer",
-    date: "Date",
+    date: "Quotation date",
+    estimatedDeliveryDate: "Estimated delivery",
     quoteCode: "Quotation",
     intro: "According to your request, we are pleased to present the following coffee quotation.",
     farm: "FARM",
@@ -217,6 +219,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           </div>
           <div class="company">
             <p>${text.date}: ${formatDocumentDate(document.dates?.createdAt)}</p>
+            <p>${text.estimatedDeliveryDate}: ${formatDocumentDate(document.dates?.estimatedDeliveryDate)}</p>
             <p>${text.quoteCode}: ${escapeHtml(document.code)}</p>
           </div>
         </section>
