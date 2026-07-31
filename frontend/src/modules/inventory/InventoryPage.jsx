@@ -83,6 +83,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [adminProcessForm, setAdminProcessForm] = useState(initialAdminProcessEdit);
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
+  const [inventorySearch, setInventorySearch] = useState("");
   const [lotCodeSearch, setLotCodeSearch] = useState("");
   const [processCodeSearch, setProcessCodeSearch] = useState("");
   const [showInventoryEditModal, setShowInventoryEditModal] = useState(false);
@@ -544,9 +545,31 @@ const InventoryPage = ({ mode = "inventory" }) => {
     }))
   );
   const groupCards = Object.values(inventoryGroups).sort((left, right) => left.name.localeCompare(right.name));
-  const filteredLots = selectedGroup === "all"
+  const groupedFilteredLots = selectedGroup === "all"
     ? presentationFilteredLots
     : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
+  const inventorySearchTerm = inventorySearch.trim().toLowerCase();
+  const filteredLots = groupedFilteredLots.filter((lot) => {
+    if (!inventorySearchTerm) return true;
+
+    return [
+      lot.code,
+      formatCoffeeLotCodeName(lot),
+      lot.supplier_name,
+      lot.status,
+      lot.presentation,
+      lot.coffee_type_name,
+      lot.commercial_classification,
+      lot.coffee_variety,
+      lot.coffee_profile_name,
+      lot.origin_process_type,
+      lot.origin_process_code,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(inventorySearchTerm);
+  });
   const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const getLotOriginLabel = (lot) => {
@@ -1323,10 +1346,20 @@ const InventoryPage = ({ mode = "inventory" }) => {
       <div className="rounded border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-800">Inventario disponible</h2>
+          <input
+            className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Buscar por codigo, cafe, proveedor, estado o presentacion"
+            value={inventorySearch}
+            onChange={(event) => setInventorySearch(event.target.value)}
+          />
         </div>
         {lots.length === 0 ? (
           <div className="p-4">
             <EmptyState title="Sin lotes disponibles" message="Cuando haya inventario disponible aparecera aqui." />
+          </div>
+        ) : filteredLots.length === 0 ? (
+          <div className="p-4">
+            <EmptyState title="Sin lotes con estos filtros" message="Cambie la busqueda, presentacion o tipo para ver mas cafe disponible." />
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
