@@ -5,7 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
 import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
 const initialProcess = {
@@ -65,6 +65,8 @@ const formatDate = (value) => {
   return [day, month, year].filter(Boolean).join("/");
 };
 
+const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
+
 const ProcessesPage = ({
   fixedProcessType = null,
   title = "Procesos",
@@ -84,6 +86,8 @@ const ProcessesPage = ({
   const [physicalReviewProcessId, setPhysicalReviewProcessId] = useState(null);
   const [physicalReviewForm, setPhysicalReviewForm] = useState(initialPhysicalReviewForm);
   const [processSearch, setProcessSearch] = useState("");
+  const [selectedPresentation, setSelectedPresentation] = useState("all");
+  const [selectedGroup, setSelectedGroup] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -140,7 +144,7 @@ const ProcessesPage = ({
         process.code,
         process.sale_code,
         process.sale_client_name,
-    process.process_type,
+        process.process_type,
         process.process_location,
         process.output_lot_code,
         process.notes,
@@ -158,6 +162,80 @@ const ProcessesPage = ({
       return text.includes(search);
     });
   }, [processes, processSearch]);
+
+  const presentationNames = useMemo(() => {
+    return [
+      ...new Set([
+        ...(catalogs?.coffeePresentations || []).map((presentation) => presentation.name),
+        ...availableLots.map((lot) => lot.presentation || "Pergamino"),
+      ].filter(Boolean)),
+    ];
+  }, [availableLots, catalogs]);
+
+  const presentationOptions = useMemo(() => {
+    return presentationNames.map((presentation) => {
+      const presentationLots = availableLots.filter((lot) => (lot.presentation || "Pergamino") === presentation);
+      return {
+        presentation,
+        count: presentationLots.length,
+        kg: presentationLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
+      };
+    });
+  }, [availableLots, presentationNames]);
+
+  const presentationFilteredLots = useMemo(() => {
+    return selectedPresentation === "all"
+      ? availableLots
+      : availableLots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
+  }, [availableLots, selectedPresentation]);
+
+  const groupCards = useMemo(() => {
+    const groups = groupCoffeeLots(
+      presentationFilteredLots.map((lot) => ({
+        ...lot,
+        available_weight_kg: lot.operational_available_kg ?? lot.available_weight_kg,
+      }))
+    );
+
+    return Object.values(groups).sort((left, right) => left.name.localeCompare(right.name));
+  }, [presentationFilteredLots]);
+
+  const filteredAvailableLots = useMemo(() => {
+    const search = processSearch.trim().toLowerCase();
+    const groupedLots = selectedGroup === "all"
+      ? presentationFilteredLots
+      : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
+
+    if (!search) return groupedLots;
+
+    return groupedLots.filter((lot) => {
+      const text = [
+        lot.code,
+        formatCoffeeLotCodeName(lot),
+        lot.supplier_name,
+        lot.presentation,
+        lot.coffee_type_name,
+        lot.coffee_profile_name,
+        lot.commercial_classification,
+        lot.coffee_variety,
+        lot.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return text.includes(search);
+    });
+  }, [presentationFilteredLots, processSearch, selectedGroup]);
+
+  const totalAvailableKg = presentationFilteredLots.reduce(
+    (total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
+    0
+  );
+  const allAvailableKg = availableLots.reduce(
+    (total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
+    0
+  );
 
   const loadData = async () => {
     const processQuery = fixedProcessType ? `?processType=${encodeURIComponent(fixedProcessType)}` : "";
@@ -426,7 +504,7 @@ const ProcessesPage = ({
       <div className="rounded border border-slate-200 bg-white p-3">
         <input
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-          placeholder="Buscar por perfil, lote, cliente, venta o ubicacion"
+          placeholder="Buscar por perfil, lote, proveedor, cliente, venta o ubicacion"
           value={processSearch}
           onChange={(event) => setProcessSearch(event.target.value)}
         />
@@ -492,6 +570,66 @@ const ProcessesPage = ({
             </p>
           )}
 
+          <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase text-slate-500">Filtrar cafe disponible</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  selectedPresentation === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => {
+                  setSelectedPresentation("all");
+                  setSelectedGroup("all");
+                }}
+              >
+                <span className="block font-semibold">Todo</span>
+                <span className="text-xs">{availableLots.length} lotes - {formatKg(allAvailableKg)}</span>
+              </button>
+              {presentationOptions.map((option) => (
+                <button
+                  key={option.presentation}
+                  className={`rounded border px-3 py-2 text-left text-sm ${
+                    selectedPresentation === option.presentation ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPresentation(option.presentation);
+                    setSelectedGroup("all");
+                  }}
+                >
+                  <span className="block font-semibold">{option.presentation}</span>
+                  <span className="text-xs">{option.count} lotes - {formatKg(option.kg)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  selectedGroup === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => setSelectedGroup("all")}
+              >
+                <span className="block font-semibold">Todos los tipos</span>
+                <span className="text-xs">{presentationFilteredLots.length} lotes - {formatKg(totalAvailableKg)}</span>
+              </button>
+              {groupCards.map((group) => (
+                <button
+                  key={group.name}
+                  className={`rounded border px-3 py-2 text-left text-sm ${
+                    selectedGroup === group.name ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                  type="button"
+                  onClick={() => setSelectedGroup(group.name)}
+                >
+                  <span className="block font-semibold">{group.name}</span>
+                  <span className="text-xs">{group.count} lotes - {formatKg(group.kg)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-4 overflow-x-auto rounded border border-slate-200">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-100 text-slate-600">
@@ -505,7 +643,7 @@ const ProcessesPage = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {availableLots.map((lot) => (
+                {filteredAvailableLots.map((lot) => (
                   <tr key={lot.id}>
                     <td className="px-3 py-2">
                       <input
@@ -517,14 +655,14 @@ const ProcessesPage = ({
                     <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
-                    <td className="px-3 py-2">{lot.available_weight_kg} kg</td>
+                    <td className="px-3 py-2">{formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}</td>
                     <td className="px-3 py-2">
                       <input
                         className="w-32 rounded border border-slate-300 px-2 py-1 text-sm"
                         type="number"
                         min="0"
                         step="0.001"
-                        max={lot.available_weight_kg}
+                        max={lot.operational_available_kg ?? lot.available_weight_kg}
                         value={selectedLots[lot.id]?.quantityKg || ""}
                         onChange={(event) => updateLotQuantity(lot.id, event.target.value)}
                       />
@@ -533,6 +671,11 @@ const ProcessesPage = ({
                 ))}
               </tbody>
             </table>
+            {filteredAvailableLots.length === 0 && (
+              <div className="border-t border-slate-100 bg-white p-4">
+                <EmptyState title="Sin lotes con estos filtros" message="Cambie la busqueda, presentacion o tipo para ver mas cafe disponible." />
+              </div>
+            )}
           </div>
 
           <button
