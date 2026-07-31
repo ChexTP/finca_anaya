@@ -47,12 +47,21 @@ const labels = {
     quantity: "CANTIDAD (Kg)",
     lineTotal: "TOTAL",
     deliveryTime: "Tiempo de entrega",
+    advance: "Anticipo",
+    standard: "Norma",
+    delivery: "Entrega",
+    packaging: "Empaque",
+    payment: "Pago",
+    bankDetails: "Datos Bancarios",
+    company: "Empresa",
+    taxId: "Nit",
     paymentTerms: "Condiciones de pago",
     deliveryTerms: "Condiciones de entrega",
     subtotal: "Subtotal",
     shipping: "Envio",
     total: "Total",
     notes: "Notas",
+    termsTitle: "Terminos:",
   },
   en: {
     quote: "Coffee quotation",
@@ -68,17 +77,46 @@ const labels = {
     quantity: "QTY (Kg)",
     lineTotal: "TOTAL",
     deliveryTime: "Delivery time",
+    advance: "Advance payment",
+    standard: "Standard",
+    delivery: "Delivery",
+    packaging: "Packaging",
+    payment: "Payment",
+    bankDetails: "Bank details",
+    company: "Company",
+    taxId: "Tax ID",
     paymentTerms: "Payment terms",
     deliveryTerms: "Delivery terms",
     subtotal: "Subtotal",
     shipping: "Shipping",
     total: "Total",
     notes: "Notes",
+    termsTitle: "Terms:",
+  },
+};
+
+const defaultQuoteTerms = {
+  es: {
+    advance: "30%",
+    deliveryTime: "15 dias",
+    standard: "3/20",
+    delivery: "Pitalito Huila",
+    packaging: "Bolsa y tula tradicional",
+    payment: "Consignacion nacional",
+  },
+  en: {
+    advance: "30%",
+    deliveryTime: "15 days",
+    standard: "3/20",
+    delivery: "Pitalito Huila",
+    packaging: "Traditional bag and jute sack",
+    payment: "National bank transfer",
   },
 };
 
 export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) => {
   const text = labels[language] || labels.es;
+  const defaultTerms = defaultQuoteTerms[language] || defaultQuoteTerms.es;
   const currency = document.totals?.currency || "COP";
   const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
   const showCommercialAmounts = isQuote;
@@ -146,8 +184,11 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           .totals { margin-left: auto; margin-top: 16px; width: 280px; }
           .totals p { display: flex; justify-content: space-between; }
           .total { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; }
-          .terms { margin-top: 18px; width: 520px; }
-          .terms td { text-align: left; }
+          .terms { margin-top: 22px; width: 620px; }
+          .terms h2 { font-size: 14px; margin: 0 0 14px; }
+          .terms table { border-collapse: collapse; margin-top: 0; width: 100%; }
+          .terms td { border: 0; font-size: 13px; padding: 2px 6px; text-align: left; }
+          .terms td:first-child { font-weight: 700; width: 210px; }
           @media print { body { margin: 18px; } }
         </style>
       </head>
@@ -198,15 +239,22 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           <tbody>${rows || ""}</tbody>
         </table>
 
-        <table class="terms">
-          <tbody>
-            <tr><td><strong>${text.deliveryTime}:</strong></td><td>${formatDocumentDate(document.dates?.estimatedDeliveryDate || document.dates?.estimatedPaymentDate)}</td></tr>
-            <tr><td><strong>${text.paymentTerms}:</strong></td><td>${escapeHtml(document.terms?.paymentTerms || "-")}</td></tr>
-            <tr><td><strong>${text.deliveryTerms}:</strong></td><td>${escapeHtml(document.terms?.deliveryTerms || "-")}</td></tr>
-            <tr><td><strong>Empresa:</strong></td><td>${escapeHtml(companyBrand.legalName)}</td></tr>
-            <tr><td><strong>Nit:</strong></td><td>${escapeHtml(companyBrand.nit)}</td></tr>
-          </tbody>
-        </table>
+        <section class="terms">
+          <h2>${text.termsTitle}</h2>
+          <table>
+            <tbody>
+              <tr><td>${text.advance}:</td><td>${escapeHtml(document.terms?.advance || defaultTerms.advance)}</td></tr>
+              <tr><td>${text.deliveryTime}:</td><td>${escapeHtml(document.terms?.deliveryTime || defaultTerms.deliveryTime)}</td></tr>
+              <tr><td>${text.standard}:</td><td>${escapeHtml(document.terms?.standard || defaultTerms.standard)}</td></tr>
+              <tr><td>${text.delivery}:</td><td>${escapeHtml(document.terms?.deliveryTerms || defaultTerms.delivery)}</td></tr>
+              <tr><td>${text.packaging}:</td><td>${escapeHtml(document.terms?.packaging || defaultTerms.packaging)}</td></tr>
+              <tr><td>${text.payment}:</td><td>${escapeHtml(document.terms?.paymentTerms || defaultTerms.payment)}</td></tr>
+              <tr><td>${text.bankDetails}:</td><td>${escapeHtml(companyBrand.bankDetails)}</td></tr>
+              <tr><td>${text.company}:</td><td>${escapeHtml(companyBrand.legalName)}</td></tr>
+              <tr><td>${text.taxId}:</td><td>${escapeHtml(companyBrand.nit)}</td></tr>
+            </tbody>
+          </table>
+        </section>
 
         ${showCommercialAmounts ? `<div class="totals">
           <p><span>${text.subtotal}</span><span>${formatDocumentMoney(currency, document.totals?.subtotal)}</span></p>

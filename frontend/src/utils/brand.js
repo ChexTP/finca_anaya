@@ -6,6 +6,7 @@ export const companyBrand = {
   phone: "+57 320 6083481",
   email: "fincaanaya@gmail.com",
   instagram: "@fincaanaya",
+  bankDetails: "Bancolombia - Ahorros - 453 0000 6876",
   logo: "/logos/anaya-logo-mark.png",
   printableLogo: "/logos/anaya-logo-full.png",
 };
