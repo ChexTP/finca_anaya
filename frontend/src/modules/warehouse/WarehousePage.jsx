@@ -39,6 +39,7 @@ const initialLot = {
 
 const initialStockEntry = {
   lotKind: "LOT",
+  purchaseCoffeeId: "",
   coffeeTypeId: "",
   coffeeProfileId: "",
   commercialClassification: "Regional",
@@ -333,21 +334,15 @@ const WarehousePage = () => {
     return receivedPurchaseCoffeeOptions.find((coffee) => String(coffee.id) === String(lotForm.purchaseCoffeeId));
   }, [lotForm.purchaseCoffeeId, receivedPurchaseCoffeeOptions]);
 
-  const stockPurchaseCoffeeOptions = useMemo(() => {
-    return (catalogs?.purchaseCoffees || []).filter((coffee) => {
-      const familyMatches = coffee.family === stockEntryForm.commercialClassification;
-      const processType = catalogs?.coffeeTypes?.find((type) => String(type.id) === String(stockEntryForm.coffeeTypeId));
-      const processMatches = processType?.name ? coffee.process_type === processType.name : true;
-
-      return familyMatches && processMatches && coffee.is_active !== false;
-    });
-  }, [catalogs, stockEntryForm.commercialClassification, stockEntryForm.coffeeTypeId]);
-
   const stockCoffeeProfileOptions = useMemo(() => {
     return (catalogs?.coffeeProfiles || [])
       .filter((profile) => profile.is_active !== false)
       .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
   }, [catalogs]);
+
+  const selectedStockPurchaseCoffee = useMemo(() => {
+    return receivedPurchaseCoffeeOptions.find((coffee) => String(coffee.id) === String(stockEntryForm.purchaseCoffeeId));
+  }, [receivedPurchaseCoffeeOptions, stockEntryForm.purchaseCoffeeId]);
 
   const stockEntryCodePrefix = stockEntryForm.lotKind === "PROC"
     ? "PROC"
@@ -376,6 +371,19 @@ const WarehousePage = () => {
 
     setLotForm({
       ...lotForm,
+      purchaseCoffeeId,
+      coffeeTypeId: coffeeType?.id ? String(coffeeType.id) : "",
+      commercialClassification: purchaseCoffee?.family || "",
+      coffeeVariety: purchaseCoffee?.name || "",
+    });
+  };
+
+  const handleStockPurchaseCoffeeChange = (purchaseCoffeeId) => {
+    const purchaseCoffee = receivedPurchaseCoffeeOptions.find((coffee) => String(coffee.id) === String(purchaseCoffeeId));
+    const coffeeType = catalogs?.coffeeTypes?.find((type) => type.name === purchaseCoffee?.process_type);
+
+    setStockEntryForm({
+      ...stockEntryForm,
       purchaseCoffeeId,
       coffeeTypeId: coffeeType?.id ? String(coffeeType.id) : "",
       commercialClassification: purchaseCoffee?.family || "",
@@ -579,8 +587,8 @@ const WarehousePage = () => {
     setSaving(true);
 
     try {
-      if (["LOT", "RECUPERACION"].includes(stockEntryForm.lotKind) && !stockEntryForm.coffeeVariety.trim()) {
-        throw new Error("El cafe necesita nombre, variedad o codigo exacto.");
+      if (["LOT", "RECUPERACION"].includes(stockEntryForm.lotKind) && !stockEntryForm.purchaseCoffeeId) {
+        throw new Error("Seleccione el perfil de compra del cafe.");
       }
 
       if (stockEntryForm.lotKind === "PROC" && !stockEntryForm.coffeeProfileId) {
@@ -591,17 +599,22 @@ const WarehousePage = () => {
         method: "POST",
         body: JSON.stringify({
           ...stockEntryForm,
-          coffeeTypeId: stockEntryForm.coffeeTypeId ? Number(stockEntryForm.coffeeTypeId) : null,
           coffeeProfileId: stockEntryForm.coffeeProfileId ? Number(stockEntryForm.coffeeProfileId) : null,
           weightKg: Number(stockEntryForm.weightKg),
           humidityPercent: stockEntryForm.humidityPercent === "" ? null : Number(stockEntryForm.humidityPercent),
           manualCodeNumber: stockEntryForm.manualCodeNumber === "" ? null : Number(stockEntryForm.manualCodeNumber),
+          coffeeTypeId: selectedStockPurchaseCoffee
+            ? Number(stockEntryForm.coffeeTypeId)
+            : stockEntryForm.coffeeTypeId
+              ? Number(stockEntryForm.coffeeTypeId)
+              : null,
+          coffeeVariety: selectedStockPurchaseCoffee?.name || stockEntryForm.coffeeVariety,
           commercialClassification:
             stockEntryForm.lotKind === "PROC"
               ? "Procesado"
               : stockEntryForm.lotKind === "PASILLA"
                 ? "Pasilla"
-                : stockEntryForm.commercialClassification,
+                : selectedStockPurchaseCoffee?.family || stockEntryForm.commercialClassification,
         }),
       });
 
@@ -1047,6 +1060,17 @@ const WarehousePage = () => {
               <p className="rounded bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
                 Codigo: {stockEntryCodePreview}
               </p>
+              <select
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                value={stockEntryForm.presentation}
+                onChange={(event) => setStockEntryForm({ ...stockEntryForm, presentation: event.target.value })}
+              >
+                {catalogs?.coffeePresentations?.map((presentation) => (
+                  <option key={presentation.id} value={presentation.name}>
+                    {presentation.name}
+                  </option>
+                ))}
+              </select>
               {stockEntryForm.lotKind === "PROC" ? (
                 <select
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1064,67 +1088,18 @@ const WarehousePage = () => {
               ) : (
                 <select
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  value={stockEntryForm.coffeeTypeId}
-                  onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeTypeId: event.target.value })}
+                  value={stockEntryForm.purchaseCoffeeId}
+                  onChange={(event) => handleStockPurchaseCoffeeChange(event.target.value)}
                   required
                 >
-                  <option value="">Proceso</option>
-                  {catalogs?.coffeeTypes?.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.name}
+                  <option value="">Perfil de compra</option>
+                  {receivedPurchaseCoffeeOptions.map((coffee) => (
+                      <option key={coffee.id} value={coffee.id}>
+                        {coffee.name} - {coffee.family} / {coffee.process_type}
                       </option>
                     ))}
                 </select>
               )}
-              {["LOT", "RECUPERACION"].includes(stockEntryForm.lotKind) && (
-                <>
-                  <select
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={stockEntryForm.commercialClassification}
-                    onChange={(event) =>
-                      setStockEntryForm({ ...stockEntryForm, commercialClassification: event.target.value, coffeeVariety: "" })
-                    }
-                  >
-                    <option value="Regional">Regional</option>
-                    <option value="Varietal">Varietal</option>
-                    <option value="Exotico">Exotico</option>
-                  </select>
-                  {stockPurchaseCoffeeOptions.length > 0 ? (
-                    <select
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={stockEntryForm.coffeeVariety}
-                      onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeVariety: event.target.value })}
-                      required
-                    >
-                      <option value="">Nombre exacto</option>
-                      {stockPurchaseCoffeeOptions.map((coffee) => (
-                        <option key={coffee.id} value={coffee.name}>
-                          {coffee.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="Nombre, variedad o codigo exacto"
-                      value={stockEntryForm.coffeeVariety}
-                      onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeVariety: event.target.value })}
-                      required
-                    />
-                  )}
-                </>
-              )}
-              <select
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                value={stockEntryForm.presentation}
-                onChange={(event) => setStockEntryForm({ ...stockEntryForm, presentation: event.target.value })}
-              >
-                {catalogs?.coffeePresentations?.map((presentation) => (
-                  <option key={presentation.id} value={presentation.name}>
-                    {presentation.name}
-                  </option>
-                ))}
-              </select>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Cantidad kg"
