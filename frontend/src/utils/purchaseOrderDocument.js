@@ -7,12 +7,13 @@ const escapeHtml = (value) => String(value ?? "")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
 
-const formatMoney = (value, { withSymbol = true } = {}) => {
+const formatMoney = (value, { withCurrency = true } = {}) => {
   const formatted = Number(value || 0).toLocaleString("es-CO", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
-  return withSymbol ? `$ ${formatted}` : formatted;
+
+  return withCurrency ? `COP ${formatted}` : formatted;
 };
 
 const formatDecimal = (value, decimals = 2) => {
@@ -35,14 +36,25 @@ const getOrderCode = (payable) => {
 
 const getCoffeeDetail = (payable) => {
   return [
-    payable.lot_code ? `COD ${String(payable.lot_code).replace(/^LOT-\d{4}-?/i, "")}` : null,
+    payable.lot_code,
+    payable.lot_presentation,
     payable.coffee_profile_name || payable.coffee_variety || payable.coffee_type_name || payable.commercial_classification,
     payable.performance_factor ? `FR ${payable.performance_factor}` : null,
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean).join(" - ");
 };
+
+const buildInfoRows = (rows) => rows
+  .map(([label, value]) => `
+    <div class="info-row">
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${escapeHtml(value || "-")}</dd>
+    </div>
+  `)
+  .join("");
 
 export const buildPurchaseOrderHtml = (payable) => {
   const kilos = Number(payable.net_weight_kg || 0);
+  const grossKilos = Number(payable.gross_weight_kg || 0);
   const arrobas = kilos / 12.5;
   const priceKg = Number(payable.purchase_price_per_kg || (kilos ? Number(payable.total || 0) / kilos : 0));
   const priceCarga = priceKg * 125;
@@ -59,147 +71,297 @@ export const buildPurchaseOrderHtml = (payable) => {
         <meta charset="utf-8" />
         <title>Orden de compra ${escapeHtml(orderCode)}</title>
         <style>
-          @page { size: letter landscape; margin: 12mm; }
+          @page { size: letter; margin: 14mm; }
           * { box-sizing: border-box; }
-          body { color: #000; font-family: Arial, Helvetica, sans-serif; margin: 0; }
-          .sheet { margin: 0 auto; max-width: 1060px; }
-          .top { display: grid; grid-template-columns: 360px 1fr; gap: 34px; align-items: start; }
-          .logo-box { height: 145px; display: flex; align-items: center; justify-content: center; }
-          .logo { max-height: 118px; max-width: 330px; object-fit: contain; }
+          body {
+            color: #111827;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            line-height: 1.35;
+            margin: 0;
+          }
+          .sheet { margin: 0 auto; max-width: 840px; }
+          header {
+            align-items: center;
+            border-bottom: 2px solid #111827;
+            display: flex;
+            gap: 34px;
+            justify-content: space-between;
+            min-height: 128px;
+            padding-bottom: 16px;
+          }
+          .logo { height: 118px; object-fit: contain; width: 260px; }
+          .company { text-align: right; }
+          .company p { margin: 3px 0; }
+          .company strong { font-size: 16px; }
+          .title-row {
+            align-items: end;
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            margin: 18px 0 16px;
+          }
+          h1 { font-size: 25px; letter-spacing: 0; margin: 0; }
+          .order-code {
+            border: 1px solid #cbd5e1;
+            min-width: 190px;
+            padding: 11px 14px;
+            text-align: right;
+          }
+          .order-code span {
+            color: #64748b;
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+          }
+          .order-code strong { display: block; font-size: 20px; margin-top: 2px; }
+          .section {
+            border: 1px solid #d7dee8;
+            margin-top: 14px;
+          }
+          .section-title {
+            background: #f1f5f9;
+            border-bottom: 1px solid #d7dee8;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0;
+            margin: 0;
+            padding: 9px 12px;
+            text-transform: uppercase;
+          }
+          .info-grid {
+            display: grid;
+            gap: 0;
+            grid-template-columns: 1fr 1fr;
+          }
+          .info-row {
+            border-bottom: 1px solid #e5e7eb;
+            display: grid;
+            grid-template-columns: 130px 1fr;
+            min-height: 35px;
+          }
+          .info-row:nth-last-child(-n + 2) { border-bottom: 0; }
+          .info-row dt {
+            background: #fafafa;
+            border-right: 1px solid #e5e7eb;
+            font-weight: 800;
+            margin: 0;
+            padding: 9px 10px;
+          }
+          .info-row dd {
+            margin: 0;
+            padding: 9px 10px;
+          }
           table { border-collapse: collapse; width: 100%; }
-          td, th { border: 1.5px solid #000; padding: 4px 6px; font-size: 13px; line-height: 1.15; }
-          .green { background: #00e514; font-weight: 800; }
-          .company th { font-size: 22px; text-align: center; }
-          .company td { font-size: 15px; }
-          .label { font-weight: 800; }
-          .title { font-size: 22px; text-align: center; }
-          .number { font-size: 22px; text-align: center; font-weight: 800; }
-          .meta { display: grid; grid-template-columns: 400px 1fr; gap: 230px; margin-top: 24px; }
-          .fields { width: 400px; }
-          .fields-row { display: grid; grid-template-columns: 100px 1fr; align-items: end; gap: 10px; margin-bottom: 8px; font-size: 14px; }
-          .line { border-bottom: 1.5px solid #000; min-height: 18px; padding-left: 4px; }
-          .note { height: 132px; }
-          .note td { height: 104px; vertical-align: top; }
-          .items { margin-top: 22px; }
-          .items th { height: 46px; text-align: center; }
-          .items td { text-align: right; }
-          .items td:first-child { text-align: left; }
-          .items .blank { color: transparent; }
-          .summary td { font-size: 14px; }
-          .summary .blue { background: #d9e2f3; font-size: 17px; font-weight: 800; }
-          .below-note { border: 2px solid #000; border-top: 0; min-height: 42px; padding: 6px; font-size: 15px; }
-          .signatures { margin-top: 18px; }
-          .signatures td { height: 92px; vertical-align: top; }
-          .signatures .name { height: 24px; text-align: center; vertical-align: middle; }
-          .signatures .role { background: #e5e5e5; font-weight: 800; height: 22px; text-align: center; text-decoration: underline; vertical-align: middle; }
-          .footer { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-top: 178px; font-size: 14px; }
-          .footer div:nth-child(2) { text-align: center; }
-          .footer div:nth-child(3) { text-align: right; }
+          th, td {
+            border: 1px solid #d7dee8;
+            padding: 8px 9px;
+            text-align: right;
+            vertical-align: middle;
+          }
+          th {
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+          }
+          td:first-child, th:first-child { text-align: left; }
+          .money { font-weight: 700; white-space: nowrap; }
+          .summary {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 18px;
+            margin-top: 14px;
+          }
+          .note-box {
+            border: 1px solid #d7dee8;
+            min-height: 116px;
+            padding: 12px;
+          }
+          .note-box h3,
+          .totals h3 {
+            font-size: 12px;
+            margin: 0 0 8px;
+            text-transform: uppercase;
+          }
+          .totals {
+            border: 1px solid #d7dee8;
+            padding: 12px;
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 5px 0;
+          }
+          .total-row.final {
+            border-top: 2px solid #111827;
+            font-size: 16px;
+            font-weight: 800;
+            margin-top: 4px;
+            padding-top: 9px;
+          }
+          .terms {
+            margin-top: 18px;
+            width: 620px;
+          }
+          .terms h2 {
+            font-size: 15px;
+            margin: 0 0 12px;
+          }
+          .terms table { border-collapse: collapse; margin-top: 0; width: 100%; }
+          .terms td { border: 0; font-size: 13px; padding: 2px 6px; text-align: left; }
+          .terms td:first-child { font-weight: 800; width: 230px; }
+          .signatures {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: 36px;
+          }
+          .signature {
+            border-top: 1.5px solid #111827;
+            padding-top: 8px;
+            text-align: center;
+          }
+          .signature strong { display: block; }
+          footer {
+            border-top: 1px solid #d7dee8;
+            color: #475569;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr 1fr 1fr;
+            margin-top: 30px;
+            padding-top: 10px;
+          }
+          footer div:nth-child(2) { text-align: center; }
+          footer div:nth-child(3) { text-align: right; }
           @media print {
-            .no-print { display: none; }
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           }
         </style>
       </head>
       <body>
         <div class="sheet">
-          <div class="top">
-            <div class="logo-box">
-              <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
+          <header>
+            <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
+            <div class="company">
+              <p><strong>${escapeHtml(companyBrand.legalName)}</strong></p>
+              <p>NIT: ${escapeHtml(companyBrand.nit)}</p>
+              <p>${escapeHtml(companyBrand.address)}</p>
+              <p>Tel: ${escapeHtml(companyBrand.phone)}</p>
+              <p>Email: ${escapeHtml(companyBrand.email)}</p>
+              <p>Instagram: ${escapeHtml(companyBrand.instagram)}</p>
             </div>
-            <table class="company">
-              <tr><th class="green" colspan="2">ANAYA</th></tr>
-              <tr><td class="label">Nit:</td><td>${escapeHtml(companyBrand.nit)}</td></tr>
-              <tr><td class="label">telefono:</td><td>${escapeHtml(companyBrand.phone.replace("+57 ", ""))}</td></tr>
-              <tr><td class="label">correo:</td><td>${escapeHtml(companyBrand.email)}</td></tr>
-              <tr>
-                <td class="green title">ORDEN DE COMPRA</td>
-                <td class="number">${escapeHtml(orderCode)}</td>
-              </tr>
-            </table>
-          </div>
+          </header>
 
-          <div class="meta">
-            <div class="fields">
-              <div class="fields-row"><div class="label">FECHA:</div><div class="line">${formatDate(payable.created_at)}</div></div>
-              <div class="fields-row"><div class="label">PROVEEDOR:</div><div class="line">${escapeHtml(supplierName)}</div></div>
-              <div class="fields-row"><div class="label">NIT O C.C.:</div><div class="line"></div></div>
-              <div class="fields-row"><div class="label">CIUDAD:</div><div class="line">${escapeHtml(payable.supplier_origin_zone || "")}</div></div>
-              <div class="fields-row"><div class="label">TELEFONO:</div><div class="line">${escapeHtml(payable.supplier_phone || "")}</div></div>
+          <div class="title-row">
+            <div>
+              <h1>Orden de compra de cafe</h1>
+              <p>Documento generado al liquidar el lote y dejar la compra pactada.</p>
             </div>
-            <table class="note">
-              <tr><th>NOTA:</th><td>${escapeHtml(payable.notes || "")}</td></tr>
+            <div class="order-code">
+              <span>Orden</span>
+              <strong>${escapeHtml(orderCode)}</strong>
+            </div>
+          </div>
+
+          <section class="section">
+            <h2 class="section-title">Proveedor y lote</h2>
+            <dl class="info-grid">
+              ${buildInfoRows([
+                ["Fecha", formatDate(payable.created_at)],
+                ["Proveedor", supplierName],
+                ["NIT o C.C.", payable.supplier_document || ""],
+                ["Telefono", payable.supplier_phone || ""],
+                ["Ciudad / zona", payable.supplier_origin_zone || ""],
+                ["Direccion", payable.supplier_address || ""],
+                ["Codigo lote", payable.lot_code || ""],
+                ["Presentacion", payable.lot_presentation || ""],
+                ["Peso bruto", grossKilos ? `${formatDecimal(grossKilos)} kg` : ""],
+                ["Peso neto", `${formatDecimal(kilos)} kg`],
+                ["Factor rendimiento", payable.performance_factor || ""],
+                ["Registrado por", payable.created_by_name || ""],
+              ])}
+            </dl>
+          </section>
+
+          <section class="section">
+            <h2 class="section-title">Detalle de compra</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Detalle</th>
+                  <th>Kilos</th>
+                  <th>Arrobas</th>
+                  <th>Precio carga</th>
+                  <th>Precio kg</th>
+                  <th>Precio arroba</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${escapeHtml(getCoffeeDetail(payable) || "Cafe liquidado")}</td>
+                  <td>${formatDecimal(kilos)}</td>
+                  <td>${formatDecimal(arrobas)}</td>
+                  <td class="money">${formatMoney(priceCarga)}</td>
+                  <td class="money">${formatMoney(priceKg)}</td>
+                  <td class="money">${formatMoney(priceArroba)}</td>
+                  <td class="money">${formatMoney(total)}</td>
+                </tr>
+              </tbody>
             </table>
+          </section>
+
+          <div class="summary">
+            <div class="note-box">
+              <h3>Nota</h3>
+              <p>${escapeHtml(payable.notes || "Sin notas adicionales.")}</p>
+              <p><strong>Detalle interno:</strong> Precio carga ${formatMoney(priceCarga, { withCurrency: false })}${payable.performance_factor ? ` - FR ${escapeHtml(payable.performance_factor)}` : ""}</p>
+            </div>
+            <div class="totals">
+              <h3>Resumen</h3>
+              <div class="total-row"><span>Subtotal</span><strong>${formatMoney(total)}</strong></div>
+              <div class="total-row"><span>Anticipos</span><strong>${formatMoney(0)}</strong></div>
+              <div class="total-row final"><span>Total</span><strong>${formatMoney(total)}</strong></div>
+            </div>
           </div>
 
-          <table class="items">
-            <thead>
-              <tr class="green">
-                <th>DETALLE</th>
-                <th>KILOS</th>
-                <th>ARROBAS</th>
-                <th>PRECIO CARGA</th>
-                <th>PRECIO X KILO</th>
-                <th>PRECIO X ARROBA</th>
-                <th>TOTAL</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>${escapeHtml(getCoffeeDetail(payable))}</td>
-                <td>${formatDecimal(kilos)}</td>
-                <td>${formatDecimal(arrobas)}</td>
-                <td>${formatMoney(priceCarga)}</td>
-                <td>${formatMoney(priceKg)}</td>
-                <td>${formatMoney(priceArroba)}</td>
-                <td>${formatMoney(total)}</td>
-              </tr>
-              <tr>
-                <td></td><td></td><td>0,00</td><td></td><td>$ 0,0</td><td>$ -</td><td>$ -</td>
-              </tr>
-              <tr class="green">
-                <td colspan="5"></td><td class="label">SUBTOTAL</td><td>${formatMoney(total)}</td>
-              </tr>
-              <tr class="summary">
-                <td class="blank"></td>
-                <td class="label" style="text-align:center;">TOTAL</td>
-                <td class="label" style="text-align:center; text-decoration:underline;">${formatDecimal(kilos)}</td>
-                <td class="label" style="text-align:center; text-decoration:underline;">PONDERADO</td>
-                <td></td>
-                <td class="label">ANTICIPOS</td>
-                <td>${formatMoney(0)}</td>
-              </tr>
-              <tr class="summary">
-                <td colspan="5"></td>
-                <td class="label">TOTAL</td>
-                <td class="blue">${formatMoney(total)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="below-note">PRECIO CARGA ${formatMoney(priceCarga, { withSymbol: false })} FR ${escapeHtml(payable.performance_factor || "")}</div>
+          <section class="terms">
+            <h2>Terms:</h2>
+            <table>
+              <tbody>
+                <tr><td>Advance payment:</td><td>30%</td></tr>
+                <tr><td>Delivery time:</td><td>15 days</td></tr>
+                <tr><td>Standard:</td><td>3/20</td></tr>
+                <tr><td>Delivery:</td><td>CAJAS DE X 20 Kg /AL VACIO</td></tr>
+                <tr><td>Packaging:</td><td>Traditional bag and jute sack</td></tr>
+                <tr><td>Payment:</td><td>National bank transfer</td></tr>
+                <tr><td>Bank details:</td><td>${escapeHtml(companyBrand.bankDetails)}</td></tr>
+                <tr><td>Company:</td><td>${escapeHtml(companyBrand.legalName)}</td></tr>
+                <tr><td>Tax ID:</td><td>${escapeHtml(companyBrand.nit)}</td></tr>
+              </tbody>
+            </table>
+          </section>
 
-          <table class="signatures">
-            <tbody>
-              <tr>
-                <td><strong><u>Recibe a satisfaccion:</u></strong></td>
-                <td><strong><u>Funcionario autorizado para pago:</u></strong></td>
-              </tr>
-              <tr>
-                <td class="name">${escapeHtml(supplierName)}</td>
-                <td class="name">ELIANA SOFIA CLAROS MEDINA</td>
-              </tr>
-              <tr>
-                <td class="role">Proveedor</td>
-                <td class="role">Auxiliar Administrativo</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="footer">
-            <div>CORREO: ${escapeHtml(companyBrand.email)}</div>
-            <div>TELEFONO: ${escapeHtml(companyBrand.phone.replace("+57 ", ""))}</div>
-            <div>DIRECCION: ${escapeHtml(footerAddress)}</div>
+          <div class="signatures">
+            <div class="signature">
+              <strong>${escapeHtml(supplierName || "Proveedor")}</strong>
+              <span>Recibe a satisfaccion / Proveedor</span>
+            </div>
+            <div class="signature">
+              <strong>ELIANA SOFIA CLAROS MEDINA</strong>
+              <span>Funcionario autorizado para pago</span>
+            </div>
           </div>
+
+          <footer>
+            <div>Correo: ${escapeHtml(companyBrand.email)}</div>
+            <div>Telefono: ${escapeHtml(companyBrand.phone.replace("+57 ", ""))}</div>
+            <div>Direccion: ${escapeHtml(footerAddress)}</div>
+          </footer>
         </div>
       </body>
     </html>
