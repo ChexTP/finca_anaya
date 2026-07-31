@@ -3,7 +3,6 @@ import {
   Boxes,
   ClipboardList,
   Coffee,
-  CreditCard,
   DatabaseBackup,
   FileText,
   FlaskConical,
@@ -39,8 +38,9 @@ const navigation = [
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
 
   { label: "Cotizaciones", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting"] },
+  { label: "Orden de compra", path: "/ordenes-compra", icon: ReceiptText, roles: ["admin", "accounting"] },
   { label: "Ordenes", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
-  { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "seller", "samples"] },
+  { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
 
   { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },

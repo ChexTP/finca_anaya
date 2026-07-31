@@ -14,8 +14,8 @@ const router = Router();
 
 router.get("/", requireAuth, requireRoles("admin", "accounting", "seller", "samples", "laboratory"), getSamples);
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "seller", "samples", "laboratory"), getSample);
-router.post("/", requireAuth, requireRoles("admin", "seller"), postSample);
-router.put("/:id", requireAuth, requireRoles("admin", "seller"), putSample);
+router.post("/", requireAuth, requireRoles("admin", "accounting", "seller"), postSample);
+router.put("/:id", requireAuth, requireRoles("admin", "accounting", "seller"), putSample);
 router.put("/:id/status", requireAuth, requireRoles("admin", "samples", "laboratory"), putSampleStatus);
 router.put("/:id/blend", requireAuth, requireRoles("admin", "samples"), putSampleBlend);
 router.put("/:id/shipping-guide", requireAuth, requireRoles("admin", "samples"), putSampleShippingGuide);

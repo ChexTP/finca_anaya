@@ -17,7 +17,7 @@ import DashboardPage from "./modules/dashboard/DashboardPage";
 import InventoryPage from "./modules/inventory/InventoryPage";
 import LaboratoryPage from "./modules/laboratory/LaboratoryPage";
 import ManagementPage from "./modules/management/ManagementPage";
-// import PayablesPage from "./modules/payables/PayablesPage";
+import PayablesPage from "./modules/payables/PayablesPage";
 import ProcessesPage from "./modules/processes/ProcessesPage";
 // import ReportsPage from "./modules/reports/ReportsPage";
 import SalesHistoryPage from "./modules/sales/SalesHistoryPage";
@@ -180,7 +180,7 @@ const App = () => {
         <Route
           path="/muestras"
           element={
-            <ProtectedRoute roles={["admin", "seller", "samples"]}>
+            <ProtectedRoute roles={["admin", "accounting", "seller", "samples"]}>
               <SamplesPage />
             </ProtectedRoute>
           }
@@ -209,16 +209,14 @@ const App = () => {
             </ProtectedRoute>
           }
         />
-        {/* Modulo contable desactivado: pagos de lotes se manejan fuera del sistema.
         <Route
-          path="/cuentas-por-pagar"
+          path="/ordenes-compra"
           element={
             <ProtectedRoute roles={["admin", "accounting"]}>
               <PayablesPage />
             </ProtectedRoute>
           }
         />
-        */}
         <Route
           path="/clientes"
           element={

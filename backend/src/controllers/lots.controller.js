@@ -873,9 +873,9 @@ export const putLiquidation = async (req, res) => {
     const { purchasePricePerKg, notes } = req.body;
     const price = toNumber(purchasePricePerKg);
 
-    if (purchasePricePerKg !== undefined && purchasePricePerKg !== "" && (!isValidNumber(price) || price < 0)) {
+    if (!isValidNumber(price) || price <= 0) {
       return res.status(400).json({
-        message: "El precio pactado por kg debe ser mayor o igual a cero",
+        message: "El precio pactado por kg es obligatorio y debe ser mayor a cero",
       });
     }
 

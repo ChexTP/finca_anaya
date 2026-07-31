@@ -1,80 +1,64 @@
-import { CreditCard, RefreshCw, Save } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Eye, FileDown, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
-
-const initialPayment = {
-  amount: "",
-  paymentMethodId: "",
-  paymentReference: "",
-  paidAt: new Date().toISOString().slice(0, 10),
-  notes: "",
-};
+import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 
 const formatMoney = (value) => `COP ${Number(value || 0).toLocaleString("es-CO")}`;
+const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
+
+const getCoffeeName = (payable) => {
+  return [
+    payable.lot_presentation,
+    payable.coffee_profile_name || payable.coffee_variety || payable.coffee_type_name || payable.commercial_classification,
+  ].filter(Boolean).join(" - ") || "Cafe liquidado";
+};
 
 const PayablesPage = () => {
-  const [payables, setPayables] = useState([]);
-  const [catalogs, setCatalogs] = useState(null);
-  const [selectedPayable, setSelectedPayable] = useState(null);
-  const [paymentForm, setPaymentForm] = useState(initialPayment);
+  const [orders, setOrders] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
-    const [payableData, catalogData] = await Promise.all([
-      apiRequest("/payables"),
-      apiRequest("/catalogs"),
-    ]);
-    setPayables(payableData);
-    setCatalogs(catalogData);
+    const payableData = await apiRequest("/payables");
+    setOrders(payableData);
   };
 
   useEffect(() => {
     loadData().catch((requestError) => setError(requestError.message));
   }, []);
 
-  const loadPayableDetail = async (payableId) => {
-    const data = await apiRequest(`/payables/${payableId}`);
-    setSelectedPayable(data);
-    setPaymentForm({
-      ...initialPayment,
-      amount: data.balance_due && Number(data.balance_due) > 0 ? String(data.balance_due) : "",
-    });
+  const filteredOrders = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return orders;
+
+    return orders.filter((order) => [
+      order.code,
+      order.lot_code,
+      order.supplier_name,
+      getCoffeeName(order),
+      order.performance_factor,
+    ].filter(Boolean).join(" ").toLowerCase().includes(term));
+  }, [orders, search]);
+
+  const loadOrderDetail = async (orderId) => {
+    const data = await apiRequest(`/payables/${orderId}`);
+    setSelectedOrder(data);
     setMessage("");
     setError("");
   };
 
-  const registerPayment = async (event) => {
-    event.preventDefault();
-
-    if (!selectedPayable) {
-      setError("Seleccione un lote pendiente de pago.");
-      return;
-    }
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
+  const printOrder = async (order) => {
     try {
-      await apiRequest(`/payables/${selectedPayable.id}/payments`, {
-        method: "POST",
-        body: JSON.stringify({
-          ...paymentForm,
-          amount: Number(paymentForm.amount),
-          paymentMethodId: Number(paymentForm.paymentMethodId),
-        }),
-      });
-      await loadData();
-      await loadPayableDetail(selectedPayable.id);
-      setMessage("Pago de lote registrado correctamente.");
+      const fullOrder = order.payments ? order : await apiRequest(`/payables/${order.id}`);
+      openPurchaseOrderPrint(fullOrder);
+      setMessage("Orden de compra abierta para imprimir o guardar como PDF.");
+      setSelectedOrder(fullOrder);
     } catch (requestError) {
       setError(requestError.message);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -82,8 +66,8 @@ const PayablesPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Pagos de lotes</h1>
-          <p className="text-sm text-slate-500">Cuentas generadas al liquidar cafe comprado. No incluye gastos operativos generales.</p>
+          <h1 className="text-xl font-bold text-ink">Ordenes de compra</h1>
+          <p className="text-sm text-slate-500">Documentos generados automaticamente al liquidar cafe comprado.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -101,44 +85,58 @@ const PayablesPage = () => {
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Lotes liquidados</h2>
-            <p className="mt-1 text-xs text-slate-500">Estos registros nacen automaticamente cuando contabilidad liquida un lote de cafe.</p>
+            <p className="mt-1 text-xs text-slate-500">Busque por orden, lote, proveedor, cafe o factor.</p>
+            <input
+              className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Buscar orden de compra"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
           </div>
-          {payables.length === 0 ? (
+          {filteredOrders.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin lotes pendientes" message="Cuando se liquide un lote de cafe, aparecera aqui para seguimiento de pago." />
+              <EmptyState title="Sin ordenes" message="Cuando se liquide un lote de cafe, aparecera aqui su orden de compra." />
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-100 text-slate-600">
                   <tr>
-                    <th className="px-3 py-2">Codigo</th>
+                    <th className="px-3 py-2">Orden</th>
                     <th className="px-3 py-2">Lote</th>
                     <th className="px-3 py-2">Proveedor</th>
-                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Cafe</th>
+                    <th className="px-3 py-2">Kilos</th>
                     <th className="px-3 py-2">Total</th>
-                    <th className="px-3 py-2">Saldo</th>
                     <th className="px-3 py-2">Accion</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {payables.map((payable) => (
-                    <tr key={payable.id}>
-                      <td className="px-3 py-2 font-medium">{payable.code}</td>
-                      <td className="px-3 py-2">{payable.lot_code || "-"}</td>
-                      <td className="px-3 py-2">{payable.supplier_name || "-"}</td>
+                  {filteredOrders.map((order) => (
+                    <tr key={order.id}>
+                      <td className="px-3 py-2 font-medium">{order.code}</td>
+                      <td className="px-3 py-2">{order.lot_code || "-"}</td>
+                      <td className="px-3 py-2">{order.supplier_name || "-"}</td>
+                      <td className="px-3 py-2">{getCoffeeName(order)}</td>
+                      <td className="px-3 py-2">{formatKg(order.net_weight_kg)}</td>
+                      <td className="px-3 py-2">{formatMoney(order.total)}</td>
                       <td className="px-3 py-2">
-                        <StatusBadge tone={payable.status === "pagada" ? "success" : "warning"}>{payable.status}</StatusBadge>
-                      </td>
-                      <td className="px-3 py-2">{formatMoney(payable.total)}</td>
-                      <td className="px-3 py-2 font-semibold text-ink">{formatMoney(payable.balance_due)}</td>
-                      <td className="px-3 py-2">
-                        <button
-                          className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                          onClick={() => loadPayableDetail(payable.id)}
-                        >
-                          Ver
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                            onClick={() => loadOrderDetail(order.id)}
+                          >
+                            <Eye size={14} />
+                            Ver
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100"
+                            onClick={() => printOrder(order)}
+                          >
+                            <FileDown size={14} />
+                            PDF
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -149,87 +147,34 @@ const PayablesPage = () => {
         </div>
 
         <aside className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4">
-          <div className="flex items-center gap-2">
-            <CreditCard size={17} className="text-leaf" />
-            <h2 className="text-sm font-semibold text-slate-800">Pago del lote</h2>
-          </div>
-          {!selectedPayable ? (
-            <div className="mt-3">
-              <EmptyState title="Seleccione un lote" message="Aqui vera pagos y podra registrar abonos del cafe liquidado." />
-            </div>
+          {!selectedOrder ? (
+            <EmptyState title="Seleccione una orden" message="Aqui vera el detalle y podra imprimir el formato de compra." />
           ) : (
-            <div className="mt-4 space-y-4">
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Orden seleccionada</p>
+                <h2 className="mt-1 text-lg font-bold text-ink">{selectedOrder.code}</h2>
+                <p className="text-sm text-slate-500">{selectedOrder.lot_code || "-"} - {getCoffeeName(selectedOrder)}</p>
+              </div>
               <div className="rounded bg-slate-50 p-3 text-sm">
-                <p className="font-semibold text-ink">{selectedPayable.code}</p>
-                <p className="text-slate-600">{selectedPayable.description}</p>
-                <p className="mt-2 text-slate-500">Lote: {selectedPayable.lot_code || "-"}</p>
-                <p className="text-slate-500">Proveedor: {selectedPayable.supplier_name || "-"}</p>
-                <p className="mt-2 text-slate-500">Total: {formatMoney(selectedPayable.total)}</p>
-                <p className="text-slate-500">Pagado: {formatMoney(selectedPayable.amount_paid)}</p>
-                <p className="font-semibold text-ink">Saldo: {formatMoney(selectedPayable.balance_due)}</p>
+                <p><span className="font-semibold">Proveedor:</span> {selectedOrder.supplier_name || "-"}</p>
+                <p><span className="font-semibold">Telefono:</span> {selectedOrder.supplier_phone || "-"}</p>
+                <p><span className="font-semibold">Direccion:</span> {selectedOrder.supplier_address || "-"}</p>
+                <p><span className="font-semibold">Kilos:</span> {formatKg(selectedOrder.net_weight_kg)}</p>
+                <p><span className="font-semibold">Factor:</span> {selectedOrder.performance_factor || "-"}</p>
+                <p><span className="font-semibold">Precio kg:</span> {formatMoney(selectedOrder.purchase_price_per_kg)}</p>
+                <p><span className="font-semibold">Total:</span> {formatMoney(selectedOrder.total)}</p>
               </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase text-slate-500">Pagos registrados</p>
-                {selectedPayable.payments?.length ? (
-                  selectedPayable.payments.map((payment) => (
-                    <div key={payment.id} className="rounded border border-slate-200 p-3 text-sm">
-                      <p className="font-medium text-ink">{formatMoney(payment.amount)}</p>
-                      <p className="text-slate-500">{payment.payment_method_name} - {payment.payment_reference}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500">Sin pagos registrados.</p>
-                )}
-              </div>
-
-              <form className="space-y-3" onSubmit={registerPayment}>
-                <input
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Valor a pagar"
-                  type="number"
-                  step="0.01"
-                  value={paymentForm.amount}
-                  onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })}
-                />
-                <select
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  value={paymentForm.paymentMethodId}
-                  onChange={(event) => setPaymentForm({ ...paymentForm, paymentMethodId: event.target.value })}
-                >
-                  <option value="">Metodo de pago</option>
-                  {catalogs?.paymentMethods?.map((method) => (
-                    <option key={method.id} value={method.id}>
-                      {method.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Referencia"
-                  value={paymentForm.paymentReference}
-                  onChange={(event) => setPaymentForm({ ...paymentForm, paymentReference: event.target.value })}
-                />
-                <input
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  type="date"
-                  value={paymentForm.paidAt}
-                  onChange={(event) => setPaymentForm({ ...paymentForm, paidAt: event.target.value })}
-                />
-                <textarea
-                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Notas del pago"
-                  value={paymentForm.notes}
-                  onChange={(event) => setPaymentForm({ ...paymentForm, notes: event.target.value })}
-                />
-                <button
-                  className="inline-flex w-full items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={saving || selectedPayable.status === "pagada"}
-                >
-                  <Save size={16} />
-                  Registrar pago
-                </button>
-              </form>
+              <StatusBadge tone={selectedOrder.status === "pagada" ? "success" : "warning"}>
+                {selectedOrder.status}
+              </StatusBadge>
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
+                onClick={() => printOrder(selectedOrder)}
+              >
+                <FileDown size={16} />
+                Imprimir / guardar PDF
+              </button>
             </div>
           )}
         </aside>

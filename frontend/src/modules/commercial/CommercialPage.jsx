@@ -12,8 +12,8 @@ const initialQuote = {
   manualCodeNumber: "",
   manualCodeYear: String(new Date().getFullYear()),
   clientId: "",
-  quoteType: "inventario_disponible",
-  status: "borrador",
+  quoteType: "preventa",
+  status: "enviada",
   currency: "COP",
   paymentTerms: "",
   deliveryTerms: "",
@@ -32,6 +32,7 @@ const initialItem = {
   processType: "Lavado",
   variety: "",
   quantityKg: "",
+  quantityUnit: "kg",
   unitPrice: "",
 };
 
@@ -68,6 +69,10 @@ const quoteFilters = [
 ];
 
 const formatMoney = (currency, value) => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO")}`;
+const poundsToKg = (value) => Number(value || 0) * 0.45359237;
+const toItemQuantityKg = (item) => (
+  item.quantityUnit === "lb" ? poundsToKg(item.quantityKg) : Number(item.quantityKg || 0)
+);
 
 const getQuoteCodeFromForm = (form) => {
   if (!form.manualCodeNumber) return null;
@@ -130,10 +135,10 @@ const CommercialPage = () => {
   const canConvertToSale = ["admin", "accounting"].includes(user?.role);
 
   const itemOperationalKg = useMemo(() => calculateOperationalKg({
-    quantityKg: itemForm.quantityKg,
+    quantityKg: toItemQuantityKg(itemForm),
     productForm: itemForm.productForm,
     processType: itemForm.processType,
-  }), [itemForm.quantityKg, itemForm.productForm, itemForm.processType]);
+  }), [itemForm.quantityKg, itemForm.quantityUnit, itemForm.productForm, itemForm.processType]);
 
   const subtotal = useMemo(() => {
     return quoteItems.reduce((total, item) => total + Number(item.quantityKg || 0) * Number(item.unitPrice || 0), 0);
@@ -157,6 +162,14 @@ const CommercialPage = () => {
   const filteredQuotes = useMemo(() => {
     return quotes.filter((quote) => quoteFilter === "all" || quote.status === quoteFilter);
   }, [quotes, quoteFilter]);
+
+  const availableProfiles = useMemo(() => {
+    if (itemForm.itemType === "description") return [];
+
+    return [...(catalogs?.coffeeProfiles || [])]
+      .filter((profile) => String(profile.category || "").toLowerCase() === String(itemForm.itemType || "").toLowerCase())
+      .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "es"));
+  }, [catalogs, itemForm.itemType]);
 
   const loadData = async () => {
     const [quoteData, clientData, catalogData] = await Promise.all([
@@ -188,19 +201,34 @@ const CommercialPage = () => {
       productForm: itemForm.productForm,
       processType: itemForm.processType,
       quantityKg: itemForm.quantityKg,
+      quantityUnit: itemForm.quantityUnit,
       unitPrice: itemForm.unitPrice,
     });
   };
 
+  const getProfilePrice = (profile, currency = quoteForm.currency) => {
+    const price = currency === "USD" ? profile?.base_price_usd : profile?.base_price_cop;
+    return price && Number(price) > 0 ? String(price) : "";
+  };
+
   const selectProfile = (profileId) => {
     const profile = catalogs?.coffeeProfiles?.find((profileItem) => String(profileItem.id) === String(profileId));
-    const price = quoteForm.currency === "USD" ? profile?.base_price_usd : profile?.base_price_cop;
+    const price = getProfilePrice(profile);
 
     setItemForm({
       ...itemForm,
       coffeeProfileId: profileId,
-      unitPrice: price && Number(price) > 0 ? String(price) : itemForm.unitPrice,
+      unitPrice: price || itemForm.unitPrice,
     });
+  };
+
+  const updateCurrency = (currency) => {
+    const profile = catalogs?.coffeeProfiles?.find((profileItem) => String(profileItem.id) === String(itemForm.coffeeProfileId));
+    const price = getProfilePrice(profile, currency);
+    setQuoteForm({ ...quoteForm, currency });
+    if (price) {
+      setItemForm((currentItem) => ({ ...currentItem, unitPrice: price }));
+    }
   };
 
   const buildItem = () => {
@@ -211,6 +239,8 @@ const CommercialPage = () => {
     if (itemForm.itemType !== "description" && !itemForm.coffeeProfileId) throw new Error("Seleccione el cafe solicitado.");
     if (itemForm.itemType === "description" && !itemForm.description.trim()) throw new Error("Ingrese la descripcion del cafe solicitado.");
 
+    const quantityKg = toItemQuantityKg(itemForm);
+
     return {
       lotId: itemForm.lotId || null,
       coffeeTypeId: itemForm.coffeeTypeId || null,
@@ -219,20 +249,21 @@ const CommercialPage = () => {
       productForm: itemForm.productForm,
       processType: itemForm.processType,
       variety: itemForm.variety || null,
-      quantityKg: Number(itemForm.quantityKg),
+      quantityKg,
       operationalWeightKg: calculateOperationalKg({
-        quantityKg: itemForm.quantityKg,
+        quantityKg,
         productForm: itemForm.productForm,
         processType: itemForm.processType,
       }),
       unitPrice: Number(itemForm.unitPrice || 0),
-      lineTotal: Number((Number(itemForm.quantityKg || 0) * Number(itemForm.unitPrice || 0)).toFixed(2)),
+      lineTotal: Number((quantityKg * Number(itemForm.unitPrice || 0)).toFixed(2)),
     };
   };
 
   const addAnotherCoffee = () => {
     try {
-      setQuoteItems((currentItems) => [...currentItems, buildItem()]);
+      const item = buildItem();
+      setQuoteItems((currentItems) => [...currentItems, item]);
       setItemForm(initialItem);
       setError("");
     } catch (itemError) {
@@ -254,6 +285,7 @@ const CommercialPage = () => {
       coffeeTypeId: item.coffeeTypeId ? String(item.coffeeTypeId) : "",
       lotId: item.lotId ? String(item.lotId) : "",
       quantityKg: String(item.quantityKg || ""),
+      quantityUnit: "kg",
       unitPrice: String(item.unitPrice || ""),
     });
     removeItem(index);
@@ -272,8 +304,8 @@ const CommercialPage = () => {
       const payload = {
         code: getQuoteCodeFromForm(quoteForm),
         clientId: Number(quoteForm.clientId),
-        quoteType: quoteForm.quoteType,
-        status: quoteForm.status,
+        quoteType: quoteForm.quoteType || "preventa",
+        status: quoteForm.status || "enviada",
         currency: quoteForm.currency,
         paymentTerms: quoteForm.paymentTerms || null,
         deliveryTerms: quoteForm.deliveryTerms || null,
@@ -346,8 +378,8 @@ const CommercialPage = () => {
     setQuoteForm({
       ...getCodeParts(quote.code),
       clientId: String(quote.client_id || ""),
-      quoteType: quote.quote_type || "inventario_disponible",
-      status: quote.status || "borrador",
+      quoteType: quote.quote_type || "preventa",
+      status: quote.status || "enviada",
       currency: quote.currency || "COP",
       paymentTerms: quote.payment_terms || "",
       deliveryTerms: quote.delivery_terms || "",
@@ -527,25 +559,8 @@ const CommercialPage = () => {
               </button>
               <select
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-                value={quoteForm.quoteType}
-                onChange={(event) => setQuoteForm({ ...quoteForm, quoteType: event.target.value })}
-              >
-                <option value="inventario_disponible">Inventario disponible</option>
-                <option value="preventa">Preventa</option>
-              </select>
-              <select
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                value={quoteForm.status}
-                onChange={(event) => setQuoteForm({ ...quoteForm, status: event.target.value })}
-              >
-                <option value="borrador">Borrador</option>
-                <option value="enviada">Enviada</option>
-                <option value="aceptada">Aceptada</option>
-              </select>
-              <select
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
                 value={quoteForm.currency}
-                onChange={(event) => setQuoteForm({ ...quoteForm, currency: event.target.value })}
+                onChange={(event) => updateCurrency(event.target.value)}
               >
                 <option value="COP">COP - Pesos colombianos</option>
                 <option value="USD">USD - Dolares</option>
@@ -617,9 +632,7 @@ const CommercialPage = () => {
                 {itemForm.itemType !== "description" ? (
                   <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={itemForm.coffeeProfileId} onChange={(event) => selectProfile(event.target.value)}>
                     <option value="">Cafe {itemForm.itemType.toLowerCase()}</option>
-                    {catalogs?.coffeeProfiles
-                      ?.filter((profile) => profile.category === itemForm.itemType)
-                      .map((profile) => (
+                    {availableProfiles.map((profile) => (
                         <option key={profile.id} value={profile.id}>{profile.name}</option>
                       ))}
                   </select>
@@ -627,7 +640,24 @@ const CommercialPage = () => {
                   <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Descripcion del cafe solicitado" value={itemForm.description} onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })} />
                 )}
                 <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Variedad o detalle opcional" value={itemForm.variety} onChange={(event) => setItemForm({ ...itemForm, variety: event.target.value })} />
-                <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Cantidad kg" type="number" step="0.001" value={itemForm.quantityKg} onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })} />
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    placeholder={itemForm.quantityUnit === "lb" ? "Cantidad lb" : "Cantidad kg"}
+                    type="number"
+                    step="0.001"
+                    value={itemForm.quantityKg}
+                    onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })}
+                  />
+                  <select
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={itemForm.quantityUnit}
+                    onChange={(event) => setItemForm({ ...itemForm, quantityUnit: event.target.value })}
+                  >
+                    <option value="kg">Kg</option>
+                    <option value="lb">Libra</option>
+                  </select>
+                </div>
                 <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder={`Precio por kg en ${quoteForm.currency}`} type="number" step="0.01" value={itemForm.unitPrice} onChange={(event) => setItemForm({ ...itemForm, unitPrice: event.target.value })} />
               </div>
               {Number(itemForm.quantityKg || 0) > 0 && (

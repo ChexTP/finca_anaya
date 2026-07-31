@@ -45,12 +45,27 @@ export const listPayables = async ({ status, categoryId, supplierId, lotId }) =>
       accounts_payable.*,
       payable_categories.name AS category_name,
       suppliers.name AS supplier_name,
+      suppliers.phone AS supplier_phone,
+      suppliers.address AS supplier_address,
+      suppliers.origin_zone AS supplier_origin_zone,
       coffee_lots.code AS lot_code,
+      coffee_lots.presentation AS lot_presentation,
+      coffee_lots.gross_weight_kg,
+      coffee_lots.net_weight_kg,
+      coffee_lots.purchase_price_per_kg,
+      coffee_lots.purchase_total,
+      coffee_lots.performance_factor,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name,
+      coffee_lots.commercial_classification,
+      coffee_lots.coffee_variety,
       users.name AS created_by_name
     FROM accounts_payable
     INNER JOIN payable_categories ON payable_categories.id = accounts_payable.category_id
     LEFT JOIN suppliers ON suppliers.id = accounts_payable.supplier_id
     LEFT JOIN coffee_lots ON coffee_lots.id = accounts_payable.lot_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     LEFT JOIN users ON users.id = accounts_payable.created_by
     ${where}
     ORDER BY accounts_payable.created_at DESC
@@ -68,12 +83,27 @@ export const findPayableById = async (id) => {
       accounts_payable.*,
       payable_categories.name AS category_name,
       suppliers.name AS supplier_name,
+      suppliers.phone AS supplier_phone,
+      suppliers.address AS supplier_address,
+      suppliers.origin_zone AS supplier_origin_zone,
       coffee_lots.code AS lot_code,
+      coffee_lots.presentation AS lot_presentation,
+      coffee_lots.gross_weight_kg,
+      coffee_lots.net_weight_kg,
+      coffee_lots.purchase_price_per_kg,
+      coffee_lots.purchase_total,
+      coffee_lots.performance_factor,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name,
+      coffee_lots.commercial_classification,
+      coffee_lots.coffee_variety,
       users.name AS created_by_name
     FROM accounts_payable
     INNER JOIN payable_categories ON payable_categories.id = accounts_payable.category_id
     LEFT JOIN suppliers ON suppliers.id = accounts_payable.supplier_id
     LEFT JOIN coffee_lots ON coffee_lots.id = accounts_payable.lot_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     LEFT JOIN users ON users.id = accounts_payable.created_by
     WHERE accounts_payable.id = $1
       AND payable_categories.name = 'Lote de cafe'

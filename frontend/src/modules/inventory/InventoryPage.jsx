@@ -179,7 +179,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       setSelectedLiquidationLot(null);
       setLiquidationForm(initialLiquidation);
       await loadData();
-      setMessage("Lote liquidado. Ya queda disponible para asignar, procesar o vender.");
+      setMessage("Lote liquidado. Ya queda disponible y su orden de compra se puede descargar desde Orden de compra.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1153,9 +1153,10 @@ const InventoryPage = ({ mode = "inventory" }) => {
             <div className="mt-4 space-y-3">
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Precio pactado por kg opcional"
+                placeholder="Precio pactado por kg"
                 type="number"
                 step="0.01"
+                required
                 value={liquidationForm.purchasePricePerKg}
                 onChange={(event) => setLiquidationForm({ ...liquidationForm, purchasePricePerKg: event.target.value })}
               />

@@ -317,10 +317,10 @@ const SamplesPage = () => {
   const [blendSampleId, setBlendSampleId] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
 
-  const canCreate = ["admin", "seller"].includes(user?.role);
+  const canCreate = ["admin", "accounting", "seller"].includes(user?.role);
   const canManageSamples = ["admin", "samples"].includes(user?.role);
   const canApproveSamples = user?.role === "admin";
-  const canPrintSampleOrder = ["admin", "seller", "samples"].includes(user?.role);
+  const canPrintSampleOrder = ["admin", "accounting", "seller", "samples"].includes(user?.role);
   const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
 
   const sampleCounts = useMemo(() => {
