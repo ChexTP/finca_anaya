@@ -51,6 +51,7 @@ const navigation = [
   // { label: "Reportes", path: "/reportes", icon: BarChart3, roles: ["admin", "accounting"] },
   // { label: "Documentos", path: "/documentos", icon: FileText, roles: ["admin", "accounting", "seller"] },
   { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },
+  { label: "Tipos de cafe", path: "/tipos-cafe", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
   { label: "Perfiles de venta", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
   { label: "Perfiles de compra", path: "/perfiles-compra", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
   { label: "Consecutivos", path: "/consecutivos", icon: Hash, roles: ["admin", "accounting", "warehouse"] },

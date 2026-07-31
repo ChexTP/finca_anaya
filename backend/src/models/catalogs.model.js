@@ -3,6 +3,7 @@ import { pool } from "../db.js";
 const requiredPaymentMethods = ["Efectivo", "Transferencia", "Cheque", "Otro"];
 const requiredPayableCategories = ["Lote de cafe"];
 const requiredCoffeeTypes = ["Lavado", "Natural", "Semilavado"];
+const requiredCoffeePresentations = ["Pergamino", "Excelso"];
 const requiredPackagingTypes = [
   ["Costal o saco de fique", 0.7],
   ["Tula o estopa", 0.2],
@@ -34,6 +35,7 @@ const ensureNamedCatalogRows = async (tableName, names) => {
 
 export const ensureRequiredCatalogs = async () => {
   await ensureNamedCatalogRows("coffee_types", requiredCoffeeTypes);
+  await ensureNamedCatalogRows("coffee_presentations", requiredCoffeePresentations);
   await ensureNamedCatalogRows("payment_methods", requiredPaymentMethods);
   await ensureNamedCatalogRows("payable_categories", requiredPayableCategories);
 
@@ -64,6 +66,46 @@ export const ensureRequiredCatalogs = async () => {
       [name, family, processType]
     );
   }
+};
+
+export const listSimpleCatalogForAdmin = async (tableName) => {
+  const result = await pool.query(
+    `
+    SELECT *
+    FROM ${tableName}
+    ORDER BY is_active DESC, name ASC
+    `
+  );
+
+  return result.rows;
+};
+
+export const createSimpleCatalogItem = async (tableName, { name, isActive = true }) => {
+  const result = await pool.query(
+    `
+    INSERT INTO ${tableName} (name, is_active)
+    VALUES ($1, $2)
+    RETURNING *
+    `,
+    [name, isActive]
+  );
+
+  return result.rows[0];
+};
+
+export const updateSimpleCatalogItem = async (tableName, id, { name, isActive = true }) => {
+  const result = await pool.query(
+    `
+    UPDATE ${tableName}
+    SET name = $1,
+        is_active = $2
+    WHERE id = $3
+    RETURNING *
+    `,
+    [name, isActive, id]
+  );
+
+  return result.rows[0];
 };
 
 export const listCatalog = async (tableName) => {

@@ -6,6 +6,7 @@ import { useAuth } from "./context/AuthContext";
 import LoginPage from "./modules/auth/LoginPage";
 import BackupsPage from "./modules/backups/BackupsPage";
 import CodeCountersPage from "./modules/admin/CodeCountersPage";
+import CoffeeCategoriesPage from "./modules/catalogs/CoffeeCategoriesPage";
 import CoffeeProfilesPage from "./modules/catalogs/CoffeeProfilesPage";
 import PurchaseCoffeesPage from "./modules/catalogs/PurchaseCoffeesPage";
 import ClientsPage from "./modules/clients/ClientsPage";
@@ -259,6 +260,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin", "accounting"]}>
               <UsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tipos-cafe"
+          element={
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+              <CoffeeCategoriesPage />
             </ProtectedRoute>
           }
         />

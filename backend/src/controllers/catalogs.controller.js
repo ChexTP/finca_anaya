@@ -1,16 +1,20 @@
 import {
+  createSimpleCatalogItem,
   createPurchaseCoffee,
   createCoffeeProfile,
   ensureRequiredCatalogs,
   listCatalog,
   listCoffeeProfilesForAdmin,
   listPurchaseCoffeesForAdmin,
+  listSimpleCatalogForAdmin,
+  updateSimpleCatalogItem,
   updatePurchaseCoffee,
   updateCoffeeProfile,
 } from "../models/catalogs.model.js";
 import { findCoffeeProfileById } from "../models/lots.model.js";
 
 const allowedCatalogs = {
+  coffeePresentations: "coffee_presentations",
   coffeeTypes: "coffee_types",
   coffeeProfiles: "coffee_profiles",
   purchaseCoffees: "purchase_coffees",
@@ -21,7 +25,6 @@ const allowedCatalogs = {
 
 const allowedCoffeeProfileCategories = ["Regional", "Varietal", "Exotico"];
 const allowedPurchaseCoffeeFamilies = ["Regional", "Varietal"];
-const allowedPurchaseCoffeeProcesses = ["Lavado", "Natural"];
 
 export const getCatalogs = async (req, res) => {
   try {
@@ -68,11 +71,127 @@ export const getPurchaseCoffeesAdmin = async (req, res) => {
 };
 
 const validatePurchaseCoffeePayload = ({ name, family, processType }) => {
-  if (!name || !allowedPurchaseCoffeeFamilies.includes(family) || !allowedPurchaseCoffeeProcesses.includes(processType)) {
+  if (!name || !allowedPurchaseCoffeeFamilies.includes(family) || !processType?.trim()) {
     return "Nombre, familia y proceso son obligatorios para el perfil de compra";
   }
 
   return null;
+};
+
+const editableCatalogs = {
+  "coffee-types": {
+    tableName: "coffee_types",
+    label: "tipo de cafe",
+  },
+  "coffee-presentations": {
+    tableName: "coffee_presentations",
+    label: "presentacion",
+  },
+};
+
+const getEditableCatalog = (catalogKey) => editableCatalogs[catalogKey];
+
+const validateSimpleCatalogPayload = ({ name }) => {
+  if (!name || !name.trim()) {
+    return "El nombre es obligatorio";
+  }
+
+  if (name.trim().length > 80) {
+    return "El nombre no debe superar 80 caracteres";
+  }
+
+  return null;
+};
+
+export const getEditableCatalogItems = async (req, res) => {
+  try {
+    await ensureRequiredCatalogs();
+    const catalog = getEditableCatalog(req.params.catalogKey);
+
+    if (!catalog) {
+      return res.status(404).json({ message: "Catalogo no encontrado" });
+    }
+
+    const items = await listSimpleCatalogForAdmin(catalog.tableName);
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al obtener catalogo editable",
+      error: error.message,
+    });
+  }
+};
+
+export const postEditableCatalogItem = async (req, res) => {
+  try {
+    const catalog = getEditableCatalog(req.params.catalogKey);
+
+    if (!catalog) {
+      return res.status(404).json({ message: "Catalogo no encontrado" });
+    }
+
+    const validationError = validateSimpleCatalogPayload(req.body);
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const item = await createSimpleCatalogItem(catalog.tableName, {
+      name: req.body.name.trim(),
+      isActive: req.body.isActive ?? true,
+    });
+
+    res.status(201).json({
+      message: `${catalog.label} creado correctamente`,
+      data: item,
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Ya existe un registro con ese nombre" });
+    }
+
+    res.status(500).json({
+      message: "Error al crear registro de catalogo",
+      error: error.message,
+    });
+  }
+};
+
+export const putEditableCatalogItem = async (req, res) => {
+  try {
+    const catalog = getEditableCatalog(req.params.catalogKey);
+
+    if (!catalog) {
+      return res.status(404).json({ message: "Catalogo no encontrado" });
+    }
+
+    const validationError = validateSimpleCatalogPayload(req.body);
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const item = await updateSimpleCatalogItem(catalog.tableName, req.params.id, {
+      name: req.body.name.trim(),
+      isActive: req.body.isActive ?? true,
+    });
+
+    if (!item) {
+      return res.status(404).json({ message: "Registro no encontrado" });
+    }
+
+    res.json({
+      message: `${catalog.label} actualizado correctamente`,
+      data: item,
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Ya existe un registro con ese nombre" });
+    }
+
+    res.status(500).json({
+      message: "Error al actualizar registro de catalogo",
+      error: error.message,
+    });
+  }
 };
 
 export const postPurchaseCoffee = async (req, res) => {

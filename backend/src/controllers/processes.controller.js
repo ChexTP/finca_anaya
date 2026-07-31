@@ -298,7 +298,7 @@ export const putProcessPhysicalReview = async (req, res) => {
       !Number.isInteger(output.coffeeProfileId) ||
       !Number.isFinite(output.outputWeightKg) ||
       output.outputWeightKg <= 0 ||
-      !["Pergamino", "Excelso"].includes(output.presentation) ||
+      !output.presentation?.trim() ||
       (requiresHumidity && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
       (!requiresHumidity && output.humidityPercent !== null && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
       (requiresPerformanceFactor && (!Number.isFinite(output.performanceFactor) || output.performanceFactor < 0)) ||

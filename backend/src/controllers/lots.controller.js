@@ -138,8 +138,8 @@ export const putLotAdminData = async (req, res) => {
       changeNote,
     } = req.body;
 
-    if (!["Pergamino", "Excelso"].includes(presentation)) {
-      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
+    if (!presentation?.trim()) {
+      return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
     }
 
     if (!["LOT", "PROC", "PASILLA", "RECUPERACION"].includes(lotKind)) {
@@ -270,8 +270,8 @@ export const postReceivedLot = async (req, res) => {
       return res.status(400).json({ message: "La clasificacion comercial no es valida" });
     }
 
-    if (!["Pergamino", "Excelso"].includes(presentation)) {
-      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
+    if (!presentation?.trim()) {
+      return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
     }
 
     if (
@@ -418,8 +418,8 @@ export const putReceptionData = async (req, res) => {
       });
     }
 
-    if (!["Pergamino", "Excelso"].includes(presentation)) {
-      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
+    if (!presentation?.trim()) {
+      return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
     }
 
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
@@ -931,8 +931,8 @@ export const postStockEntry = async (req, res) => {
       return res.status(400).json({ message: "La entrada rapida debe ser LOT, PASILLA, RECUPERACION o PROC" });
     }
 
-    if (presentation && !["Pergamino", "Excelso"].includes(presentation)) {
-      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
+    if (presentation !== undefined && !presentation?.trim()) {
+      return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
     }
 
     const weight = toNumber(weightKg);
@@ -1072,8 +1072,8 @@ export const postInitialLoad = async (req, res) => {
       return res.status(400).json({ message: "La clasificacion comercial no es valida" });
     }
 
-    if (!["Pergamino", "Excelso"].includes(presentation)) {
-      return res.status(400).json({ message: "La presentacion debe ser Pergamino o Excelso" });
+    if (!presentation?.trim()) {
+      return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
     }
 
     const weight = toNumber(weightKg);

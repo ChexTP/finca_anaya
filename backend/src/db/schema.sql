@@ -26,16 +26,22 @@ CREATE TABLE IF NOT EXISTS coffee_types (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS coffee_presentations (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(80) UNIQUE NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS purchase_coffees (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL,
   family VARCHAR(40) NOT NULL,
-  process_type VARCHAR(20) NOT NULL,
+  process_type VARCHAR(80) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  CONSTRAINT purchase_coffees_family_check CHECK (family IN ('Regional', 'Varietal')),
-  CONSTRAINT purchase_coffees_process_type_check CHECK (process_type IN ('Lavado', 'Natural'))
+  CONSTRAINT purchase_coffees_family_check CHECK (family IN ('Regional', 'Varietal'))
 );
 
 CREATE TABLE IF NOT EXISTS coffee_profiles (
@@ -138,7 +144,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   coffee_type_id INTEGER REFERENCES coffee_types(id),
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   status VARCHAR(40) NOT NULL DEFAULT 'pendiente_laboratorio',
-  presentation VARCHAR(20) NOT NULL DEFAULT 'Pergamino',
+  presentation VARCHAR(80) NOT NULL DEFAULT 'Pergamino',
   lot_kind VARCHAR(20) NOT NULL DEFAULT 'LOT',
   commercial_classification VARCHAR(30),
   gross_weight_kg NUMERIC(12, 3) NOT NULL,
@@ -197,7 +203,6 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
       'danado'
     )
   ),
-  CONSTRAINT coffee_lots_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso')),
   CONSTRAINT coffee_lots_kind_check CHECK (lot_kind IN ('LOT', 'PROC', 'PASILLA', 'RECUPERACION')),
   CONSTRAINT coffee_lots_commercial_classification_check CHECK (
     commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado', 'Pasilla', 'Recuperacion')
@@ -268,7 +273,10 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_registered_by INTEGER 
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS performance_factor NUMERIC(8, 2);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS received_at DATE NOT NULL DEFAULT CURRENT_DATE;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS coffee_variety VARCHAR(120);
-ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS presentation VARCHAR(20) NOT NULL DEFAULT 'Pergamino';
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS presentation VARCHAR(80) NOT NULL DEFAULT 'Pergamino';
+ALTER TABLE coffee_lots ALTER COLUMN presentation TYPE VARCHAR(80);
+ALTER TABLE purchase_coffees ALTER COLUMN process_type TYPE VARCHAR(80);
+ALTER TABLE purchase_coffees DROP CONSTRAINT IF EXISTS purchase_coffees_process_type_check;
 
 DO $$
 BEGIN
@@ -295,8 +303,6 @@ END $$;
 DO $$
 BEGIN
   ALTER TABLE coffee_lots DROP CONSTRAINT IF EXISTS coffee_lots_presentation_check;
-  ALTER TABLE coffee_lots
-  ADD CONSTRAINT coffee_lots_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso'));
 END $$;
 
 DO $$
@@ -401,7 +407,7 @@ CREATE TABLE IF NOT EXISTS coffee_process_outputs (
   id SERIAL PRIMARY KEY,
   process_id INTEGER NOT NULL REFERENCES coffee_processes(id) ON DELETE CASCADE,
   coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id),
-  presentation VARCHAR(20) NOT NULL DEFAULT 'Excelso',
+  presentation VARCHAR(80) NOT NULL DEFAULT 'Excelso',
   output_lot_id INTEGER REFERENCES coffee_lots(id),
   output_weight_kg NUMERIC(12, 3) NOT NULL,
   humidity_percent NUMERIC(5, 2) NOT NULL,
@@ -411,17 +417,15 @@ CREATE TABLE IF NOT EXISTS coffee_process_outputs (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT coffee_process_outputs_weight_check CHECK (output_weight_kg > 0),
   CONSTRAINT coffee_process_outputs_humidity_check CHECK (humidity_percent >= 0 AND humidity_percent <= 100),
-  CONSTRAINT coffee_process_outputs_performance_check CHECK (performance_factor >= 0),
-  CONSTRAINT coffee_process_outputs_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso'))
+  CONSTRAINT coffee_process_outputs_performance_check CHECK (performance_factor >= 0)
 );
 
-ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS presentation VARCHAR(20) NOT NULL DEFAULT 'Excelso';
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS presentation VARCHAR(80) NOT NULL DEFAULT 'Excelso';
+ALTER TABLE coffee_process_outputs ALTER COLUMN presentation TYPE VARCHAR(80);
 
 DO $$
 BEGIN
   ALTER TABLE coffee_process_outputs DROP CONSTRAINT IF EXISTS coffee_process_outputs_presentation_check;
-  ALTER TABLE coffee_process_outputs
-  ADD CONSTRAINT coffee_process_outputs_presentation_check CHECK (presentation IN ('Pergamino', 'Excelso'));
 END $$;
 
 CREATE TABLE IF NOT EXISTS quotes (
@@ -454,8 +458,8 @@ CREATE TABLE IF NOT EXISTS quote_items (
   coffee_type_id INTEGER REFERENCES coffee_types(id),
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   description TEXT,
-  product_form VARCHAR(20),
-  process_type VARCHAR(20),
+  product_form VARCHAR(80),
+  process_type VARCHAR(80),
   variety TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
   operational_weight_kg NUMERIC(12, 3),
@@ -470,8 +474,10 @@ CREATE TABLE IF NOT EXISTS quote_items (
   CONSTRAINT quote_items_price_check CHECK (unit_price >= 0 AND line_total >= 0)
 );
 
-ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(20);
-ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(20);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(80);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(80);
+ALTER TABLE quote_items ALTER COLUMN product_form TYPE VARCHAR(80);
+ALTER TABLE quote_items ALTER COLUMN process_type TYPE VARCHAR(80);
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS variety TEXT;
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS operational_weight_kg NUMERIC(12, 3);
 
@@ -547,8 +553,8 @@ CREATE TABLE IF NOT EXISTS sale_items (
   coffee_type_id INTEGER REFERENCES coffee_types(id),
   coffee_profile_id INTEGER REFERENCES coffee_profiles(id),
   description TEXT,
-  product_form VARCHAR(20),
-  process_type VARCHAR(20),
+  product_form VARCHAR(80),
+  process_type VARCHAR(80),
   variety TEXT,
   quantity_kg NUMERIC(12, 3) NOT NULL,
   operational_weight_kg NUMERIC(12, 3),
@@ -568,8 +574,10 @@ CREATE TABLE IF NOT EXISTS sale_items (
   CONSTRAINT sale_items_price_check CHECK (unit_price >= 0 AND line_total >= 0)
 );
 
-ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(20);
-ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(20);
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_form VARCHAR(80);
+ALTER TABLE sale_items ALTER COLUMN product_form TYPE VARCHAR(80);
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS process_type VARCHAR(80);
+ALTER TABLE sale_items ALTER COLUMN process_type TYPE VARCHAR(80);
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS variety TEXT;
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS operational_weight_kg NUMERIC(12, 3);
 ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS sale_humidity_percent TEXT;
@@ -949,6 +957,10 @@ ON CONFLICT (name) DO UPDATE SET is_active = TRUE;
 
 INSERT INTO payable_categories (name)
 VALUES ('Lote de cafe')
+ON CONFLICT (name) DO UPDATE SET is_active = TRUE;
+
+-- Presentaciones fisicas del cafe. Se pueden ampliar desde el sistema.
+INSERT INTO coffee_presentations (name) VALUES ('Pergamino'), ('Excelso')
 ON CONFLICT (name) DO UPDATE SET is_active = TRUE;
 
 -- Los tipos activos corresponden al beneficio con el que llega el cafe a bodega.

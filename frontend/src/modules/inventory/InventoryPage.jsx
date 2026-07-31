@@ -519,7 +519,13 @@ const InventoryPage = () => {
     ? Number(Number(selectedLiquidationLot.net_weight_kg) * Number(liquidationForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
 
-  const presentationOptions = ["Pergamino", "Excelso"].map((presentation) => {
+  const presentationNames = [
+    ...new Set([
+      ...(catalogs?.coffeePresentations || []).map((presentation) => presentation.name),
+      ...lots.map((lot) => lot.presentation || "Pergamino"),
+    ].filter(Boolean)),
+  ];
+  const presentationOptions = presentationNames.map((presentation) => {
     const presentationLots = lots.filter((lot) => (lot.presentation || "Pergamino") === presentation);
     return {
       presentation,
@@ -717,8 +723,11 @@ const InventoryPage = () => {
                   value={adminLotForm.presentation}
                   onChange={(event) => setAdminLotForm({ ...adminLotForm, presentation: event.target.value })}
                 >
-                  <option value="Pergamino">Pergamino</option>
-                  <option value="Excelso">Excelso</option>
+                  {catalogs?.coffeePresentations?.map((presentation) => (
+                    <option key={presentation.id} value={presentation.name}>
+                      {presentation.name}
+                    </option>
+                  ))}
                 </select>
                 <select
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1503,8 +1512,11 @@ const InventoryPage = () => {
                     value={adminLotForm.presentation}
                     onChange={(event) => setAdminLotForm({ ...adminLotForm, presentation: event.target.value })}
                   >
-                    <option value="Pergamino">Pergamino</option>
-                    <option value="Excelso">Excelso</option>
+                    {catalogs?.coffeePresentations?.map((presentation) => (
+                      <option key={presentation.id} value={presentation.name}>
+                        {presentation.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">

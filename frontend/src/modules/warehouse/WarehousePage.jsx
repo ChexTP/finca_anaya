@@ -1048,13 +1048,7 @@ const WarehousePage = () => {
                   required
                 >
                   <option value="">Proceso</option>
-                  {catalogs?.coffeeTypes
-                    ?.filter((type) =>
-                      stockEntryForm.lotKind === "PASILLA"
-                        ? ["Lavado", "Natural"].includes(type.name)
-                        : ["Lavado", "Natural", "Semilavado"].includes(type.name)
-                    )
-                    .map((type) => (
+                  {catalogs?.coffeeTypes?.map((type) => (
                       <option key={type.id} value={type.id}>
                         {type.name}
                       </option>
@@ -1104,8 +1098,11 @@ const WarehousePage = () => {
                 value={stockEntryForm.presentation}
                 onChange={(event) => setStockEntryForm({ ...stockEntryForm, presentation: event.target.value })}
               >
-                <option value="Pergamino">Pergamino</option>
-                <option value="Excelso">Excelso</option>
+                {catalogs?.coffeePresentations?.map((presentation) => (
+                  <option key={presentation.id} value={presentation.name}>
+                    {presentation.name}
+                  </option>
+                ))}
               </select>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1211,8 +1208,11 @@ const WarehousePage = () => {
               value={lotForm.presentation}
               onChange={(event) => setLotForm({ ...lotForm, presentation: event.target.value })}
             >
-              <option value="Pergamino">Pergamino</option>
-              <option value="Excelso">Excelso</option>
+              {catalogs?.coffeePresentations?.map((presentation) => (
+                <option key={presentation.id} value={presentation.name}>
+                  {presentation.name}
+                </option>
+              ))}
             </select>
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"

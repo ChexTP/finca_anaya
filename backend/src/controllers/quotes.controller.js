@@ -108,12 +108,12 @@ export const postQuote = async (req, res) => {
     const cleanItems = [];
 
     for (const item of items) {
-      if (item.productForm && !["Excelso", "Pergamino"].includes(item.productForm)) {
-        return res.status(400).json({ message: "La presentacion debe ser Excelso o Pergamino" });
+      if (item.productForm !== undefined && !item.productForm?.trim()) {
+        return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
       }
 
-      if (item.processType && !["Lavado", "Natural", "Semilavado"].includes(item.processType)) {
-        return res.status(400).json({ message: "El proceso debe ser Lavado, Natural o Semilavado" });
+      if (item.processType !== undefined && !item.processType?.trim()) {
+        return res.status(400).json({ message: "El proceso o beneficio del cafe es obligatorio" });
       }
 
       const quantityKg = toNumber(item.quantityKg);

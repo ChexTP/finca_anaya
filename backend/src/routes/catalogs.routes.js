@@ -2,9 +2,12 @@ import { Router } from "express";
 import {
   getCatalogs,
   getCoffeeProfilesAdmin,
+  getEditableCatalogItems,
   getPurchaseCoffeesAdmin,
+  postEditableCatalogItem,
   postCoffeeProfile,
   postPurchaseCoffee,
+  putEditableCatalogItem,
   putCoffeeProfile,
   putPurchaseCoffee,
 } from "../controllers/catalogs.controller.js";
@@ -13,6 +16,9 @@ import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 const router = Router();
 
 router.get("/", requireAuth, getCatalogs);
+router.get("/:catalogKey(coffee-types|coffee-presentations)", requireAuth, requireRoles("admin", "accounting", "warehouse"), getEditableCatalogItems);
+router.post("/:catalogKey(coffee-types|coffee-presentations)", requireAuth, requireRoles("admin", "accounting", "warehouse"), postEditableCatalogItem);
+router.put("/:catalogKey(coffee-types|coffee-presentations)/:id", requireAuth, requireRoles("admin", "accounting", "warehouse"), putEditableCatalogItem);
 router.get("/coffee-profiles", requireAuth, requireRoles("admin", "accounting", "warehouse"), getCoffeeProfilesAdmin);
 router.post("/coffee-profiles", requireAuth, requireRoles("admin", "accounting", "warehouse"), postCoffeeProfile);
 router.get("/purchase-coffees", requireAuth, requireRoles("admin", "accounting", "warehouse"), getPurchaseCoffeesAdmin);

@@ -88,7 +88,7 @@ const ProcessesPage = ({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const canCreateProcess = ["admin", "warehouse", "laboratory"].includes(user?.role);
+  const canCreateProcess = ["admin", "accounting", "warehouse", "laboratory"].includes(user?.role);
   const actionLabel = fixedProcessType === "Trilladora"
     ? "Enviar a trilladora"
     : fixedProcessType === "Seleccion electronica"
@@ -718,8 +718,11 @@ const ProcessesPage = ({
                           value={output.presentation}
                           onChange={(event) => updatePhysicalOutput(index, "presentation", event.target.value)}
                         >
-                          <option value="Pergamino">Pergamino</option>
-                          <option value="Excelso">Excelso</option>
+                          {catalogs?.coffeePresentations?.map((presentation) => (
+                            <option key={presentation.id} value={presentation.name}>
+                              {presentation.name}
+                            </option>
+                          ))}
                         </select>
                         <input
                           className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"

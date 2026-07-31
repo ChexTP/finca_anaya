@@ -592,23 +592,28 @@ const CommercialPage = () => {
             <div className="mt-4 min-w-0 overflow-hidden rounded border border-slate-200 p-3">
               <h3 className="text-sm font-semibold text-slate-800">Cafe solicitado</h3>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <select
-                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  value={itemForm.productForm}
-                  onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value })}
-                >
-                  <option value="Excelso">Excelso</option>
-                  <option value="Pergamino">Pergamino</option>
-                </select>
-                <select
-                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  value={itemForm.processType}
-                  onChange={(event) => setItemForm({ ...itemForm, processType: event.target.value })}
-                >
-                  <option value="Lavado">Lavado</option>
-                  <option value="Natural">Natural</option>
-                  <option value="Semilavado">Semilavado</option>
-                </select>
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={itemForm.productForm}
+                onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value })}
+              >
+                  {catalogs?.coffeePresentations?.map((presentation) => (
+                    <option key={presentation.id} value={presentation.name}>
+                      {presentation.name}
+                    </option>
+                  ))}
+              </select>
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={itemForm.processType}
+                onChange={(event) => setItemForm({ ...itemForm, processType: event.target.value })}
+              >
+                  {catalogs?.coffeeTypes?.map((type) => (
+                    <option key={type.id} value={type.name}>
+                      {type.name}
+                    </option>
+                  ))}
+              </select>
                 <select
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                   value={itemForm.itemType}
