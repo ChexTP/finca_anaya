@@ -26,35 +26,42 @@ import { roleLabels } from "../utils/roles";
 const navigation = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting", "warehouse", "laboratory", "seller", "management"] },
   { label: "Gerencia", path: "/gerencia", icon: BarChart3, roles: ["admin", "accounting", "management"] },
+
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Asignar lotes", path: "/bodega/pendientes", icon: ClipboardList, roles: ["laboratory"] },
-  { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "accounting", "warehouse", "laboratory"] },
-  { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "accounting", "laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Asignar lotes", path: "/bodega/pendientes", icon: ClipboardList, roles: ["laboratory"] },
+
+  { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "accounting", "warehouse", "laboratory"] },
   { label: "Trilladora", path: "/trilladora", icon: Coffee, roles: ["admin", "accounting", "warehouse", "laboratory"] },
   { label: "Seleccionadora", path: "/seleccionadora", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse", "laboratory"] },
-  { label: "Proveedores", path: "/proveedores", icon: Users, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "accounting", "laboratory"] },
+
   { label: "Crear orden", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting"] },
-  { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
-  { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
   { label: "Ordenes", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
+  { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
+
+  { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Historico ordenes", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting"] },
+  { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
+
   // Modulo contable desactivado: la empresa manejara pagos en su software contable externo.
   // { label: "Pagos de lotes", path: "/cuentas-por-pagar", icon: CreditCard, roles: ["admin", "accounting"] },
   { label: "Clientes", path: "/clientes", icon: Users, roles: ["admin", "accounting", "seller"] },
+  { label: "Proveedores", path: "/proveedores", icon: Users, roles: ["admin", "accounting", "warehouse"] },
   // Reportes/documentos comerciales desactivados para dejar el sistema enfocado en inventario y ordenes.
   // { label: "Reportes", path: "/reportes", icon: BarChart3, roles: ["admin", "accounting"] },
   // { label: "Documentos", path: "/documentos", icon: FileText, roles: ["admin", "accounting", "seller"] },
-  { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },
+
   { label: "Tipos de cafe", path: "/tipos-cafe", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Perfiles de venta", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
   { label: "Perfiles de compra", path: "/perfiles-compra", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Perfiles de venta", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
   { label: "Consecutivos", path: "/consecutivos", icon: Hash, roles: ["admin", "accounting", "warehouse"] },
+
+  { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },
   { label: "Usuarios", path: "/usuarios", icon: UserCog, roles: ["admin"] },
 ];
 
