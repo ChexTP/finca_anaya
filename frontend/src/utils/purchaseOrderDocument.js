@@ -203,22 +203,11 @@ export const buildPurchaseOrderHtml = (payable) => {
             margin-top: 4px;
             padding-top: 9px;
           }
-          .terms {
-            margin-top: 18px;
-            width: 620px;
-          }
-          .terms h2 {
-            font-size: 15px;
-            margin: 0 0 12px;
-          }
-          .terms table { border-collapse: collapse; margin-top: 0; width: 100%; }
-          .terms td { border: 0; font-size: 13px; padding: 2px 6px; text-align: left; }
-          .terms td:first-child { font-weight: 800; width: 230px; }
           .signatures {
             display: grid;
             gap: 18px;
             grid-template-columns: 1fr 1fr;
-            margin-top: 36px;
+            margin-top: 42px;
           }
           .signature {
             border-top: 1.5px solid #111827;
@@ -328,23 +317,6 @@ export const buildPurchaseOrderHtml = (payable) => {
               <div class="total-row final"><span>Total</span><strong>${formatMoney(total)}</strong></div>
             </div>
           </div>
-
-          <section class="terms">
-            <h2>Terms:</h2>
-            <table>
-              <tbody>
-                <tr><td>Advance payment:</td><td>30%</td></tr>
-                <tr><td>Delivery time:</td><td>15 days</td></tr>
-                <tr><td>Standard:</td><td>3/20</td></tr>
-                <tr><td>Delivery:</td><td>CAJAS DE X 20 Kg /AL VACIO</td></tr>
-                <tr><td>Packaging:</td><td>Traditional bag and jute sack</td></tr>
-                <tr><td>Payment:</td><td>National bank transfer</td></tr>
-                <tr><td>Bank details:</td><td>${escapeHtml(companyBrand.bankDetails)}</td></tr>
-                <tr><td>Company:</td><td>${escapeHtml(companyBrand.legalName)}</td></tr>
-                <tr><td>Tax ID:</td><td>${escapeHtml(companyBrand.nit)}</td></tr>
-              </tbody>
-            </table>
-          </section>
 
           <div class="signatures">
             <div class="signature">

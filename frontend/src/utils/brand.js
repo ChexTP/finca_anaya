@@ -8,7 +8,7 @@ export const companyBrand = {
   instagram: "@fincaanaya",
   bankDetails: "Bancolombia - Ahorros - 453 0000 6876",
   logo: "/logos/anaya-logo-mark.png",
-  printableLogo: "/logos/anaya-logo-full.png",
+  printableLogo: "/logos/anaya-logo-mark.png",
 };
 
 export const getPrintableLogo = () => {
