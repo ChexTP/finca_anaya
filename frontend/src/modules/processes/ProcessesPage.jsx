@@ -11,19 +11,20 @@ import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow"
 
 const initialProcess = {
   saleId: "",
-  processType: "Trilladora",
+  processType: "Proceso",
   processLocation: "",
   notes: "",
 };
 
 const initialStartForm = {
-  processType: "Trilladora",
+  processType: "Proceso",
   processLocation: "",
   estimatedReturnDate: "",
 };
 
-const processTypeOptions = ["Trilladora", "Seleccion electronica", "Otro proceso"];
+const processTypeOptions = ["Proceso", "Trilladora", "Seleccion electronica", "Otro proceso"];
 const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
+const HIGH_HUMIDITY_GROUP = "__humidity_gt_10";
 
 const initialPhysicalReviewForm = {
   outputs: [
@@ -75,7 +76,7 @@ const ProcessesPage = ({
 }) => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const defaultProcessType = fixedProcessType || "Trilladora";
+  const defaultProcessType = fixedProcessType || "Proceso";
   const [processes, setProcesses] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [sales, setSales] = useState([]);
@@ -201,11 +202,27 @@ const ProcessesPage = ({
     return Object.values(groups).sort((left, right) => left.name.localeCompare(right.name));
   }, [presentationFilteredLots]);
 
+  const highHumidityLots = useMemo(() => {
+    return presentationFilteredLots.filter((lot) => (
+      lot.lot_kind !== "PROC"
+      && Number(lot.humidity_percent || 0) > 10
+    ));
+  }, [presentationFilteredLots]);
+
+  const highHumidityKg = useMemo(() => {
+    return highHumidityLots.reduce(
+      (total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
+      0
+    );
+  }, [highHumidityLots]);
+
   const filteredAvailableLots = useMemo(() => {
     const search = processSearch.trim().toLowerCase();
-    const groupedLots = selectedGroup === "all"
-      ? presentationFilteredLots
-      : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
+    const groupedLots = selectedGroup === HIGH_HUMIDITY_GROUP
+      ? highHumidityLots
+      : selectedGroup === "all"
+        ? presentationFilteredLots
+        : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
 
     if (!search) return groupedLots;
 
@@ -220,6 +237,8 @@ const ProcessesPage = ({
         lot.commercial_classification,
         lot.coffee_variety,
         lot.status,
+        lot.humidity_percent,
+        lot.performance_factor,
       ]
         .filter(Boolean)
         .join(" ")
@@ -227,7 +246,7 @@ const ProcessesPage = ({
 
       return text.includes(search);
     });
-  }, [presentationFilteredLots, processSearch, selectedGroup]);
+  }, [highHumidityLots, presentationFilteredLots, processSearch, selectedGroup]);
 
   const totalAvailableKg = presentationFilteredLots.reduce(
     (total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
@@ -325,7 +344,7 @@ const ProcessesPage = ({
   const openStartForm = (process) => {
     setStartProcessId(process.id);
     setStartForm({
-      processType: fixedProcessType || process.process_type || "Trilladora",
+      processType: fixedProcessType || process.process_type || "Proceso",
       processLocation: process.process_location || "",
       estimatedReturnDate: process.estimated_return_date ? String(process.estimated_return_date).slice(0, 10) : "",
     });
@@ -628,6 +647,16 @@ const ProcessesPage = ({
                   <span className="text-xs">{group.count} lotes - {formatKg(group.kg)}</span>
                 </button>
               ))}
+              <button
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  selectedGroup === HIGH_HUMIDITY_GROUP ? "border-amber-500 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => setSelectedGroup(HIGH_HUMIDITY_GROUP)}
+              >
+                <span className="block font-semibold">Humedad mayor a 10%</span>
+                <span className="text-xs">{highHumidityLots.length} lotes - {formatKg(highHumidityKg)}</span>
+              </button>
             </div>
           </div>
 

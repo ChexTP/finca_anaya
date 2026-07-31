@@ -565,6 +565,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       lot.coffee_profile_name,
       lot.origin_process_type,
       lot.origin_process_code,
+      lot.performance_factor,
     ]
       .filter(Boolean)
       .join(" ")
