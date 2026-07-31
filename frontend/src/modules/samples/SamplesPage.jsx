@@ -319,10 +319,17 @@ const SamplesPage = () => {
 
   const canCreate = ["admin", "accounting", "seller"].includes(user?.role);
   const canManageSamples = ["admin", "samples"].includes(user?.role);
-  const canApproveSamples = user?.role === "admin";
+  const canApproveSampleOrders = ["admin", "accounting"].includes(user?.role);
+  const canApproveSamples = canApproveSampleOrders;
   const canPrintSampleOrder = ["admin", "accounting", "seller", "samples"].includes(user?.role);
   const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
   const canDeleteSamples = user?.role === "admin";
+  const canUseSampleStatusAction = (status) => {
+    const commercialStatuses = ["borrador", "enviada", "aprobada", "cancelada"];
+    if (canApproveSampleOrders && commercialStatuses.includes(status)) return true;
+    if (canManageSamples && !commercialStatuses.includes(status)) return true;
+    return false;
+  };
 
   const sampleCounts = useMemo(() => {
     return samples.reduce(
@@ -1197,7 +1204,7 @@ const SamplesPage = () => {
                     </div>
                   )}
 
-                  {canManageSamples && getSampleActions(sample).some((status) => user?.role === "admin" || !["borrador", "enviada", "aprobada", "cancelada"].includes(status)) && (
+                  {getSampleActions(sample).some(canUseSampleStatusAction) && (
                     <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                       <input
                         className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1207,7 +1214,7 @@ const SamplesPage = () => {
                       />
                       <div className="flex flex-wrap gap-2">
                         {getSampleActions(sample)
-                          .filter((status) => user?.role === "admin" || !["borrador", "enviada", "aprobada", "cancelada"].includes(status))
+                          .filter(canUseSampleStatusAction)
                           .map((status) => (
                           <button
                             key={status}

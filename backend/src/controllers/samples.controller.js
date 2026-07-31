@@ -301,6 +301,8 @@ export const putSampleStatus = async (req, res) => {
   try {
     const { status, notes } = req.body;
     const itemReviews = Array.isArray(req.body.itemReviews) ? req.body.itemReviews : [];
+    const commercialSampleStatuses = ["borrador", "enviada", "aprobada", "cancelada"];
+    const canManageCommercialSample = ["admin", "accounting"].includes(req.user.role);
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Estado de muestra no valido" });
@@ -332,6 +334,10 @@ export const putSampleStatus = async (req, res) => {
       }
     }
 
+    if (req.user.role === "accounting" && !commercialSampleStatuses.includes(status)) {
+      return res.status(403).json({ message: "Contabilidad solo puede aprobar o cancelar muestras comerciales" });
+    }
+
     if (["admin", "samples"].includes(req.user.role)) {
       if (status === "aprobada_laboratorio") {
         return res.status(403).json({ message: "Solo laboratorio puede aprobar el analisis de muestra" });
@@ -346,8 +352,8 @@ export const putSampleStatus = async (req, res) => {
       }
     }
 
-    if (["borrador", "enviada", "aprobada"].includes(status) && req.user.role !== "admin") {
-      return res.status(403).json({ message: "Solo administracion puede aprobar o devolver muestras comerciales" });
+    if (commercialSampleStatuses.includes(status) && !canManageCommercialSample) {
+      return res.status(403).json({ message: "Solo administracion o contabilidad puede aprobar o devolver muestras comerciales" });
     }
 
     const cleanItemReviews = itemReviews.map((review) => ({
