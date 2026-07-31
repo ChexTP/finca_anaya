@@ -19,7 +19,7 @@ router.post("/", requireAuth, requireRoles("admin", "accounting", "seller"), pos
 router.put("/:id", requireAuth, requireRoles("admin", "accounting", "seller"), putSample);
 router.delete("/:id", requireAuth, requireRoles("admin"), deleteSample);
 router.put("/:id/status", requireAuth, requireRoles("admin", "accounting", "samples", "laboratory"), putSampleStatus);
-router.put("/:id/blend", requireAuth, requireRoles("admin", "samples"), putSampleBlend);
+router.put("/:id/blend", requireAuth, requireRoles("admin", "samples", "laboratory"), putSampleBlend);
 router.put("/:id/shipping-guide", requireAuth, requireRoles("admin", "samples"), putSampleShippingGuide);
 
 export default router;

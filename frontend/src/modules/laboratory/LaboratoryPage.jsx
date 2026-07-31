@@ -143,6 +143,26 @@ const buildBlankSampleItemReviews = (sample) => {
   }));
 };
 
+const buildSampleBlendRows = (sample) => {
+  const rows = (sample.items || []).flatMap((item) =>
+    (item.blend_items || []).map((blend) => ({
+      sampleItemId: String(item.id),
+      componentDescription: blend.component_description || blend.lot_code || "",
+      percentage: String(blend.percentage || ""),
+      notes: blend.notes || "",
+    }))
+  );
+
+  return rows.length > 0
+    ? rows
+    : (sample.items || []).map((item) => ({
+        sampleItemId: String(item.id),
+        componentDescription: "",
+        percentage: "",
+        notes: "",
+      }));
+};
+
 const buildBlankSaleItemReviews = (sale) => {
   return (sale.items || []).map((item) => ({
     saleItemId: item.id,
@@ -190,6 +210,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const [finishForm, setFinishForm] = useState(initialFinish);
   const [sampleReview, setSampleReview] = useState(initialSampleReview);
   const [saleReview, setSaleReview] = useState(initialSaleReview);
+  const [sampleBlendRows, setSampleBlendRows] = useState([]);
   const [inventoryLabForm, setInventoryLabForm] = useState(initialInventoryLabEdit);
   const [lotReviewDrafts, setLotReviewDrafts] = useState({});
   const [inventoryLabDrafts, setInventoryLabDrafts] = useState({});
@@ -566,6 +587,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       ...initialSampleReview,
       itemReviews: buildBlankSampleItemReviews(sample),
     });
+    setSampleBlendRows(buildSampleBlendRows(sample));
     setMessage("");
     setError("");
   };
@@ -633,6 +655,84 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
 
       return next;
     });
+  };
+
+  const updateSampleBlendRow = (index, field, value) => {
+    setSampleBlendRows((rows) => rows.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, [field]: value } : row
+    )));
+  };
+
+  const addSampleBlendRowForItem = (sampleItemId) => {
+    setSampleBlendRows((rows) => [...rows, {
+      sampleItemId: String(sampleItemId),
+      componentDescription: "",
+      percentage: "",
+      notes: "",
+    }]);
+  };
+
+  const getSampleBlendTotalForItem = (sampleItemId, rows = sampleBlendRows) => {
+    const total = rows
+      .filter((row) => String(row.sampleItemId) === String(sampleItemId))
+      .reduce((sum, row) => sum + Number(row.percentage || 0), 0);
+    return Number(total.toFixed(2));
+  };
+
+  const validateSampleBlendRows = (sample, rows = sampleBlendRows) => {
+    const missingRows = (sample.items || []).some((item) => !rows.some((row) => String(row.sampleItemId) === String(item.id)));
+    if (missingRows) {
+      return "Cada cafe de la muestra debe tener al menos un componente de ensamble.";
+    }
+
+    const incompleteRow = rows.find((row) => !row.componentDescription?.trim() || !row.percentage);
+    if (incompleteRow) {
+      return "Cada componente de ensamble debe tener cafe usado y porcentaje.";
+    }
+
+    const incompleteItem = (sample.items || []).find((item) => getSampleBlendTotalForItem(item.id, rows) !== 100);
+    if (incompleteItem) {
+      return `El ensamble de ${formatRequestedCoffee(incompleteItem)} debe sumar 100%. Actualmente suma ${getSampleBlendTotalForItem(incompleteItem.id, rows)}%.`;
+    }
+
+    return null;
+  };
+
+  const saveSampleBlendAdjustment = async ({ skipConfirm = false } = {}) => {
+    if (!selectedSample) {
+      setError("Seleccione una muestra para ajustar el ensamble.");
+      return false;
+    }
+
+    const validationError = validateSampleBlendRows(selectedSample);
+    if (validationError) {
+      setError(validationError);
+      return false;
+    }
+
+    if (!skipConfirm && !window.confirm(`Confirma guardar el ajuste de ensamble de ${selectedSample.code}?`)) {
+      return false;
+    }
+
+    const updatedSample = await apiRequest(`/samples/${selectedSample.id}/blend`, {
+      method: "PUT",
+      body: JSON.stringify({
+        items: sampleBlendRows.map((row) => ({
+          sampleItemId: Number(row.sampleItemId),
+          componentDescription: row.componentDescription,
+          percentage: Number(row.percentage),
+          notes: row.notes || null,
+        })),
+      }),
+    });
+
+    const sampleData = updatedSample.data || updatedSample;
+    setSelectedSample(sampleData);
+    setSampleBlendRows(buildSampleBlendRows(sampleData));
+    setSamples((currentSamples) => currentSamples.map((sample) => (
+      sample.id === sampleData.id ? sampleData : sample
+    )));
+    return true;
   };
 
   const updateSaleReviewForm = (field, value) => {
@@ -875,7 +975,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     }
   };
 
-  const submitSampleReview = async (event) => {
+  const submitSampleReview = async (event, decision = sampleReview.decision) => {
     event.preventDefault();
 
     if (!selectedSample) {
@@ -883,15 +983,15 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       return;
     }
 
-    if (sampleReview.decision === "en_preparacion" && !sampleReview.notes.trim()) {
-      setError("Para rechazar una muestra debe escribir una nota de laboratorio.");
+    if (decision === "en_preparacion" && !sampleReview.notes.trim()) {
+      setError("Para devolver una muestra debe escribir que ensamble o dato debe corregir muestras.");
       return;
     }
 
     const confirmed = window.confirm(
-      sampleReview.decision === "aprobada_laboratorio"
+      decision === "aprobada_laboratorio"
         ? `Confirma aprobar el analisis de ${selectedSample.code}?`
-        : `Confirma rechazar ${selectedSample.code} y devolverla a preparacion?`
+        : `Confirma devolver ${selectedSample.code} a muestras para corregir el ensamble?`
     );
 
     if (!confirmed) return;
@@ -901,12 +1001,20 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     setError("");
 
     try {
+      if (decision === "aprobada_laboratorio") {
+        const blendSaved = await saveSampleBlendAdjustment({ skipConfirm: true });
+        if (!blendSaved) {
+          setSaving(false);
+          return;
+        }
+      }
+
       const requestBody = {
-        status: sampleReview.decision,
+        status: decision,
         notes: sampleReview.notes || undefined,
       };
 
-      if (sampleReview.decision === "aprobada_laboratorio") {
+      if (decision === "aprobada_laboratorio") {
         requestBody.itemReviews = sampleReview.itemReviews.map((itemReview) => ({
           sampleItemId: itemReview.sampleItemId,
           humidityPercent: itemReview.humidityPercent,
@@ -934,9 +1042,9 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       setSelectedSample(null);
       await loadData();
       setMessage(
-        sampleReview.decision === "aprobada_laboratorio"
+        decision === "aprobada_laboratorio"
           ? "Analisis de muestra aprobado. El usuario de muestras ya puede marcarla como lista."
-          : "Muestra rechazada y devuelta a preparacion."
+          : "Muestra devuelta a muestras para corregir ensamble y reenviar a laboratorio."
       );
     } catch (requestError) {
       setError(requestError.message);
@@ -1724,98 +1832,184 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     </div>
                   </div>
 
-                  {selectedSample.items?.some((item) => item.blend_items?.length > 0) && (
-                    <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
-                      <p className="text-xs font-semibold uppercase text-amber-800">Ensamble definido por muestras</p>
-                      <div className="mt-2 space-y-3">
-                        {selectedSample.items.map((item) => (
-                          <div key={`sample-blend-${item.id}`}>
-                            <p className="font-semibold text-ink">{formatRequestedCoffee(item)}</p>
-                            {item.blend_items.map((blend) => (
-                              <p key={blend.id} className="text-slate-700">
-                                {blend.component_description || blend.lot_code || "Componente"}: {blend.percentage}% ({blend.calculated_grams} g)
-                              </p>
-                            ))}
-                          </div>
-                        ))}
+                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-amber-800">Ensamble de referencia y ajuste final</p>
+                        <p className="mt-1 text-xs text-amber-800">
+                          Muestras propone el ensamble. Laboratorio puede corregir componentes o porcentajes antes de aprobar.
+                        </p>
                       </div>
+                      <button
+                        className="rounded border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
+                        type="button"
+                        disabled={saving || !selectedSample}
+                        onClick={async () => {
+                          setSaving(true);
+                          setMessage("");
+                          setError("");
+                          try {
+                            const saved = await saveSampleBlendAdjustment();
+                            if (saved) setMessage("Ajuste de ensamble de muestra guardado correctamente.");
+                          } catch (requestError) {
+                            setError(requestError.message);
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                      >
+                        Guardar ajuste
+                      </button>
                     </div>
-                  )}
 
-                  <select
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={sampleReview.decision}
-                    onChange={(event) => updateSampleReviewForm("decision", event.target.value)}
-                  >
-                    <option value="aprobada_laboratorio">Aprobar muestra</option>
-                    <option value="en_preparacion">Rechazar y devolver a preparacion</option>
-                  </select>
-
-                  {sampleReview.decision === "aprobada_laboratorio" && (
-                    <div className="space-y-3">
-                      {sampleReview.itemReviews.map((itemReview, index) => {
-                        const item = selectedSample.items?.find((sampleItem) => sampleItem.id === itemReview.sampleItemId);
+                    <div className="mt-3 space-y-3">
+                      {selectedSample.items?.map((item) => {
+                        const itemRows = sampleBlendRows
+                          .map((row, index) => ({ ...row, index }))
+                          .filter((row) => String(row.sampleItemId) === String(item.id));
+                        const totalPercentage = getSampleBlendTotalForItem(item.id);
+                        const isComplete = totalPercentage === 100;
 
                         return (
-                          <div key={itemReview.sampleItemId} className="rounded border border-slate-200 p-3">
-                            <p className="mb-3 text-sm font-semibold text-ink">
-                              {formatRequestedCoffee(item)} - {item?.quantity_grams} g
-                            </p>
-                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                              <input
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Humedad"
-                                type="text"
-                                value={itemReview.humidityPercent}
-                                onChange={(event) => updateSampleItemReview(index, "humidityPercent", event.target.value)}
-                                required
-                              />
-                              {cuppingFields.map(([field, label]) => (
-                                <input
-                                  key={field}
-                                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                  placeholder={label}
-                                  type="text"
-                                  value={itemReview[field]}
-                                  onChange={(event) => updateSampleItemReview(index, field, event.target.value)}
-                                  required
-                                />
-                              ))}
-                              <input
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Score"
-                                type="text"
-                                value={itemReview.score}
-                                onChange={(event) => updateSampleItemReview(index, "score", event.target.value)}
-                                required
-                              />
+                          <div key={`sample-blend-edit-${item.id}`} className="space-y-2 rounded border border-amber-200 bg-white p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="font-semibold text-ink">{formatRequestedCoffee(item)}</p>
+                                <p className="text-xs text-slate-500">{item.quantity_grams} g solicitados</p>
+                              </div>
+                              <span className={`rounded px-2 py-1 text-xs font-semibold ${isComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                Total {totalPercentage}%
+                              </span>
                             </div>
-                            <textarea
-                              className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                              placeholder="Notas de este cafe"
-                              value={itemReview.notes}
-                              onChange={(event) => updateSampleItemReview(index, "notes", event.target.value)}
-                            />
+
+                            {itemRows.map((row) => {
+                              const calculatedGrams = row.percentage
+                                ? Number((Number(item.quantity_grams) * Number(row.percentage) / 100).toFixed(2))
+                                : 0;
+
+                              return (
+                                <div key={`sample-blend-row-${row.index}`} className="grid min-w-0 gap-2 rounded border border-slate-200 bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_130px_auto]">
+                                  <input
+                                    className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                                    placeholder="Cafe usado, proceso, mezcla o referencia libre"
+                                    value={row.componentDescription}
+                                    onChange={(event) => updateSampleBlendRow(row.index, "componentDescription", event.target.value)}
+                                  />
+                                  <input
+                                    className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                                    placeholder="Porcentaje %"
+                                    type="text"
+                                    inputMode="numeric"
+                                    min="1"
+                                    max="100"
+                                    step="1"
+                                    value={row.percentage}
+                                    onChange={(event) => updateSampleBlendRow(row.index, "percentage", normalizePercentageInput(event.target.value))}
+                                  />
+                                  <button
+                                    className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                    type="button"
+                                    onClick={() => setSampleBlendRows((rows) => rows.filter((_, rowIndex) => rowIndex !== row.index))}
+                                    disabled={itemRows.length === 1}
+                                  >
+                                    Quitar
+                                  </button>
+                                  <textarea
+                                    className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm md:col-span-3"
+                                    placeholder={`Cantidad calculada: ${calculatedGrams} g. Observacion opcional`}
+                                    rows={2}
+                                    value={row.notes}
+                                    onChange={(event) => updateSampleBlendRow(row.index, "notes", event.target.value)}
+                                  />
+                                </div>
+                              );
+                            })}
+
+                            <button
+                              className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              type="button"
+                              onClick={() => addSampleBlendRowForItem(item.id)}
+                            >
+                              Agregar componente a este cafe
+                            </button>
                           </div>
                         );
                       })}
                     </div>
-                  )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-slate-800">Datos para aprobar la muestra</p>
+                    {sampleReview.itemReviews.map((itemReview, index) => {
+                      const item = selectedSample.items?.find((sampleItem) => sampleItem.id === itemReview.sampleItemId);
+
+                      return (
+                        <div key={itemReview.sampleItemId} className="rounded border border-slate-200 p-3">
+                          <p className="mb-3 text-sm font-semibold text-ink">
+                            {formatRequestedCoffee(item)} - {item?.quantity_grams} g
+                          </p>
+                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            <input
+                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Humedad"
+                              type="text"
+                              value={itemReview.humidityPercent}
+                              onChange={(event) => updateSampleItemReview(index, "humidityPercent", event.target.value)}
+                            />
+                            {cuppingFields.map(([field, label]) => (
+                              <input
+                                key={field}
+                                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                placeholder={label}
+                                type="text"
+                                value={itemReview[field]}
+                                onChange={(event) => updateSampleItemReview(index, field, event.target.value)}
+                              />
+                            ))}
+                            <input
+                              className="rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Score"
+                              type="text"
+                              value={itemReview.score}
+                              onChange={(event) => updateSampleItemReview(index, "score", event.target.value)}
+                            />
+                          </div>
+                          <textarea
+                            className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Notas de este cafe"
+                            value={itemReview.notes}
+                            onChange={(event) => updateSampleItemReview(index, "notes", event.target.value)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
 
                   <textarea
                     className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder={sampleReview.decision === "en_preparacion" ? "Motivo del rechazo para que muestras corrija" : "Notas de laboratorio"}
+                    placeholder="Notas de laboratorio o instrucciones para que muestras corrija el ensamble"
                     value={sampleReview.notes}
                     onChange={(event) => updateSampleReviewForm("notes", event.target.value)}
-                    required={sampleReview.decision === "en_preparacion"}
                   />
-                  <button
-                    className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                    disabled={saving || !selectedSample}
-                  >
-                    <Save size={16} />
-                    Guardar analisis
-                  </button>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      className="inline-flex items-center justify-center gap-2 rounded border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
+                      type="button"
+                      disabled={saving || !selectedSample}
+                      onClick={(event) => submitSampleReview(event, "en_preparacion")}
+                    >
+                      Devolver a muestras
+                    </button>
+                    <button
+                      className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      type="button"
+                      disabled={saving || !selectedSample}
+                      onClick={(event) => submitSampleReview(event, "aprobada_laboratorio")}
+                    >
+                      <Save size={16} />
+                      Aprobar analisis
+                    </button>
+                  </div>
                 </div>
               )}
             </form>

@@ -320,7 +320,7 @@ export const putSampleStatus = async (req, res) => {
       }
 
       if (!["aprobada_laboratorio", "en_preparacion"].includes(status)) {
-        return res.status(403).json({ message: "Laboratorio solo puede aprobar o rechazar el analisis de muestra" });
+        return res.status(403).json({ message: "Laboratorio solo puede aprobar el analisis o devolver la muestra para correccion" });
       }
     }
 
@@ -475,6 +475,10 @@ export const putSampleBlend = async (req, res) => {
 
     const sample = await findSampleRequestById(req.params.id);
     if (!sample) return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+
+    if (req.user.role === "laboratory" && sample.status !== "pendiente_laboratorio") {
+      return res.status(409).json({ message: "Laboratorio solo puede ajustar el ensamble de muestras pendientes de analisis" });
+    }
 
     const items = req.body.items.map((item) => ({
       sampleItemId: Number(item.sampleItemId),
