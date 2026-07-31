@@ -83,10 +83,13 @@ const formatDate = (value) => {
   return [day, month, year].filter(Boolean).join("/");
 };
 
+/*
+  Precios de muestras desactivados. Se conserva la funcion para posible reactivacion comercial.
 const formatMoney = (currency, value) => {
   if (value === null || value === undefined || value === "") return "Gratis";
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
+*/
 
 const formatLabValue = (value) => {
   if (value === null || value === undefined || value === "") return "-";
@@ -359,7 +362,7 @@ const SamplesPage = () => {
         coffeeProfileId: form.coffeeProfileId ? Number(form.coffeeProfileId) : null,
         description: form.description || null,
         quantityGrams: Number(form.quantityGrams),
-        price: form.price === "" ? null : Number(form.price),
+        price: null,
       };
       const items = form.quantityGrams ? [...sampleItems, currentItem] : sampleItems;
       if (items.length === 0) throw new Error("Agregue al menos una muestra.");
@@ -400,7 +403,7 @@ const SamplesPage = () => {
           form.description,
         ].filter(Boolean).join(" - "),
         quantityGrams: Number(form.quantityGrams),
-        price: form.price === "" ? null : Number(form.price),
+        price: null,
       },
     ]);
     setForm((current) => ({ ...current, ...emptySampleItem }));
@@ -696,6 +699,7 @@ const SamplesPage = () => {
                 onChange={(event) => setForm({ ...form, quantityGrams: event.target.value })}
                 required={sampleItems.length === 0}
               />
+              {/* Precio de muestra desactivado: control comercial se hara en el software contable externo.
               <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -714,6 +718,7 @@ const SamplesPage = () => {
                   <option value="USD">USD</option>
                 </select>
               </div>
+              */}
               <button
                 className="inline-flex w-full items-center justify-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
                 type="button"
@@ -728,7 +733,7 @@ const SamplesPage = () => {
                     <div key={`${item.coffeeName}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                       <div>
                         <p className="font-medium text-ink">{item.coffeeName}</p>
-                        <p className="text-slate-500">{item.quantityGrams} g - {formatMoney(form.currency, item.price)}</p>
+                        <p className="text-slate-500">{item.quantityGrams} g</p>
                       </div>
                       <button
                         className="rounded p-2 text-rose-600 hover:bg-rose-50"
@@ -823,7 +828,7 @@ const SamplesPage = () => {
                     </div>
                     <div className="text-right text-sm text-slate-600">
                       <p>{sample.quantity_grams} g</p>
-                      <p>{formatMoney(sample.currency, sample.price)}</p>
+                      {/* Precio de muestra desactivado. */}
                       {hasCompleteSampleLabReview(sample) && (
                         <p>{sample.items.length} cafes analizados</p>
                       )}

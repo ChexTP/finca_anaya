@@ -35,6 +35,7 @@ const escapeHtml = (value) => {
 export const buildCommercialDocumentHtml = (document) => {
   const currency = document.totals?.currency || "COP";
   const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
+  const showCommercialAmounts = false;
   const rows = document.items
     ?.map((item) => {
       const description = item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-";
@@ -44,7 +45,7 @@ export const buildCommercialDocumentHtml = (document) => {
           <td><strong>${escapeHtml(item.productForm || "-")}</strong></td>
           <td>${escapeHtml(description)}</td>
           <td>${escapeHtml(item.processType || "-")}</td>
-          <td>${formatDocumentMoney(currency, item.unitPrice)}</td>
+          ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.unitPrice)}</td>` : ""}
           <td>${escapeHtml(item.quantityKg || "-")}</td>
         </tr>
       `;
@@ -126,12 +127,12 @@ export const buildCommercialDocumentHtml = (document) => {
           </div>
           <div class="company">
             <p>Date: ${formatDocumentDate(document.dates?.createdAt)}</p>
-            <p>${isQuote ? "Quotation" : "Invoice"} ${escapeHtml(document.code)}</p>
-            ${document.externalInvoiceReference ? `<p>Factura externa: ${escapeHtml(document.externalInvoiceReference)}</p>` : ""}
+            <p>Orden operativa ${escapeHtml(document.code)}</p>
+            <!-- Referencias de factura externa desactivadas: el documento queda como orden operativa. -->
           </div>
         </section>
 
-        <p class="intro">${isQuote ? "Tenemos el placer de compartirle la siguiente oferta:" : "Detalle interno de venta:"}</p>
+        <p class="intro">Detalle operativo del pedido para gestion interna de inventario, bodega y laboratorio.</p>
 
         <table>
           <thead>
@@ -140,7 +141,7 @@ export const buildCommercialDocumentHtml = (document) => {
               <th>PRESENTACION</th>
               <th>VARIETY</th>
               <th>PROCESS</th>
-              <th>KG-CPS</th>
+              ${showCommercialAmounts ? "<th>KG-CPS</th>" : ""}
               <th>QTY (Kg)</th>
             </tr>
           </thead>
@@ -149,21 +150,22 @@ export const buildCommercialDocumentHtml = (document) => {
 
         <table class="terms">
           <tbody>
-            <tr><td><strong>Anticipo:</strong></td><td>${escapeHtml(document.terms?.paymentTerms || "-")}</td></tr>
             <tr><td><strong>Tiempo de entrega:</strong></td><td>${formatDocumentDate(document.dates?.estimatedDeliveryDate || document.dates?.estimatedPaymentDate)}</td></tr>
             <tr><td><strong>Empaque:</strong></td><td>${escapeHtml(document.terms?.deliveryTerms || "-")}</td></tr>
-            <tr><td><strong>Pago:</strong></td><td>${escapeHtml(document.paymentStatus || document.status || "-")}</td></tr>
+            <tr><td><strong>Estado operativo:</strong></td><td>${escapeHtml(document.status || "-")}</td></tr>
+            <!-- Datos comerciales desactivados: pagos y bancos se manejan en software contable externo.
             <tr><td><strong>Datos Bancarios:</strong></td><td>Bancolombia - Ahorros - 453 0000 6876</td></tr>
+            -->
             <tr><td><strong>Empresa:</strong></td><td>${escapeHtml(companyBrand.legalName)}</td></tr>
             <tr><td><strong>Nit:</strong></td><td>${escapeHtml(companyBrand.nit)}</td></tr>
           </tbody>
         </table>
 
-        <div class="totals">
+        ${showCommercialAmounts ? `<div class="totals">
           <p><span>Subtotal</span><span>${formatDocumentMoney(currency, document.totals?.subtotal)}</span></p>
           <p><span>Envio</span><span>${formatDocumentMoney(currency, document.totals?.shippingCost)}</span></p>
           <p class="total"><span>Total</span><span>${formatDocumentMoney(currency, document.totals?.total)}</span></p>
-        </div>
+        </div>` : ""}
 
         ${
           labRows

@@ -8,6 +8,8 @@ import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeC
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
+const OPERATIONAL_ORDER_MODE = true;
+
 const initialQuote = {
   clientId: "",
   quoteType: "inventario_disponible",
@@ -82,6 +84,9 @@ const quoteFilters = [
   { key: "anulada", label: "Anuladas" },
 ];
 
+/*
+  Funciones de dinero conservadas para una posible reactivacion comercial.
+  En el modo actual las ordenes no manejan precios, pagos, facturas ni ganancia.
 const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
 const normalizeMoneyInput = (value) => {
@@ -116,6 +121,7 @@ const formatMoneyInput = (value) => {
   const formattedInteger = Number(integerPart || 0).toLocaleString("es-CO");
   return decimalPart !== undefined ? `${formattedInteger},${decimalPart}` : formattedInteger;
 };
+*/
 
 const CommercialPage = () => {
   const { user } = useAuth();
@@ -134,14 +140,9 @@ const CommercialPage = () => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const subtotal = useMemo(() => {
-    const savedItemsTotal = quoteItems.reduce((sum, item) => sum + Number(item.quantityKg) * Number(item.unitPrice), 0);
-    return savedItemsTotal + Number(itemForm.quantityKg || 0) * Number(itemForm.unitPrice || 0);
-  }, [itemForm.quantityKg, itemForm.unitPrice, quoteItems]);
-
-  const total = useMemo(() => {
-    return subtotal + Number(quoteForm.shippingCost || 0);
-  }, [subtotal, quoteForm.shippingCost]);
+  // Totales comerciales desactivados. Se conservan las columnas en BD con valor 0 para compatibilidad.
+  const subtotal = 0;
+  const total = 0;
 
   const itemOperationalKg = useMemo(() => {
     return calculateOperationalKg({
@@ -197,19 +198,16 @@ const CommercialPage = () => {
   };
 
   const selectProfile = (profileId) => {
-    const profile = catalogs?.coffeeProfiles?.find((currentProfile) => String(currentProfile.id) === String(profileId));
-    const basePrice = quoteForm.currency === "USD" ? profile?.base_price_usd : profile?.base_price_cop;
-
     setItemForm({
       ...itemForm,
       coffeeProfileId: profileId,
-      unitPrice: basePrice && Number(basePrice) > 0 ? String(basePrice) : itemForm.unitPrice,
+      unitPrice: OPERATIONAL_ORDER_MODE ? "0" : itemForm.unitPrice,
     });
   };
 
   const buildItem = () => {
-    if (!itemForm.quantityKg || itemForm.unitPrice === "") {
-      throw new Error("Cada cafe debe tener cantidad y precio por kg.");
+    if (!itemForm.quantityKg) {
+      throw new Error("Cada cafe debe tener cantidad.");
     }
 
     if (itemForm.itemType !== "description" && !itemForm.coffeeProfileId) {
@@ -227,7 +225,7 @@ const CommercialPage = () => {
         productForm: itemForm.productForm,
         processType: itemForm.processType,
       }),
-      unitPrice: Number(itemForm.unitPrice),
+      unitPrice: OPERATIONAL_ORDER_MODE ? 0 : Number(itemForm.unitPrice),
       description: itemForm.description || null,
       productForm: itemForm.productForm,
       processType: itemForm.processType,
@@ -256,13 +254,23 @@ const CommercialPage = () => {
 
     try {
       const items = itemForm.quantityKg ? [...quoteItems, buildItem()] : quoteItems;
-      if (items.length === 0) throw new Error("Agregue al menos un cafe a la cotizacion.");
-      const response = await apiRequest("/quotes", {
+      if (items.length === 0) throw new Error("Agregue al menos un cafe a la orden.");
+      const response = await apiRequest("/sales/direct", {
         method: "POST",
         body: JSON.stringify({
-          ...quoteForm,
           clientId: Number(quoteForm.clientId),
-          shippingCost: Number(quoteForm.shippingCost || 0),
+          sellerId: user.id,
+          paymentStatus: "pagada",
+          currency: "COP",
+          shippingCost: 0,
+          amountPaid: 0,
+          estimatedDeliveryDate: quoteForm.estimatedDeliveryDate,
+          estimatedPaymentDate: null,
+          externalInvoiceReference: null,
+          paymentMethodId: null,
+          paymentReference: null,
+          paidAt: null,
+          notes: quoteForm.notes || null,
           items,
         }),
       });
@@ -270,8 +278,8 @@ const CommercialPage = () => {
       setItemForm(initialItem);
       setQuoteItems([]);
       await loadData();
-      setSelectedQuote(response.data);
-      setMessage("Cotizacion creada correctamente. Ya puede descargar el PDF desde el detalle.");
+      setSelectedQuote(null);
+      setMessage(`Orden operativa ${response.data?.code || ""} creada y enviada a bodega.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -299,7 +307,7 @@ const CommercialPage = () => {
       setShowQuickClient(false);
       await loadData();
       setQuoteForm((currentForm) => ({ ...currentForm, clientId: String(createdClient.id) }));
-      setMessage("Cliente creado y seleccionado para la cotizacion.");
+      setMessage("Cliente creado y seleccionado para la orden.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -312,15 +320,15 @@ const CommercialPage = () => {
     setSelectedQuote(quote);
     setSaleForm({
       ...initialSale,
-      amountPaid: quote.status === "aceptada" ? String(quote.total) : "0",
-      paymentStatus: quote.status === "aceptada" ? "pagada" : "pendiente_pago",
+      amountPaid: "0",
+      paymentStatus: "pagada",
     });
     setMessage("");
     setError("");
   };
 
   const updateQuoteStatus = async (quote, status) => {
-    const confirmed = window.confirm(`Confirma cambiar la cotizacion ${quote.code} a ${status}?`);
+    const confirmed = window.confirm(`Confirma cambiar la orden ${quote.code} a ${status}?`);
 
     if (!confirmed) {
       return;
@@ -337,7 +345,7 @@ const CommercialPage = () => {
       });
       await loadData();
       await loadQuoteDetail(quote.id);
-      setMessage("Estado de cotizacion actualizado.");
+      setMessage("Estado de orden actualizado.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -353,7 +361,7 @@ const CommercialPage = () => {
     try {
       const document = await apiRequest(`/documents/quotes/${quoteId}`);
       openCommercialDocumentPrint(document);
-      setMessage("Cotizacion abierta para imprimir o guardar como PDF.");
+      setMessage("Orden abierta para imprimir o guardar como PDF.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -365,11 +373,11 @@ const CommercialPage = () => {
     event.preventDefault();
 
     if (!selectedQuote) {
-      setError("Seleccione una cotizacion aceptada.");
+      setError("Seleccione una orden aceptada.");
       return;
     }
 
-    const confirmed = window.confirm(`Confirma convertir ${selectedQuote.code} en venta?`);
+    const confirmed = window.confirm(`Confirma enviar ${selectedQuote.code} como orden operativa a bodega?`);
 
     if (!confirmed) {
       return;
@@ -383,14 +391,19 @@ const CommercialPage = () => {
       await apiRequest(`/sales/from-quote/${selectedQuote.id}`, {
         method: "POST",
         body: JSON.stringify({
-          ...saleForm,
-          amountPaid: Number(normalizeMoneyInput(saleForm.amountPaid) || 0),
-          paymentMethodId: saleForm.paymentMethodId ? Number(saleForm.paymentMethodId) : null,
+          notes: saleForm.notes,
+          paymentStatus: "pagada",
+          amountPaid: 0,
+          estimatedPaymentDate: null,
+          externalInvoiceReference: null,
+          paymentMethodId: null,
+          paymentReference: null,
+          paidAt: null,
         }),
       });
       await loadData();
       await loadQuoteDetail(selectedQuote.id);
-      setMessage("Cotizacion convertida en venta correctamente.");
+      setMessage("Orden enviada a bodega correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -402,8 +415,8 @@ const CommercialPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Comercial</h1>
-          <p className="text-sm text-slate-500">Cotizaciones, preventas y seguimiento comercial.</p>
+          <h1 className="text-xl font-bold text-ink">Ordenes</h1>
+          <p className="text-sm text-slate-500">Pedidos operativos para revisar y enviar a bodega.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -422,7 +435,7 @@ const CommercialPage = () => {
           <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={createQuote}>
             <div className="flex items-center gap-2">
               <Plus size={17} className="text-leaf" />
-              <h2 className="text-sm font-semibold text-slate-800">Nueva cotizacion</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Nueva orden operativa</h2>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -463,6 +476,7 @@ const CommercialPage = () => {
                 <option value="enviada">Enviada</option>
                 <option value="aceptada">Aceptada</option>
               </select>
+              {/* Campos comerciales desactivados: moneda, costo de envio y condiciones de pago se manejan en software contable externo.
               <select
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 value={quoteForm.currency}
@@ -479,6 +493,7 @@ const CommercialPage = () => {
                 value={quoteForm.shippingCost}
                 onChange={(event) => setQuoteForm({ ...quoteForm, shippingCost: event.target.value })}
               />
+              */}
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 type="date"
@@ -487,12 +502,14 @@ const CommercialPage = () => {
                 required
                 aria-label="Fecha de entrega"
               />
+              {/* Campo comercial desactivado: condiciones de pago se manejan fuera del sistema.
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Condiciones de pago"
                 value={quoteForm.paymentTerms}
                 onChange={(event) => setQuoteForm({ ...quoteForm, paymentTerms: event.target.value })}
               />
+              */}
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Condiciones de entrega"
@@ -642,6 +659,7 @@ const CommercialPage = () => {
                   value={itemForm.quantityKg}
                   onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })}
                 />
+                {/* Precio desactivado: la orden operativa solo necesita tipo, presentacion y cantidad.
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                   placeholder="Precio por kg"
@@ -650,6 +668,7 @@ const CommercialPage = () => {
                   value={itemForm.unitPrice}
                   onChange={(event) => setItemForm({ ...itemForm, unitPrice: event.target.value })}
                 />
+                */}
               </div>
               {Number(itemForm.quantityKg || 0) > 0 && (
                 <div className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -697,10 +716,12 @@ const CommercialPage = () => {
                 <Plus size={16} />
                 Agregar otro cafe
               </button>
+              {/* Totales comerciales desactivados por integracion con software contable externo.
               <div className="mt-3 rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 Subtotal: <span className="font-semibold text-ink">{formatMoney(quoteForm.currency, subtotal)}</span> · Total:{" "}
                 <span className="font-semibold text-ink">{formatMoney(quoteForm.currency, total)}</span>
               </div>
+              */}
             </div>
 
             <textarea
@@ -711,7 +732,7 @@ const CommercialPage = () => {
             />
             <button className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
               <Save size={16} />
-              Guardar cotizacion
+              Guardar orden
             </button>
           </form>
 
@@ -737,7 +758,7 @@ const CommercialPage = () => {
             </div>
             {filteredQuotes.length === 0 ? (
               <div className="p-4">
-                <EmptyState title="Sin cotizaciones" message="Las cotizaciones del vendedor apareceran aqui." />
+                <EmptyState title="Sin ordenes" message="Las ordenes operativas apareceran aqui." />
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -749,7 +770,7 @@ const CommercialPage = () => {
                       <th className="px-3 py-2">Tipo</th>
                       <th className="px-3 py-2">Estado</th>
                       <th className="px-3 py-2">Siguiente paso</th>
-                      <th className="px-3 py-2">Total</th>
+                      {/* Total comercial desactivado. */}
                       <th className="px-3 py-2">Accion</th>
                     </tr>
                   </thead>
@@ -763,7 +784,7 @@ const CommercialPage = () => {
                           <StatusBadge>{quoteStatusLabels[quote.status] || quote.status}</StatusBadge>
                         </td>
                         <td className="px-3 py-2 text-slate-600">{getQuoteNextAction(quote)}</td>
-                        <td className="px-3 py-2">{formatMoney(quote.currency, quote.total)}</td>
+                        {/* <td className="px-3 py-2">{formatMoney(quote.currency, quote.total)}</td> */}
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-2">
                             <button
@@ -798,7 +819,7 @@ const CommercialPage = () => {
           <h2 className="text-sm font-semibold text-slate-800">Detalle</h2>
           {!selectedQuote ? (
             <div className="mt-3">
-              <EmptyState title="Seleccione una cotizacion" message="Aqui vera productos y cambios de estado." />
+              <EmptyState title="Seleccione una orden" message="Aqui vera productos y cambios de estado." />
             </div>
           ) : (
             <div className="mt-4 space-y-4">
@@ -810,11 +831,13 @@ const CommercialPage = () => {
                   {getQuoteNextAction(selectedQuote)}
                 </p>
               </div>
+              {/* Resumen comercial desactivado: precios, envio y total se gestionan en software contable.
               <div className="rounded bg-slate-50 p-3 text-sm">
                 <p className="text-slate-500">Subtotal: {formatMoney(selectedQuote.currency, selectedQuote.subtotal)}</p>
                 <p className="text-slate-500">Envio: {formatMoney(selectedQuote.currency, selectedQuote.shipping_cost)}</p>
                 <p className="font-semibold text-ink">Total: {formatMoney(selectedQuote.currency, selectedQuote.total)}</p>
               </div>
+              */}
               <button
                 className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
                 disabled={saving}
@@ -822,7 +845,7 @@ const CommercialPage = () => {
                 type="button"
               >
                 <FileDown size={17} />
-                Imprimir / guardar PDF de cotizacion
+                Imprimir / guardar orden operativa
               </button>
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
@@ -834,7 +857,7 @@ const CommercialPage = () => {
                     <p className="text-slate-500">
                       <span className="font-semibold text-slate-700">{item.product_form || "Sin presentacion"}</span>
                       {" · "}
-                      {[item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantity_kg} kg · {formatMoney(selectedQuote.currency, item.unit_price)}
+                      {[item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {item.quantity_kg} kg
                       {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg)
                         ? ` · ${item.operational_weight_kg} kg operativos`
                         : ""}
@@ -873,7 +896,8 @@ const CommercialPage = () => {
 
               {canConvertToSale && selectedQuote.status === "aceptada" && (
                 <form className="space-y-3 border-t border-slate-200 pt-4" onSubmit={convertQuoteToSale}>
-                  <p className="text-xs font-semibold uppercase text-slate-500">Convertir en venta</p>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Enviar orden a bodega</p>
+                  {/* Datos comerciales desactivados: pagos, factura externa y metodo de pago se manejan en software contable.
                   <select
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     value={saleForm.paymentStatus}
@@ -928,15 +952,16 @@ const CommercialPage = () => {
                     value={saleForm.paidAt}
                     onChange={(event) => setSaleForm({ ...saleForm, paidAt: event.target.value })}
                   />
+                  */}
                   <textarea
                     className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Notas de venta"
+                    placeholder="Notas operativas para bodega"
                     value={saleForm.notes}
                     onChange={(event) => setSaleForm({ ...saleForm, notes: event.target.value })}
                   />
                   <button className="inline-flex w-full items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
                     <Save size={16} />
-                    Crear venta
+                    Enviar a bodega
                   </button>
                 </form>
               )}

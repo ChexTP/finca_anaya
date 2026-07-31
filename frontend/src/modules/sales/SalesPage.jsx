@@ -249,20 +249,20 @@ const paymentFilters = [
 
 const roleCopy = {
   accounting: {
-    title: "Ventas y pagos",
-    subtitle: "Seguimiento de ventas, cartera, abonos y referencias.",
-    detailTitle: "Detalle financiero",
-    empty: "Seleccione una venta para revisar pagos, saldo y soporte operativo.",
+    title: "Ordenes operativas",
+    subtitle: "Seguimiento de pedidos, bodega, laboratorio y despacho.",
+    detailTitle: "Detalle operativo",
+    empty: "Seleccione una orden para revisar productos, lotes y soporte operativo.",
   },
   warehouse: {
     title: "Despachos",
-    subtitle: "Ventas que requieren alistamiento, orden de mezcla o despacho.",
+    subtitle: "Ordenes que requieren alistamiento, orden de mezcla o despacho.",
     detailTitle: "Detalle para bodega",
     empty: "Seleccione una venta para ver lotes, cantidades y orden de alistamiento.",
   },
   seller: {
-    title: "Seguimiento de ventas",
-    subtitle: "Estado de las ventas asociadas a sus cotizaciones.",
+    title: "Seguimiento de ordenes",
+    subtitle: "Estado de las ordenes asociadas a sus solicitudes.",
     detailTitle: "Seguimiento comercial",
     empty: "Seleccione una venta para ver su estado general.",
   },
@@ -301,13 +301,15 @@ const SalesPage = () => {
   }, [selectedSale?.id]);
 
   const canManageDispatch = ["admin", "accounting", "warehouse"].includes(user?.role);
-  const showFinancialData = ["admin", "accounting"].includes(user?.role);
-  const canEditCodes = user?.role === "admin";
+  const canManageOrderAssignee = ["admin", "accounting"].includes(user?.role);
+  // Datos financieros desactivados: pagos, totales y saldos se manejan en software contable externo.
+  const showFinancialData = false;
+  const canEditCodes = ["admin", "accounting"].includes(user?.role);
   const pageCopy = roleCopy[user?.role] || {
-    title: "Ventas",
+    title: "Ordenes",
     subtitle: "Alistamiento, despacho y seguimiento operativo.",
-    detailTitle: "Detalle de venta",
-    empty: "Seleccione una venta para revisar su informacion.",
+    detailTitle: "Detalle de orden",
+    empty: "Seleccione una orden para revisar su informacion.",
   };
 
   const saleCounts = useMemo(() => {
@@ -337,7 +339,7 @@ const SalesPage = () => {
 
     return sales.filter((sale) => {
       const matchesStatus = statusFilter === "all" || getOperationalFilterKey(sale.status) === statusFilter;
-      const matchesPayment = paymentFilter === "all" || sale.payment_status === paymentFilter;
+      const matchesPayment = !showFinancialData || paymentFilter === "all" || sale.payment_status === paymentFilter;
       const matchesAssignee = assigneeFilter === "all" || (sale.order_assignee || "Sin encargado") === assigneeFilter;
       const matchesSearch = !searchTerm || [
         sale.code,
@@ -354,7 +356,7 @@ const SalesPage = () => {
 
       return matchesStatus && matchesPayment && matchesAssignee && matchesSearch;
     });
-  }, [sales, statusFilter, paymentFilter, assigneeFilter, saleCodeSearch]);
+  }, [sales, statusFilter, paymentFilter, assigneeFilter, saleCodeSearch, showFinancialData]);
 
   const assigneeOptions = useMemo(() => {
     return [...new Set(sales.map((sale) => sale.order_assignee || "Sin encargado"))].sort((left, right) =>
@@ -632,7 +634,7 @@ const SalesPage = () => {
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-800">Ventas registradas</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Ordenes registradas</h2>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {operationalFilters.map((filter) => (
                 <button
@@ -663,7 +665,7 @@ const SalesPage = () => {
                 ))}
               </div>
             )}
-            {showFinancialData && (
+            {canManageOrderAssignee && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold uppercase text-slate-500">Encargado</span>
                 <select
@@ -683,7 +685,7 @@ const SalesPage = () => {
             {canEditCodes && (
               <input
                 className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Buscar ventas por codigo, cliente, cotizacion, encargado o estado"
+                placeholder="Buscar ordenes por codigo, cliente, cotizacion, encargado o estado"
                 value={saleCodeSearch}
                 onChange={(event) => setSaleCodeSearch(event.target.value)}
               />
@@ -691,7 +693,7 @@ const SalesPage = () => {
           </div>
           {filteredSales.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin ventas" message="Las ventas creadas desde cotizacion o directas apareceran aqui." />
+              <EmptyState title="Sin ordenes" message="Las ordenes creadas desde este modulo apareceran aqui." />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -702,7 +704,7 @@ const SalesPage = () => {
                     <th className="px-3 py-2">Cliente</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Siguiente accion</th>
-                    {showFinancialData && <th className="px-3 py-2">Encargado</th>}
+                    {canManageOrderAssignee && <th className="px-3 py-2">Encargado</th>}
                     {showFinancialData && <th className="px-3 py-2">Pago</th>}
                     {showFinancialData && <th className="px-3 py-2">Total</th>}
                     <th className="px-3 py-2">Accion</th>
@@ -717,7 +719,7 @@ const SalesPage = () => {
                         <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </td>
                       <td className="px-3 py-2 text-slate-600">{getSaleNextAction(sale)}</td>
-                      {showFinancialData && <td className="px-3 py-2">{sale.order_assignee || "-"}</td>}
+                      {canManageOrderAssignee && <td className="px-3 py-2">{sale.order_assignee || "-"}</td>}
                       {showFinancialData && <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>}
                       {showFinancialData && <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>}
                       <td className="px-3 py-2">
@@ -780,7 +782,7 @@ const SalesPage = () => {
                 </p>
               </div>
 
-              {showFinancialData && (
+              {canManageOrderAssignee && (
                 <div className="rounded border border-slate-200 p-3">
                   <label className="text-xs font-semibold uppercase text-slate-500">Encargado de pedido</label>
                   <div className="mt-2 flex gap-2">

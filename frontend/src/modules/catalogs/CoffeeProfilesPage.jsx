@@ -10,6 +10,7 @@ const initialProfile = {
   category: "",
   components: [{ purchaseCoffeeId: "" }],
   basePurchaseCoffeeId: "",
+  // Campos de precio conservados en BD para compatibilidad, pero ocultos en el flujo operativo actual.
   basePriceCop: "",
   basePriceUsd: "",
   isActive: true,
@@ -134,8 +135,8 @@ const CoffeeProfilesPage = () => {
             purchaseCoffeeId: Number(component.purchaseCoffeeId),
           })),
         basePurchaseCoffeeId: form.basePurchaseCoffeeId ? Number(form.basePurchaseCoffeeId) : null,
-        basePriceCop: Number(form.basePriceCop || 0),
-        basePriceUsd: Number(form.basePriceUsd || 0),
+        basePriceCop: 0,
+        basePriceUsd: 0,
       };
 
       if (selectedProfile) {
@@ -224,8 +225,7 @@ const CoffeeProfilesPage = () => {
                     <th className="px-4 py-3">Categoria</th>
                     <th className="px-4 py-3">Componentes</th>
                     <th className="px-4 py-3">Base principal</th>
-                    <th className="px-4 py-3">COP</th>
-                    <th className="px-4 py-3">USD</th>
+                    {/* Precios desactivados: se manejan en el software contable externo. */}
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3 text-right">Accion</th>
                   </tr>
@@ -240,8 +240,7 @@ const CoffeeProfilesPage = () => {
                         {formatComponentSummary(profile)}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{formatBaseSummary(profile)}</td>
-                      <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_cop || 0).toLocaleString("es-CO")}</td>
-                      <td className="px-4 py-3 text-slate-600">{Number(profile.base_price_usd || 0).toLocaleString("es-CO")}</td>
+                      {/* Precios desactivados: se manejan en el software contable externo. */}
                       <td className="px-4 py-3">
                         <StatusBadge tone={profile.is_active ? "success" : "danger"}>
                           {profile.is_active ? "activo" : "inactivo"}
@@ -303,6 +302,7 @@ const CoffeeProfilesPage = () => {
               <option value="Varietal">Varietal</option>
               <option value="Exotico">Exotico</option>
             </select>
+            {/* Precios desactivados: se conservan en codigo solo por si se reactiva el modulo comercial.
             <div className="grid gap-3 sm:grid-cols-2">
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -321,6 +321,7 @@ const CoffeeProfilesPage = () => {
                 onChange={(event) => setForm({ ...form, basePriceUsd: event.target.value })}
               />
             </div>
+            */}
             <div className="min-w-0 overflow-hidden rounded border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs font-semibold uppercase text-amber-900">Componente principal</p>
               <div className="mt-3 grid gap-3">

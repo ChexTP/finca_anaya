@@ -21,17 +21,17 @@ const router = Router();
 
 router.get("/", requireAuth, getLots);
 router.get("/:id", requireAuth, getLot);
-router.post("/received", requireAuth, requireRoles("admin", "warehouse"), postReceivedLot);
-router.post("/stock-entry", requireAuth, requireRoles("admin", "warehouse"), postStockEntry);
-router.post("/initial-load", requireAuth, requireRoles("admin"), postInitialLoad);
-router.put("/:id/code", requireAuth, requireRoles("admin", "warehouse"), putLotCode);
-router.put("/:id/admin-data", requireAuth, requireRoles("admin", "warehouse"), putLotAdminData);
-router.put("/:id/reception", requireAuth, requireRoles("admin", "warehouse"), putReceptionData);
-router.put("/:id/lab-review", requireAuth, requireRoles("admin", "laboratory"), putLabReview);
-router.put("/:id/lab-data", requireAuth, requireRoles("admin", "laboratory"), putLabData);
-router.put("/:id/physical-review", requireAuth, requireRoles("admin", "warehouse"), putPhysicalReview);
+router.post("/received", requireAuth, requireRoles("admin", "accounting", "warehouse"), postReceivedLot);
+router.post("/stock-entry", requireAuth, requireRoles("admin", "accounting", "warehouse"), postStockEntry);
+router.post("/initial-load", requireAuth, requireRoles("admin", "accounting"), postInitialLoad);
+router.put("/:id/code", requireAuth, requireRoles("admin", "accounting", "warehouse"), putLotCode);
+router.put("/:id/admin-data", requireAuth, requireRoles("admin", "accounting", "warehouse"), putLotAdminData);
+router.put("/:id/reception", requireAuth, requireRoles("admin", "accounting", "warehouse"), putReceptionData);
+router.put("/:id/lab-review", requireAuth, requireRoles("admin", "accounting", "laboratory"), putLabReview);
+router.put("/:id/lab-data", requireAuth, requireRoles("admin", "accounting", "laboratory"), putLabData);
+router.put("/:id/physical-review", requireAuth, requireRoles("admin", "accounting", "warehouse"), putPhysicalReview);
 router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting"), putLiquidation);
 router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting"), putPurchase);
-router.put("/:id/withdraw-rejected", requireAuth, requireRoles("admin", "warehouse"), putRejectedLotWithdrawal);
+router.put("/:id/withdraw-rejected", requireAuth, requireRoles("admin", "accounting", "warehouse"), putRejectedLotWithdrawal);
 
 export default router;

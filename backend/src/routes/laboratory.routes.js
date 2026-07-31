@@ -4,6 +4,6 @@ import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.get("/history", requireAuth, requireRoles("admin", "laboratory"), getLaboratoryHistory);
+router.get("/history", requireAuth, requireRoles("admin", "accounting", "laboratory"), getLaboratoryHistory);
 
 export default router;

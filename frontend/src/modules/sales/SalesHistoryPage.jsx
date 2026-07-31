@@ -5,9 +5,10 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
-import { paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
+import { saleStatusLabels } from "../../utils/workflow";
 
-const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
+// Datos financieros desactivados: el historico conserva trazabilidad operativa sin pagos ni totales.
+// const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -37,7 +38,7 @@ const SalesHistoryPage = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const canEditCodes = user?.role === "admin";
+  const canEditCodes = ["admin", "accounting"].includes(user?.role);
 
   const loadSales = async () => {
     setError("");
@@ -166,8 +167,8 @@ const SalesHistoryPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Historico de ventas</h1>
-          <p className="text-sm text-slate-500">Consulta ventas, clientes, productos y analisis de laboratorio.</p>
+          <h1 className="text-xl font-bold text-ink">Historico de ordenes</h1>
+          <p className="text-sm text-slate-500">Consulta ordenes, clientes, productos y analisis de laboratorio.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -184,7 +185,7 @@ const SalesHistoryPage = () => {
       <div className="grid gap-5">
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-800">Ventas registradas</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Ordenes registradas</h2>
             <div className="mt-3 grid gap-2 md:grid-cols-3">
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -209,7 +210,7 @@ const SalesHistoryPage = () => {
 
           {filteredSales.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin ventas" message="No hay ventas para los filtros seleccionados." />
+              <EmptyState title="Sin ordenes" message="No hay ordenes para los filtros seleccionados." />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -220,8 +221,7 @@ const SalesHistoryPage = () => {
                     <th className="px-3 py-2">Cliente</th>
                     <th className="px-3 py-2">Fecha</th>
                     <th className="px-3 py-2">Estado</th>
-                    <th className="px-3 py-2">Pago</th>
-                    <th className="px-3 py-2">Total</th>
+                    {/* Pago y total desactivados por integracion con software contable externo. */}
                     <th className="px-3 py-2">Accion</th>
                   </tr>
                 </thead>
@@ -236,8 +236,8 @@ const SalesHistoryPage = () => {
                           <td className="px-3 py-2">{sale.client_name}</td>
                           <td className="px-3 py-2">{formatDate(sale.created_at)}</td>
                           <td className="px-3 py-2"><StatusBadge>{saleStatusLabels[sale.status] || sale.status}</StatusBadge></td>
-                          <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>
-                          <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td>
+                          {/* <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>
+                          <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td> */}
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-2">
                               <button

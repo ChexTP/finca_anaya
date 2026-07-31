@@ -18,10 +18,13 @@ const formatDate = (value) => {
   return [day, month, year].filter(Boolean).join("/");
 };
 
+/*
+  Precios de muestras desactivados por integracion con software contable externo.
 const formatMoney = (currency, value) => {
   if (value === null || value === undefined || value === "") return "Gratis";
   return `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 };
+*/
 
 const formatLabValue = (value) => {
   if (value === null || value === undefined || value === "") return "-";
@@ -47,9 +50,11 @@ const formatRequestedCoffee = (item) => {
     .join(" - ") || "Cafe sin especificar";
 };
 
+/* Historico financiero de muestras desactivado.
 const getSampleTotal = (sample) => {
   return (sample.items || []).reduce((total, item) => total + Number(item.price || 0), 0);
 };
+*/
 
 const buildItemLabLines = (item) => {
   if ([
@@ -143,7 +148,7 @@ const SamplesHistoryPage = () => {
       (summary, sample) => ({
         count: summary.count + 1,
         grams: summary.grams + (sample.items || []).reduce((total, item) => total + Number(item.quantity_grams || 0), 0),
-        charged: summary.charged + getSampleTotal(sample),
+        charged: summary.charged,
       }),
       { count: 0, grams: 0, charged: 0 }
     );
@@ -258,10 +263,12 @@ const SamplesHistoryPage = () => {
           <p className="text-sm text-slate-500">Gramos enviados</p>
           <p className="mt-2 text-2xl font-bold text-ink">{totals.grams.toLocaleString("es-CO")} g</p>
         </div>
+        {/* Resumen comercial desactivado.
         <div className="rounded border border-slate-200 bg-white p-4">
           <p className="text-sm text-slate-500">Valor cobrado registrado</p>
           <p className="mt-2 text-2xl font-bold text-ink">COP {totals.charged.toLocaleString("es-CO")}</p>
         </div>
+        */}
       </div>
 
       <div className="rounded border border-slate-200 bg-white">
@@ -321,7 +328,7 @@ const SamplesHistoryPage = () => {
                             {(sample.items || []).map((item) => (
                               <div key={item.id} className="rounded border border-slate-200 bg-white p-3 text-sm">
                                 <p className="font-medium text-ink">{formatRequestedCoffee(item)}</p>
-                                <p className="text-slate-500">{Number(item.quantity_grams || 0).toLocaleString("es-CO")} g · {formatMoney(sample.currency, item.price)}</p>
+                                <p className="text-slate-500">{Number(item.quantity_grams || 0).toLocaleString("es-CO")} g</p>
                               </div>
                             ))}
                           </div>

@@ -35,11 +35,11 @@ router.get(
 router.delete(
   "/lot-assignments/:assignmentId",
   requireAuth,
-  requireRoles("admin", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse", "laboratory"),
   deleteSaleLotAssignment
 );
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
-router.put("/:id/code", requireAuth, requireRoles("admin"), putSaleCode);
+router.put("/:id/code", requireAuth, requireRoles("admin", "accounting"), putSaleCode);
 router.post(
   "/from-quote/:quoteId",
   requireAuth,
@@ -61,7 +61,7 @@ router.put(
 router.put(
   "/:id/lab-review",
   requireAuth,
-  requireRoles("admin", "laboratory"),
+  requireRoles("admin", "accounting", "laboratory"),
   putSaleLabReview
 );
 router.put(
@@ -85,25 +85,25 @@ router.put(
 router.put(
   "/:id/request-blend",
   requireAuth,
-  requireRoles("admin", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse", "laboratory"),
   putSaleReadyForBlend
 );
 router.put(
   "/:id/blend-order",
   requireAuth,
-  requireRoles("admin", "laboratory"),
+  requireRoles("admin", "accounting", "laboratory"),
   putSaleBlendOrder
 );
 router.put(
   "/:id/without-blend",
   requireAuth,
-  requireRoles("admin", "laboratory"),
+  requireRoles("admin", "accounting", "laboratory"),
   putSaleWithoutBlend
 );
 router.put(
   "/:id/priority",
   requireAuth,
-  requireRoles("admin", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse", "laboratory"),
   putSalePriority
 );
 router.put(
@@ -121,7 +121,7 @@ router.put(
 router.put(
   "/:id/lot-assignments",
   requireAuth,
-  requireRoles("admin", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse", "laboratory"),
   putSaleLotAssignments
 );
 router.post(

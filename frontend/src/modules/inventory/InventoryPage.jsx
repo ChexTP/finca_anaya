@@ -92,7 +92,7 @@ const InventoryPage = () => {
 
   const canRegisterPurchase = ["admin", "accounting"].includes(user?.role);
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
-  const canEditCodes = ["admin", "warehouse"].includes(user?.role);
+  const canEditCodes = ["admin", "accounting", "warehouse"].includes(user?.role);
 
   const loadData = async () => {
     const requests = [

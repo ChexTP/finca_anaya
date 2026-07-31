@@ -24,7 +24,7 @@ router.post(
 router.post(
   "/lots/:lotId/sample-output",
   requireAuth,
-  requireRoles("admin", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse"),
   postSampleInventoryOutput
 );
 

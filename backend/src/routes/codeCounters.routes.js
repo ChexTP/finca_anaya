@@ -7,7 +7,7 @@ import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.get("/", requireAuth, requireRoles("admin", "warehouse"), getCodeCounters);
-router.put("/:prefix", requireAuth, requireRoles("admin", "warehouse"), putCodeCounter);
+router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse"), getCodeCounters);
+router.put("/:prefix", requireAuth, requireRoles("admin", "accounting", "warehouse"), putCodeCounter);
 
 export default router;

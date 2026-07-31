@@ -11,13 +11,14 @@ import PurchaseCoffeesPage from "./modules/catalogs/PurchaseCoffeesPage";
 import ClientsPage from "./modules/clients/ClientsPage";
 import CommercialPage from "./modules/commercial/CommercialPage";
 import DashboardPage from "./modules/dashboard/DashboardPage";
-import DocumentsPage from "./modules/documents/DocumentsPage";
+// Modulo comercial desactivado visualmente: documentos con precios/facturas quedan fuera del flujo operativo.
+// import DocumentsPage from "./modules/documents/DocumentsPage";
 import InventoryPage from "./modules/inventory/InventoryPage";
 import LaboratoryPage from "./modules/laboratory/LaboratoryPage";
 import ManagementPage from "./modules/management/ManagementPage";
-import PayablesPage from "./modules/payables/PayablesPage";
+// import PayablesPage from "./modules/payables/PayablesPage";
 import ProcessesPage from "./modules/processes/ProcessesPage";
-import ReportsPage from "./modules/reports/ReportsPage";
+// import ReportsPage from "./modules/reports/ReportsPage";
 import SalesHistoryPage from "./modules/sales/SalesHistoryPage";
 import SalesPage from "./modules/sales/SalesPage";
 import SamplesHistoryPage from "./modules/samples/SamplesHistoryPage";
@@ -74,7 +75,7 @@ const App = () => {
         <Route
           path="/procesos"
           element={
-            <ProtectedRoute roles={["admin", "warehouse", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
               <ProcessesPage />
             </ProtectedRoute>
           }
@@ -82,7 +83,7 @@ const App = () => {
         <Route
           path="/trilladora"
           element={
-            <ProtectedRoute roles={["admin", "warehouse", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
               <ProcessesPage
                 fixedProcessType="Trilladora"
                 title="Trilladora"
@@ -94,7 +95,7 @@ const App = () => {
         <Route
           path="/seleccionadora"
           element={
-            <ProtectedRoute roles={["admin", "warehouse", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
               <ProcessesPage
                 fixedProcessType="Seleccion electronica"
                 title="Seleccionadora"
@@ -106,7 +107,7 @@ const App = () => {
         <Route
           path="/bodega"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <WarehousePage />
             </ProtectedRoute>
           }
@@ -114,7 +115,7 @@ const App = () => {
         <Route
           path="/bodega/pendientes"
           element={
-            <ProtectedRoute roles={["admin", "warehouse", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
               <WarehousePendingPage />
             </ProtectedRoute>
           }
@@ -130,7 +131,7 @@ const App = () => {
         <Route
           path="/bodega/historico-aceptados"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <LotHistoryPage type="accepted" />
             </ProtectedRoute>
           }
@@ -138,7 +139,7 @@ const App = () => {
         <Route
           path="/bodega/historico-rechazados"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <LotHistoryPage type="rejected" />
             </ProtectedRoute>
           }
@@ -146,7 +147,7 @@ const App = () => {
         <Route
           path="/proveedores"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <SuppliersPage />
             </ProtectedRoute>
           }
@@ -154,7 +155,7 @@ const App = () => {
         <Route
           path="/laboratorio"
           element={
-            <ProtectedRoute roles={["admin", "laboratory"]}>
+            <ProtectedRoute roles={["admin", "accounting", "laboratory"]}>
               <LaboratoryPage />
             </ProtectedRoute>
           }
@@ -170,7 +171,7 @@ const App = () => {
         <Route
           path="/comercial"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "seller"]}>
+            <ProtectedRoute roles={["admin", "accounting"]}>
               <CommercialPage />
             </ProtectedRoute>
           }
@@ -207,6 +208,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        {/* Modulo contable desactivado: pagos de lotes se manejan fuera del sistema.
         <Route
           path="/cuentas-por-pagar"
           element={
@@ -215,6 +217,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        */}
         <Route
           path="/clientes"
           element={
@@ -223,6 +226,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        {/* Reportes financieros desactivados: el sistema queda enfocado en inventario y operacion.
         <Route
           path="/reportes"
           element={
@@ -231,6 +235,8 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        */}
+        {/* Documentos comerciales/facturas desactivados; las ordenes operativas se imprimen desde pedidos/ventas.
         <Route
           path="/documentos"
           element={
@@ -239,6 +245,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        */}
         <Route
           path="/backups"
           element={
@@ -250,7 +257,7 @@ const App = () => {
         <Route
           path="/usuarios"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={["admin", "accounting"]}>
               <UsersPage />
             </ProtectedRoute>
           }
@@ -258,7 +265,7 @@ const App = () => {
         <Route
           path="/perfiles-cafe"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <CoffeeProfilesPage />
             </ProtectedRoute>
           }
@@ -266,7 +273,7 @@ const App = () => {
         <Route
           path="/perfiles-compra"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <PurchaseCoffeesPage />
             </ProtectedRoute>
           }
@@ -274,7 +281,7 @@ const App = () => {
         <Route
           path="/consecutivos"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <CodeCountersPage />
             </ProtectedRoute>
           }
