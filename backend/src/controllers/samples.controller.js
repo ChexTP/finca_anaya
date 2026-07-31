@@ -78,7 +78,8 @@ export const getSamples = async (req, res) => {
     });
 
     if (req.user.role === "samples") {
-      res.json(samples.filter((sample) => !["borrador", "enviada"].includes(sample.status)));
+      // Muestras debe ver las ordenes enviadas para preparar el trabajo, aunque la aprobacion siga en administracion.
+      res.json(samples.filter((sample) => sample.status !== "borrador"));
       return;
     }
 
