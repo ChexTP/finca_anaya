@@ -5,6 +5,7 @@ import {
   getNextSampleCode,
   listSampleRequests,
   replaceSampleBlend,
+  updateSampleRequest,
   updateSampleRequestStatus,
   updateSampleItemReviews,
   updateSampleShippingGuide,
@@ -26,6 +27,9 @@ const toText = (value) => {
 };
 
 const validStatuses = [
+  "borrador",
+  "enviada",
+  "aprobada",
   "solicitada",
   "en_preparacion",
   "pendiente_laboratorio",
@@ -72,6 +76,11 @@ export const getSamples = async (req, res) => {
       status: req.query.status,
     });
 
+    if (req.user.role === "samples") {
+      res.json(samples.filter((sample) => !["borrador", "enviada"].includes(sample.status)));
+      return;
+    }
+
     res.json(samples);
   } catch (error) {
     res.status(500).json({
@@ -117,7 +126,12 @@ export const postSample = async (req, res) => {
       requestedAt,
       tentativeDeliveryDate,
       notes,
+      status = "borrador",
     } = req.body;
+
+    if (!["borrador", "enviada"].includes(status)) {
+      return res.status(400).json({ message: "La muestra nueva solo puede quedar en borrador o enviada" });
+    }
 
     if (!requesterName || !requestedAt || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
@@ -187,6 +201,7 @@ export const postSample = async (req, res) => {
       tentativeDeliveryDate: tentativeDeliveryDate || null,
       notes,
       createdBy: req.user.id,
+      status,
     });
 
     res.status(201).json({
@@ -196,6 +211,85 @@ export const postSample = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al crear solicitud de muestra",
+      error: error.message,
+    });
+  }
+};
+
+export const putSample = async (req, res) => {
+  try {
+    const sampleBeforeUpdate = await findSampleRequestById(req.params.id);
+
+    if (!sampleBeforeUpdate) {
+      return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+    }
+
+    if (req.user.role === "seller" && sampleBeforeUpdate.created_by !== req.user.id) {
+      return res.status(403).json({ message: "No tiene permisos para editar esta muestra" });
+    }
+
+    if (!["borrador", "enviada", "aprobada"].includes(sampleBeforeUpdate.status)) {
+      return res.status(409).json({ message: "Solo se puede editar la muestra antes de iniciar preparacion" });
+    }
+
+    const {
+      requesterName,
+      requesterPhone,
+      requesterEmail,
+      requesterCompany,
+      requesterAddress,
+      requesterCity,
+      requesterCountry,
+      items,
+      currency = "COP",
+      requestedAt,
+      tentativeDeliveryDate,
+      notes,
+      status = sampleBeforeUpdate.status,
+    } = req.body;
+
+    const allowedEditStatuses = req.user.role === "admin" ? ["borrador", "enviada", "aprobada"] : ["borrador", "enviada"];
+    if (!allowedEditStatuses.includes(status)) {
+      return res.status(400).json({ message: "Estado de muestra no valido para edicion" });
+    }
+
+    if (!requesterName || !requestedAt || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "Nombre, fecha y al menos una muestra son obligatorios",
+      });
+    }
+
+    if (!["COP", "USD"].includes(currency)) {
+      return res.status(400).json({ message: "La moneda debe ser COP o USD" });
+    }
+
+    const cleanItems = await cleanSampleItems(items);
+
+    const sample = await updateSampleRequest({
+      id: Number(req.params.id),
+      requesterName,
+      requesterPhone: requesterPhone || null,
+      requesterEmail,
+      requesterCompany,
+      requesterAddress,
+      requesterCity,
+      requesterCountry,
+      items: cleanItems,
+      currency,
+      requestedAt,
+      tentativeDeliveryDate: tentativeDeliveryDate || null,
+      notes,
+      status,
+      handledBy: req.user.id,
+    });
+
+    res.json({
+      message: "Solicitud de muestra actualizada correctamente",
+      data: sample,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar solicitud de muestra",
       error: error.message,
     });
   }
@@ -226,6 +320,16 @@ export const putSampleStatus = async (req, res) => {
       }
     }
 
+    if (req.user.role === "samples") {
+      if (["aprobada", "solicitada"].includes(sampleBeforeUpdate.status) && status !== "en_preparacion") {
+        return res.status(403).json({ message: "Muestras debe iniciar preparacion desde una solicitud aprobada" });
+      }
+
+      if (!["aprobada", "solicitada"].includes(sampleBeforeUpdate.status) && status === "en_preparacion") {
+        return res.status(409).json({ message: "La solicitud debe estar aprobada antes de iniciar preparacion" });
+      }
+    }
+
     if (["admin", "samples"].includes(req.user.role)) {
       if (status === "aprobada_laboratorio") {
         return res.status(403).json({ message: "Solo laboratorio puede aprobar el analisis de muestra" });
@@ -238,6 +342,10 @@ export const putSampleStatus = async (req, res) => {
       if (status === "lista" && sampleBeforeUpdate.status !== "aprobada_laboratorio") {
         return res.status(409).json({ message: "Laboratorio debe aprobar la muestra antes de marcarla como lista" });
       }
+    }
+
+    if (["borrador", "enviada", "aprobada"].includes(status) && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Solo administracion puede aprobar o devolver muestras comerciales" });
     }
 
     const cleanItemReviews = itemReviews.map((review) => ({
@@ -302,6 +410,53 @@ export const putSampleStatus = async (req, res) => {
       error: error.message,
     });
   }
+};
+
+const cleanSampleItems = async (items) => {
+  const cleanItems = [];
+
+  for (const item of items) {
+    const coffeeTypeId = item.coffeeTypeId ? Number(item.coffeeTypeId) : null;
+    const coffeeProfileId = item.coffeeProfileId ? Number(item.coffeeProfileId) : null;
+    const quantityGrams = toNumber(item.quantityGrams);
+    const price = toNumber(item.price);
+
+    if (!coffeeTypeId && !coffeeProfileId && !item.description) {
+      throw new Error("Cada muestra debe indicar tipo, perfil o descripcion");
+    }
+    if (!isValidNumber(quantityGrams) || quantityGrams <= 0) {
+      throw new Error("La cantidad de cada muestra debe ser mayor a cero");
+    }
+    if (price !== null && (!isValidNumber(price) || price < 0)) {
+      throw new Error("El precio de cada muestra no puede ser negativo");
+    }
+
+    if (coffeeTypeId) {
+      const coffeeType = await findCoffeeTypeById(coffeeTypeId);
+
+      if (!coffeeType || !coffeeType.is_active) {
+        throw new Error("Tipo de cafe no encontrado o inactivo");
+      }
+    }
+
+    if (coffeeProfileId) {
+      const coffeeProfile = await findCoffeeProfileById(coffeeProfileId);
+
+      if (!coffeeProfile || !coffeeProfile.is_active) {
+        throw new Error("Perfil de cafe no encontrado o inactivo");
+      }
+    }
+
+    cleanItems.push({
+      coffeeTypeId,
+      coffeeProfileId,
+      description: item.description || null,
+      quantityGrams,
+      price,
+    });
+  }
+
+  return cleanItems;
 };
 
 export const putSampleBlend = async (req, res) => {

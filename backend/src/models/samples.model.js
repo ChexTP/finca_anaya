@@ -296,6 +296,7 @@ export const createSampleRequest = async (sampleData) => {
       is_charged,
       currency,
       price,
+      status,
       requested_at,
       tentative_delivery_date,
       notes,
@@ -303,7 +304,7 @@ export const createSampleRequest = async (sampleData) => {
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
     )
     RETURNING *
     `,
@@ -324,6 +325,7 @@ export const createSampleRequest = async (sampleData) => {
       totalPrice > 0,
       sampleData.currency,
       totalPrice > 0 ? totalPrice : null,
+      sampleData.status || "borrador",
       sampleData.requestedAt,
       sampleData.tentativeDeliveryDate,
       sampleData.notes,
@@ -345,6 +347,92 @@ export const createSampleRequest = async (sampleData) => {
 
     await client.query("COMMIT");
     return sample;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const updateSampleRequest = async (sampleData) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const firstItem = sampleData.items[0];
+    const totalGrams = sampleData.items.reduce((total, item) => total + item.quantityGrams, 0);
+    const totalPrice = sampleData.items.reduce((total, item) => total + (item.price || 0), 0);
+
+    const result = await client.query(
+      `
+      UPDATE sample_requests
+      SET
+        requester_name = $1,
+        requester_phone = $2,
+        requester_email = $3,
+        requester_company = $4,
+        requester_address = $5,
+        requester_city = $6,
+        requester_country = $7,
+        coffee_type_id = $8,
+        coffee_profile_id = $9,
+        description = $10,
+        quantity_kg = $11,
+        quantity_grams = $12,
+        is_charged = $13,
+        currency = $14,
+        price = $15,
+        status = $16,
+        requested_at = $17,
+        tentative_delivery_date = $18,
+        notes = $19,
+        handled_by = $20,
+        handled_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $21
+      RETURNING *
+      `,
+      [
+        sampleData.requesterName,
+        sampleData.requesterPhone,
+        sampleData.requesterEmail,
+        sampleData.requesterCompany,
+        sampleData.requesterAddress,
+        sampleData.requesterCity,
+        sampleData.requesterCountry,
+        firstItem.coffeeTypeId,
+        firstItem.coffeeProfileId,
+        firstItem.description,
+        totalGrams / 1000,
+        totalGrams,
+        totalPrice > 0,
+        sampleData.currency,
+        totalPrice > 0 ? totalPrice : null,
+        sampleData.status,
+        sampleData.requestedAt,
+        sampleData.tentativeDeliveryDate,
+        sampleData.notes,
+        sampleData.handledBy,
+        sampleData.id,
+      ]
+    );
+
+    await client.query("DELETE FROM sample_request_items WHERE sample_request_id = $1", [sampleData.id]);
+
+    for (const item of sampleData.items) {
+      await client.query(
+        `
+        INSERT INTO sample_request_items (
+          sample_request_id, coffee_type_id, coffee_profile_id, description, quantity_grams, price
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [sampleData.id, item.coffeeTypeId, item.coffeeProfileId, item.description, item.quantityGrams, item.price]
+      );
+    }
+
+    await client.query("COMMIT");
+    return result.rows[0];
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

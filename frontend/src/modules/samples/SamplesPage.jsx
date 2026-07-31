@@ -1,4 +1,4 @@
-import { Eye, FlaskConical, ImagePlus, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Edit, Eye, FlaskConical, ImagePlus, Plus, Printer, RefreshCw, Save, Trash2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -25,6 +25,7 @@ const initialSample = {
   requestedAt: today,
   tentativeDeliveryDate: "",
   notes: "",
+  status: "borrador",
 };
 
 const emptySampleItem = {
@@ -36,6 +37,9 @@ const emptySampleItem = {
 };
 
 const statusLabels = {
+  borrador: "Borrador",
+  enviada: "Enviada",
+  aprobada: "Aprobada",
   solicitada: "Solicitada",
   en_preparacion: "En preparacion",
   pendiente_laboratorio: "Pendiente laboratorio",
@@ -46,6 +50,9 @@ const statusLabels = {
 };
 
 const statusTones = {
+  borrador: "neutral",
+  enviada: "warning",
+  aprobada: "success",
   solicitada: "warning",
   en_preparacion: "warning",
   pendiente_laboratorio: "warning",
@@ -57,6 +64,9 @@ const statusTones = {
 
 const sampleFilters = [
   { key: "all", label: "Todas" },
+  { key: "borrador", label: "Borradores" },
+  { key: "enviada", label: "Enviadas" },
+  { key: "aprobada", label: "Aprobadas" },
   { key: "solicitada", label: "Solicitadas" },
   { key: "en_preparacion", label: "En preparacion" },
   { key: "pendiente_laboratorio", label: "Pendientes lab" },
@@ -66,13 +76,16 @@ const sampleFilters = [
 ];
 
 const statusOrder = {
-  solicitada: 1,
-  en_preparacion: 2,
-  pendiente_laboratorio: 3,
-  aprobada_laboratorio: 4,
-  lista: 5,
-  entregada: 6,
-  cancelada: 7,
+  borrador: 1,
+  enviada: 2,
+  aprobada: 3,
+  solicitada: 4,
+  en_preparacion: 5,
+  pendiente_laboratorio: 6,
+  aprobada_laboratorio: 7,
+  lista: 8,
+  entregada: 9,
+  cancelada: 10,
 };
 
 const formatDate = (value) => {
@@ -156,6 +169,9 @@ const formatRequestedCoffee = (item) => {
 
 const getSampleActions = (sample) => {
   const actionsByStatus = {
+    borrador: ["enviada", "cancelada"],
+    enviada: ["aprobada", "cancelada"],
+    aprobada: ["en_preparacion", "cancelada"],
     solicitada: ["en_preparacion", "cancelada"],
     en_preparacion: ["pendiente_laboratorio", "cancelada"],
     aprobada_laboratorio: ["lista", "cancelada"],
@@ -291,6 +307,7 @@ const SamplesPage = () => {
   const [catalogs, setCatalogs] = useState(null);
   const [form, setForm] = useState(initialSample);
   const [sampleItems, setSampleItems] = useState([]);
+  const [editingSampleId, setEditingSampleId] = useState(null);
   const [statusNotes, setStatusNotes] = useState({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -302,7 +319,8 @@ const SamplesPage = () => {
 
   const canCreate = ["admin", "seller"].includes(user?.role);
   const canManageSamples = ["admin", "samples"].includes(user?.role);
-  const canPrintSampleOrder = ["admin", "accounting", "samples"].includes(user?.role);
+  const canApproveSamples = user?.role === "admin";
+  const canPrintSampleOrder = ["admin", "seller", "samples"].includes(user?.role);
   const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
 
   const sampleCounts = useMemo(() => {
@@ -350,13 +368,61 @@ const SamplesPage = () => {
     setForm({ ...form, coffeeProfileId });
   };
 
-  const createSample = async (event) => {
+  const resetForm = () => {
+    setEditingSampleId(null);
+    setForm(initialSample);
+    setSampleItems([]);
+    setError("");
+  };
+
+  const itemFromSampleItem = (item) => ({
+    coffeeTypeId: item.coffee_type_id ? Number(item.coffee_type_id) : null,
+    coffeeProfileId: item.coffee_profile_id ? Number(item.coffee_profile_id) : null,
+    description: item.description || null,
+    coffeeName: formatRequestedCoffee(item),
+    quantityGrams: Number(item.quantity_grams || 0),
+    price: null,
+  });
+
+  const loadSampleForEdit = (sample) => {
+    if (!["borrador", "enviada", "aprobada"].includes(sample.status)) {
+      setError("Solo se puede editar una solicitud antes de iniciar preparacion.");
+      return;
+    }
+
+    setEditingSampleId(sample.id);
+    setForm({
+      requesterName: sample.requester_name || "",
+      requesterPhone: sample.requester_phone || "",
+      requesterEmail: sample.requester_email || "",
+      requesterCompany: sample.requester_company || "",
+      requesterAddress: sample.requester_address || "",
+      requesterCity: sample.requester_city || "",
+      requesterCountry: sample.requester_country || "",
+      coffeeTypeId: "",
+      coffeeProfileId: "",
+      description: "",
+      quantityGrams: "",
+      currency: sample.currency || "COP",
+      price: "",
+      requestedAt: sample.requested_at ? String(sample.requested_at).slice(0, 10) : today,
+      tentativeDeliveryDate: sample.tentative_delivery_date ? String(sample.tentative_delivery_date).slice(0, 10) : "",
+      notes: sample.notes || "",
+      status: sample.status || "borrador",
+    });
+    setSampleItems((sample.items || []).map(itemFromSampleItem));
+    setMessage(`Editando solicitud ${sample.code}.`);
+    setError("");
+  };
+
+  const saveSample = async (event) => {
     event.preventDefault();
     setSaving(true);
     setMessage("");
     setError("");
 
     try {
+      const wasEditing = Boolean(editingSampleId);
       const currentItem = {
         coffeeTypeId: form.coffeeTypeId ? Number(form.coffeeTypeId) : null,
         coffeeProfileId: form.coffeeProfileId ? Number(form.coffeeProfileId) : null,
@@ -367,17 +433,16 @@ const SamplesPage = () => {
       const items = form.quantityGrams ? [...sampleItems, currentItem] : sampleItems;
       if (items.length === 0) throw new Error("Agregue al menos una muestra.");
 
-      await apiRequest("/samples", {
-        method: "POST",
+      await apiRequest(editingSampleId ? `/samples/${editingSampleId}` : "/samples", {
+        method: editingSampleId ? "PUT" : "POST",
         body: JSON.stringify({
           ...form,
           items,
         }),
       });
-      setForm(initialSample);
-      setSampleItems([]);
+      resetForm();
       await loadData();
-      setMessage("Solicitud de muestra creada correctamente.");
+      setMessage(wasEditing ? "Solicitud de muestra actualizada correctamente." : "Solicitud de muestra creada correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -604,13 +669,36 @@ const SamplesPage = () => {
 
       <div className={`grid min-w-0 gap-5 ${canCreate ? "xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]" : ""}`}>
         {canCreate && (
-          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={createSample}>
-            <div className="flex items-center gap-2">
-              <FlaskConical size={18} className="text-leaf" />
-              <h2 className="text-sm font-semibold text-slate-800">Nueva solicitud</h2>
+          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={saveSample}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <FlaskConical size={18} className="text-leaf" />
+                <h2 className="text-sm font-semibold text-slate-800">
+                  {editingSampleId ? "Editar solicitud" : "Nueva solicitud"}
+                </h2>
+              </div>
+              {editingSampleId && (
+                <button
+                  className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                  type="button"
+                  onClick={resetForm}
+                >
+                  <XCircle size={14} />
+                  Cancelar
+                </button>
+              )}
             </div>
 
             <div className="mt-4 space-y-3">
+              <select
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                value={form.status}
+                onChange={(event) => setForm({ ...form, status: event.target.value })}
+              >
+                <option value="borrador">Borrador</option>
+                <option value="enviada">Enviada para aprobacion</option>
+                {canApproveSamples && <option value="aprobada">Aprobada para muestras</option>}
+              </select>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Nombre de quien solicita"
@@ -781,7 +869,7 @@ const SamplesPage = () => {
               disabled={saving}
             >
               <Save size={16} />
-              Crear solicitud
+              {editingSampleId ? "Guardar cambios" : "Crear solicitud"}
             </button>
           </form>
         )}
@@ -904,9 +992,19 @@ const SamplesPage = () => {
                     </div>
                   )}
 
-                  {(canManageSamples || canPrintSampleOrder) && (
+                  {(canManageSamples || canPrintSampleOrder || canCreate) && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {canManageSamples && ["solicitada", "en_preparacion"].includes(sample.status) && (
+                      {canCreate && (["borrador", "enviada"].includes(sample.status) || (user?.role === "admin" && sample.status === "aprobada")) && (
+                        <button
+                          className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          type="button"
+                          onClick={() => loadSampleForEdit(sample)}
+                        >
+                          <Edit size={16} />
+                          Editar solicitud
+                        </button>
+                      )}
+                      {canManageSamples && ["en_preparacion"].includes(sample.status) && (
                         <button
                           className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
                           type="button"
@@ -1058,7 +1156,7 @@ const SamplesPage = () => {
                     </div>
                   )}
 
-                  {canManageSamples && (
+                  {canManageSamples && getSampleActions(sample).some((status) => user?.role === "admin" || !["borrador", "enviada", "aprobada", "cancelada"].includes(status)) && (
                     <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                       <input
                         className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1067,7 +1165,9 @@ const SamplesPage = () => {
                         onChange={(event) => setStatusNotes({ ...statusNotes, [sample.id]: event.target.value })}
                       />
                       <div className="flex flex-wrap gap-2">
-                        {getSampleActions(sample).map((status) => (
+                        {getSampleActions(sample)
+                          .filter((status) => user?.role === "admin" || !["borrador", "enviada", "aprobada", "cancelada"].includes(status))
+                          .map((status) => (
                           <button
                             key={status}
                             className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"

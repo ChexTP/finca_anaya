@@ -784,7 +784,7 @@ CREATE TABLE IF NOT EXISTS sample_requests (
   shipping_guide_mime_type VARCHAR(120),
   shipping_guide_uploaded_by INTEGER REFERENCES users(id),
   shipping_guide_uploaded_at TIMESTAMP,
-  status VARCHAR(30) NOT NULL DEFAULT 'solicitada',
+  status VARCHAR(30) NOT NULL DEFAULT 'borrador',
   notes TEXT,
   created_by INTEGER REFERENCES users(id),
   handled_by INTEGER REFERENCES users(id),
@@ -792,7 +792,7 @@ CREATE TABLE IF NOT EXISTS sample_requests (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT sample_requests_status_check CHECK (
-    status IN ('solicitada', 'en_preparacion', 'pendiente_laboratorio', 'aprobada_laboratorio', 'lista', 'entregada', 'cancelada')
+    status IN ('borrador', 'enviada', 'aprobada', 'solicitada', 'en_preparacion', 'pendiente_laboratorio', 'aprobada_laboratorio', 'lista', 'entregada', 'cancelada')
   ),
   CONSTRAINT sample_requests_currency_check CHECK (currency IN ('COP', 'USD')),
   CONSTRAINT sample_requests_humidity_check CHECK (
@@ -835,7 +835,7 @@ ALTER TABLE sample_requests ALTER COLUMN requester_phone DROP NOT NULL;
 ALTER TABLE sample_requests DROP CONSTRAINT IF EXISTS sample_requests_status_check;
 ALTER TABLE sample_requests
 ADD CONSTRAINT sample_requests_status_check CHECK (
-  status IN ('solicitada', 'en_preparacion', 'pendiente_laboratorio', 'aprobada_laboratorio', 'lista', 'entregada', 'cancelada')
+  status IN ('borrador', 'enviada', 'aprobada', 'solicitada', 'en_preparacion', 'pendiente_laboratorio', 'aprobada_laboratorio', 'lista', 'entregada', 'cancelada')
 );
 DO $$
 BEGIN
