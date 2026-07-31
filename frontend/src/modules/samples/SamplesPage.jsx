@@ -643,7 +643,30 @@ const SamplesPage = () => {
     setBlendRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
   };
 
+  const addBlendRowForItem = (sampleItemId) => {
+    setBlendRows((rows) => [...rows, { sampleItemId: String(sampleItemId), componentDescription: "", percentage: "", notes: "" }]);
+  };
+
+  const getBlendTotalForItem = (sampleItemId, rows = blendRows) => {
+    const total = rows
+      .filter((row) => String(row.sampleItemId) === String(sampleItemId))
+      .reduce((sum, row) => sum + Number(row.percentage || 0), 0);
+    return Number(total.toFixed(2));
+  };
+
   const saveBlend = async (sample) => {
+    const missingRows = sample.items.some((item) => !blendRows.some((row) => String(row.sampleItemId) === String(item.id)));
+    if (missingRows) {
+      setError("Cada cafe de la muestra debe tener al menos un componente de ensamble.");
+      return;
+    }
+
+    const incompleteItem = sample.items.find((item) => getBlendTotalForItem(item.id) !== 100);
+    if (incompleteItem) {
+      setError(`El ensamble de ${formatRequestedCoffee(incompleteItem)} debe sumar 100%. Actualmente suma ${getBlendTotalForItem(incompleteItem.id)}%.`);
+      return;
+    }
+
     if (!window.confirm(`Confirma guardar el ensamble de ${sample.code}?`)) return;
     setSaving(true);
     setMessage("");
@@ -1131,67 +1154,85 @@ const SamplesPage = () => {
 
                   {canManageSamples && blendSampleId === sample.id && (
                     <div className="mt-3 space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-sm font-semibold text-slate-800">Formula por cafe</p>
-                      {blendRows.map((row, index) => {
-                        const sampleItem = sample.items.find((item) => String(item.id) === String(row.sampleItemId));
-                        const calculatedGrams = sampleItem && row.percentage
-                          ? Number((Number(sampleItem.quantity_grams) * Number(row.percentage) / 100).toFixed(2))
-                          : 0;
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">Formula por cafe</p>
+                        <p className="text-xs text-slate-500">
+                          Registre los componentes usados por muestras. Laboratorio lo vera como referencia antes de aprobar el analisis.
+                        </p>
+                      </div>
+                      {sample.items.map((item) => {
+                        const itemRows = blendRows
+                          .map((row, index) => ({ ...row, index }))
+                          .filter((row) => String(row.sampleItemId) === String(item.id));
+                        const totalPercentage = getBlendTotalForItem(item.id);
+                        const isComplete = totalPercentage === 100;
+
                         return (
-                          <div key={`blend-row-${index}`} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-3">
-                            <div className="grid min-w-0 gap-2 md:grid-cols-3">
-                              <select
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                value={row.sampleItemId}
-                                onChange={(event) => updateBlendRow(index, "sampleItemId", event.target.value)}
-                              >
-                                <option value="">Cafe de la solicitud</option>
-                                {sample.items.map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {formatRequestedCoffee(item)} - {item.quantity_grams} g
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Cafe usado, proceso, mezcla o referencia libre"
-                                value={row.componentDescription}
-                                onChange={(event) => updateBlendRow(index, "componentDescription", event.target.value)}
-                              />
-                              <input
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Porcentaje %"
-                                type="text"
-                                inputMode="numeric"
-                                min="1"
-                                max="100"
-                                step="1"
-                                value={row.percentage}
-                                onChange={(event) => updateBlendRow(index, "percentage", normalizePercentageInput(event.target.value))}
-                              />
+                          <div key={`blend-item-${item.id}`} className="space-y-3 rounded border border-amber-200 bg-white p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="font-semibold text-ink">{formatRequestedCoffee(item)}</p>
+                                <p className="text-sm text-slate-500">{item.quantity_grams} g solicitados</p>
+                              </div>
+                              <span className={`rounded px-2 py-1 text-xs font-semibold ${isComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                Total {totalPercentage}%
+                              </span>
                             </div>
-                            <div className="mt-2 flex items-center justify-between gap-3">
-                              <p className="text-xs text-slate-500">Cantidad calculada: {calculatedGrams} g</p>
-                              <button
-                                className="rounded p-1.5 text-rose-600 hover:bg-rose-50"
-                                type="button"
-                                aria-label="Quitar linea de ensamble"
-                                onClick={() => setBlendRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
+
+                            {itemRows.map((row) => {
+                              const calculatedGrams = row.percentage
+                                ? Number((Number(item.quantity_grams) * Number(row.percentage) / 100).toFixed(2))
+                                : 0;
+
+                              return (
+                                <div key={`blend-row-${row.index}`} className="grid min-w-0 gap-2 rounded border border-slate-200 bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_140px_auto]">
+                                  <input
+                                    className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                                    placeholder="Cafe usado, proceso, mezcla o referencia libre"
+                                    value={row.componentDescription}
+                                    onChange={(event) => updateBlendRow(row.index, "componentDescription", event.target.value)}
+                                  />
+                                  <input
+                                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                    placeholder="Porcentaje %"
+                                    type="text"
+                                    inputMode="numeric"
+                                    min="1"
+                                    max="100"
+                                    step="1"
+                                    value={row.percentage}
+                                    onChange={(event) => updateBlendRow(row.index, "percentage", normalizePercentageInput(event.target.value))}
+                                  />
+                                  <button
+                                    className="rounded p-2 text-rose-600 hover:bg-rose-50"
+                                    type="button"
+                                    aria-label="Quitar linea de ensamble"
+                                    onClick={() => setBlendRows((rows) => rows.filter((_, rowIndex) => rowIndex !== row.index))}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                  <textarea
+                                    className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm md:col-span-3"
+                                    placeholder={`Cantidad calculada: ${calculatedGrams} g. Observacion opcional`}
+                                    rows={2}
+                                    value={row.notes}
+                                    onChange={(event) => updateBlendRow(row.index, "notes", event.target.value)}
+                                  />
+                                </div>
+                              );
+                            })}
+
+                            <button
+                              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                              type="button"
+                              onClick={() => addBlendRowForItem(item.id)}
+                            >
+                              Agregar componente a este cafe
+                            </button>
                           </div>
                         );
                       })}
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
-                          type="button"
-                          onClick={() => setBlendRows((rows) => [...rows, { sampleItemId: String(sample.items[0]?.id || ""), componentDescription: "", percentage: "", notes: "" }])}
-                        >
-                          Agregar componente
-                        </button>
                         <button
                           className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                           type="button"
