@@ -136,10 +136,11 @@ export const createQuote = async (quoteData) => {
         shipping_cost,
         estimated_delivery_date,
         notes,
+        quote_terms,
         subtotal,
         total
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
       `,
       [
@@ -154,6 +155,7 @@ export const createQuote = async (quoteData) => {
         quoteData.shippingCost,
         quoteData.estimatedDeliveryDate,
         quoteData.notes,
+        quoteData.terms,
         quoteData.subtotal,
         quoteData.total,
       ]
@@ -226,10 +228,11 @@ export const updateQuote = async (id, quoteData) => {
         shipping_cost = $8,
         estimated_delivery_date = $9,
         notes = $10,
-        subtotal = $11,
-        total = $12,
+        quote_terms = $11,
+        subtotal = $12,
+        total = $13,
         updated_at = NOW()
-      WHERE id = $13
+      WHERE id = $14
       RETURNING *
       `,
       [
@@ -243,6 +246,7 @@ export const updateQuote = async (id, quoteData) => {
         quoteData.shippingCost,
         quoteData.estimatedDeliveryDate,
         quoteData.notes,
+        quoteData.terms,
         quoteData.subtotal,
         quoteData.total,
         id,

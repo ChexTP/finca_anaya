@@ -9,6 +9,7 @@ import {
   updateSampleRequestStatus,
   updateSampleItemReviews,
   updateSampleShippingGuide,
+  deleteSampleRequestById,
 } from "../models/samples.model.js";
 
 const toNumber = (value) => {
@@ -549,6 +550,28 @@ export const putSampleShippingGuide = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al guardar guia de envio",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteSample = async (req, res) => {
+  try {
+    const sample = await findSampleRequestById(req.params.id);
+
+    if (!sample) {
+      return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+    }
+
+    await deleteSampleRequestById(req.params.id);
+
+    res.json({
+      message: "Solicitud de muestra eliminada correctamente para pruebas",
+      data: sample,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al eliminar solicitud de muestra",
       error: error.message,
     });
   }

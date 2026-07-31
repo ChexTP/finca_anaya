@@ -609,6 +609,7 @@ CREATE TABLE IF NOT EXISTS sale_item_lots (
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS warehouse_priority VARCHAR(20) NOT NULL DEFAULT 'media';
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS order_assignee VARCHAR(120);
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS estimated_delivery_date DATE;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS quote_terms JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS blend_required BOOLEAN;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS dispatch_receipt_image TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS dispatch_receipt_file_name TEXT;

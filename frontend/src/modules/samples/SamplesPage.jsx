@@ -322,6 +322,7 @@ const SamplesPage = () => {
   const canApproveSamples = user?.role === "admin";
   const canPrintSampleOrder = ["admin", "accounting", "seller", "samples"].includes(user?.role);
   const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
+  const canDeleteSamples = user?.role === "admin";
 
   const sampleCounts = useMemo(() => {
     return samples.reduce(
@@ -507,6 +508,35 @@ const SamplesPage = () => {
       setStatusNotes({ ...statusNotes, [sample.id]: "" });
       await loadData();
       setMessage("Estado de muestra actualizado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteSample = async (sample) => {
+    const confirmation = window.prompt(
+      `Esto eliminara la solicitud de muestra ${sample.code} y sus datos de prueba. Escriba ELIMINAR para confirmar.`
+    );
+
+    if (confirmation !== "ELIMINAR") return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/samples/${sample.id}`, { method: "DELETE" });
+      if (editingSampleId === sample.id) {
+        resetForm();
+      }
+      if (blendSampleId === sample.id) {
+        setBlendSampleId(null);
+        setBlendRows([]);
+      }
+      await loadData();
+      setMessage(`Solicitud de muestra ${sample.code} eliminada correctamente.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -992,7 +1022,7 @@ const SamplesPage = () => {
                     </div>
                   )}
 
-                  {(canManageSamples || canPrintSampleOrder || canCreate) && (
+                  {(canManageSamples || canPrintSampleOrder || canCreate || canDeleteSamples) && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {canCreate && (["borrador", "enviada"].includes(sample.status) || (user?.role === "admin" && sample.status === "aprobada")) && (
                         <button
@@ -1021,6 +1051,17 @@ const SamplesPage = () => {
                         >
                           <Printer size={16} />
                           Imprimir orden
+                        </button>
+                      )}
+                      {canDeleteSamples && (
+                        <button
+                          className="inline-flex items-center gap-2 rounded border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                          disabled={saving}
+                          type="button"
+                          onClick={() => deleteSample(sample)}
+                        >
+                          <Trash2 size={16} />
+                          Eliminar muestra de prueba
                         </button>
                       )}
                     </div>

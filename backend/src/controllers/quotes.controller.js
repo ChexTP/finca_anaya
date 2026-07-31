@@ -27,6 +27,18 @@ const toNumber = (value) => {
 
 const allowedStatuses = ["borrador", "enviada", "aceptada", "anulada"];
 
+const cleanQuoteTerms = (terms = {}) => ({
+  advance: terms.advance ? String(terms.advance).trim() : null,
+  deliveryTime: terms.deliveryTime ? String(terms.deliveryTime).trim() : null,
+  standard: terms.standard ? String(terms.standard).trim() : null,
+  deliveryTerms: terms.deliveryTerms ? String(terms.deliveryTerms).trim() : null,
+  packaging: terms.packaging ? String(terms.packaging).trim() : null,
+  paymentTerms: terms.paymentTerms ? String(terms.paymentTerms).trim() : null,
+  bankDetails: terms.bankDetails ? String(terms.bankDetails).trim() : null,
+  company: terms.company ? String(terms.company).trim() : null,
+  taxId: terms.taxId ? String(terms.taxId).trim() : null,
+});
+
 const buildCleanQuoteData = async ({
   code,
   clientId,
@@ -38,6 +50,7 @@ const buildCleanQuoteData = async ({
   shippingCost = 0,
   estimatedDeliveryDate,
   notes,
+  terms,
   items,
 }) => {
   if (!clientId || !quoteType || !currency || !estimatedDeliveryDate || !Array.isArray(items) || items.length === 0) {
@@ -173,6 +186,7 @@ const buildCleanQuoteData = async ({
     shippingCost: shipping,
     estimatedDeliveryDate,
     notes: notes || null,
+    terms: cleanQuoteTerms(terms),
     subtotal,
     total,
     items: cleanItems,

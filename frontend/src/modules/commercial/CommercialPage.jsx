@@ -8,6 +8,18 @@ import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeC
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
+const defaultQuoteTerms = {
+  advance: "30%",
+  deliveryTime: "15 days",
+  standard: "3/20",
+  deliveryTerms: "CAJAS DE X 20 Kg /AL VACIO",
+  packaging: "Traditional bag and jute sack",
+  paymentTerms: "National bank transfer",
+  bankDetails: "Bancolombia - Ahorros - 453 0000 6876",
+  company: "Asociacion Huila Coffee Farmers",
+  taxId: "901847571",
+};
+
 const initialQuote = {
   manualCodeNumber: "",
   manualCodeYear: String(new Date().getFullYear()),
@@ -17,10 +29,16 @@ const initialQuote = {
   currency: "COP",
   paymentTerms: "",
   deliveryTerms: "",
+  terms: defaultQuoteTerms,
   shippingCost: "",
   estimatedDeliveryDate: "",
   notes: "",
 };
+
+const createInitialQuote = () => ({
+  ...initialQuote,
+  terms: { ...defaultQuoteTerms },
+});
 
 const initialItem = {
   itemType: "Exotico",
@@ -121,7 +139,7 @@ const CommercialPage = () => {
   const [catalogs, setCatalogs] = useState(null);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [editingQuoteId, setEditingQuoteId] = useState(null);
-  const [quoteForm, setQuoteForm] = useState(initialQuote);
+  const [quoteForm, setQuoteForm] = useState(createInitialQuote);
   const [itemForm, setItemForm] = useState(initialItem);
   const [quoteItems, setQuoteItems] = useState([]);
   const [saleForm, setSaleForm] = useState(initialSale);
@@ -189,7 +207,7 @@ const CommercialPage = () => {
 
   const resetForm = () => {
     setEditingQuoteId(null);
-    setQuoteForm(initialQuote);
+    setQuoteForm(createInitialQuote());
     setItemForm(initialItem);
     setQuoteItems([]);
     setError("");
@@ -310,6 +328,7 @@ const CommercialPage = () => {
         currency: quoteForm.currency,
         paymentTerms: quoteForm.paymentTerms || null,
         deliveryTerms: quoteForm.deliveryTerms || null,
+        terms: quoteForm.terms,
         shippingCost: Number(quoteForm.shippingCost || 0),
         estimatedDeliveryDate: quoteForm.estimatedDeliveryDate,
         notes: quoteForm.notes || null,
@@ -384,6 +403,7 @@ const CommercialPage = () => {
       currency: quote.currency || "COP",
       paymentTerms: quote.payment_terms || "",
       deliveryTerms: quote.delivery_terms || "",
+      terms: { ...defaultQuoteTerms, ...(quote.quote_terms || {}) },
       shippingCost: quote.shipping_cost || "",
       estimatedDeliveryDate: quote.estimated_delivery_date ? String(quote.estimated_delivery_date).slice(0, 10) : "",
       notes: quote.notes || "",
@@ -435,7 +455,7 @@ const CommercialPage = () => {
       }
       if (editingQuoteId === quote.id) {
         setEditingQuoteId(null);
-        setQuoteForm(initialQuote);
+        setQuoteForm(createInitialQuote());
         setQuoteItems([]);
       }
       await loadData();
@@ -730,6 +750,69 @@ const CommercialPage = () => {
                 Subtotal: <span className="font-semibold text-ink">{formatMoney(quoteForm.currency, subtotal)}</span> · Envio:{" "}
                 <span className="font-semibold text-ink">{formatMoney(quoteForm.currency, quoteForm.shippingCost)}</span> · Total:{" "}
                 <span className="font-semibold text-ink">{formatMoney(quoteForm.currency, total)}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
+              <div>
+                <h3 className="text-sm font-semibold text-amber-900">Terminos de la cotizacion</h3>
+                <p className="text-xs text-slate-600">Estos datos salen en el PDF y se pueden ajustar manualmente para cada cliente.</p>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Anticipo"
+                  value={quoteForm.terms.advance}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, advance: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Tiempo de entrega"
+                  value={quoteForm.terms.deliveryTime}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, deliveryTime: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Norma"
+                  value={quoteForm.terms.standard}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, standard: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Entrega"
+                  value={quoteForm.terms.deliveryTerms}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, deliveryTerms: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Empaque"
+                  value={quoteForm.terms.packaging}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, packaging: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Pago"
+                  value={quoteForm.terms.paymentTerms}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, paymentTerms: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm md:col-span-2"
+                  placeholder="Datos bancarios"
+                  value={quoteForm.terms.bankDetails}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, bankDetails: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Empresa"
+                  value={quoteForm.terms.company}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, company: event.target.value } })}
+                />
+                <input
+                  className="rounded border border-amber-200 bg-white px-3 py-2 text-sm"
+                  placeholder="Nit"
+                  value={quoteForm.terms.taxId}
+                  onChange={(event) => setQuoteForm({ ...quoteForm, terms: { ...quoteForm.terms, taxId: event.target.value } })}
+                />
               </div>
             </div>
 

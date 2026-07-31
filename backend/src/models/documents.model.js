@@ -38,6 +38,7 @@ export const buildQuoteDocument = async (id) => {
     terms: {
       paymentTerms: quote.payment_terms,
       deliveryTerms: quote.delivery_terms,
+      ...(quote.quote_terms || {}),
     },
     items: quote.items.map((item) => ({
       lotCode: item.lot_code,

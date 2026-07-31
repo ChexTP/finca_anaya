@@ -252,9 +252,9 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
               <tr><td>${text.delivery}:</td><td>${escapeHtml(document.terms?.deliveryTerms || defaultTerms.delivery)}</td></tr>
               <tr><td>${text.packaging}:</td><td>${escapeHtml(document.terms?.packaging || defaultTerms.packaging)}</td></tr>
               <tr><td>${text.payment}:</td><td>${escapeHtml(document.terms?.paymentTerms || defaultTerms.payment)}</td></tr>
-              <tr><td>${text.bankDetails}:</td><td>${escapeHtml(companyBrand.bankDetails)}</td></tr>
-              <tr><td>${text.company}:</td><td>${escapeHtml(companyBrand.legalName)}</td></tr>
-              <tr><td>${text.taxId}:</td><td>${escapeHtml(companyBrand.nit)}</td></tr>
+              <tr><td>${text.bankDetails}:</td><td>${escapeHtml(document.terms?.bankDetails || companyBrand.bankDetails)}</td></tr>
+              <tr><td>${text.company}:</td><td>${escapeHtml(document.terms?.company || companyBrand.legalName)}</td></tr>
+              <tr><td>${text.taxId}:</td><td>${escapeHtml(document.terms?.taxId || companyBrand.nit)}</td></tr>
             </tbody>
           </table>
         </section>

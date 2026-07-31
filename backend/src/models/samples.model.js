@@ -510,3 +510,16 @@ export const updateSampleShippingGuide = async ({
 
   return result.rows[0];
 };
+
+export const deleteSampleRequestById = async (id) => {
+  const result = await pool.query(
+    `
+    DELETE FROM sample_requests
+    WHERE id = $1
+    RETURNING *
+    `,
+    [id]
+  );
+
+  return result.rows[0];
+};
