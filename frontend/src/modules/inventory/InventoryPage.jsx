@@ -63,7 +63,7 @@ const initialAdminProcessEdit = {
 const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
 const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
 
-const InventoryPage = () => {
+const InventoryPage = ({ mode = "inventory" }) => {
   const { user } = useAuth();
   const [lots, setLots] = useState([]);
   const [allLots, setAllLots] = useState([]);
@@ -93,6 +93,7 @@ const InventoryPage = () => {
   const canRegisterPurchase = ["admin", "accounting"].includes(user?.role);
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
   const canEditCodes = ["admin", "accounting", "warehouse"].includes(user?.role);
+  const isEditMode = mode === "edit";
 
   const loadData = async () => {
     const requests = [
@@ -604,8 +605,12 @@ const InventoryPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Inventario</h1>
-          <p className="text-sm text-slate-500">Lotes disponibles, pendientes de compra y control por antiguedad.</p>
+          <h1 className="text-xl font-bold text-ink">{isEditMode ? "Editar inventario" : "Inventario"}</h1>
+          <p className="text-sm text-slate-500">
+            {isEditMode
+              ? "Busqueda y correccion de lotes, procesos, codigos, pesos y datos de laboratorio."
+              : "Lotes disponibles, pendientes de compra y control por antiguedad."}
+          </p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -619,7 +624,7 @@ const InventoryPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      {canEditCodes && (
+      {canEditCodes && isEditMode && (
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Buscar y editar lotes</h2>
@@ -1063,6 +1068,8 @@ const InventoryPage = () => {
         </div>
       )}
 
+      {!isEditMode && (
+        <>
       {canRegisterPurchase && (
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
           <div className="min-w-0 rounded border border-amber-200 bg-white">
@@ -1377,25 +1384,15 @@ const InventoryPage = () => {
                     </div>
                   </div>
 
-                  {canAdjustInventory && (
+                  {["admin", "warehouse"].includes(user?.role) && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {["admin", "warehouse"].includes(user?.role) && (
-                        <button
-                          className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
-                          type="button"
-                          onClick={() => registerSampleOutput(lot)}
-                          disabled={saving}
-                        >
-                          Sacar muestra
-                        </button>
-                      )}
                       <button
-                        className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
                         type="button"
-                        onClick={() => (canEditCodes ? openInventoryEditModal(lot) : adjustInventory(lot))}
+                        onClick={() => registerSampleOutput(lot)}
                         disabled={saving}
                       >
-                        Ajustar
+                        Sacar muestra
                       </button>
                     </div>
                   )}
@@ -1443,6 +1440,8 @@ const InventoryPage = () => {
             </div>
           )}
         </div>
+      )}
+        </>
       )}
 
       {showInventoryEditModal && selectedAdminLot && (

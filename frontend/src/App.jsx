@@ -74,6 +74,14 @@ const App = () => {
           }
         />
         <Route
+          path="/inventario/editar"
+          element={
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+              <InventoryPage mode="edit" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/procesos"
           element={
             <ProtectedRoute roles={["admin", "accounting", "warehouse", "laboratory"]}>
