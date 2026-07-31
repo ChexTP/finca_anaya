@@ -488,17 +488,26 @@ const WarehousePendingPage = () => {
     setAssignmentRows((currentRows) => currentRows.filter((_, rowIndex) => rowIndex !== index));
   };
 
-  const saveAssignments = async () => {
+  const saveAssignments = async (item = null) => {
     if (!selectedSale) return;
 
     const cleanAssignments = buildCleanAssignments();
+    const itemAssignments = item
+      ? cleanAssignments.filter((assignment) => String(assignment.saleItemId) === String(item.id))
+      : cleanAssignments;
 
-    if (cleanAssignments.length === 0) {
-      setError("Agregue al menos un lote y una cantidad para guardar la asignacion.");
+    if (itemAssignments.length === 0) {
+      setError(item
+        ? "Agregue al menos un lote y una cantidad para confirmar este cafe."
+        : "Agregue al menos un lote y una cantidad para guardar la asignacion."
+      );
       return;
     }
 
-    const confirmed = window.confirm("Confirmas guardar los lotes asignados a esta venta?");
+    const confirmed = window.confirm(item
+      ? `Confirmas guardar la asignacion de ${getWarehouseItemLabel(item)}?`
+      : "Confirmas guardar los lotes asignados a esta venta?"
+    );
     if (!confirmed) return;
 
     setSaving(true);
@@ -514,7 +523,8 @@ const WarehousePendingPage = () => {
       });
       setSelectedSale(response.data);
       await loadData();
-      setMessage("Lotes asignados correctamente.");
+      await loadSaleDetail(selectedSale.id, false);
+      setMessage(item ? "Asignacion de cafe confirmada correctamente." : "Lotes asignados correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1054,6 +1064,17 @@ const WarehousePendingPage = () => {
                               })
                             )
                           )}
+
+                          {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
+                            <button
+                              className="w-full rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                              type="button"
+                              onClick={() => saveAssignments(item)}
+                              disabled={saving || ["alistada", "despachada"].includes(selectedSale.status)}
+                            >
+                              Confirmar asignacion de este cafe
+                            </button>
+                          )}
                         </div>
                       );
                     })()}
@@ -1105,10 +1126,10 @@ const WarehousePendingPage = () => {
                   <button
                     className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     type="button"
-                    onClick={saveAssignments}
+                    onClick={() => saveAssignments()}
                     disabled={saving || ["alistada", "despachada"].includes(selectedSale.status)}
                   >
-                    Guardar asignacion
+                    Guardar todas las asignaciones
                   </button>
                 </div>
               )}
