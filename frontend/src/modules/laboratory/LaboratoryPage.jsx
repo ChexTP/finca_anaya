@@ -998,18 +998,6 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
           </button>
           <button
             className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
-              activePanel === "inventory" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
-            }`}
-            onClick={() => setActivePanel("inventory")}
-          >
-            <span className="inline-flex items-center gap-2 font-semibold">
-              <ClipboardCheck size={16} />
-              Inventario
-            </span>
-            <span className="text-xs">{inventoryLots.length}</span>
-          </button>
-          <button
-            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
               activePanel === "processes" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
             }`}
             onClick={() => setActivePanel("processes")}

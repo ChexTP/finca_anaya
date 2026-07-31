@@ -34,7 +34,6 @@ const navigation = [
   { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "accounting", "warehouse", "laboratory"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "accounting", "laboratory"] },
-  { label: "Inventario", path: "/laboratorio/inventario", icon: Boxes, roles: ["laboratory"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
   { label: "Trilladora", path: "/trilladora", icon: Coffee, roles: ["admin", "accounting", "warehouse", "laboratory"] },
