@@ -191,6 +191,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const [sampleReview, setSampleReview] = useState(initialSampleReview);
   const [saleReview, setSaleReview] = useState(initialSaleReview);
   const [inventoryLabForm, setInventoryLabForm] = useState(initialInventoryLabEdit);
+  const [lotReviewDrafts, setLotReviewDrafts] = useState({});
+  const [inventoryLabDrafts, setInventoryLabDrafts] = useState({});
+  const [processFinishDrafts, setProcessFinishDrafts] = useState({});
+  const [sampleReviewDrafts, setSampleReviewDrafts] = useState({});
+  const [saleReviewDrafts, setSaleReviewDrafts] = useState({});
   const [inventorySearch, setInventorySearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -328,7 +333,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const selectLot = (lot) => {
     setActivePanel("lots");
     setSelectedLot(lot);
-    setReview({
+    setReview(lotReviewDrafts[lot.id] || {
       ...initialReview,
       commercialClassification: lot.commercial_classification || "",
       coffeeVariety: lot.coffee_variety || "",
@@ -340,7 +345,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const selectInventoryLot = (lot) => {
     setActivePanel("inventory");
     setSelectedInventoryLot(lot);
-    setInventoryLabForm({
+    setInventoryLabForm(inventoryLabDrafts[lot.id] || {
       humidityPercent: lot.humidity_percent ?? "",
       performanceFactor: lot.performance_factor ?? "",
       aroma: lot.lab_aroma || "",
@@ -392,6 +397,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
           notes: inventoryLabForm.notes,
           changeNote: inventoryLabForm.changeNote,
         }),
+      });
+      setInventoryLabDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[selectedInventoryLot.id];
+        return next;
       });
       await loadData();
       setMessage("Analisis de inventario actualizado correctamente.");
@@ -522,7 +532,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const selectProcess = (process) => {
     setActivePanel("processes");
     setSelectedProcess(process);
-    setFinishForm({
+    setFinishForm(processFinishDrafts[process.id] || {
       ...initialFinish,
       outputReviews: process.outputs?.length
         ? process.outputs.map((output) => buildEmptyProcessOutputReview(output))
@@ -533,18 +543,26 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   };
 
   const updateProcessOutputReview = (index, field, value) => {
-    setFinishForm((current) => ({
-      ...current,
+    setFinishForm((current) => {
+      const next = {
+        ...current,
       outputReviews: (current.outputReviews || []).map((review, reviewIndex) => (
         reviewIndex === index ? { ...review, [field]: value } : review
       )),
-    }));
+      };
+
+      if (selectedProcess) {
+        setProcessFinishDrafts((drafts) => ({ ...drafts, [selectedProcess.id]: next }));
+      }
+
+      return next;
+    });
   };
 
   const selectSample = (sample) => {
     setActivePanel("samples");
     setSelectedSample(sample);
-    setSampleReview({
+    setSampleReview(sampleReviewDrafts[sample.id] || {
       ...initialSampleReview,
       itemReviews: buildBlankSampleItemReviews(sample),
     });
@@ -553,12 +571,80 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   };
 
   const updateSampleItemReview = (index, field, value) => {
-    setSampleReview((currentReview) => ({
-      ...currentReview,
+    setSampleReview((currentReview) => {
+      const next = {
+        ...currentReview,
       itemReviews: currentReview.itemReviews.map((itemReview, itemIndex) =>
         itemIndex === index ? { ...itemReview, [field]: value } : itemReview
       ),
-    }));
+      };
+
+      if (selectedSample) {
+        setSampleReviewDrafts((drafts) => ({ ...drafts, [selectedSample.id]: next }));
+      }
+
+      return next;
+    });
+  };
+
+  const updateLotReview = (field, value) => {
+    setReview((current) => {
+      const next = { ...current, [field]: value };
+
+      if (selectedLot) {
+        setLotReviewDrafts((drafts) => ({ ...drafts, [selectedLot.id]: next }));
+      }
+
+      return next;
+    });
+  };
+
+  const updateInventoryLabForm = (field, value) => {
+    setInventoryLabForm((current) => {
+      const next = { ...current, [field]: value };
+
+      if (selectedInventoryLot) {
+        setInventoryLabDrafts((drafts) => ({ ...drafts, [selectedInventoryLot.id]: next }));
+      }
+
+      return next;
+    });
+  };
+
+  const updateFinishForm = (field, value) => {
+    setFinishForm((current) => {
+      const next = { ...current, [field]: value };
+
+      if (selectedProcess) {
+        setProcessFinishDrafts((drafts) => ({ ...drafts, [selectedProcess.id]: next }));
+      }
+
+      return next;
+    });
+  };
+
+  const updateSampleReviewForm = (field, value) => {
+    setSampleReview((current) => {
+      const next = { ...current, [field]: value };
+
+      if (selectedSample) {
+        setSampleReviewDrafts((drafts) => ({ ...drafts, [selectedSample.id]: next }));
+      }
+
+      return next;
+    });
+  };
+
+  const updateSaleReviewForm = (field, value) => {
+    setSaleReview((current) => {
+      const next = { ...current, [field]: value };
+
+      if (selectedSaleReview) {
+        setSaleReviewDrafts((drafts) => ({ ...drafts, [selectedSaleReview.id]: next }));
+      }
+
+      return next;
+    });
   };
 
   const selectSaleReview = async (saleId) => {
@@ -570,7 +656,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     try {
       const sale = await apiRequest(`/sales/${saleId}`);
       setSelectedSaleReview(sale);
-      setSaleReview({
+      setSaleReview(saleReviewDrafts[sale.id] || {
         ...initialSaleReview,
         itemReviews: buildBlankSaleItemReviews(sale),
       });
@@ -582,12 +668,20 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   };
 
   const updateSaleItemReview = (index, field, value) => {
-    setSaleReview((currentReview) => ({
-      ...currentReview,
+    setSaleReview((currentReview) => {
+      const next = {
+        ...currentReview,
       itemReviews: currentReview.itemReviews.map((itemReview, itemIndex) =>
         itemIndex === index ? { ...itemReview, [field]: value } : itemReview
       ),
-    }));
+      };
+
+      if (selectedSaleReview) {
+        setSaleReviewDrafts((drafts) => ({ ...drafts, [selectedSaleReview.id]: next }));
+      }
+
+      return next;
+    });
   };
 
   const selectSaleForBlend = async (saleId) => {
@@ -765,6 +859,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
           score: review.score === "" ? null : Number(review.score),
         }),
       });
+      setLotReviewDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[selectedLot.id];
+        return next;
+      });
       setReview(initialReview);
       setSelectedLot(null);
       await loadData();
@@ -825,6 +924,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       await apiRequest(`/samples/${selectedSample.id}/status`, {
         method: "PUT",
         body: JSON.stringify(requestBody),
+      });
+      setSampleReviewDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[selectedSample.id];
+        return next;
       });
       setSampleReview(initialSampleReview);
       setSelectedSample(null);
@@ -891,6 +995,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
         method: "PUT",
         body: JSON.stringify(requestBody),
       });
+      setSaleReviewDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[selectedSaleReview.id];
+        return next;
+      });
       setSaleReview(initialSaleReview);
       setSelectedSaleReview(null);
       await loadData();
@@ -951,6 +1060,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
               }))
             : [],
         }),
+      });
+      setProcessFinishDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[selectedProcess.id];
+        return next;
       });
       setFinishForm(initialFinish);
       setSelectedProcess(null);
@@ -1111,7 +1225,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
               <select
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={review.decision}
-                onChange={(event) => setReview({ ...review, decision: event.target.value })}
+                onChange={(event) => updateLotReview("decision", event.target.value)}
               >
                 <option value="aprobado">Aprobado</option>
                 <option value="rechazado">Rechazado</option>
@@ -1129,7 +1243,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     <select
                       className="rounded border border-slate-300 px-3 py-2 text-sm"
                       value={review.commercialClassification}
-                      onChange={(event) => setReview({ ...review, commercialClassification: event.target.value })}
+                      onChange={(event) => updateLotReview("commercialClassification", event.target.value)}
                     >
                       <option value="">Sin categoria</option>
                       <option value="Regional">Regional</option>
@@ -1140,7 +1254,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       className="rounded border border-slate-300 px-3 py-2 text-sm"
                       placeholder="Variedad, nombre o codigo exacto"
                       value={review.coffeeVariety}
-                      onChange={(event) => setReview({ ...review, coffeeVariety: event.target.value })}
+                      onChange={(event) => updateLotReview("coffeeVariety", event.target.value)}
                     />
                   </div>
                   {((selectedLot.commercial_classification || "") !== (review.commercialClassification || "") ||
@@ -1149,7 +1263,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       placeholder="Nota interna del cambio, ej. Pasa a regional por no cumplir perfil varietal"
                       value={review.classificationChangeNote}
-                      onChange={(event) => setReview({ ...review, classificationChangeNote: event.target.value })}
+                      onChange={(event) => updateLotReview("classificationChangeNote", event.target.value)}
                       required
                     />
                   )}
@@ -1164,7 +1278,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       className="rounded border border-slate-300 px-3 py-2 text-sm"
                       placeholder={label}
                       value={review[field]}
-                      onChange={(event) => setReview({ ...review, [field]: event.target.value })}
+                      onChange={(event) => updateLotReview(field, event.target.value)}
                     />
                   ))}
                   <input
@@ -1173,7 +1287,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     type="number"
                     step="0.01"
                     value={review.score}
-                    onChange={(event) => setReview({ ...review, score: event.target.value })}
+                    onChange={(event) => updateLotReview("score", event.target.value)}
                   />
                 </div>
               )}
@@ -1182,7 +1296,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                 className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Notas de laboratorio"
                 value={review.notes}
-                onChange={(event) => setReview({ ...review, notes: event.target.value })}
+                onChange={(event) => updateLotReview("notes", event.target.value)}
               />
               <button
                 className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
@@ -1266,7 +1380,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       type="number"
                       step="0.01"
                       value={inventoryLabForm.humidityPercent}
-                      onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, humidityPercent: event.target.value })}
+                      onChange={(event) => updateInventoryLabForm("humidityPercent", event.target.value)}
                     />
                     <input
                       className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1274,7 +1388,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       type="number"
                       step="0.01"
                       value={inventoryLabForm.performanceFactor}
-                      onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, performanceFactor: event.target.value })}
+                      onChange={(event) => updateInventoryLabForm("performanceFactor", event.target.value)}
                     />
                   </div>
 
@@ -1285,7 +1399,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                         className="rounded border border-slate-300 px-3 py-2 text-sm"
                         placeholder={label}
                         value={inventoryLabForm[field]}
-                        onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, [field]: event.target.value })}
+                        onChange={(event) => updateInventoryLabForm(field, event.target.value)}
                       />
                     ))}
                     <input
@@ -1294,7 +1408,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       type="number"
                       step="0.01"
                       value={inventoryLabForm.score}
-                      onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, score: event.target.value })}
+                      onChange={(event) => updateInventoryLabForm("score", event.target.value)}
                     />
                   </div>
 
@@ -1302,13 +1416,13 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     placeholder="Notas de laboratorio"
                     value={inventoryLabForm.notes}
-                    onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, notes: event.target.value })}
+                    onChange={(event) => updateInventoryLabForm("notes", event.target.value)}
                   />
                   <textarea
                     className="min-h-20 w-full rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm"
                     placeholder="Nota obligatoria de correccion"
                     value={inventoryLabForm.changeNote}
-                    onChange={(event) => setInventoryLabForm({ ...inventoryLabForm, changeNote: event.target.value })}
+                    onChange={(event) => updateInventoryLabForm("changeNote", event.target.value)}
                     required
                   />
 
@@ -1430,7 +1544,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                   <select
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     value={finishForm.coffeeProfileId}
-                    onChange={(event) => setFinishForm({ ...finishForm, coffeeProfileId: event.target.value })}
+                    onChange={(event) => updateFinishForm("coffeeProfileId", event.target.value)}
                   >
                     <option value="">Perfil comercial</option>
                     {catalogs?.coffeeProfiles?.map((profile) => (
@@ -1501,7 +1615,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                           className="rounded border border-slate-300 px-3 py-2 text-sm"
                           placeholder={label}
                           value={finishForm[field]}
-                          onChange={(event) => setFinishForm({ ...finishForm, [field]: event.target.value })}
+                          onChange={(event) => updateFinishForm(field, event.target.value)}
                         />
                       ))}
                       <input
@@ -1510,7 +1624,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                         type="number"
                         step="0.01"
                         value={finishForm.score}
-                        onChange={(event) => setFinishForm({ ...finishForm, score: event.target.value })}
+                        onChange={(event) => updateFinishForm("score", event.target.value)}
                       />
                     </div>
 
@@ -1518,13 +1632,13 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       placeholder="Notas del proceso"
                       value={finishForm.notes}
-                      onChange={(event) => setFinishForm({ ...finishForm, notes: event.target.value })}
+                      onChange={(event) => updateFinishForm("notes", event.target.value)}
                     />
                     <textarea
                       className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       placeholder="Comentario inicial del lote PROC"
                       value={finishForm.initialComment}
-                      onChange={(event) => setFinishForm({ ...finishForm, initialComment: event.target.value })}
+                      onChange={(event) => updateFinishForm("initialComment", event.target.value)}
                     />
                   </>
                 )}
@@ -1631,7 +1745,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                   <select
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     value={sampleReview.decision}
-                    onChange={(event) => setSampleReview({ ...sampleReview, decision: event.target.value })}
+                    onChange={(event) => updateSampleReviewForm("decision", event.target.value)}
                   >
                     <option value="aprobada_laboratorio">Aprobar muestra</option>
                     <option value="en_preparacion">Rechazar y devolver a preparacion</option>
@@ -1692,7 +1806,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     placeholder={sampleReview.decision === "en_preparacion" ? "Motivo del rechazo para que muestras corrija" : "Notas de laboratorio"}
                     value={sampleReview.notes}
-                    onChange={(event) => setSampleReview({ ...sampleReview, notes: event.target.value })}
+                    onChange={(event) => updateSampleReviewForm("notes", event.target.value)}
                     required={sampleReview.decision === "en_preparacion"}
                   />
                   <button
@@ -1769,7 +1883,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                   <select
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     value={saleReview.decision}
-                    onChange={(event) => setSaleReview({ ...saleReview, decision: event.target.value })}
+                    onChange={(event) => updateSaleReviewForm("decision", event.target.value)}
                   >
                     <option value="aprobada_laboratorio">Aprobar venta</option>
                     <option value="ensamble_definido">Rechazar y devolver a ensamble</option>
@@ -1830,7 +1944,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     placeholder={saleReview.decision === "ensamble_definido" ? "Motivo del rechazo para ajustar el ensamble" : "Notas de laboratorio"}
                     value={saleReview.notes}
-                    onChange={(event) => setSaleReview({ ...saleReview, notes: event.target.value })}
+                    onChange={(event) => updateSaleReviewForm("notes", event.target.value)}
                     required={saleReview.decision === "ensamble_definido"}
                   />
                   <button
