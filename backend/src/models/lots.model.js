@@ -891,7 +891,7 @@ export const updateLotLabData = async (id, reviewData) => {
   }
 };
 
-export const liquidateLot = async ({ id, purchasePricePerKg, notes, purchaseOrderSnapshot, liquidatedBy }) => {
+export const liquidateLot = async ({ id, purchaseBaseFactor, purchasePriceFactor90, purchasePricePerKg, notes, purchaseOrderSnapshot, liquidatedBy }) => {
   const client = await pool.connect();
 
   try {
@@ -922,8 +922,14 @@ export const liquidateLot = async ({ id, purchasePricePerKg, notes, purchaseOrde
     const snapshotNetWeight = Number.isFinite(requestedNetWeight) && requestedNetWeight > 0
       ? requestedNetWeight
       : Number(currentLot.net_weight_kg || 0);
-    const purchaseTotal = purchasePricePerKg !== null
-      ? Number((snapshotNetWeight * Number(purchasePricePerKg)).toFixed(2))
+    const finalPurchasePricePerKg = calculateLiquidationPricePerKg({
+      purchasePriceFactor90: purchasePriceFactor90 ?? purchaseOrderSnapshot?.purchasePriceFactor90,
+      purchasePricePerKg,
+      purchaseBaseFactor: purchaseBaseFactor ?? purchaseOrderSnapshot?.purchaseBaseFactor,
+      performanceFactor: purchaseOrderSnapshot?.performanceFactor ?? currentLot.performance_factor,
+    });
+    const purchaseTotal = finalPurchasePricePerKg !== null
+      ? Number((snapshotNetWeight * Number(finalPurchasePricePerKg)).toFixed(2))
       : null;
 
     const result = await client.query(
@@ -943,7 +949,7 @@ export const liquidateLot = async ({ id, purchasePricePerKg, notes, purchaseOrde
       WHERE id = $4
       RETURNING *
       `,
-      [purchasePricePerKg, purchaseTotal, notes || null, id]
+      [finalPurchasePricePerKg, purchaseTotal, notes || null, id]
     );
     const lot = result.rows[0];
 
@@ -973,6 +979,23 @@ export const liquidateLot = async ({ id, purchasePricePerKg, notes, purchaseOrde
     client.release();
   }
 };
+
+function calculateLiquidationPricePerKg({ purchaseBaseFactor, purchasePriceFactor90, purchasePricePerKg, performanceFactor }) {
+  const basePriceCarga = Number(purchasePriceFactor90);
+  const negotiatedBaseFactor = purchaseBaseFactor === null || purchaseBaseFactor === undefined || purchaseBaseFactor === ""
+    ? 90
+    : Number(purchaseBaseFactor);
+  const factor = performanceFactor === null || performanceFactor === undefined || performanceFactor === ""
+    ? negotiatedBaseFactor
+    : Number(performanceFactor);
+
+  if (Number.isFinite(basePriceCarga) && basePriceCarga > 0 && Number.isFinite(factor) && Number.isFinite(negotiatedBaseFactor)) {
+    const adjustedPriceCarga = basePriceCarga * (1 + (factor - negotiatedBaseFactor) / 100);
+    return Number((adjustedPriceCarga / 125).toFixed(4));
+  }
+
+  return Number(purchasePricePerKg || 0);
+}
 
 export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, liquidatedBy }) => {
   const client = await pool.connect();
@@ -1015,7 +1038,12 @@ export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, 
       const snapshotNetWeight = Number.isFinite(requestedNetWeight) && requestedNetWeight > 0
         ? requestedNetWeight
         : Number(lot.net_weight_kg || 0);
-      const purchasePricePerKg = Number(item.purchasePricePerKg);
+      const purchasePricePerKg = calculateLiquidationPricePerKg({
+        purchaseBaseFactor: item.purchaseBaseFactor ?? itemSnapshot.purchaseBaseFactor,
+        purchasePriceFactor90: item.purchasePriceFactor90 ?? itemSnapshot.purchasePriceFactor90,
+        purchasePricePerKg: item.purchasePricePerKg ?? itemSnapshot.purchasePricePerKg,
+        performanceFactor: itemSnapshot.performanceFactor ?? lot.performance_factor,
+      });
       const itemTotal = Number((snapshotNetWeight * purchasePricePerKg).toFixed(2));
       purchaseTotal += itemTotal;
 

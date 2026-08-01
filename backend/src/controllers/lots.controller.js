@@ -871,7 +871,8 @@ export const putPurchase = async (req, res) => {
 
 export const putLiquidation = async (req, res) => {
   try {
-    const { purchasePricePerKg, notes, purchaseOrderSnapshot } = req.body;
+    const { purchaseBaseFactor, purchasePriceFactor90, purchasePricePerKg, notes, purchaseOrderSnapshot } = req.body;
+    const factor90Price = toNumber(purchasePriceFactor90);
     const price = toNumber(purchasePricePerKg);
     const cleanPurchaseOrderSnapshot = purchaseOrderSnapshot &&
       typeof purchaseOrderSnapshot === "object" &&
@@ -879,14 +880,16 @@ export const putLiquidation = async (req, res) => {
       ? purchaseOrderSnapshot
       : {};
 
-    if (!isValidNumber(price) || price <= 0) {
+    if ((!isValidNumber(factor90Price) || factor90Price <= 0) && (!isValidNumber(price) || price <= 0)) {
       return res.status(400).json({
-        message: "El precio pactado por kg es obligatorio y debe ser mayor a cero",
+        message: "El precio factor base es obligatorio y debe ser mayor a cero",
       });
     }
 
     const lot = await liquidateLot({
       id: req.params.id,
+      purchaseBaseFactor: toNumber(purchaseBaseFactor),
+      purchasePriceFactor90: factor90Price,
       purchasePricePerKg: price,
       notes,
       purchaseOrderSnapshot: cleanPurchaseOrderSnapshot,
@@ -932,15 +935,16 @@ export const postGroupedLiquidation = async (req, res) => {
 
     for (const item of cleanItems) {
       const id = Number(item.id);
+      const factor90Price = toNumber(item.purchasePriceFactor90);
       const price = toNumber(item.purchasePricePerKg);
 
       if (!Number.isInteger(id) || id <= 0) {
         return res.status(400).json({ message: "Cada lote de la liquidacion debe tener un id valido" });
       }
 
-      if (!isValidNumber(price) || price <= 0) {
+      if ((!isValidNumber(factor90Price) || factor90Price <= 0) && (!isValidNumber(price) || price <= 0)) {
         return res.status(400).json({
-          message: "Cada lote de la liquidacion debe tener un precio pactado por kg mayor a cero",
+          message: "Cada lote de la liquidacion debe tener un precio factor base mayor a cero",
         });
       }
     }
@@ -948,6 +952,8 @@ export const postGroupedLiquidation = async (req, res) => {
     const result = await liquidateLotsGroup({
       items: cleanItems.map((item) => ({
         id: Number(item.id),
+        purchaseBaseFactor: toNumber(item.purchaseBaseFactor),
+        purchasePriceFactor90: Number(item.purchasePriceFactor90),
         purchasePricePerKg: Number(item.purchasePricePerKg),
       })),
       notes,

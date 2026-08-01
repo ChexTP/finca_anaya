@@ -31,6 +31,8 @@ const initialLiquidation = {
   performanceFactor: "",
   createdByName: "",
   coffeeDetail: "",
+  purchaseBaseFactor: "90",
+  purchasePriceFactor90: "",
   purchasePricePerKg: "",
   items: [],
   notes: "",
@@ -81,6 +83,37 @@ const formatKg = formatOperationalKg;
 const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
+const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor = 90) => {
+  const basePriceCarga = Number(priceFactor90 || 0);
+  const negotiatedBaseFactor = baseFactor === "" || baseFactor === null || baseFactor === undefined
+    ? 90
+    : Number(baseFactor);
+  const factor = performanceFactor === "" || performanceFactor === null || performanceFactor === undefined
+    ? negotiatedBaseFactor
+    : Number(performanceFactor);
+
+  if (
+    !Number.isFinite(basePriceCarga) ||
+    basePriceCarga <= 0 ||
+    !Number.isFinite(factor) ||
+    !Number.isFinite(negotiatedBaseFactor)
+  ) {
+    return {
+      adjustmentPercent: 0,
+      adjustedPriceCarga: 0,
+      purchasePricePerKg: 0,
+    };
+  }
+
+  const adjustmentPercent = factor - negotiatedBaseFactor;
+  const adjustedPriceCarga = Number((basePriceCarga * (1 + adjustmentPercent / 100)).toFixed(2));
+
+  return {
+    adjustmentPercent,
+    adjustedPriceCarga,
+    purchasePricePerKg: Number((adjustedPriceCarga / 125).toFixed(4)),
+  };
+};
 
 const buildLiquidationItem = (lot) => ({
   id: lot.id,
@@ -90,7 +123,9 @@ const buildLiquidationItem = (lot) => ({
   netWeightKg: toInputNumber(lot.net_weight_kg),
   performanceFactor: toInputNumber(lot.performance_factor),
   coffeeDetail: formatCoffeeLotCodeName(lot),
-  purchasePricePerKg: toInputNumber(lot.purchase_price_per_kg),
+  purchaseBaseFactor: "90",
+  purchasePriceFactor90: "",
+  purchasePricePerKg: "",
 });
 
 const buildLiquidationForm = (lots, user) => {
@@ -115,6 +150,8 @@ const buildLiquidationForm = (lots, user) => {
   performanceFactor: items.length === 1 ? items[0]?.performanceFactor || "" : "",
   createdByName: user?.name || user?.username || "",
   coffeeDetail: items.length === 1 ? items[0]?.coffeeDetail || "" : `Liquidacion agrupada de ${items.length} lotes`,
+  purchaseBaseFactor: "90",
+  purchasePriceFactor90: items.length === 1 ? items[0]?.purchasePriceFactor90 || "" : "",
   purchasePricePerKg: items.length === 1 ? items[0]?.purchasePricePerKg || "" : "",
   items,
   notes: "",
@@ -124,12 +161,21 @@ const buildLiquidationForm = (lots, user) => {
 const buildPurchaseOrderSnapshot = (form) => {
   const items = (form.items || []).map((item) => {
     const netWeightKg = Number(item.netWeightKg || 0);
-    const purchasePricePerKg = Number(item.purchasePricePerKg || 0);
+    const priceData = calculateLiquidationPrices(
+      item.purchasePriceFactor90,
+      item.performanceFactor,
+      item.purchaseBaseFactor ?? form.purchaseBaseFactor
+    );
+    const purchasePricePerKg = Number(priceData.purchasePricePerKg || 0);
 
     return {
       ...item,
       grossWeightKg: item.grossWeightKg === "" ? null : Number(item.grossWeightKg),
       netWeightKg,
+      purchaseBaseFactor: Number(item.purchaseBaseFactor || form.purchaseBaseFactor || 90),
+      purchasePriceFactor90: Number(item.purchasePriceFactor90 || 0),
+      adjustedPriceCarga: priceData.adjustedPriceCarga,
+      adjustmentPercent: priceData.adjustmentPercent,
       purchasePricePerKg,
       purchaseTotal: Number((netWeightKg * purchasePricePerKg).toFixed(2)),
     };
@@ -137,6 +183,8 @@ const buildPurchaseOrderSnapshot = (form) => {
   const netWeightKg = items.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0);
   const grossWeightKg = items.reduce((sum, item) => sum + Number(item.grossWeightKg || 0), 0);
   const purchaseTotal = items.reduce((sum, item) => sum + Number(item.purchaseTotal || 0), 0);
+  const purchasePriceFactor90 = items.length === 1 ? Number(items[0]?.purchasePriceFactor90 || 0) : null;
+  const purchaseBaseFactor = items.length === 1 ? Number(items[0]?.purchaseBaseFactor || form.purchaseBaseFactor || 90) : Number(form.purchaseBaseFactor || 90);
   const purchasePricePerKg = items.length === 1 ? Number(items[0]?.purchasePricePerKg || 0) : null;
 
   return {
@@ -155,6 +203,8 @@ const buildPurchaseOrderSnapshot = (form) => {
     performanceFactor: form.performanceFactor,
     createdByName: form.createdByName,
     coffeeDetail: form.coffeeDetail,
+    purchaseBaseFactor,
+    purchasePriceFactor90,
     purchasePricePerKg,
     purchaseTotal: Number(purchaseTotal.toFixed(2)),
     items,
@@ -289,7 +339,21 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const updateLiquidationItem = (itemId, field, value) => {
     setLiquidationForm((currentForm) => {
       const nextItems = (currentForm.items || []).map((item) =>
-        item.id === itemId ? { ...item, [field]: value } : item
+        item.id === itemId
+          ? {
+              ...item,
+              [field]: value,
+              ...(field === "purchasePriceFactor90" || field === "performanceFactor"
+                ? {
+                    purchasePricePerKg: calculateLiquidationPrices(
+                      field === "purchasePriceFactor90" ? value : item.purchasePriceFactor90,
+                      field === "performanceFactor" ? value : item.performanceFactor,
+                      item.purchaseBaseFactor ?? currentForm.purchaseBaseFactor
+                    ).purchasePricePerKg || "",
+                  }
+                : {}),
+            }
+          : item
       );
       const totalGrossWeight = nextItems.reduce((sum, item) => sum + Number(item.grossWeightKg || 0), 0);
       const totalNetWeight = nextItems.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0);
@@ -301,6 +365,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
         grossWeightKg: totalGrossWeight ? Number(totalGrossWeight.toFixed(3)) : "",
         netWeightKg: totalNetWeight ? Number(totalNetWeight.toFixed(3)) : "",
         coffeeDetail: nextItems.length === 1 ? nextItems[0]?.coffeeDetail || "" : `Liquidacion agrupada de ${nextItems.length} lotes`,
+        purchasePriceFactor90: nextItems.length === 1 ? nextItems[0]?.purchasePriceFactor90 || "" : "",
         purchasePricePerKg: nextItems.length === 1 ? nextItems[0]?.purchasePricePerKg || "" : "",
       };
     });
@@ -327,9 +392,9 @@ const InventoryPage = ({ mode = "inventory" }) => {
       return;
     }
 
-    const invalidItem = (liquidationForm.items || []).find((item) => !item.purchasePricePerKg || Number(item.purchasePricePerKg) <= 0);
+    const invalidItem = (liquidationForm.items || []).find((item) => !item.purchasePriceFactor90 || Number(item.purchasePriceFactor90) <= 0);
     if (invalidItem) {
-      setError("Ingrese el precio pactado por kg en cada lote antes de liquidar.");
+      setError("Ingrese el precio factor base por carga en cada lote antes de liquidar.");
       return;
     }
 
@@ -348,6 +413,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
           body: JSON.stringify({
             items: selectedItems.map((item) => ({
               id: item.id,
+              purchaseBaseFactor: item.purchaseBaseFactor,
+              purchasePriceFactor90: item.purchasePriceFactor90,
               purchasePricePerKg: item.purchasePricePerKg,
             })),
             notes: liquidationForm.notes,
@@ -358,6 +425,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
           method: "PUT",
           body: JSON.stringify({
             purchasePricePerKg: selectedItems[0]?.purchasePricePerKg ?? null,
+            purchaseBaseFactor: selectedItems[0]?.purchaseBaseFactor ?? liquidationForm.purchaseBaseFactor ?? 90,
+            purchasePriceFactor90: selectedItems[0]?.purchasePriceFactor90 ?? null,
             notes: liquidationForm.notes,
             purchaseOrderSnapshot,
           }),
@@ -1397,20 +1466,53 @@ const InventoryPage = ({ mode = "inventory" }) => {
             <div className="mt-4 space-y-3">
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Precio pactado por kg"
+                placeholder="Precio por carga segun factor base"
                 type="number"
                 step="0.01"
                 required
-                value={liquidationForm.purchasePricePerKg}
+                value={liquidationForm.purchasePriceFactor90}
                 onChange={(event) => {
                   const value = event.target.value;
                   setLiquidationForm({
                     ...liquidationForm,
-                    purchasePricePerKg: value,
-                    items: (liquidationForm.items || []).map((item) => ({ ...item, purchasePricePerKg: value })),
+                    purchasePriceFactor90: value,
+                    items: (liquidationForm.items || []).map((item) => {
+                      const priceData = calculateLiquidationPrices(value, item.performanceFactor, item.purchaseBaseFactor ?? liquidationForm.purchaseBaseFactor);
+                      return {
+                        ...item,
+                        purchasePriceFactor90: value,
+                        purchasePricePerKg: priceData.purchasePricePerKg || "",
+                      };
+                    }),
                   });
                 }}
               />
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Factor base negociado"
+                type="number"
+                step="0.01"
+                required
+                value={liquidationForm.purchaseBaseFactor}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setLiquidationForm({
+                    ...liquidationForm,
+                    purchaseBaseFactor: value,
+                    items: (liquidationForm.items || []).map((item) => {
+                      const priceData = calculateLiquidationPrices(item.purchasePriceFactor90, item.performanceFactor, value);
+                      return {
+                        ...item,
+                        purchaseBaseFactor: value,
+                        purchasePricePerKg: priceData.purchasePricePerKg || "",
+                      };
+                    }),
+                  });
+                }}
+              />
+              <p className="text-xs text-slate-500">
+                Se toma como precio base el factor negociado. Si el factor real queda por encima, suma; si queda por debajo, resta.
+              </p>
               <textarea
                 className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Notas de liquidacion opcionales"
@@ -1772,11 +1874,12 @@ const InventoryPage = ({ mode = "inventory" }) => {
               <div className="rounded border border-slate-200 bg-white">
                 <div className="border-b border-slate-200 px-4 py-3">
                   <h3 className="text-sm font-bold text-ink">Cafes en liquidacion</h3>
-                  <p className="text-xs text-slate-500">Revise cada lote y defina el precio final por kilo de manera independiente.</p>
+                  <p className="text-xs text-slate-500">Revise cada lote y defina el precio factor base por carga de 125 kg.</p>
                 </div>
                 <div className="space-y-3 p-4">
                   {(liquidationForm.items || []).map((item, index) => {
-                    const itemTotal = Number(item.netWeightKg || 0) * Number(item.purchasePricePerKg || 0);
+                    const itemPrices = calculateLiquidationPrices(item.purchasePriceFactor90, item.performanceFactor, item.purchaseBaseFactor ?? liquidationForm.purchaseBaseFactor);
+                    const itemTotal = Number(item.netWeightKg || 0) * Number(itemPrices.purchasePricePerKg || 0);
 
                     return (
                       <div key={item.id} className="rounded border border-amber-100 bg-amber-50/40 p-3">
@@ -1837,16 +1940,51 @@ const InventoryPage = ({ mode = "inventory" }) => {
                             />
                           </label>
                           <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
-                            Precio pactado por kg
+                            Factor base negociado
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                              type="number"
+                              step="0.01"
+                              value={item.purchaseBaseFactor}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setLiquidationForm((currentForm) => {
+                                  const nextItems = (currentForm.items || []).map((currentItem) => {
+                                    if (currentItem.id !== item.id) return currentItem;
+                                    const priceData = calculateLiquidationPrices(currentItem.purchasePriceFactor90, currentItem.performanceFactor, value);
+                                    return {
+                                      ...currentItem,
+                                      purchaseBaseFactor: value,
+                                      purchasePricePerKg: priceData.purchasePricePerKg || "",
+                                    };
+                                  });
+
+                                  return {
+                                    ...currentForm,
+                                    items: nextItems,
+                                    purchaseBaseFactor: nextItems.length === 1 ? nextItems[0]?.purchaseBaseFactor || "90" : currentForm.purchaseBaseFactor,
+                                  };
+                                });
+                              }}
+                              required
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                            Precio factor base
                             <input
                               className="w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm font-semibold normal-case text-ink"
                               type="number"
                               step="0.01"
-                              value={item.purchasePricePerKg}
-                              onChange={(event) => updateLiquidationItem(item.id, "purchasePricePerKg", event.target.value)}
+                              value={item.purchasePriceFactor90}
+                              onChange={(event) => updateLiquidationItem(item.id, "purchasePriceFactor90", event.target.value)}
                               required
                             />
                           </label>
+                          <div className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                            <p className="text-xs font-semibold uppercase text-slate-500">Precio ajustado</p>
+                            <p className="font-bold text-ink">Carga: COP {itemPrices.adjustedPriceCarga.toLocaleString("es-CO")}</p>
+                            <p className="text-xs">Kg: COP {itemPrices.purchasePricePerKg.toLocaleString("es-CO")} · Ajuste {itemPrices.adjustmentPercent}%</p>
+                          </div>
                           <label className="space-y-1 text-xs font-semibold uppercase text-slate-500 md:col-span-2">
                             Detalle del cafe
                             <input
@@ -1971,19 +2109,53 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   />
                 </label>
                 <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
-                  Precio pactado por kg
+                  Factor base negociado
                   <input
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
                     type="number"
                     step="0.01"
-                    value={liquidationForm.purchasePricePerKg}
+                    value={liquidationForm.purchaseBaseFactor}
                     onChange={(event) => {
                       const value = event.target.value;
                       setLiquidationForm({
                         ...liquidationForm,
-                        purchasePricePerKg: value,
+                        purchaseBaseFactor: value,
                         items: (liquidationForm.items || []).length <= 1
-                          ? (liquidationForm.items || []).map((item) => ({ ...item, purchasePricePerKg: value }))
+                          ? (liquidationForm.items || []).map((item) => {
+                            const priceData = calculateLiquidationPrices(item.purchasePriceFactor90, item.performanceFactor, value);
+                            return {
+                              ...item,
+                              purchaseBaseFactor: value,
+                              purchasePricePerKg: priceData.purchasePricePerKg || "",
+                            };
+                          })
+                          : liquidationForm.items,
+                      });
+                    }}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Precio factor base
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    type="number"
+                    step="0.01"
+                    value={liquidationForm.purchasePriceFactor90}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setLiquidationForm({
+                        ...liquidationForm,
+                        purchasePriceFactor90: value,
+                        items: (liquidationForm.items || []).length <= 1
+                          ? (liquidationForm.items || []).map((item) => {
+                            const priceData = calculateLiquidationPrices(value, item.performanceFactor, item.purchaseBaseFactor ?? liquidationForm.purchaseBaseFactor);
+                            return {
+                              ...item,
+                              purchasePriceFactor90: value,
+                              purchasePricePerKg: priceData.purchasePricePerKg || "",
+                            };
+                          })
                           : liquidationForm.items,
                       });
                     }}

@@ -75,6 +75,9 @@ const getPurchaseOrderItems = (payable) => {
       const kilos = Number(item.netWeightKg || 0);
       const priceKg = Number(item.purchasePricePerKg || 0);
       const total = Number(item.purchaseTotal || (kilos * priceKg));
+      const purchaseBaseFactor = Number(item.purchaseBaseFactor || 90);
+      const priceFactor90 = Number(item.purchasePriceFactor90 || 0);
+      const adjustedPriceCarga = Number(item.adjustedPriceCarga || (priceKg * 125));
 
       return {
         detail: item.coffeeDetail || item.lotCode || "Cafe liquidado",
@@ -82,11 +85,14 @@ const getPurchaseOrderItems = (payable) => {
         grossKilos: Number(item.grossWeightKg || 0),
         kilos,
         arrobas: kilos / 12.5,
+        purchaseBaseFactor,
+        priceFactor90,
         priceKg,
-        priceCarga: priceKg * 125,
+        priceCarga: adjustedPriceCarga,
         priceArroba: priceKg * 12.5,
         total,
         performanceFactor: item.performanceFactor || "",
+        adjustmentPercent: Number(item.adjustmentPercent || 0),
       };
     });
   }
@@ -100,11 +106,14 @@ const getPurchaseOrderItems = (payable) => {
     grossKilos: Number(snapshotValue(payable, "grossWeightKg", payable.gross_weight_kg || 0)),
     kilos,
     arrobas: kilos / 12.5,
+    purchaseBaseFactor: Number(snapshotValue(payable, "purchaseBaseFactor", 90)),
+    priceFactor90: Number(snapshotValue(payable, "purchasePriceFactor90", 0)),
     priceKg,
     priceCarga: priceKg * 125,
     priceArroba: priceKg * 12.5,
     total: Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || (kilos * priceKg))),
     performanceFactor: snapshotValue(payable, "performanceFactor", payable.performance_factor || ""),
+    adjustmentPercent: Number(snapshotValue(payable, "adjustmentPercent", 0)),
   }];
 };
 
@@ -137,6 +146,8 @@ export const buildPurchaseOrderHtml = (payable) => {
                   <td>${escapeHtml(item.detail)}</td>
                   <td>${formatDecimal(item.kilos)}</td>
                   <td>${formatDecimal(item.arrobas)}</td>
+                  <td>${escapeHtml(item.performanceFactor || "-")} / ${escapeHtml(item.purchaseBaseFactor || 90)}</td>
+                  <td class="money">${formatMoney(item.priceFactor90)}</td>
                   <td class="money">${formatMoney(item.priceCarga)}</td>
                   <td class="money">${formatMoney(item.priceKg)}</td>
                   <td class="money">${formatMoney(item.priceArroba)}</td>
@@ -364,7 +375,9 @@ export const buildPurchaseOrderHtml = (payable) => {
                   <th>Detalle</th>
                   <th>Kilos</th>
                   <th>Arrobas</th>
-                  <th>Precio carga</th>
+                  <th>Factor / base</th>
+                  <th>Precio factor base</th>
+                  <th>Precio carga ajustado</th>
                   <th>Precio kg</th>
                   <th>Precio arroba</th>
                   <th>Total</th>
@@ -380,7 +393,7 @@ export const buildPurchaseOrderHtml = (payable) => {
             <div class="note-box">
               <h3>Nota</h3>
               <p>${escapeHtml(notes || "Sin notas adicionales.")}</p>
-              <p><strong>Detalle interno:</strong> ${items.length > 1 ? "Orden agrupada" : `Precio carga ${formatMoney(firstItem.priceCarga, { withCurrency: false })}`}${performanceFactor ? ` - FR ${escapeHtml(performanceFactor)}` : ""}</p>
+              <p><strong>Detalle interno:</strong> ${items.length > 1 ? "Orden agrupada" : `Precio carga ajustado ${formatMoney(firstItem.priceCarga, { withCurrency: false })}`}${performanceFactor ? ` - FR ${escapeHtml(performanceFactor)}` : ""}</p>
             </div>
             <div class="totals">
               <h3>Resumen</h3>
