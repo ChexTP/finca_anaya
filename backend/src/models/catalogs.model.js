@@ -109,12 +109,16 @@ export const updateSimpleCatalogItem = async (tableName, id, { name, isActive = 
 };
 
 export const listCatalog = async (tableName) => {
+  const orderBy = ["purchase_coffees", "coffee_profiles"].includes(tableName)
+    ? "created_at DESC, id DESC"
+    : "name ASC";
+
   const result = await pool.query(
     `
     SELECT *
     FROM ${tableName}
     WHERE is_active = TRUE
-    ORDER BY name ASC
+    ORDER BY ${orderBy}
     `
   );
 
@@ -151,7 +155,7 @@ export const listCoffeeProfilesForAdmin = async () => {
     FROM coffee_profiles
     LEFT JOIN purchase_coffees process_purchase ON process_purchase.id = coffee_profiles.process_purchase_coffee_id
     LEFT JOIN purchase_coffees base_purchase ON base_purchase.id = coffee_profiles.base_purchase_coffee_id
-    ORDER BY is_active DESC, name ASC
+    ORDER BY created_at DESC, id DESC
     `
   );
 
@@ -163,7 +167,7 @@ export const listPurchaseCoffeesForAdmin = async () => {
     `
     SELECT *
     FROM purchase_coffees
-    ORDER BY is_active DESC, family ASC, process_type ASC, name ASC
+    ORDER BY created_at DESC, id DESC
     `
   );
 
