@@ -88,9 +88,9 @@ const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
 const getProcessLocationGroup = (processType) => {
-  if (processType === "Trilladora") return "Trilladora";
-  if (processType === "Seleccion electronica") return "Seleccionadora";
-  return "Finca / proceso";
+  if (processType === "Trilladora") return "En trilla";
+  if (processType === "Seleccion electronica") return "En seleccionadora";
+  return "En finca";
 };
 const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor = 90) => {
   const basePriceCarga = Number(priceFactor90 || 0);
@@ -854,7 +854,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       .toLowerCase()
       .includes(inventorySearchTerm);
   });
-  const processLocationCards = ["Finca / proceso", "Trilladora", "Seleccionadora"].map((location) => {
+  const processLocationCards = ["En finca", "En trilla", "En seleccionadora"].map((location) => {
     const rows = inProcessInventory.filter((row) => getProcessLocationGroup(row.process_type) === location);
 
     return {
@@ -1754,7 +1754,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-800">Cafe fuera de bodega</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Lotes y cantidades que salieron a finca/proceso, trilladora o seleccionadora y aun no han regresado como inventario.
+            Lotes y cantidades que salieron a finca, trilladora o seleccionadora y aun no han regresado como inventario.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
