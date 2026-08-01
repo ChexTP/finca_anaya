@@ -870,8 +870,13 @@ export const putPurchase = async (req, res) => {
 
 export const putLiquidation = async (req, res) => {
   try {
-    const { purchasePricePerKg, notes } = req.body;
+    const { purchasePricePerKg, notes, purchaseOrderSnapshot } = req.body;
     const price = toNumber(purchasePricePerKg);
+    const cleanPurchaseOrderSnapshot = purchaseOrderSnapshot &&
+      typeof purchaseOrderSnapshot === "object" &&
+      !Array.isArray(purchaseOrderSnapshot)
+      ? purchaseOrderSnapshot
+      : {};
 
     if (!isValidNumber(price) || price <= 0) {
       return res.status(400).json({
@@ -883,6 +888,7 @@ export const putLiquidation = async (req, res) => {
       id: req.params.id,
       purchasePricePerKg: price,
       notes,
+      purchaseOrderSnapshot: cleanPurchaseOrderSnapshot,
       liquidatedBy: req.user.id,
     });
 

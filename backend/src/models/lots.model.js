@@ -97,7 +97,7 @@ const findPayableByLotForUpdate = async (client, lotId) => {
   return result.rows[0] || null;
 };
 
-const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes, userId }) => {
+const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes, purchaseOrderSnapshot, userId }) => {
   if (!purchaseTotal || Number(purchaseTotal) <= 0) {
     return null;
   }
@@ -126,13 +126,14 @@ const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes
         total = $4,
         balance_due = $5,
         status = $6,
+        purchase_order_snapshot = $7::jsonb,
         notes = CASE
-          WHEN $7::text IS NULL OR $7::text = '' THEN notes
-          WHEN notes IS NULL OR notes = '' THEN $7::text
-          ELSE notes || E'\n' || $7::text
+          WHEN $8::text IS NULL OR $8::text = '' THEN notes
+          WHEN notes IS NULL OR notes = '' THEN $8::text
+          ELSE notes || E'\n' || $8::text
         END,
         updated_at = NOW()
-      WHERE id = $8
+      WHERE id = $9
       RETURNING *
       `,
       [
@@ -142,6 +143,7 @@ const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes
         purchaseTotal,
         Math.max(balanceDue, 0),
         status,
+        JSON.stringify(purchaseOrderSnapshot || {}),
         notes ? `Liquidacion de lote: ${notes}` : "Cuenta actualizada desde liquidacion de lote",
         existingPayable.id,
       ]
@@ -164,9 +166,10 @@ const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes
       amount_paid,
       balance_due,
       notes,
+      purchase_order_snapshot,
       created_by
     )
-    VALUES ($1, $2, $3, $4, 'pendiente', $5, $6, 0, $6, $7, $8)
+    VALUES ($1, $2, $3, $4, 'pendiente', $5, $6, 0, $6, $7, $8::jsonb, $9)
     RETURNING *
     `,
     [
@@ -177,6 +180,7 @@ const upsertLotPayableOnLiquidation = async ({ client, lot, purchaseTotal, notes
       description,
       purchaseTotal,
       notes ? `Cuenta generada al liquidar lote. ${notes}` : "Cuenta generada automaticamente al liquidar lote",
+      JSON.stringify(purchaseOrderSnapshot || {}),
       userId,
     ]
   );
@@ -286,6 +290,9 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
       coffee_lots.*,
       DATE_PART('day', NOW() - coffee_lots.created_at)::INTEGER AS days_in_warehouse,
       suppliers.name AS supplier_name,
+      suppliers.phone AS supplier_phone,
+      suppliers.address AS supplier_address,
+      suppliers.origin_zone AS supplier_origin_zone,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       packaging_types.name AS packaging_type_name
@@ -310,6 +317,9 @@ export const findLotById = async (id) => {
       coffee_lots.*,
       DATE_PART('day', NOW() - coffee_lots.created_at)::INTEGER AS days_in_warehouse,
       suppliers.name AS supplier_name,
+      suppliers.phone AS supplier_phone,
+      suppliers.address AS supplier_address,
+      suppliers.origin_zone AS supplier_origin_zone,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       packaging_types.name AS packaging_type_name
@@ -881,7 +891,7 @@ export const updateLotLabData = async (id, reviewData) => {
   }
 };
 
-export const liquidateLot = async ({ id, purchasePricePerKg, notes, liquidatedBy }) => {
+export const liquidateLot = async ({ id, purchasePricePerKg, notes, purchaseOrderSnapshot, liquidatedBy }) => {
   const client = await pool.connect();
 
   try {
@@ -908,8 +918,12 @@ export const liquidateLot = async ({ id, purchasePricePerKg, notes, liquidatedBy
       return { invalidStatus: true, lot: currentLot };
     }
 
+    const requestedNetWeight = Number(purchaseOrderSnapshot?.netWeightKg);
+    const snapshotNetWeight = Number.isFinite(requestedNetWeight) && requestedNetWeight > 0
+      ? requestedNetWeight
+      : Number(currentLot.net_weight_kg || 0);
     const purchaseTotal = purchasePricePerKg !== null
-      ? Number((Number(currentLot.net_weight_kg) * Number(purchasePricePerKg)).toFixed(2))
+      ? Number((snapshotNetWeight * Number(purchasePricePerKg)).toFixed(2))
       : null;
 
     const result = await client.query(
@@ -941,16 +955,17 @@ export const liquidateLot = async ({ id, purchasePricePerKg, notes, liquidatedBy
       [lot.id, lot.net_weight_kg, notes || "Lote liquidado y disponible para uso", liquidatedBy]
     );
 
-    await upsertLotPayableOnLiquidation({
+    const payable = await upsertLotPayableOnLiquidation({
       client,
       lot,
       purchaseTotal,
       notes,
+      purchaseOrderSnapshot,
       userId: liquidatedBy,
     });
 
     await client.query("COMMIT");
-    return lot;
+    return { ...lot, purchase_order: payable };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

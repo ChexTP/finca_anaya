@@ -737,6 +737,8 @@ CREATE TABLE IF NOT EXISTS accounts_payable (
   CONSTRAINT accounts_payable_amounts_check CHECK (total >= 0 AND amount_paid >= 0 AND balance_due >= 0)
 );
 
+ALTER TABLE accounts_payable ADD COLUMN IF NOT EXISTS purchase_order_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE TABLE IF NOT EXISTS accounts_payable_payments (
   id SERIAL PRIMARY KEY,
   payable_id INTEGER NOT NULL REFERENCES accounts_payable(id) ON DELETE CASCADE,

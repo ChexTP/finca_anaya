@@ -1,4 +1,4 @@
-import { RefreshCw, Save } from "lucide-react";
+import { FileText, RefreshCw, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
+import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
 
 const initialPurchase = {
@@ -16,6 +17,20 @@ const initialPurchase = {
 };
 
 const initialLiquidation = {
+  orderCode: "",
+  orderDate: new Date().toISOString().slice(0, 10),
+  supplierName: "",
+  supplierDocument: "",
+  supplierPhone: "",
+  supplierOriginZone: "",
+  supplierAddress: "",
+  lotCode: "",
+  lotPresentation: "",
+  grossWeightKg: "",
+  netWeightKg: "",
+  performanceFactor: "",
+  createdByName: "",
+  coffeeDetail: "",
   purchasePricePerKg: "",
   notes: "",
 };
@@ -63,6 +78,52 @@ const initialAdminProcessEdit = {
 
 const formatKg = formatOperationalKg;
 const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
+const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
+const todayInputDate = () => new Date().toISOString().slice(0, 10);
+
+const buildLiquidationForm = (lot, user) => ({
+  orderCode: "",
+  orderDate: todayInputDate(),
+  supplierName: lot.supplier_name || "",
+  supplierDocument: lot.supplier_document || "",
+  supplierPhone: lot.supplier_phone || "",
+  supplierOriginZone: lot.supplier_origin_zone || lot.origin_zone || "",
+  supplierAddress: lot.supplier_address || "",
+  lotCode: lot.code || "",
+  lotPresentation: lot.presentation || "Pergamino",
+  grossWeightKg: toInputNumber(lot.gross_weight_kg),
+  netWeightKg: toInputNumber(lot.net_weight_kg),
+  performanceFactor: toInputNumber(lot.performance_factor),
+  createdByName: user?.name || user?.username || "",
+  coffeeDetail: formatCoffeeLotCodeName(lot),
+  purchasePricePerKg: toInputNumber(lot.purchase_price_per_kg),
+  notes: "",
+});
+
+const buildPurchaseOrderSnapshot = (form) => {
+  const netWeightKg = Number(form.netWeightKg || 0);
+  const purchasePricePerKg = Number(form.purchasePricePerKg || 0);
+
+  return {
+    orderCode: form.orderCode,
+    orderDate: form.orderDate,
+    supplierName: form.supplierName,
+    supplierDocument: form.supplierDocument,
+    supplierPhone: form.supplierPhone,
+    supplierOriginZone: form.supplierOriginZone,
+    supplierAddress: form.supplierAddress,
+    lotCode: form.lotCode,
+    lotPresentation: form.lotPresentation,
+    grossWeightKg: form.grossWeightKg === "" ? null : Number(form.grossWeightKg),
+    netWeightKg,
+    performanceFactor: form.performanceFactor,
+    createdByName: form.createdByName,
+    coffeeDetail: form.coffeeDetail,
+    purchasePricePerKg,
+    purchaseTotal: Number((netWeightKg * purchasePricePerKg).toFixed(2)),
+    notes: form.notes,
+  };
+};
 
 const InventoryPage = ({ mode = "inventory" }) => {
   const { user } = useAuth();
@@ -88,6 +149,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [lotCodeSearch, setLotCodeSearch] = useState("");
   const [processCodeSearch, setProcessCodeSearch] = useState("");
   const [showInventoryEditModal, setShowInventoryEditModal] = useState(false);
+  const [showLiquidationReviewModal, setShowLiquidationReviewModal] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -146,10 +208,26 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
   const selectLiquidationLot = (lot) => {
     setSelectedLiquidationLot(lot);
-    setLiquidationForm({
-      purchasePricePerKg: lot.purchase_price_per_kg || "",
-      notes: "",
-    });
+    setLiquidationForm(buildLiquidationForm(lot, user));
+    setShowLiquidationReviewModal(false);
+    setMessage("");
+    setError("");
+  };
+
+  const openLiquidationReview = (event) => {
+    event.preventDefault();
+
+    if (!selectedLiquidationLot) {
+      setError("Seleccione un lote pendiente de liquidacion.");
+      return;
+    }
+
+    if (!liquidationForm.purchasePricePerKg || Number(liquidationForm.purchasePricePerKg) <= 0) {
+      setError("Ingrese el precio pactado por kg antes de revisar la orden.");
+      return;
+    }
+
+    setShowLiquidationReviewModal(true);
     setMessage("");
     setError("");
   };
@@ -162,22 +240,33 @@ const InventoryPage = ({ mode = "inventory" }) => {
       return;
     }
 
-    if (!window.confirm(`Confirma liquidar ${formatCoffeeLotCodeName(selectedLiquidationLot)} y dejarlo disponible para uso?`)) return;
+    const purchaseOrderSnapshot = buildPurchaseOrderSnapshot(liquidationForm);
 
     setSaving(true);
     setMessage("");
     setError("");
 
     try {
-      await apiRequest(`/lots/${selectedLiquidationLot.id}/liquidate`, {
+      const response = await apiRequest(`/lots/${selectedLiquidationLot.id}/liquidate`, {
         method: "PUT",
         body: JSON.stringify({
           purchasePricePerKg: liquidationForm.purchasePricePerKg === "" ? null : Number(liquidationForm.purchasePricePerKg),
           notes: liquidationForm.notes,
+          purchaseOrderSnapshot,
         }),
       });
+      try {
+        openPurchaseOrderPrint({
+          ...(response?.purchase_order || response?.data?.purchase_order || {}),
+          purchase_order_snapshot: purchaseOrderSnapshot,
+          code: purchaseOrderSnapshot.orderCode || response?.purchase_order?.code || response?.data?.purchase_order?.code,
+        });
+      } catch (printError) {
+        console.warn("No se pudo abrir la orden de compra automaticamente", printError);
+      }
       setSelectedLiquidationLot(null);
       setLiquidationForm(initialLiquidation);
+      setShowLiquidationReviewModal(false);
       await loadData();
       setMessage("Lote liquidado. Ya queda disponible y su orden de compra se puede descargar desde Orden de compra.");
     } catch (requestError) {
@@ -519,7 +608,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
     ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
   const liquidationTotal = selectedLiquidationLot && liquidationForm.purchasePricePerKg
-    ? Number(Number(selectedLiquidationLot.net_weight_kg) * Number(liquidationForm.purchasePricePerKg)).toLocaleString("es-CO")
+    ? Number(Number(liquidationForm.netWeightKg || selectedLiquidationLot.net_weight_kg) * Number(liquidationForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
 
   const presentationNames = [
@@ -1142,7 +1231,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
             )}
           </div>
 
-          <form className="min-w-0 overflow-hidden rounded border border-amber-200 bg-white p-4" onSubmit={liquidateSelectedLot}>
+          <form className="min-w-0 overflow-hidden rounded border border-amber-200 bg-white p-4" onSubmit={openLiquidationReview}>
             <h2 className="text-sm font-semibold text-amber-900">Liquidacion de lote</h2>
             <p className="mt-1 text-sm text-slate-500">
               {selectedLiquidationLot ? `Lote seleccionado: ${formatCoffeeLotCodeName(selectedLiquidationLot)}` : "Seleccione un lote pendiente de liquidacion."}
@@ -1174,7 +1263,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 disabled={saving || !selectedLiquidationLot}
               >
                 <Save size={16} />
-                Liquidar y liberar inventario
+                Revisar orden de compra
               </button>
             </div>
           </form>
@@ -1478,6 +1567,199 @@ const InventoryPage = ({ mode = "inventory" }) => {
         </div>
       )}
         </>
+      )}
+
+      {showLiquidationReviewModal && selectedLiquidationLot && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+          <form
+            className="my-6 w-full max-w-5xl rounded border border-amber-200 bg-white shadow-xl"
+            onSubmit={liquidateSelectedLot}
+          >
+            <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-white px-4 py-3">
+              <div>
+                <h2 className="text-base font-bold text-ink">Revisar orden de compra</h2>
+                <p className="text-sm text-slate-500">
+                  Verifique y corrija los datos antes de liquidar {formatCoffeeLotCodeName(selectedLiquidationLot)}.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={() => setShowLiquidationReviewModal(false)}
+                >
+                  <X size={16} />
+                  Cancelar
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving}
+                >
+                  <FileText size={16} />
+                  Liquidar y generar orden
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Estos datos son los que quedaran guardados en la orden de compra. Puede ajustar nombres, pesos,
+                detalle o notas de ultimo minuto antes de confirmar.
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Numero de orden opcional
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    placeholder="Automatico si se deja vacio"
+                    value={liquidationForm.orderCode}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, orderCode: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Fecha
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    type="date"
+                    value={liquidationForm.orderDate}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, orderDate: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Codigo lote
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.lotCode}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, lotCode: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Presentacion
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.lotPresentation}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, lotPresentation: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Proveedor
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.supplierName}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, supplierName: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  NIT o C.C.
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.supplierDocument}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, supplierDocument: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Telefono
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.supplierPhone}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, supplierPhone: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Ciudad / zona
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.supplierOriginZone}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, supplierOriginZone: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500 md:col-span-2">
+                  Direccion
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.supplierAddress}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, supplierAddress: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Peso bruto kg
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    type="number"
+                    step="0.001"
+                    value={liquidationForm.grossWeightKg}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, grossWeightKg: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Peso neto kg
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    type="number"
+                    step="0.001"
+                    value={liquidationForm.netWeightKg}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, netWeightKg: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Factor rendimiento
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.performanceFactor}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, performanceFactor: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Precio pactado por kg
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    type="number"
+                    step="0.01"
+                    value={liquidationForm.purchasePricePerKg}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, purchasePricePerKg: event.target.value })}
+                    required
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Registrado por
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={liquidationForm.createdByName}
+                    onChange={(event) => setLiquidationForm({ ...liquidationForm, createdByName: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label className="block space-y-1 text-xs font-semibold uppercase text-slate-500">
+                Detalle del cafe
+                <textarea
+                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                  value={liquidationForm.coffeeDetail}
+                  onChange={(event) => setLiquidationForm({ ...liquidationForm, coffeeDetail: event.target.value })}
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1 text-xs font-semibold uppercase text-slate-500">
+                Notas de liquidacion
+                <textarea
+                  className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                  value={liquidationForm.notes}
+                  onChange={(event) => setLiquidationForm({ ...liquidationForm, notes: event.target.value })}
+                />
+              </label>
+
+              <div className="rounded bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Total pactado: <span className="font-bold text-ink">COP {liquidationTotal}</span>
+              </div>
+            </div>
+          </form>
+        </div>
       )}
 
       {showInventoryEditModal && selectedAdminLot && (

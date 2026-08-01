@@ -28,13 +28,36 @@ const formatDate = (value) => {
   return new Date(value).toLocaleDateString("es-CO");
 };
 
+const getSnapshot = (payable) => {
+  if (!payable?.purchase_order_snapshot) return {};
+  if (typeof payable.purchase_order_snapshot === "string") {
+    try {
+      return JSON.parse(payable.purchase_order_snapshot) || {};
+    } catch {
+      return {};
+    }
+  }
+  return payable.purchase_order_snapshot || {};
+};
+
+const snapshotValue = (payable, key, fallback = "") => {
+  const snapshot = getSnapshot(payable);
+  return snapshot[key] === undefined || snapshot[key] === null || snapshot[key] === "" ? fallback : snapshot[key];
+};
+
 const getOrderCode = (payable) => {
+  const snapshotOrderCode = snapshotValue(payable, "orderCode", "");
+  if (snapshotOrderCode) return snapshotOrderCode;
+
   const match = String(payable.code || "").match(/(\d{4})-(\d+)$/);
   if (match) return `${Number(match[2])}-${match[1]}`;
   return payable.code || payable.lot_code || "ORDEN";
 };
 
 const getCoffeeDetail = (payable) => {
+  const snapshotCoffeeDetail = snapshotValue(payable, "coffeeDetail", "");
+  if (snapshotCoffeeDetail) return snapshotCoffeeDetail;
+
   return [
     payable.lot_code,
     payable.lot_presentation,
@@ -53,16 +76,18 @@ const buildInfoRows = (rows) => rows
   .join("");
 
 export const buildPurchaseOrderHtml = (payable) => {
-  const kilos = Number(payable.net_weight_kg || 0);
-  const grossKilos = Number(payable.gross_weight_kg || 0);
+  const kilos = Number(snapshotValue(payable, "netWeightKg", payable.net_weight_kg || 0));
+  const grossKilos = Number(snapshotValue(payable, "grossWeightKg", payable.gross_weight_kg || 0));
   const arrobas = kilos / 12.5;
-  const priceKg = Number(payable.purchase_price_per_kg || (kilos ? Number(payable.total || 0) / kilos : 0));
+  const priceKg = Number(snapshotValue(payable, "purchasePricePerKg", payable.purchase_price_per_kg || (kilos ? Number(payable.total || 0) / kilos : 0)));
   const priceCarga = priceKg * 125;
   const priceArroba = priceKg * 12.5;
-  const total = Number(payable.purchase_total || payable.total || (kilos * priceKg));
+  const total = Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || (kilos * priceKg)));
   const orderCode = getOrderCode(payable);
-  const supplierName = payable.supplier_name || payable.third_party_name || "";
+  const supplierName = snapshotValue(payable, "supplierName", payable.supplier_name || payable.third_party_name || "");
   const footerAddress = companyBrand.address.replaceAll(",", "");
+  const notes = snapshotValue(payable, "notes", payable.notes || "");
+  const performanceFactor = snapshotValue(payable, "performanceFactor", payable.performance_factor || "");
 
   return `
     <!doctype html>
@@ -260,18 +285,18 @@ export const buildPurchaseOrderHtml = (payable) => {
             <h2 class="section-title">Proveedor y lote</h2>
             <dl class="info-grid">
               ${buildInfoRows([
-                ["Fecha", formatDate(payable.created_at)],
+                ["Fecha", formatDate(snapshotValue(payable, "orderDate", payable.created_at))],
                 ["Proveedor", supplierName],
-                ["NIT o C.C.", payable.supplier_document || ""],
-                ["Telefono", payable.supplier_phone || ""],
-                ["Ciudad / zona", payable.supplier_origin_zone || ""],
-                ["Direccion", payable.supplier_address || ""],
-                ["Codigo lote", payable.lot_code || ""],
-                ["Presentacion", payable.lot_presentation || ""],
+                ["NIT o C.C.", snapshotValue(payable, "supplierDocument", payable.supplier_document || "")],
+                ["Telefono", snapshotValue(payable, "supplierPhone", payable.supplier_phone || "")],
+                ["Ciudad / zona", snapshotValue(payable, "supplierOriginZone", payable.supplier_origin_zone || "")],
+                ["Direccion", snapshotValue(payable, "supplierAddress", payable.supplier_address || "")],
+                ["Codigo lote", snapshotValue(payable, "lotCode", payable.lot_code || "")],
+                ["Presentacion", snapshotValue(payable, "lotPresentation", payable.lot_presentation || "")],
                 ["Peso bruto", grossKilos ? `${formatDecimal(grossKilos)} kg` : ""],
                 ["Peso neto", `${formatDecimal(kilos)} kg`],
-                ["Factor rendimiento", payable.performance_factor || ""],
-                ["Registrado por", payable.created_by_name || ""],
+                ["Factor rendimiento", performanceFactor],
+                ["Registrado por", snapshotValue(payable, "createdByName", payable.created_by_name || "")],
               ])}
             </dl>
           </section>
@@ -307,8 +332,8 @@ export const buildPurchaseOrderHtml = (payable) => {
           <div class="summary">
             <div class="note-box">
               <h3>Nota</h3>
-              <p>${escapeHtml(payable.notes || "Sin notas adicionales.")}</p>
-              <p><strong>Detalle interno:</strong> Precio carga ${formatMoney(priceCarga, { withCurrency: false })}${payable.performance_factor ? ` - FR ${escapeHtml(payable.performance_factor)}` : ""}</p>
+              <p>${escapeHtml(notes || "Sin notas adicionales.")}</p>
+              <p><strong>Detalle interno:</strong> Precio carga ${formatMoney(priceCarga, { withCurrency: false })}${performanceFactor ? ` - FR ${escapeHtml(performanceFactor)}` : ""}</p>
             </div>
             <div class="totals">
               <h3>Resumen</h3>
