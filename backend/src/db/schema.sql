@@ -410,8 +410,8 @@ CREATE TABLE IF NOT EXISTS coffee_process_outputs (
   presentation VARCHAR(80) NOT NULL DEFAULT 'Excelso',
   output_lot_id INTEGER REFERENCES coffee_lots(id),
   output_weight_kg NUMERIC(12, 3) NOT NULL,
-  humidity_percent NUMERIC(5, 2) NOT NULL,
-  performance_factor NUMERIC(8, 2) NOT NULL,
+  humidity_percent NUMERIC(5, 2) NOT NULL DEFAULT 10,
+  performance_factor NUMERIC(8, 2),
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -422,6 +422,10 @@ CREATE TABLE IF NOT EXISTS coffee_process_outputs (
 
 ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS presentation VARCHAR(80) NOT NULL DEFAULT 'Excelso';
 ALTER TABLE coffee_process_outputs ALTER COLUMN presentation TYPE VARCHAR(80);
+ALTER TABLE coffee_process_outputs ALTER COLUMN humidity_percent SET DEFAULT 10;
+UPDATE coffee_process_outputs SET humidity_percent = 10 WHERE humidity_percent IS NULL;
+ALTER TABLE coffee_process_outputs ALTER COLUMN humidity_percent SET NOT NULL;
+ALTER TABLE coffee_process_outputs ALTER COLUMN performance_factor DROP NOT NULL;
 
 DO $$
 BEGIN

@@ -594,6 +594,10 @@ export const completeProcessPhysicalReview = async ({
         throw new Error("Perfil comercial de salida no encontrado o inactivo");
       }
 
+      const outputHumidityPercent = createsInventoryDirectly && (output.humidityPercent === null || output.humidityPercent === undefined)
+        ? 10
+        : output.humidityPercent;
+
       const insertedOutput = await client.query(
         `
         INSERT INTO coffee_process_outputs (
@@ -613,7 +617,7 @@ export const completeProcessPhysicalReview = async ({
           output.coffeeProfileId,
           output.presentation || "Excelso",
           output.outputWeightKg,
-          output.humidityPercent,
+          outputHumidityPercent,
           output.performanceFactor,
           output.notes || null,
         ]
