@@ -17,6 +17,7 @@ import {
   updateLotLabReview,
   updateLotPhysicalReview,
   liquidateLot,
+  liquidateLotsGroup,
   registerLotPurchase,
   createInitialInventoryLot,
 } from "../models/lots.model.js";
@@ -910,6 +911,68 @@ export const putLiquidation = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al liquidar lote",
+      error: error.message,
+    });
+  }
+};
+
+export const postGroupedLiquidation = async (req, res) => {
+  try {
+    const { items, notes, purchaseOrderSnapshot } = req.body;
+    const cleanItems = Array.isArray(items) ? items : [];
+    const cleanPurchaseOrderSnapshot = purchaseOrderSnapshot &&
+      typeof purchaseOrderSnapshot === "object" &&
+      !Array.isArray(purchaseOrderSnapshot)
+      ? purchaseOrderSnapshot
+      : {};
+
+    if (cleanItems.length === 0) {
+      return res.status(400).json({ message: "Seleccione al menos un lote para liquidar" });
+    }
+
+    for (const item of cleanItems) {
+      const id = Number(item.id);
+      const price = toNumber(item.purchasePricePerKg);
+
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ message: "Cada lote de la liquidacion debe tener un id valido" });
+      }
+
+      if (!isValidNumber(price) || price <= 0) {
+        return res.status(400).json({
+          message: "Cada lote de la liquidacion debe tener un precio pactado por kg mayor a cero",
+        });
+      }
+    }
+
+    const result = await liquidateLotsGroup({
+      items: cleanItems.map((item) => ({
+        id: Number(item.id),
+        purchasePricePerKg: Number(item.purchasePricePerKg),
+      })),
+      notes,
+      purchaseOrderSnapshot: cleanPurchaseOrderSnapshot,
+      liquidatedBy: req.user.id,
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: "Uno o mas lotes no fueron encontrados" });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden liquidar lotes pendientes de liquidacion",
+        data: result.lot,
+      });
+    }
+
+    res.json({
+      message: "Lotes liquidados correctamente en una orden de compra agrupada.",
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al liquidar lotes agrupados",
       error: error.message,
     });
   }

@@ -32,6 +32,7 @@ const initialLiquidation = {
   createdByName: "",
   coffeeDetail: "",
   purchasePricePerKg: "",
+  items: [],
   notes: "",
 };
 
@@ -81,30 +82,65 @@ const formatOptionalKg = (value) => (value === null || value === undefined || va
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
 
-const buildLiquidationForm = (lot, user) => ({
-  orderCode: "",
-  orderDate: todayInputDate(),
-  supplierName: lot.supplier_name || "",
-  supplierDocument: lot.supplier_document || "",
-  supplierPhone: lot.supplier_phone || "",
-  supplierOriginZone: lot.supplier_origin_zone || lot.origin_zone || "",
-  supplierAddress: lot.supplier_address || "",
+const buildLiquidationItem = (lot) => ({
+  id: lot.id,
   lotCode: lot.code || "",
   lotPresentation: lot.presentation || "Pergamino",
   grossWeightKg: toInputNumber(lot.gross_weight_kg),
   netWeightKg: toInputNumber(lot.net_weight_kg),
   performanceFactor: toInputNumber(lot.performance_factor),
-  createdByName: user?.name || user?.username || "",
   coffeeDetail: formatCoffeeLotCodeName(lot),
   purchasePricePerKg: toInputNumber(lot.purchase_price_per_kg),
-  notes: "",
 });
 
-const buildPurchaseOrderSnapshot = (form) => {
-  const netWeightKg = Number(form.netWeightKg || 0);
-  const purchasePricePerKg = Number(form.purchasePricePerKg || 0);
+const buildLiquidationForm = (lots, user) => {
+  const selectedLots = Array.isArray(lots) ? lots : [lots];
+  const firstLot = selectedLots[0] || {};
+  const items = selectedLots.map(buildLiquidationItem);
+  const totalGrossWeight = items.reduce((sum, item) => sum + Number(item.grossWeightKg || 0), 0);
+  const totalNetWeight = items.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0);
 
   return {
+  orderCode: "",
+  orderDate: todayInputDate(),
+  supplierName: firstLot.supplier_name || "",
+  supplierDocument: firstLot.supplier_document || "",
+  supplierPhone: firstLot.supplier_phone || "",
+  supplierOriginZone: firstLot.supplier_origin_zone || firstLot.origin_zone || "",
+  supplierAddress: firstLot.supplier_address || "",
+  lotCode: items.map((item) => item.lotCode).filter(Boolean).join(", "),
+  lotPresentation: firstLot.presentation || "Pergamino",
+  grossWeightKg: totalGrossWeight ? Number(totalGrossWeight.toFixed(3)) : "",
+  netWeightKg: totalNetWeight ? Number(totalNetWeight.toFixed(3)) : "",
+  performanceFactor: items.length === 1 ? items[0]?.performanceFactor || "" : "",
+  createdByName: user?.name || user?.username || "",
+  coffeeDetail: items.length === 1 ? items[0]?.coffeeDetail || "" : `Liquidacion agrupada de ${items.length} lotes`,
+  purchasePricePerKg: items.length === 1 ? items[0]?.purchasePricePerKg || "" : "",
+  items,
+  notes: "",
+  };
+};
+
+const buildPurchaseOrderSnapshot = (form) => {
+  const items = (form.items || []).map((item) => {
+    const netWeightKg = Number(item.netWeightKg || 0);
+    const purchasePricePerKg = Number(item.purchasePricePerKg || 0);
+
+    return {
+      ...item,
+      grossWeightKg: item.grossWeightKg === "" ? null : Number(item.grossWeightKg),
+      netWeightKg,
+      purchasePricePerKg,
+      purchaseTotal: Number((netWeightKg * purchasePricePerKg).toFixed(2)),
+    };
+  });
+  const netWeightKg = items.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0);
+  const grossWeightKg = items.reduce((sum, item) => sum + Number(item.grossWeightKg || 0), 0);
+  const purchaseTotal = items.reduce((sum, item) => sum + Number(item.purchaseTotal || 0), 0);
+  const purchasePricePerKg = items.length === 1 ? Number(items[0]?.purchasePricePerKg || 0) : null;
+
+  return {
+    isGrouped: items.length > 1,
     orderCode: form.orderCode,
     orderDate: form.orderDate,
     supplierName: form.supplierName,
@@ -114,13 +150,14 @@ const buildPurchaseOrderSnapshot = (form) => {
     supplierAddress: form.supplierAddress,
     lotCode: form.lotCode,
     lotPresentation: form.lotPresentation,
-    grossWeightKg: form.grossWeightKg === "" ? null : Number(form.grossWeightKg),
+    grossWeightKg,
     netWeightKg,
     performanceFactor: form.performanceFactor,
     createdByName: form.createdByName,
     coffeeDetail: form.coffeeDetail,
     purchasePricePerKg,
-    purchaseTotal: Number((netWeightKg * purchasePricePerKg).toFixed(2)),
+    purchaseTotal: Number(purchaseTotal.toFixed(2)),
+    items,
     notes: form.notes,
   };
 };
@@ -137,6 +174,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [suppliers, setSuppliers] = useState([]);
   const [selectedLot, setSelectedLot] = useState(null);
   const [selectedLiquidationLot, setSelectedLiquidationLot] = useState(null);
+  const [selectedLiquidationLotIds, setSelectedLiquidationLotIds] = useState([]);
   const [selectedAdminLot, setSelectedAdminLot] = useState(null);
   const [selectedAdminProcess, setSelectedAdminProcess] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
@@ -209,9 +247,63 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const selectLiquidationLot = (lot) => {
     setSelectedLiquidationLot(lot);
     setLiquidationForm(buildLiquidationForm(lot, user));
+    setSelectedLiquidationLotIds([lot.id]);
     setShowLiquidationReviewModal(false);
     setMessage("");
     setError("");
+  };
+
+  const toggleLiquidationLotSelection = (lot) => {
+    setSelectedLiquidationLotIds((currentIds) => {
+      const exists = currentIds.includes(lot.id);
+      const nextIds = exists
+        ? currentIds.filter((id) => id !== lot.id)
+        : [...currentIds, lot.id];
+      const selectedLots = pendingLiquidationLots.filter((pendingLot) => nextIds.includes(pendingLot.id));
+
+      if (selectedLots.length > 0) {
+        setSelectedLiquidationLot(selectedLots[0]);
+        setLiquidationForm(buildLiquidationForm(selectedLots, user));
+      } else {
+        setSelectedLiquidationLot(null);
+        setLiquidationForm(initialLiquidation);
+        setShowLiquidationReviewModal(false);
+      }
+
+      return nextIds;
+    });
+    setMessage("");
+    setError("");
+  };
+
+  const selectSupplierLiquidationLots = (supplierName) => {
+    const selectedLots = pendingLiquidationLots.filter((lot) => (lot.supplier_name || "") === supplierName);
+    setSelectedLiquidationLotIds(selectedLots.map((lot) => lot.id));
+    setSelectedLiquidationLot(selectedLots[0] || null);
+    setLiquidationForm(selectedLots.length ? buildLiquidationForm(selectedLots, user) : initialLiquidation);
+    setShowLiquidationReviewModal(false);
+    setMessage("");
+    setError("");
+  };
+
+  const updateLiquidationItem = (itemId, field, value) => {
+    setLiquidationForm((currentForm) => {
+      const nextItems = (currentForm.items || []).map((item) =>
+        item.id === itemId ? { ...item, [field]: value } : item
+      );
+      const totalGrossWeight = nextItems.reduce((sum, item) => sum + Number(item.grossWeightKg || 0), 0);
+      const totalNetWeight = nextItems.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0);
+
+      return {
+        ...currentForm,
+        items: nextItems,
+        lotCode: nextItems.map((item) => item.lotCode).filter(Boolean).join(", "),
+        grossWeightKg: totalGrossWeight ? Number(totalGrossWeight.toFixed(3)) : "",
+        netWeightKg: totalNetWeight ? Number(totalNetWeight.toFixed(3)) : "",
+        coffeeDetail: nextItems.length === 1 ? nextItems[0]?.coffeeDetail || "" : `Liquidacion agrupada de ${nextItems.length} lotes`,
+        purchasePricePerKg: nextItems.length === 1 ? nextItems[0]?.purchasePricePerKg || "" : "",
+      };
+    });
   };
 
   const openLiquidationReview = (event) => {
@@ -219,11 +311,6 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
     if (!selectedLiquidationLot) {
       setError("Seleccione un lote pendiente de liquidacion.");
-      return;
-    }
-
-    if (!liquidationForm.purchasePricePerKg || Number(liquidationForm.purchasePricePerKg) <= 0) {
-      setError("Ingrese el precio pactado por kg antes de revisar la orden.");
       return;
     }
 
@@ -240,6 +327,12 @@ const InventoryPage = ({ mode = "inventory" }) => {
       return;
     }
 
+    const invalidItem = (liquidationForm.items || []).find((item) => !item.purchasePricePerKg || Number(item.purchasePricePerKg) <= 0);
+    if (invalidItem) {
+      setError("Ingrese el precio pactado por kg en cada lote antes de liquidar.");
+      return;
+    }
+
     const purchaseOrderSnapshot = buildPurchaseOrderSnapshot(liquidationForm);
 
     setSaving(true);
@@ -247,14 +340,28 @@ const InventoryPage = ({ mode = "inventory" }) => {
     setError("");
 
     try {
-      const response = await apiRequest(`/lots/${selectedLiquidationLot.id}/liquidate`, {
-        method: "PUT",
-        body: JSON.stringify({
-          purchasePricePerKg: liquidationForm.purchasePricePerKg === "" ? null : Number(liquidationForm.purchasePricePerKg),
-          notes: liquidationForm.notes,
-          purchaseOrderSnapshot,
-        }),
-      });
+      const selectedItems = purchaseOrderSnapshot.items || [];
+      const isGrouped = selectedItems.length > 1;
+      const response = isGrouped
+        ? await apiRequest("/lots/liquidate-group", {
+          method: "POST",
+          body: JSON.stringify({
+            items: selectedItems.map((item) => ({
+              id: item.id,
+              purchasePricePerKg: item.purchasePricePerKg,
+            })),
+            notes: liquidationForm.notes,
+            purchaseOrderSnapshot,
+          }),
+        })
+        : await apiRequest(`/lots/${selectedLiquidationLot.id}/liquidate`, {
+          method: "PUT",
+          body: JSON.stringify({
+            purchasePricePerKg: selectedItems[0]?.purchasePricePerKg ?? null,
+            notes: liquidationForm.notes,
+            purchaseOrderSnapshot,
+          }),
+        });
       try {
         openPurchaseOrderPrint({
           ...(response?.purchase_order || response?.data?.purchase_order || {}),
@@ -265,10 +372,11 @@ const InventoryPage = ({ mode = "inventory" }) => {
         console.warn("No se pudo abrir la orden de compra automaticamente", printError);
       }
       setSelectedLiquidationLot(null);
+      setSelectedLiquidationLotIds([]);
       setLiquidationForm(initialLiquidation);
       setShowLiquidationReviewModal(false);
       await loadData();
-      setMessage("Lote liquidado. Ya queda disponible y su orden de compra se puede descargar desde Orden de compra.");
+      setMessage("Liquidacion guardada. El cafe queda disponible y la orden de compra se puede descargar desde Orden de compra.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -607,8 +715,11 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
     ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
     : "0";
-  const liquidationTotal = selectedLiquidationLot && liquidationForm.purchasePricePerKg
-    ? Number(Number(liquidationForm.netWeightKg || selectedLiquidationLot.net_weight_kg) * Number(liquidationForm.purchasePricePerKg)).toLocaleString("es-CO")
+  const liquidationTotal = selectedLiquidationLot
+    ? (liquidationForm.items || []).reduce(
+      (sum, item) => sum + (Number(item.netWeightKg || 0) * Number(item.purchasePricePerKg || 0)),
+      0
+    ).toLocaleString("es-CO")
     : "0";
 
   const presentationNames = [
@@ -1190,6 +1301,30 @@ const InventoryPage = ({ mode = "inventory" }) => {
             <div className="border-b border-amber-100 px-4 py-3">
               <h2 className="text-sm font-semibold text-amber-900">Lotes pendientes de liquidacion</h2>
               <p className="mt-1 text-xs text-slate-500">Aprobados por laboratorio, pero aun no disponibles hasta acordar la compra.</p>
+              {selectedLiquidationLotIds.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <span className="font-semibold">{selectedLiquidationLotIds.length} lote(s) seleccionados</span>
+                  <button
+                    className="rounded border border-amber-400 bg-white px-3 py-1 font-semibold text-amber-700 hover:bg-amber-100"
+                    type="button"
+                    onClick={(event) => openLiquidationReview(event)}
+                  >
+                    Revisar liquidacion agrupada
+                  </button>
+                  <button
+                    className="rounded border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-600 hover:bg-slate-50"
+                    type="button"
+                    onClick={() => {
+                      setSelectedLiquidationLotIds([]);
+                      setSelectedLiquidationLot(null);
+                      setLiquidationForm(initialLiquidation);
+                      setShowLiquidationReviewModal(false);
+                    }}
+                  >
+                    Limpiar seleccion
+                  </button>
+                </div>
+              )}
             </div>
             {pendingLiquidationLots.length === 0 ? (
               <div className="p-4">
@@ -1200,6 +1335,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-amber-50 text-amber-900">
                     <tr>
+                      <th className="px-3 py-2">Sel.</th>
                       <th className="px-3 py-2">Lote</th>
                       <th className="px-3 py-2">Proveedor</th>
                       <th className="px-3 py-2">Peso bruto</th>
@@ -1210,8 +1346,27 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   <tbody className="divide-y divide-slate-100">
                     {pendingLiquidationLots.map((lot) => (
                       <tr key={lot.id}>
+                        <td className="px-3 py-2">
+                          <input
+                            checked={selectedLiquidationLotIds.includes(lot.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-amber-600"
+                            onChange={() => toggleLiquidationLotSelection(lot)}
+                            type="checkbox"
+                          />
+                        </td>
                         <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
-                        <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
+                        <td className="px-3 py-2">
+                          <div>{lot.supplier_name || "-"}</div>
+                          {lot.supplier_name && (
+                            <button
+                              className="mt-1 text-xs font-semibold text-amber-700 underline-offset-2 hover:underline"
+                              onClick={() => selectSupplierLiquidationLots(lot.supplier_name || "")}
+                              type="button"
+                            >
+                              Seleccionar proveedor
+                            </button>
+                          )}
+                        </td>
                         <td className="px-3 py-2">{formatOptionalKg(lot.gross_weight_kg)}</td>
                         <td className="px-3 py-2">{formatOptionalKg(lot.net_weight_kg)}</td>
                         <td className="px-3 py-2">
@@ -1247,7 +1402,14 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 step="0.01"
                 required
                 value={liquidationForm.purchasePricePerKg}
-                onChange={(event) => setLiquidationForm({ ...liquidationForm, purchasePricePerKg: event.target.value })}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setLiquidationForm({
+                    ...liquidationForm,
+                    purchasePricePerKg: value,
+                    items: (liquidationForm.items || []).map((item) => ({ ...item, purchasePricePerKg: value })),
+                  });
+                }}
               />
               <textarea
                 className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1579,7 +1741,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
               <div>
                 <h2 className="text-base font-bold text-ink">Revisar orden de compra</h2>
                 <p className="text-sm text-slate-500">
-                  Verifique y corrija los datos antes de liquidar {formatCoffeeLotCodeName(selectedLiquidationLot)}.
+                  Verifique y corrija los datos antes de liquidar {(liquidationForm.items || []).length} lote(s).
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1605,6 +1767,100 @@ const InventoryPage = ({ mode = "inventory" }) => {
               <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 Estos datos son los que quedaran guardados en la orden de compra. Puede ajustar nombres, pesos,
                 detalle o notas de ultimo minuto antes de confirmar.
+              </div>
+
+              <div className="rounded border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 px-4 py-3">
+                  <h3 className="text-sm font-bold text-ink">Cafes en liquidacion</h3>
+                  <p className="text-xs text-slate-500">Revise cada lote y defina el precio final por kilo de manera independiente.</p>
+                </div>
+                <div className="space-y-3 p-4">
+                  {(liquidationForm.items || []).map((item, index) => {
+                    const itemTotal = Number(item.netWeightKg || 0) * Number(item.purchasePricePerKg || 0);
+
+                    return (
+                      <div key={item.id} className="rounded border border-amber-100 bg-amber-50/40 p-3">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-bold text-ink">Lote {index + 1}</p>
+                            <p className="text-xs text-slate-600">{item.lotCode || "Sin codigo"} · {item.coffeeDetail || "Cafe"}</p>
+                          </div>
+                          <p className="rounded bg-white px-3 py-1 text-sm font-bold text-amber-800">
+                            Total: COP {itemTotal.toLocaleString("es-CO")}
+                          </p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                            Codigo de lote
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                              value={item.lotCode}
+                              onChange={(event) => updateLiquidationItem(item.id, "lotCode", event.target.value)}
+                              required
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                            Presentacion
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                              value={item.lotPresentation}
+                              onChange={(event) => updateLiquidationItem(item.id, "lotPresentation", event.target.value)}
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                            Peso bruto kg
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                              type="number"
+                              step="0.001"
+                              value={item.grossWeightKg}
+                              onChange={(event) => updateLiquidationItem(item.id, "grossWeightKg", event.target.value)}
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                            Peso neto kg
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                              type="number"
+                              step="0.001"
+                              value={item.netWeightKg}
+                              onChange={(event) => updateLiquidationItem(item.id, "netWeightKg", event.target.value)}
+                              required
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                            Factor rendimiento
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                              value={item.performanceFactor}
+                              onChange={(event) => updateLiquidationItem(item.id, "performanceFactor", event.target.value)}
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                            Precio pactado por kg
+                            <input
+                              className="w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm font-semibold normal-case text-ink"
+                              type="number"
+                              step="0.01"
+                              value={item.purchasePricePerKg}
+                              onChange={(event) => updateLiquidationItem(item.id, "purchasePricePerKg", event.target.value)}
+                              required
+                            />
+                          </label>
+                          <label className="space-y-1 text-xs font-semibold uppercase text-slate-500 md:col-span-2">
+                            Detalle del cafe
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                              value={item.coffeeDetail}
+                              onChange={(event) => updateLiquidationItem(item.id, "coffeeDetail", event.target.value)}
+                              required
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1721,8 +1977,17 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     type="number"
                     step="0.01"
                     value={liquidationForm.purchasePricePerKg}
-                    onChange={(event) => setLiquidationForm({ ...liquidationForm, purchasePricePerKg: event.target.value })}
-                    required
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setLiquidationForm({
+                        ...liquidationForm,
+                        purchasePricePerKg: value,
+                        items: (liquidationForm.items || []).length <= 1
+                          ? (liquidationForm.items || []).map((item) => ({ ...item, purchasePricePerKg: value }))
+                          : liquidationForm.items,
+                      });
+                    }}
+                    required={(liquidationForm.items || []).length <= 1}
                   />
                 </label>
                 <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">

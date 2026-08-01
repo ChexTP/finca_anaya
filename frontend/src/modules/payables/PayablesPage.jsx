@@ -7,12 +7,38 @@ import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 
 const formatMoney = (value) => `COP ${Number(value || 0).toLocaleString("es-CO")}`;
 const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
+const getSnapshot = (order) => order?.purchase_order_snapshot && typeof order.purchase_order_snapshot === "object"
+  ? order.purchase_order_snapshot
+  : {};
+
+const getSnapshotItems = (order) => {
+  const items = getSnapshot(order).items;
+  return Array.isArray(items) ? items : [];
+};
 
 const getCoffeeName = (payable) => {
+  const snapshot = getSnapshot(payable);
+  const items = getSnapshotItems(payable);
+
+  if (items.length > 1) return snapshot.coffeeDetail || `Liquidacion agrupada de ${items.length} lotes`;
+  if (items.length === 1) return items[0].coffeeDetail || snapshot.coffeeDetail || "Cafe liquidado";
+
   return [
     payable.lot_presentation,
     payable.coffee_profile_name || payable.coffee_variety || payable.coffee_type_name || payable.commercial_classification,
   ].filter(Boolean).join(" - ") || "Cafe liquidado";
+};
+
+const getOrderLotLabel = (order) => {
+  const items = getSnapshotItems(order);
+  if (items.length > 0) return items.map((item) => item.lotCode).filter(Boolean).join(", ");
+  return order.lot_code || "-";
+};
+
+const getOrderKg = (order) => {
+  const items = getSnapshotItems(order);
+  if (items.length > 0) return items.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0);
+  return Number(order.net_weight_kg || 0);
 };
 
 const PayablesPage = () => {
@@ -38,6 +64,7 @@ const PayablesPage = () => {
     return orders.filter((order) => [
       order.code,
       order.lot_code,
+      getOrderLotLabel(order),
       order.supplier_name,
       getCoffeeName(order),
       order.performance_factor,
@@ -115,10 +142,10 @@ const PayablesPage = () => {
                   {filteredOrders.map((order) => (
                     <tr key={order.id}>
                       <td className="px-3 py-2 font-medium">{order.code}</td>
-                      <td className="px-3 py-2">{order.lot_code || "-"}</td>
+                      <td className="px-3 py-2">{getOrderLotLabel(order)}</td>
                       <td className="px-3 py-2">{order.supplier_name || "-"}</td>
                       <td className="px-3 py-2">{getCoffeeName(order)}</td>
-                      <td className="px-3 py-2">{formatKg(order.net_weight_kg)}</td>
+                      <td className="px-3 py-2">{formatKg(getOrderKg(order))}</td>
                       <td className="px-3 py-2">{formatMoney(order.total)}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-2">
@@ -154,16 +181,28 @@ const PayablesPage = () => {
               <div>
                 <p className="text-xs font-semibold uppercase text-slate-500">Orden seleccionada</p>
                 <h2 className="mt-1 text-lg font-bold text-ink">{selectedOrder.code}</h2>
-                <p className="text-sm text-slate-500">{selectedOrder.lot_code || "-"} - {getCoffeeName(selectedOrder)}</p>
+                <p className="text-sm text-slate-500">{getOrderLotLabel(selectedOrder)} - {getCoffeeName(selectedOrder)}</p>
               </div>
               <div className="rounded bg-slate-50 p-3 text-sm">
                 <p><span className="font-semibold">Proveedor:</span> {selectedOrder.supplier_name || "-"}</p>
                 <p><span className="font-semibold">Telefono:</span> {selectedOrder.supplier_phone || "-"}</p>
                 <p><span className="font-semibold">Direccion:</span> {selectedOrder.supplier_address || "-"}</p>
-                <p><span className="font-semibold">Kilos:</span> {formatKg(selectedOrder.net_weight_kg)}</p>
+                <p><span className="font-semibold">Kilos:</span> {formatKg(getOrderKg(selectedOrder))}</p>
                 <p><span className="font-semibold">Factor:</span> {selectedOrder.performance_factor || "-"}</p>
                 <p><span className="font-semibold">Precio kg:</span> {formatMoney(selectedOrder.purchase_price_per_kg)}</p>
                 <p><span className="font-semibold">Total:</span> {formatMoney(selectedOrder.total)}</p>
+                {getSnapshotItems(selectedOrder).length > 1 && (
+                  <div className="mt-3 border-t border-slate-200 pt-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Lotes incluidos</p>
+                    <div className="space-y-1">
+                      {getSnapshotItems(selectedOrder).map((item) => (
+                        <p key={item.id || item.lotCode}>
+                          {item.lotCode} · {formatKg(item.netWeightKg)} · {formatMoney(item.purchasePricePerKg)}/kg
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <StatusBadge tone={selectedOrder.status === "pagada" ? "success" : "warning"}>
                 {selectedOrder.status}

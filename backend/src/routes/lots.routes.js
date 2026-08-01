@@ -13,6 +13,7 @@ import {
   putPhysicalReview,
   putPurchase,
   putLiquidation,
+  postGroupedLiquidation,
   putRejectedLotWithdrawal,
 } from "../controllers/lots.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
@@ -30,6 +31,7 @@ router.put("/:id/reception", requireAuth, requireRoles("admin", "accounting", "w
 router.put("/:id/lab-review", requireAuth, requireRoles("admin", "accounting", "laboratory"), putLabReview);
 router.put("/:id/lab-data", requireAuth, requireRoles("admin", "accounting", "laboratory"), putLabData);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "accounting", "warehouse"), putPhysicalReview);
+router.post("/liquidate-group", requireAuth, requireRoles("admin", "accounting"), postGroupedLiquidation);
 router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting"), putLiquidation);
 router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting"), putPurchase);
 router.put("/:id/withdraw-rejected", requireAuth, requireRoles("admin", "accounting", "warehouse"), putRejectedLotWithdrawal);

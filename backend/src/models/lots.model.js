@@ -974,6 +974,147 @@ export const liquidateLot = async ({ id, purchasePricePerKg, notes, purchaseOrde
   }
 };
 
+export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, liquidatedBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const lotIds = items.map((item) => Number(item.id)).filter(Number.isFinite);
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = ANY($1::int[])
+      FOR UPDATE
+      `,
+      [lotIds]
+    );
+
+    const lotsById = new Map(currentResult.rows.map((lot) => [Number(lot.id), lot]));
+    const missingId = lotIds.find((id) => !lotsById.has(id));
+
+    if (missingId) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const invalidLot = currentResult.rows.find((lot) => lot.status !== "pendiente_liquidacion");
+    if (invalidLot) {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot: invalidLot };
+    }
+
+    const liquidatedLots = [];
+    let purchaseTotal = 0;
+
+    for (const item of items) {
+      const lot = lotsById.get(Number(item.id));
+      const itemSnapshot = purchaseOrderSnapshot?.items?.find((snapshotItem) => Number(snapshotItem.id) === Number(item.id)) || {};
+      const requestedNetWeight = Number(itemSnapshot.netWeightKg);
+      const snapshotNetWeight = Number.isFinite(requestedNetWeight) && requestedNetWeight > 0
+        ? requestedNetWeight
+        : Number(lot.net_weight_kg || 0);
+      const purchasePricePerKg = Number(item.purchasePricePerKg);
+      const itemTotal = Number((snapshotNetWeight * purchasePricePerKg).toFixed(2));
+      purchaseTotal += itemTotal;
+
+      const result = await client.query(
+        `
+        UPDATE coffee_lots
+        SET
+          status = 'disponible',
+          available_weight_kg = net_weight_kg,
+          purchase_price_per_kg = $1,
+          purchase_total = $2,
+          initial_comment = CASE
+            WHEN $3::text IS NULL OR $3::text = '' THEN initial_comment
+            WHEN initial_comment IS NULL OR initial_comment = '' THEN 'Liquidacion agrupada: ' || $3::text
+            ELSE initial_comment || E'\nLiquidacion agrupada: ' || $3::text
+          END,
+          updated_at = NOW()
+        WHERE id = $4
+        RETURNING *
+        `,
+        [purchasePricePerKg, itemTotal, notes || null, lot.id]
+      );
+      const liquidatedLot = result.rows[0];
+
+      await client.query(
+        `
+        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+        VALUES ($1, 'lote_liquidado', $2, $3, $4)
+        `,
+        [
+          liquidatedLot.id,
+          liquidatedLot.net_weight_kg,
+          notes || `Lote liquidado en orden agrupada ${purchaseOrderSnapshot?.orderCode || ""}`.trim(),
+          liquidatedBy,
+        ]
+      );
+
+      liquidatedLots.push(liquidatedLot);
+    }
+
+    purchaseTotal = Number(purchaseTotal.toFixed(2));
+    const categoryId = await getLotPayableCategoryId(client);
+
+    if (!categoryId) {
+      throw new Error("No se pudo preparar la categoria de cuenta por pagar 'Lote de cafe'");
+    }
+
+    const supplierIds = [...new Set(liquidatedLots.map((lot) => lot.supplier_id).filter(Boolean))];
+    const supplierId = supplierIds.length === 1 ? supplierIds[0] : null;
+    const code = await getNextCode({ prefix: "CXP", tableName: "accounts_payable", client });
+    const lotCodes = liquidatedLots.map((lot) => lot.code).join(", ");
+    const description = `Compra agrupada de cafe: ${lotCodes}`;
+
+    const payableResult = await client.query(
+      `
+      INSERT INTO accounts_payable (
+        code,
+        category_id,
+        supplier_id,
+        lot_id,
+        status,
+        description,
+        total,
+        amount_paid,
+        balance_due,
+        notes,
+        purchase_order_snapshot,
+        created_by
+      )
+      VALUES ($1, $2, $3, NULL, 'pendiente', $4, $5, 0, $5, $6, $7::jsonb, $8)
+      RETURNING *
+      `,
+      [
+        code,
+        categoryId,
+        supplierId,
+        description,
+        purchaseTotal,
+        notes ? `Cuenta generada al liquidar lotes agrupados. ${notes}` : "Cuenta generada al liquidar lotes agrupados",
+        JSON.stringify({
+          ...(purchaseOrderSnapshot || {}),
+          isGrouped: true,
+          lotIds: liquidatedLots.map((lot) => lot.id),
+          purchaseTotal,
+        }),
+        liquidatedBy,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return { lots: liquidatedLots, purchase_order: payableResult.rows[0] };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const updateLotPhysicalReview = async (id, reviewData) => {
   const result = await pool.query(
     `

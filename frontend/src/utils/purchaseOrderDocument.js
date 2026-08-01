@@ -66,6 +66,48 @@ const getCoffeeDetail = (payable) => {
   ].filter(Boolean).join(" - ");
 };
 
+const getPurchaseOrderItems = (payable) => {
+  const snapshot = getSnapshot(payable);
+  const snapshotItems = Array.isArray(snapshot.items) ? snapshot.items : [];
+
+  if (snapshotItems.length > 0) {
+    return snapshotItems.map((item) => {
+      const kilos = Number(item.netWeightKg || 0);
+      const priceKg = Number(item.purchasePricePerKg || 0);
+      const total = Number(item.purchaseTotal || (kilos * priceKg));
+
+      return {
+        detail: item.coffeeDetail || item.lotCode || "Cafe liquidado",
+        lotCode: item.lotCode || "",
+        grossKilos: Number(item.grossWeightKg || 0),
+        kilos,
+        arrobas: kilos / 12.5,
+        priceKg,
+        priceCarga: priceKg * 125,
+        priceArroba: priceKg * 12.5,
+        total,
+        performanceFactor: item.performanceFactor || "",
+      };
+    });
+  }
+
+  const kilos = Number(snapshotValue(payable, "netWeightKg", payable.net_weight_kg || 0));
+  const priceKg = Number(snapshotValue(payable, "purchasePricePerKg", payable.purchase_price_per_kg || (kilos ? Number(payable.total || 0) / kilos : 0)));
+
+  return [{
+    detail: getCoffeeDetail(payable) || "Cafe liquidado",
+    lotCode: snapshotValue(payable, "lotCode", payable.lot_code || ""),
+    grossKilos: Number(snapshotValue(payable, "grossWeightKg", payable.gross_weight_kg || 0)),
+    kilos,
+    arrobas: kilos / 12.5,
+    priceKg,
+    priceCarga: priceKg * 125,
+    priceArroba: priceKg * 12.5,
+    total: Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || (kilos * priceKg))),
+    performanceFactor: snapshotValue(payable, "performanceFactor", payable.performance_factor || ""),
+  }];
+};
+
 const buildInfoRows = (rows) => rows
   .map(([label, value]) => `
     <div class="info-row">
@@ -76,18 +118,31 @@ const buildInfoRows = (rows) => rows
   .join("");
 
 export const buildPurchaseOrderHtml = (payable) => {
-  const kilos = Number(snapshotValue(payable, "netWeightKg", payable.net_weight_kg || 0));
-  const grossKilos = Number(snapshotValue(payable, "grossWeightKg", payable.gross_weight_kg || 0));
-  const arrobas = kilos / 12.5;
-  const priceKg = Number(snapshotValue(payable, "purchasePricePerKg", payable.purchase_price_per_kg || (kilos ? Number(payable.total || 0) / kilos : 0)));
-  const priceCarga = priceKg * 125;
-  const priceArroba = priceKg * 12.5;
-  const total = Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || (kilos * priceKg)));
+  const items = getPurchaseOrderItems(payable);
+  const kilos = items.reduce((sum, item) => sum + Number(item.kilos || 0), 0);
+  const grossKilos = items.reduce((sum, item) => sum + Number(item.grossKilos || 0), 0);
+  const total = Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || items.reduce((sum, item) => sum + Number(item.total || 0), 0)));
+  const firstItem = items[0] || {};
   const orderCode = getOrderCode(payable);
   const supplierName = snapshotValue(payable, "supplierName", payable.supplier_name || payable.third_party_name || "");
   const footerAddress = companyBrand.address.replaceAll(",", "");
   const notes = snapshotValue(payable, "notes", payable.notes || "");
-  const performanceFactor = snapshotValue(payable, "performanceFactor", payable.performance_factor || "");
+  const performanceFactor = snapshotValue(payable, "performanceFactor", firstItem.performanceFactor || payable.performance_factor || "");
+  const lotCodeLabel = items.length > 1
+    ? items.map((item) => item.lotCode).filter(Boolean).join(", ")
+    : snapshotValue(payable, "lotCode", payable.lot_code || "");
+  const presentationLabel = snapshotValue(payable, "lotPresentation", payable.lot_presentation || "");
+  const detailRows = items.map((item) => `
+                <tr>
+                  <td>${escapeHtml(item.detail)}</td>
+                  <td>${formatDecimal(item.kilos)}</td>
+                  <td>${formatDecimal(item.arrobas)}</td>
+                  <td class="money">${formatMoney(item.priceCarga)}</td>
+                  <td class="money">${formatMoney(item.priceKg)}</td>
+                  <td class="money">${formatMoney(item.priceArroba)}</td>
+                  <td class="money">${formatMoney(item.total)}</td>
+                </tr>
+  `).join("");
 
   return `
     <!doctype html>
@@ -291,8 +346,8 @@ export const buildPurchaseOrderHtml = (payable) => {
                 ["Telefono", snapshotValue(payable, "supplierPhone", payable.supplier_phone || "")],
                 ["Ciudad / zona", snapshotValue(payable, "supplierOriginZone", payable.supplier_origin_zone || "")],
                 ["Direccion", snapshotValue(payable, "supplierAddress", payable.supplier_address || "")],
-                ["Codigo lote", snapshotValue(payable, "lotCode", payable.lot_code || "")],
-                ["Presentacion", snapshotValue(payable, "lotPresentation", payable.lot_presentation || "")],
+                ["Codigo lote", lotCodeLabel],
+                ["Presentacion", presentationLabel],
                 ["Peso bruto", grossKilos ? `${formatDecimal(grossKilos)} kg` : ""],
                 ["Peso neto", `${formatDecimal(kilos)} kg`],
                 ["Factor rendimiento", performanceFactor],
@@ -316,15 +371,7 @@ export const buildPurchaseOrderHtml = (payable) => {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>${escapeHtml(getCoffeeDetail(payable) || "Cafe liquidado")}</td>
-                  <td>${formatDecimal(kilos)}</td>
-                  <td>${formatDecimal(arrobas)}</td>
-                  <td class="money">${formatMoney(priceCarga)}</td>
-                  <td class="money">${formatMoney(priceKg)}</td>
-                  <td class="money">${formatMoney(priceArroba)}</td>
-                  <td class="money">${formatMoney(total)}</td>
-                </tr>
+                ${detailRows}
               </tbody>
             </table>
           </section>
@@ -333,7 +380,7 @@ export const buildPurchaseOrderHtml = (payable) => {
             <div class="note-box">
               <h3>Nota</h3>
               <p>${escapeHtml(notes || "Sin notas adicionales.")}</p>
-              <p><strong>Detalle interno:</strong> Precio carga ${formatMoney(priceCarga, { withCurrency: false })}${performanceFactor ? ` - FR ${escapeHtml(performanceFactor)}` : ""}</p>
+              <p><strong>Detalle interno:</strong> ${items.length > 1 ? "Orden agrupada" : `Precio carga ${formatMoney(firstItem.priceCarga, { withCurrency: false })}`}${performanceFactor ? ` - FR ${escapeHtml(performanceFactor)}` : ""}</p>
             </div>
             <div class="totals">
               <h3>Resumen</h3>
