@@ -45,6 +45,7 @@ const initialItem = {
   lotId: "",
   coffeeTypeId: "",
   coffeeProfileId: "",
+  purchaseCoffeeId: "",
   description: "",
   productForm: "Excelso",
   processType: "Lavado",
@@ -182,13 +183,46 @@ const CommercialPage = () => {
     return quotes.filter((quote) => quoteFilter === "all" || quote.status === quoteFilter);
   }, [quotes, quoteFilter]);
 
-  const availableProfiles = useMemo(() => {
+  const availableCoffeeOptions = useMemo(() => {
     if (itemForm.itemType === "description") return [];
 
-    return [...(catalogs?.coffeeProfiles || [])]
-      .filter((profile) => String(profile.category || "").toLowerCase() === String(itemForm.itemType || "").toLowerCase())
+    if (itemForm.itemType === "Exotico") {
+      return [...(catalogs?.coffeeProfiles || [])]
+        .filter((profile) => (
+          profile.is_active !== false &&
+          String(profile.category || "").toLowerCase() === "exotico"
+        ))
+        .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "es"))
+        .map((profile) => ({
+          id: `profile-${profile.id}`,
+          value: String(profile.id),
+          label: profile.name,
+          source: "profile",
+          raw: profile,
+        }));
+    }
+
+    const purchaseCoffees = [...(catalogs?.purchaseCoffees || [])]
+      .filter((coffee) => (
+        coffee.is_active !== false &&
+        String(coffee.family || "").toLowerCase() === String(itemForm.itemType || "").toLowerCase()
+      ))
       .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "es"));
-  }, [catalogs, itemForm.itemType]);
+
+    const processMatches = purchaseCoffees.filter((coffee) => (
+      !itemForm.processType ||
+      String(coffee.process_type || "").toLowerCase() === String(itemForm.processType || "").toLowerCase()
+    ));
+    const coffeesToShow = processMatches.length > 0 ? processMatches : purchaseCoffees;
+
+    return coffeesToShow.map((coffee) => ({
+      id: `purchase-${coffee.id}`,
+      value: String(coffee.id),
+      label: `${coffee.name}${coffee.process_type ? ` - ${coffee.process_type}` : ""}`,
+      source: "purchase",
+      raw: coffee,
+    }));
+  }, [catalogs, itemForm.itemType, itemForm.processType]);
 
   const loadData = async () => {
     const [quoteData, clientData, catalogData] = await Promise.all([
@@ -237,7 +271,46 @@ const CommercialPage = () => {
     setItemForm({
       ...itemForm,
       coffeeProfileId: profileId,
+      purchaseCoffeeId: "",
+      description: "",
+      variety: profile?.name || itemForm.variety,
       unitPrice: price || itemForm.unitPrice,
+    });
+  };
+
+  const selectPurchaseCoffee = (purchaseCoffeeId) => {
+    const coffee = catalogs?.purchaseCoffees?.find((coffeeItem) => String(coffeeItem.id) === String(purchaseCoffeeId));
+    const coffeeType = catalogs?.coffeeTypes?.find((type) => (
+      String(type.name || "").toLowerCase() === String(coffee?.process_type || itemForm.processType || "").toLowerCase()
+    ));
+
+    setItemForm({
+      ...itemForm,
+      purchaseCoffeeId,
+      coffeeProfileId: "",
+      coffeeTypeId: coffeeType?.id ? String(coffeeType.id) : itemForm.coffeeTypeId,
+      processType: coffee?.process_type || itemForm.processType,
+      description: coffee?.name || "",
+      variety: coffee?.name || "",
+    });
+  };
+
+  const selectRequestedCoffee = (value) => {
+    if (itemForm.itemType === "Exotico") {
+      selectProfile(value);
+      return;
+    }
+
+    selectPurchaseCoffee(value);
+  };
+
+  const updateRequestedProcessType = (processType) => {
+    setItemForm({
+      ...itemForm,
+      processType,
+      purchaseCoffeeId: ["Regional", "Varietal"].includes(itemForm.itemType) ? "" : itemForm.purchaseCoffeeId,
+      description: ["Regional", "Varietal"].includes(itemForm.itemType) ? "" : itemForm.description,
+      variety: ["Regional", "Varietal"].includes(itemForm.itemType) ? "" : itemForm.variety,
     });
   };
 
@@ -255,7 +328,8 @@ const CommercialPage = () => {
     if (itemForm.unitPrice === "" || itemForm.unitPrice === null || itemForm.unitPrice === undefined) {
       throw new Error("Cada cafe debe tener precio.");
     }
-    if (itemForm.itemType !== "description" && !itemForm.coffeeProfileId) throw new Error("Seleccione el cafe solicitado.");
+    if (itemForm.itemType === "Exotico" && !itemForm.coffeeProfileId) throw new Error("Seleccione el cafe solicitado.");
+    if (["Regional", "Varietal"].includes(itemForm.itemType) && !itemForm.description.trim()) throw new Error("Seleccione el cafe solicitado.");
     if (itemForm.itemType === "description" && !itemForm.description.trim()) throw new Error("Ingrese la descripcion del cafe solicitado.");
 
     const quantityKg = toItemQuantityKg(itemForm);
@@ -263,7 +337,7 @@ const CommercialPage = () => {
     return {
       lotId: itemForm.lotId || null,
       coffeeTypeId: itemForm.coffeeTypeId || null,
-      coffeeProfileId: itemForm.itemType !== "description" ? Number(itemForm.coffeeProfileId) : null,
+      coffeeProfileId: itemForm.itemType === "Exotico" ? Number(itemForm.coffeeProfileId) : null,
       description: itemForm.description || null,
       productForm: itemForm.productForm,
       processType: itemForm.processType,
@@ -672,7 +746,7 @@ const CommercialPage = () => {
                   <option value="Excelso">Excelso</option>
                   <option value="Pergamino">Pergamino</option>
                 </select>
-                <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={itemForm.processType} onChange={(event) => setItemForm({ ...itemForm, processType: event.target.value })}>
+                <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={itemForm.processType} onChange={(event) => updateRequestedProcessType(event.target.value)}>
                   {(catalogs?.coffeeTypes || []).map((type) => (
                     <option key={type.id} value={type.name}>{type.name}</option>
                   ))}
@@ -684,10 +758,14 @@ const CommercialPage = () => {
                   <option value="description">Descripcion libre</option>
                 </select>
                 {itemForm.itemType !== "description" ? (
-                  <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={itemForm.coffeeProfileId} onChange={(event) => selectProfile(event.target.value)}>
+                  <select
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={itemForm.itemType === "Exotico" ? itemForm.coffeeProfileId : itemForm.purchaseCoffeeId}
+                    onChange={(event) => selectRequestedCoffee(event.target.value)}
+                  >
                     <option value="">Cafe {itemForm.itemType.toLowerCase()}</option>
-                    {availableProfiles.map((profile) => (
-                        <option key={profile.id} value={profile.id}>{profile.name}</option>
+                    {availableCoffeeOptions.map((option) => (
+                        <option key={option.id} value={option.value}>{option.label}</option>
                       ))}
                   </select>
                 ) : (
