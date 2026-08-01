@@ -5,6 +5,7 @@ import {
   findPayableCategoryById,
   createPayable,
   registerPayablePayment,
+  updatePurchaseOrderDocument,
 } from "../models/payables.model.js";
 import { findSupplierById } from "../models/suppliers.model.js";
 import { findLotById, findPaymentMethodById } from "../models/lots.model.js";
@@ -47,6 +48,62 @@ export const getPayable = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener cuenta por pagar",
+      error: error.message,
+    });
+  }
+};
+
+export const putPurchaseOrderDocument = async (req, res) => {
+  try {
+    const {
+      code,
+      purchaseOrderSnapshot,
+      total,
+      notes,
+    } = req.body;
+
+    if (!code || String(code).trim().length < 2) {
+      return res.status(400).json({ message: "El codigo de la orden es obligatorio" });
+    }
+
+    if (!purchaseOrderSnapshot || typeof purchaseOrderSnapshot !== "object") {
+      return res.status(400).json({ message: "Los datos del documento son obligatorios" });
+    }
+
+    const totalAmount = toNumber(total);
+
+    if (!Number.isFinite(totalAmount) || totalAmount < 0) {
+      return res.status(400).json({ message: "El total del documento no es valido" });
+    }
+
+    const payable = await updatePurchaseOrderDocument({
+      id: req.params.id,
+      code: String(code).trim(),
+      purchaseOrderSnapshot: {
+        ...purchaseOrderSnapshot,
+        orderCode: purchaseOrderSnapshot.orderCode || String(code).trim(),
+      },
+      total: totalAmount,
+      notes,
+    });
+
+    if (!payable) {
+      return res.status(404).json({ message: "Orden de compra no encontrada" });
+    }
+
+    const fullPayable = await findPayableById(req.params.id);
+
+    res.json({
+      message: "Orden de compra actualizada correctamente",
+      data: fullPayable,
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Ya existe una orden con ese codigo" });
+    }
+
+    res.status(500).json({
+      message: "Error al actualizar orden de compra",
       error: error.message,
     });
   }

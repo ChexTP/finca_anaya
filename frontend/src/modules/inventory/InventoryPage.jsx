@@ -87,6 +87,11 @@ const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
 });
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
+const getProcessLocationGroup = (processType) => {
+  if (processType === "Trilladora") return "Trilladora";
+  if (processType === "Seleccion electronica") return "Seleccionadora";
+  return "Finca / proceso";
+};
 const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor = 90) => {
   const basePriceCarga = Number(priceFactor90 || 0);
   const negotiatedBaseFactor = baseFactor === "" || baseFactor === null || baseFactor === undefined
@@ -221,6 +226,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [lots, setLots] = useState([]);
   const [allLots, setAllLots] = useState([]);
   const [sampleOutputs, setSampleOutputs] = useState([]);
+  const [inProcessInventory, setInProcessInventory] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
   const [unpaidLots, setUnpaidLots] = useState([]);
@@ -237,6 +243,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [adminProcessForm, setAdminProcessForm] = useState(initialAdminProcessEdit);
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
+  const [selectedProcessLocation, setSelectedProcessLocation] = useState("all");
   const [inventorySearch, setInventorySearch] = useState("");
   const [lotCodeSearch, setLotCodeSearch] = useState("");
   const [processCodeSearch, setProcessCodeSearch] = useState("");
@@ -255,6 +262,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
     const requests = [
       apiRequest("/inventory/lots"),
       apiRequest("/lots"),
+      apiRequest("/inventory/in-process"),
       canAdjustInventory ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
     ];
 
@@ -276,9 +284,10 @@ const InventoryPage = ({ mode = "inventory" }) => {
       requests.push(Promise.resolve([]));
     }
 
-    const [availableData, allLots, sampleOutputData, catalogData, supplierData, processData] = await Promise.all(requests);
+    const [availableData, allLots, inProcessData, sampleOutputData, catalogData, supplierData, processData] = await Promise.all(requests);
     setLots(availableData);
     setAllLots(allLots);
+    setInProcessInventory(inProcessData || []);
     setSampleOutputs(sampleOutputData || []);
     setPendingLiquidationLots(
       allLots.filter((lot) => lot.status === "pendiente_liquidacion")
@@ -845,6 +854,44 @@ const InventoryPage = ({ mode = "inventory" }) => {
       .toLowerCase()
       .includes(inventorySearchTerm);
   });
+  const processLocationCards = ["Finca / proceso", "Trilladora", "Seleccionadora"].map((location) => {
+    const rows = inProcessInventory.filter((row) => getProcessLocationGroup(row.process_type) === location);
+
+    return {
+      location,
+      count: rows.length,
+      kg: rows.reduce((total, row) => total + Number(row.quantity_kg || 0), 0),
+    };
+  });
+  const filteredInProcessInventory = inProcessInventory.filter((row) => {
+    if (selectedProcessLocation !== "all" && getProcessLocationGroup(row.process_type) !== selectedProcessLocation) {
+      return false;
+    }
+
+    if (!inventorySearchTerm) return true;
+
+    return [
+      row.lot_code,
+      row.process_code,
+      row.process_type,
+      row.process_location,
+      row.process_status,
+      row.sale_code,
+      row.client_name,
+      row.supplier_name,
+      row.presentation,
+      row.coffee_type_name,
+      row.commercial_classification,
+      row.coffee_variety,
+      row.coffee_profile_name,
+      row.performance_factor,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(inventorySearchTerm);
+  });
+  const totalInProcessKg = inProcessInventory.reduce((total, row) => total + Number(row.quantity_kg || 0), 0);
   const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const getLotOriginLabel = (lot) => {
@@ -1702,6 +1749,97 @@ const InventoryPage = ({ mode = "inventory" }) => {
           </div>
         </div>
       )}
+
+      <div className="rounded border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-sm font-semibold text-slate-800">Cafe fuera de bodega</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Lotes y cantidades que salieron a finca/proceso, trilladora o seleccionadora y aun no han regresado como inventario.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              className={`rounded border px-3 py-2 text-left text-sm ${
+                selectedProcessLocation === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+              }`}
+              type="button"
+              onClick={() => setSelectedProcessLocation("all")}
+            >
+              <span className="block font-semibold">Todo fuera de bodega</span>
+              <span className="text-xs">{inProcessInventory.length} salidas - {formatKg(totalInProcessKg)}</span>
+            </button>
+            {processLocationCards.map((card) => (
+              <button
+                key={card.location}
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  selectedProcessLocation === card.location ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => setSelectedProcessLocation(card.location)}
+              >
+                <span className="block font-semibold">{card.location}</span>
+                <span className="text-xs">{card.count} salidas - {formatKg(card.kg)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {inProcessInventory.length === 0 ? (
+          <div className="p-4">
+            <EmptyState title="Sin cafe fuera de bodega" message="Cuando un proceso, trilla o seleccionadora este activo, sus lotes apareceran aqui." />
+          </div>
+        ) : filteredInProcessInventory.length === 0 ? (
+          <div className="p-4">
+            <EmptyState title="Sin salidas con estos filtros" message="Cambie la busqueda o la ubicacion para ver mas cafe fuera de bodega." />
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filteredInProcessInventory.map((row) => (
+              <article key={row.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink">
+                      {row.lot_code} - {row.presentation || "Sin presentacion"} ({[row.commercial_classification, row.coffee_variety || row.coffee_profile_name || row.coffee_type_name].filter(Boolean).join(" / ") || "Cafe"})
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded bg-amber-50 px-2 py-1 font-semibold text-amber-700">{getProcessLocationGroup(row.process_type)}</span>
+                      <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{row.process_type || "Proceso"}</span>
+                      {row.process_location && (
+                        <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{row.process_location}</span>
+                      )}
+                      {row.supplier_name && (
+                        <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{row.supplier_name}</span>
+                      )}
+                    </div>
+                  </div>
+                  <StatusBadge>{processStatusLabels[row.process_status] || row.process_status}</StatusBadge>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase text-amber-700">Cantidad fuera</p>
+                    <p className="mt-1 font-bold text-amber-800">{formatKg(row.quantity_kg)}</p>
+                  </div>
+                  <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Proceso</p>
+                    <p className="mt-1 font-bold text-ink">{row.process_code}</p>
+                  </div>
+                  <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Venta asociada</p>
+                    <p className="mt-1 text-sm text-slate-700">{[row.sale_code, row.client_name].filter(Boolean).join(" - ") || "Sin venta asociada"}</p>
+                  </div>
+                  <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Regreso estimado</p>
+                    <p className="mt-1 text-sm text-slate-700">{row.estimated_return_date ? new Date(row.estimated_return_date).toLocaleDateString("es-CO") : "-"}</p>
+                  </div>
+                  <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Calidad original</p>
+                    <p className="mt-1 text-sm text-slate-700">Humedad {row.humidity_percent || "-"}% · Factor {row.performance_factor ?? "-"}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="rounded border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">

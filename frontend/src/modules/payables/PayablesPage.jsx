@@ -1,4 +1,4 @@
-import { Eye, FileDown, RefreshCw } from "lucide-react";
+import { Edit3, Eye, FileDown, RefreshCw, Save, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -41,12 +41,119 @@ const getOrderKg = (order) => {
   return Number(order.net_weight_kg || 0);
 };
 
+const toInputDate = (value) => {
+  if (!value) return new Date().toISOString().slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toISOString().slice(0, 10);
+};
+
+const parseAmount = (value) => Number(String(value ?? "0").replace(",", ".")) || 0;
+
+const buildEditForm = (order) => {
+  const snapshot = getSnapshot(order);
+  const snapshotItems = getSnapshotItems(order);
+  const fallbackItems = snapshotItems.length > 0
+    ? snapshotItems
+    : [{
+        id: order.lot_id || order.id,
+        lotCode: snapshot.lotCode || order.lot_code || "",
+        coffeeDetail: snapshot.coffeeDetail || getCoffeeName(order),
+        grossWeightKg: snapshot.grossWeightKg || order.gross_weight_kg || "",
+        netWeightKg: snapshot.netWeightKg || order.net_weight_kg || "",
+        performanceFactor: snapshot.performanceFactor || order.performance_factor || "",
+        purchaseBaseFactor: snapshot.purchaseBaseFactor || 90,
+        purchasePriceFactor90: snapshot.purchasePriceFactor90 || "",
+        adjustedPriceCarga: snapshot.adjustedPriceCarga || "",
+        purchasePricePerKg: snapshot.purchasePricePerKg || order.purchase_price_per_kg || "",
+        purchaseTotal: snapshot.purchaseTotal || order.purchase_total || order.total || "",
+      }];
+
+  return {
+    id: order.id,
+    originalSnapshot: snapshot,
+    orderCode: snapshot.orderCode || order.code || "",
+    orderDate: toInputDate(snapshot.orderDate || order.created_at),
+    supplierName: snapshot.supplierName || order.supplier_name || order.third_party_name || "",
+    supplierDocument: snapshot.supplierDocument || order.supplier_document || "",
+    supplierPhone: snapshot.supplierPhone || order.supplier_phone || "",
+    supplierOriginZone: snapshot.supplierOriginZone || order.supplier_origin_zone || "",
+    supplierAddress: snapshot.supplierAddress || order.supplier_address || "",
+    lotPresentation: snapshot.lotPresentation || order.lot_presentation || "",
+    createdByName: snapshot.createdByName || order.created_by_name || "",
+    notes: snapshot.notes || order.notes || "",
+    items: fallbackItems.map((item, index) => ({
+      id: item.id || `${item.lotCode || "item"}-${index}`,
+      lotCode: item.lotCode || "",
+      coffeeDetail: item.coffeeDetail || item.detail || "Cafe liquidado",
+      grossWeightKg: item.grossWeightKg ?? item.grossKilos ?? "",
+      netWeightKg: item.netWeightKg ?? item.kilos ?? "",
+      performanceFactor: item.performanceFactor ?? "",
+      purchaseBaseFactor: item.purchaseBaseFactor ?? 90,
+      purchasePriceFactor90: item.purchasePriceFactor90 ?? item.priceFactor90 ?? "",
+      adjustedPriceCarga: item.adjustedPriceCarga ?? item.priceCarga ?? "",
+      purchasePricePerKg: item.purchasePricePerKg ?? item.priceKg ?? "",
+      purchaseTotal: item.purchaseTotal ?? item.total ?? "",
+    })),
+  };
+};
+
+const getEditFormTotal = (form) => {
+  const items = form?.items || [];
+  return items.reduce((sum, item) => {
+    const explicitTotal = parseAmount(item.purchaseTotal);
+    if (explicitTotal > 0) return sum + explicitTotal;
+    return sum + (parseAmount(item.netWeightKg) * parseAmount(item.purchasePricePerKg));
+  }, 0);
+};
+
+const buildSnapshotFromEditForm = (form) => {
+  const items = (form.items || []).map((item) => ({
+    id: item.id,
+    lotCode: item.lotCode,
+    coffeeDetail: item.coffeeDetail,
+    grossWeightKg: parseAmount(item.grossWeightKg),
+    netWeightKg: parseAmount(item.netWeightKg),
+    performanceFactor: item.performanceFactor,
+    purchaseBaseFactor: parseAmount(item.purchaseBaseFactor) || 90,
+    purchasePriceFactor90: parseAmount(item.purchasePriceFactor90),
+    adjustedPriceCarga: parseAmount(item.adjustedPriceCarga),
+    purchasePricePerKg: parseAmount(item.purchasePricePerKg),
+    purchaseTotal: parseAmount(item.purchaseTotal) || (parseAmount(item.netWeightKg) * parseAmount(item.purchasePricePerKg)),
+  }));
+  const total = items.reduce((sum, item) => sum + Number(item.purchaseTotal || 0), 0);
+
+  return {
+    ...form.originalSnapshot,
+    orderCode: form.orderCode,
+    orderDate: form.orderDate,
+    supplierName: form.supplierName,
+    supplierDocument: form.supplierDocument,
+    supplierPhone: form.supplierPhone,
+    supplierOriginZone: form.supplierOriginZone,
+    supplierAddress: form.supplierAddress,
+    lotCode: items.length > 1 ? items.map((item) => item.lotCode).filter(Boolean).join(", ") : items[0]?.lotCode || "",
+    lotPresentation: form.lotPresentation,
+    coffeeDetail: items.length > 1 ? `Liquidacion agrupada de ${items.length} lotes` : items[0]?.coffeeDetail || "",
+    grossWeightKg: items.reduce((sum, item) => sum + Number(item.grossWeightKg || 0), 0),
+    netWeightKg: items.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0),
+    performanceFactor: items.length > 1 ? "" : items[0]?.performanceFactor || "",
+    purchaseTotal: total,
+    notes: form.notes,
+    createdByName: form.createdByName,
+    isGrouped: items.length > 1 || Boolean(form.originalSnapshot?.isGrouped),
+    items,
+  };
+};
+
 const PayablesPage = () => {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadData = async () => {
     const payableData = await apiRequest("/payables");
@@ -86,6 +193,69 @@ const PayablesPage = () => {
       setSelectedOrder(fullOrder);
     } catch (requestError) {
       setError(requestError.message);
+    }
+  };
+
+  const openEditModal = async (order) => {
+    try {
+      const fullOrder = order.payments ? order : await apiRequest(`/payables/${order.id}`);
+      setSelectedOrder(fullOrder);
+      setEditForm(buildEditForm(fullOrder));
+      setMessage("");
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  const updateEditField = (field, value) => {
+    setEditForm((currentForm) => ({
+      ...currentForm,
+      [field]: value,
+    }));
+  };
+
+  const updateEditItem = (itemId, field, value) => {
+    setEditForm((currentForm) => ({
+      ...currentForm,
+      items: (currentForm.items || []).map((item) => (
+        item.id === itemId ? { ...item, [field]: value } : item
+      )),
+    }));
+  };
+
+  const saveEdit = async ({ shouldPrint = false } = {}) => {
+    if (!editForm?.orderCode?.trim()) {
+      setError("El codigo de la orden es obligatorio.");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      setError("");
+      const snapshot = buildSnapshotFromEditForm(editForm);
+      const total = getEditFormTotal(editForm);
+      const response = await apiRequest(`/payables/${editForm.id}/purchase-order`, {
+        method: "PUT",
+        body: JSON.stringify({
+          code: editForm.orderCode,
+          purchaseOrderSnapshot: snapshot,
+          total,
+          notes: editForm.notes,
+        }),
+      });
+      const updatedOrder = response.data;
+      setSelectedOrder(updatedOrder);
+      setEditForm(null);
+      await loadData();
+      setMessage("Orden de compra actualizada. Ya puede volver a imprimirla con los datos corregidos.");
+      if (shouldPrint) {
+        openPurchaseOrderPrint(updatedOrder);
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -161,7 +331,14 @@ const PayablesPage = () => {
                             onClick={() => printOrder(order)}
                           >
                             <FileDown size={14} />
-                            PDF
+                            Reimprimir
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                            onClick={() => openEditModal(order)}
+                          >
+                            <Edit3 size={14} />
+                            Editar
                           </button>
                         </div>
                       </td>
@@ -212,12 +389,247 @@ const PayablesPage = () => {
                 onClick={() => printOrder(selectedOrder)}
               >
                 <FileDown size={16} />
-                Imprimir / guardar PDF
+                Reimprimir / guardar PDF
+              </button>
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                onClick={() => openEditModal(selectedOrder)}
+              >
+                <Edit3 size={16} />
+                Editar datos del documento
               </button>
             </div>
           )}
         </aside>
       </div>
+
+      {editForm && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/45 p-4">
+          <div className="my-6 w-full max-w-5xl rounded border border-slate-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-ink">Editar orden de compra</h2>
+                <p className="text-sm text-slate-500">Corrija el codigo o los datos visibles del PDF sin volver a liquidar el cafe.</p>
+              </div>
+              <button
+                className="rounded border border-slate-300 p-2 text-slate-600 hover:bg-slate-50"
+                type="button"
+                onClick={() => setEditForm(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Codigo de orden</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={editForm.orderCode}
+                    onChange={(event) => updateEditField("orderCode", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Fecha del documento</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    type="date"
+                    value={editForm.orderDate}
+                    onChange={(event) => updateEditField("orderDate", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Presentacion</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={editForm.lotPresentation}
+                    onChange={(event) => updateEditField("lotPresentation", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Proveedor</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={editForm.supplierName}
+                    onChange={(event) => updateEditField("supplierName", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>NIT o C.C.</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={editForm.supplierDocument}
+                    onChange={(event) => updateEditField("supplierDocument", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Telefono</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={editForm.supplierPhone}
+                    onChange={(event) => updateEditField("supplierPhone", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Ciudad / zona</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={editForm.supplierOriginZone}
+                    onChange={(event) => updateEditField("supplierOriginZone", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700 md:col-span-2">
+                  <span>Direccion</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={editForm.supplierAddress}
+                    onChange={(event) => updateEditField("supplierAddress", event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="rounded border border-slate-200">
+                <div className="border-b border-slate-200 px-4 py-3">
+                  <h3 className="text-sm font-bold text-ink">Lotes incluidos en el documento</h3>
+                  <p className="text-xs text-slate-500">Estos valores son los que salen impresos en la orden.</p>
+                </div>
+                <div className="space-y-3 p-4">
+                  {(editForm.items || []).map((item) => (
+                    <div key={item.id} className="rounded border border-slate-200 bg-slate-50 p-3">
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Codigo de lote</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.lotCode}
+                            onChange={(event) => updateEditItem(item.id, "lotCode", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700 md:col-span-2">
+                          <span>Detalle del cafe</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.coffeeDetail}
+                            onChange={(event) => updateEditItem(item.id, "coffeeDetail", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Factor rendimiento</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.performanceFactor}
+                            onChange={(event) => updateEditItem(item.id, "performanceFactor", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Peso bruto kg</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.grossWeightKg}
+                            onChange={(event) => updateEditItem(item.id, "grossWeightKg", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Peso neto kg</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.netWeightKg}
+                            onChange={(event) => updateEditItem(item.id, "netWeightKg", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Factor base negociado</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.purchaseBaseFactor}
+                            onChange={(event) => updateEditItem(item.id, "purchaseBaseFactor", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Precio factor base</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.purchasePriceFactor90}
+                            onChange={(event) => updateEditItem(item.id, "purchasePriceFactor90", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Precio carga ajustado</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.adjustedPriceCarga}
+                            onChange={(event) => updateEditItem(item.id, "adjustedPriceCarga", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Precio kg</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.purchasePricePerKg}
+                            onChange={(event) => updateEditItem(item.id, "purchasePricePerKg", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Total lote</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.purchaseTotal}
+                            onChange={(event) => updateEditItem(item.id, "purchaseTotal", event.target.value)}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Notas</span>
+                <textarea
+                  className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  value={editForm.notes}
+                  onChange={(event) => updateEditField("notes", event.target.value)}
+                />
+              </label>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded bg-slate-50 p-3">
+                <p className="text-sm text-slate-700">
+                  Total del documento: <span className="font-bold text-ink">{formatMoney(getEditFormTotal(editForm))}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                    type="button"
+                    onClick={() => setEditForm(null)}
+                  >
+                    <X size={16} />
+                    Cancelar
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-2 rounded border border-leaf bg-white px-3 py-2 text-sm font-semibold text-leaf"
+                    type="button"
+                    disabled={savingEdit}
+                    onClick={() => saveEdit()}
+                  >
+                    <Save size={16} />
+                    Guardar
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    type="button"
+                    disabled={savingEdit}
+                    onClick={() => saveEdit({ shouldPrint: true })}
+                  >
+                    <FileDown size={16} />
+                    Guardar e imprimir
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

@@ -120,6 +120,48 @@ export const getGroupedInventory = async () => {
   return result.rows;
 };
 
+export const listInventoryInProcess = async () => {
+  const result = await pool.query(
+    `
+    SELECT
+      coffee_process_inputs.id,
+      coffee_process_inputs.process_id,
+      coffee_process_inputs.lot_id,
+      coffee_process_inputs.quantity_kg,
+      coffee_process_inputs.created_at,
+      coffee_processes.code AS process_code,
+      coffee_processes.status AS process_status,
+      coffee_processes.process_type,
+      coffee_processes.process_location,
+      coffee_processes.estimated_return_date,
+      sales.code AS sale_code,
+      clients.name AS client_name,
+      coffee_lots.code AS lot_code,
+      coffee_lots.lot_kind,
+      coffee_lots.presentation,
+      coffee_lots.commercial_classification,
+      coffee_lots.coffee_variety,
+      coffee_lots.humidity_percent,
+      coffee_lots.performance_factor,
+      suppliers.name AS supplier_name,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name
+    FROM coffee_process_inputs
+    INNER JOIN coffee_processes ON coffee_processes.id = coffee_process_inputs.process_id
+    INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
+    LEFT JOIN sales ON sales.id = coffee_processes.sale_id
+    LEFT JOIN clients ON clients.id = sales.client_id
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    WHERE coffee_processes.status IN ('en_proceso', 'pendiente_revision_fisica', 'pendiente_laboratorio')
+    ORDER BY coffee_processes.updated_at DESC, coffee_process_inputs.created_at ASC
+    `
+  );
+
+  return result.rows;
+};
+
 export const listLotMovements = async (lotId) => {
   const result = await pool.query(
     `

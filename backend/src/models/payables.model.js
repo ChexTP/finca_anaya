@@ -139,6 +139,37 @@ export const findPayableById = async (id) => {
   };
 };
 
+export const updatePurchaseOrderDocument = async ({ id, code, purchaseOrderSnapshot, total, notes }) => {
+  const result = await pool.query(
+    `
+    UPDATE accounts_payable
+    SET
+      code = COALESCE($2, code),
+      purchase_order_snapshot = COALESCE($3::jsonb, purchase_order_snapshot),
+      total = COALESCE($4, total),
+      balance_due = GREATEST(COALESCE($4, total) - amount_paid, 0),
+      status = CASE
+        WHEN amount_paid >= COALESCE($4, total) THEN 'pagada'
+        WHEN amount_paid > 0 THEN 'pago_parcial'
+        ELSE status
+      END,
+      notes = COALESCE($5, notes),
+      updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+    `,
+    [
+      id,
+      code || null,
+      purchaseOrderSnapshot ? JSON.stringify(purchaseOrderSnapshot) : null,
+      total ?? null,
+      notes ?? null,
+    ]
+  );
+
+  return result.rows[0] || null;
+};
+
 export const createPayable = async ({
   code,
   categoryId,

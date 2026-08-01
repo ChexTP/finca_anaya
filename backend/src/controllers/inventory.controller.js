@@ -2,6 +2,7 @@ import {
   listAvailableLots,
   getGroupedInventory,
   listLotMovements,
+  listInventoryInProcess,
   listSampleInventoryOutputs,
   adjustLotInventory,
   registerSampleInventoryOutput,
@@ -54,6 +55,18 @@ export const getInventoryMovements = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener movimientos del lote",
+      error: error.message,
+    });
+  }
+};
+
+export const getInventoryInProcess = async (req, res) => {
+  try {
+    const rows = await listInventoryInProcess();
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al obtener cafe fuera de bodega",
       error: error.message,
     });
   }

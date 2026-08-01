@@ -3,6 +3,7 @@ import {
   getInventoryLots,
   getInventoryGrouped,
   getInventoryMovements,
+  getInventoryInProcess,
   getSampleInventoryOutputs,
   postInventoryAdjustment,
   postSampleInventoryOutput,
@@ -13,6 +14,7 @@ const router = Router();
 
 router.get("/lots", requireAuth, getInventoryLots);
 router.get("/grouped", requireAuth, getInventoryGrouped);
+router.get("/in-process", requireAuth, getInventoryInProcess);
 router.get("/sample-outputs", requireAuth, requireRoles("admin", "accounting", "warehouse"), getSampleInventoryOutputs);
 router.get("/lots/:lotId/movements", requireAuth, getInventoryMovements);
 router.post(
