@@ -244,6 +244,8 @@ export const postReceivedLot = async (req, res) => {
     const {
       supplierId,
       coffeeTypeId,
+      coffeeProfileId,
+      lotKind = "LOT",
       grossWeightKg,
       packagingTypeId,
       packagingQuantity = 0,
@@ -261,10 +263,20 @@ export const postReceivedLot = async (req, res) => {
       initialComment,
     } = req.body;
 
-    if (!supplierId || !coffeeTypeId || !grossWeightKg || !packagingTypeId || !receivedAt) {
+    const normalizedLotKind = lotKind === "PROC" ? "PROC" : "LOT";
+
+    if (!supplierId || !grossWeightKg || !packagingTypeId || !receivedAt) {
       return res.status(400).json({
-        message: "Proveedor, proceso, fecha de llegada, peso y embalaje son obligatorios",
+        message: "Proveedor, fecha de llegada, peso y embalaje son obligatorios",
       });
+    }
+
+    if (normalizedLotKind === "LOT" && !coffeeTypeId) {
+      return res.status(400).json({ message: "Debe seleccionar el cafe comprado" });
+    }
+
+    if (normalizedLotKind === "PROC" && !coffeeProfileId) {
+      return res.status(400).json({ message: "Debe seleccionar el perfil de venta del proceso" });
     }
 
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
@@ -276,6 +288,7 @@ export const postReceivedLot = async (req, res) => {
     }
 
     if (
+      normalizedLotKind === "LOT" &&
       regularCategoriesThatNeedExactName.includes(commercialClassification) &&
       !String(coffeeVariety || "").trim()
     ) {
@@ -290,10 +303,22 @@ export const postReceivedLot = async (req, res) => {
       return res.status(404).json({ message: "Proveedor no encontrado o inactivo" });
     }
 
-    const coffeeType = await findCoffeeTypeById(coffeeTypeId);
+    let coffeeType = null;
+    if (coffeeTypeId) {
+      coffeeType = await findCoffeeTypeById(coffeeTypeId);
 
-    if (!coffeeType || !coffeeType.is_active) {
-      return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+      if (!coffeeType || !coffeeType.is_active) {
+        return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+      }
+    }
+
+    let coffeeProfile = null;
+    if (coffeeProfileId) {
+      coffeeProfile = await findCoffeeProfileById(coffeeProfileId);
+
+      if (!coffeeProfile || !coffeeProfile.is_active) {
+        return res.status(404).json({ message: "Perfil comercial no encontrado o inactivo" });
+      }
     }
 
     const packagingType = await findPackagingTypeById(packagingTypeId);
@@ -328,7 +353,7 @@ export const postReceivedLot = async (req, res) => {
       });
     }
 
-    const code = await getNextLotCode();
+    const code = normalizedLotKind === "PROC" ? await getNextProcessedLotCode() : await getNextLotCode();
     const humidity = toNumber(humidityPercent);
     const performance = toNumber(performanceFactor);
     const status = humidity === null || performance === null
@@ -359,7 +384,9 @@ export const postReceivedLot = async (req, res) => {
     const lot = await createReceivedLot({
       code,
       supplierId,
-      coffeeTypeId,
+      coffeeTypeId: coffeeTypeId || null,
+      coffeeProfileId: coffeeProfileId || null,
+      lotKind: normalizedLotKind,
       status,
       presentation,
       grossWeightKg: gross,
@@ -372,11 +399,11 @@ export const postReceivedLot = async (req, res) => {
       humidityPercent: humidity,
       performanceFactor: performance,
       receivedAt,
-      coffeeVariety: coffeeVariety || null,
+      coffeeVariety: normalizedLotKind === "PROC" ? coffeeProfile?.name || coffeeVariety || null : coffeeVariety || null,
       visualStatus: null,
       visualDefectPercent: visualDefect,
       visualNotes,
-      commercialClassification: commercialClassification || null,
+      commercialClassification: normalizedLotKind === "PROC" ? "Procesado" : commercialClassification || null,
       originZone,
       initialComment,
       createdBy: req.user.id,
@@ -399,6 +426,8 @@ export const putReceptionData = async (req, res) => {
     const {
       supplierId,
       coffeeTypeId,
+      coffeeProfileId,
+      lotKind = "LOT",
       grossWeightKg,
       packagingTypeId,
       packagingQuantity = 0,
@@ -413,10 +442,20 @@ export const putReceptionData = async (req, res) => {
       originZone,
     } = req.body;
 
-    if (!supplierId || !coffeeTypeId || !grossWeightKg || !packagingTypeId || !receivedAt) {
+    const normalizedLotKind = lotKind === "PROC" ? "PROC" : "LOT";
+
+    if (!supplierId || !grossWeightKg || !packagingTypeId || !receivedAt) {
       return res.status(400).json({
-        message: "Proveedor, cafe comprado, fecha de llegada, peso y embalaje son obligatorios",
+        message: "Proveedor, fecha de llegada, peso y embalaje son obligatorios",
       });
+    }
+
+    if (normalizedLotKind === "LOT" && !coffeeTypeId) {
+      return res.status(400).json({ message: "Debe seleccionar el cafe comprado" });
+    }
+
+    if (normalizedLotKind === "PROC" && !coffeeProfileId) {
+      return res.status(400).json({ message: "Debe seleccionar el perfil de venta del proceso" });
     }
 
     if (!presentation?.trim()) {
@@ -428,6 +467,7 @@ export const putReceptionData = async (req, res) => {
     }
 
     if (
+      normalizedLotKind === "LOT" &&
       regularCategoriesThatNeedExactName.includes(commercialClassification) &&
       !String(coffeeVariety || "").trim()
     ) {
@@ -441,9 +481,20 @@ export const putReceptionData = async (req, res) => {
       return res.status(404).json({ message: "Proveedor no encontrado o inactivo" });
     }
 
-    const coffeeType = await findCoffeeTypeById(coffeeTypeId);
-    if (!coffeeType || !coffeeType.is_active) {
-      return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+    let coffeeType = null;
+    if (coffeeTypeId) {
+      coffeeType = await findCoffeeTypeById(coffeeTypeId);
+      if (!coffeeType || !coffeeType.is_active) {
+        return res.status(404).json({ message: "Tipo de cafe no encontrado o inactivo" });
+      }
+    }
+
+    let coffeeProfile = null;
+    if (coffeeProfileId) {
+      coffeeProfile = await findCoffeeProfileById(coffeeProfileId);
+      if (!coffeeProfile || !coffeeProfile.is_active) {
+        return res.status(404).json({ message: "Perfil comercial no encontrado o inactivo" });
+      }
     }
 
     const packagingType = await findPackagingTypeById(packagingTypeId);
@@ -490,7 +541,9 @@ export const putReceptionData = async (req, res) => {
 
     const lot = await updateLotReceptionData(req.params.id, {
       supplierId,
-      coffeeTypeId,
+      coffeeTypeId: coffeeTypeId || null,
+      coffeeProfileId: coffeeProfileId || null,
+      lotKind: normalizedLotKind,
       presentation,
       grossWeightKg: gross,
       packagingTypeId,
@@ -501,8 +554,8 @@ export const putReceptionData = async (req, res) => {
       humidityPercent: humidity,
       performanceFactor: performance,
       receivedAt,
-      coffeeVariety: coffeeVariety || null,
-      commercialClassification: commercialClassification || null,
+      coffeeVariety: normalizedLotKind === "PROC" ? coffeeProfile?.name || coffeeVariety || null : coffeeVariety || null,
+      commercialClassification: normalizedLotKind === "PROC" ? "Procesado" : commercialClassification || null,
       originZone,
       updatedBy: req.user.id,
     });

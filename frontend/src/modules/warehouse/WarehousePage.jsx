@@ -20,8 +20,10 @@ const initialSupplier = {
 
 const initialLot = {
   code: "",
+  lotKind: "LOT",
   supplierId: "",
   purchaseCoffeeId: "",
+  coffeeProfileId: "",
   coffeeTypeId: "",
   presentation: "Pergamino",
   grossWeightKg: "",
@@ -341,6 +343,10 @@ const WarehousePage = () => {
       .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
   }, [catalogs]);
 
+  const selectedReceivedCoffeeProfile = useMemo(() => {
+    return stockCoffeeProfileOptions.find((profile) => String(profile.id) === String(lotForm.coffeeProfileId));
+  }, [lotForm.coffeeProfileId, stockCoffeeProfileOptions]);
+
   const selectedStockPurchaseCoffee = useMemo(() => {
     return receivedPurchaseCoffeeOptions.find((coffee) => String(coffee.id) === String(stockEntryForm.purchaseCoffeeId));
   }, [receivedPurchaseCoffeeOptions, stockEntryForm.purchaseCoffeeId]);
@@ -373,9 +379,23 @@ const WarehousePage = () => {
     setLotForm({
       ...lotForm,
       purchaseCoffeeId,
+      coffeeProfileId: "",
       coffeeTypeId: coffeeType?.id ? String(coffeeType.id) : "",
       commercialClassification: purchaseCoffee?.family || "",
       coffeeVariety: purchaseCoffee?.name || "",
+    });
+  };
+
+  const handleReceptionKindChange = (lotKind) => {
+    setLotForm({
+      ...lotForm,
+      lotKind,
+      purchaseCoffeeId: "",
+      coffeeProfileId: "",
+      coffeeTypeId: "",
+      commercialClassification: lotKind === "PROC" ? "Procesado" : "",
+      coffeeVariety: "",
+      presentation: lotKind === "PROC" ? "Excelso" : lotForm.presentation || "Pergamino",
     });
   };
 
@@ -405,7 +425,9 @@ const WarehousePage = () => {
   const buildReceptionPayload = () => ({
     ...lotForm,
     supplierId: Number(lotForm.supplierId),
-    coffeeTypeId: Number(lotForm.coffeeTypeId),
+    lotKind: lotForm.lotKind || "LOT",
+    coffeeTypeId: lotForm.coffeeTypeId ? Number(lotForm.coffeeTypeId) : null,
+    coffeeProfileId: lotForm.coffeeProfileId ? Number(lotForm.coffeeProfileId) : null,
     grossWeightKg: Number(lotForm.grossWeightKg),
     packagingTypeId: Number(lotForm.packagingTypeId),
     packagingQuantity: Number(lotForm.packagingQuantity),
@@ -418,8 +440,10 @@ const WarehousePage = () => {
     setEditingLot(lot);
     setLotForm({
       code: lot.code || "",
+      lotKind: lot.lot_kind || "LOT",
       supplierId: lot.supplier_id ? String(lot.supplier_id) : "",
       purchaseCoffeeId: getPurchaseCoffeeIdFromLot(lot),
+      coffeeProfileId: lot.coffee_profile_id ? String(lot.coffee_profile_id) : "",
       coffeeTypeId: lot.coffee_type_id ? String(lot.coffee_type_id) : "",
       presentation: lot.presentation || "Pergamino",
       grossWeightKg: lot.gross_weight_kg || "",
@@ -535,21 +559,29 @@ const WarehousePage = () => {
     setError("");
 
     try {
-      if (!editingLot && !selectedPurchaseCoffee) {
+      if (!editingLot && lotForm.lotKind !== "PROC" && !selectedPurchaseCoffee) {
         throw new Error("Debe seleccionar uno de los cafes comprados por la empresa.");
       }
-      if (editingLot && !lotForm.coffeeTypeId) {
+      if (lotForm.lotKind === "PROC" && !selectedReceivedCoffeeProfile) {
+        throw new Error("Debe seleccionar el perfil de venta del proceso.");
+      }
+      if (editingLot && lotForm.lotKind !== "PROC" && !lotForm.coffeeTypeId) {
         throw new Error("Debe indicar el cafe comprado antes de guardar la correccion.");
       }
 
       if (
+        lotForm.lotKind !== "PROC" &&
         ["Regional", "Varietal", "Exotico"].includes(lotForm.commercialClassification) &&
         !lotForm.coffeeVariety.trim()
       ) {
         throw new Error("Debe indicar la clasificacion, variedad o codigo exacto del cafe.");
       }
 
-      const actionLabel = editingLot ? `corregir el lote ${editingLot.code}` : "registrar este cafe";
+      const actionLabel = editingLot
+        ? `corregir el lote ${editingLot.code}`
+        : lotForm.lotKind === "PROC"
+          ? "registrar este proceso"
+          : "registrar este cafe";
       const confirmed = window.confirm(`Confirma ${actionLabel}? Revisa empaque, bolsa interna, peso y fecha antes de continuar.`);
       if (!confirmed) return;
 
@@ -571,8 +603,8 @@ const WarehousePage = () => {
         editingLot
           ? "Datos de ingreso corregidos correctamente."
           : response.data.status === "pendiente_revision_fisica"
-            ? "Cafe recibido. Quedo pendiente de revision fisica en bodega."
-            : "Cafe recibido. Quedo pendiente de analisis sensorial en laboratorio."
+            ? `${response.data.lot_kind === "PROC" ? "Proceso" : "Cafe"} recibido. Quedo pendiente de revision fisica en bodega.`
+            : `${response.data.lot_kind === "PROC" ? "Proceso" : "Cafe"} recibido. Quedo pendiente de analisis sensorial en laboratorio.`
       );
     } catch (requestError) {
       setError(requestError.message);
@@ -1189,17 +1221,49 @@ const WarehousePage = () => {
             </select>
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
-              value={lotForm.purchaseCoffeeId}
-              onChange={(event) => handleReceivedPurchaseCoffeeChange(event.target.value)}
-              required
+              value={lotForm.lotKind}
+              onChange={(event) => handleReceptionKindChange(event.target.value)}
             >
-              <option value="">Cafe comprado</option>
-              {receivedPurchaseCoffeeOptions.map((coffee) => (
-                <option key={coffee.id} value={coffee.id}>
-                  {coffee.name}
-                </option>
-              ))}
+              <option value="LOT">Cafe comprado</option>
+              <option value="PROC">Proceso comprado / externo</option>
             </select>
+            {lotForm.lotKind === "PROC" ? (
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={lotForm.coffeeProfileId}
+                onChange={(event) => {
+                  const profile = stockCoffeeProfileOptions.find((item) => String(item.id) === String(event.target.value));
+                  setLotForm({
+                    ...lotForm,
+                    coffeeProfileId: event.target.value,
+                    coffeeVariety: profile?.name || "",
+                    commercialClassification: "Procesado",
+                  });
+                }}
+                required
+              >
+                <option value="">Perfil de venta del proceso</option>
+                {stockCoffeeProfileOptions.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={lotForm.purchaseCoffeeId}
+                onChange={(event) => handleReceivedPurchaseCoffeeChange(event.target.value)}
+                required
+              >
+                <option value="">Cafe comprado</option>
+                {receivedPurchaseCoffeeOptions.map((coffee) => (
+                  <option key={coffee.id} value={coffee.id}>
+                    {coffee.name} - {coffee.family} / {coffee.process_type}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"
               value={lotForm.presentation}
@@ -1213,10 +1277,11 @@ const WarehousePage = () => {
             </select>
             <input
               className="rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Clasificacion o codigo"
+              placeholder={lotForm.lotKind === "PROC" ? "Perfil del proceso" : "Clasificacion o codigo"}
               value={lotForm.coffeeVariety}
               onChange={(event) => setLotForm({ ...lotForm, coffeeVariety: event.target.value })}
-              required
+              required={lotForm.lotKind !== "PROC"}
+              readOnly={lotForm.lotKind === "PROC" && Boolean(lotForm.coffeeProfileId)}
             />
             <label className="text-xs font-medium text-slate-600">
               Fecha de llegada a bodega

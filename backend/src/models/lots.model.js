@@ -501,8 +501,10 @@ export const createReceivedLot = async (lotData) => {
         code,
         supplier_id,
         coffee_type_id,
+        coffee_profile_id,
         status,
         presentation,
+        lot_kind,
         gross_weight_kg,
         packaging_type_id,
         packaging_quantity,
@@ -524,7 +526,7 @@ export const createReceivedLot = async (lotData) => {
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
       )
       RETURNING *
       `,
@@ -532,8 +534,10 @@ export const createReceivedLot = async (lotData) => {
         lotData.code,
         lotData.supplierId,
         lotData.coffeeTypeId,
+        lotData.coffeeProfileId || null,
         lotData.status,
         lotData.presentation || "Pergamino",
+        lotData.lotKind || "LOT",
         lotData.grossWeightKg,
         lotData.packagingTypeId,
         lotData.packagingQuantity,
@@ -620,28 +624,32 @@ export const updateLotReceptionData = async (id, lotData) => {
       SET
         supplier_id = $1,
         coffee_type_id = $2,
-        status = $3,
-        presentation = $4,
-        gross_weight_kg = $5,
-        packaging_type_id = $6,
-        packaging_quantity = $7,
-        inner_bag_quantity = $8,
-        tare_weight_kg = $9,
-        net_weight_kg = $10,
+        coffee_profile_id = $3,
+        lot_kind = $4,
+        status = $5,
+        presentation = $6,
+        gross_weight_kg = $7,
+        packaging_type_id = $8,
+        packaging_quantity = $9,
+        inner_bag_quantity = $10,
+        tare_weight_kg = $11,
+        net_weight_kg = $12,
         available_weight_kg = 0,
-        humidity_percent = $11,
-        performance_factor = $12,
-        received_at = $13,
-        coffee_variety = $14,
-        commercial_classification = $15,
-        origin_zone = $16,
+        humidity_percent = $13,
+        performance_factor = $14,
+        received_at = $15,
+        coffee_variety = $16,
+        commercial_classification = $17,
+        origin_zone = $18,
         updated_at = NOW()
-      WHERE id = $17
+      WHERE id = $19
       RETURNING *
       `,
       [
         lotData.supplierId,
         lotData.coffeeTypeId,
+        lotData.coffeeProfileId || null,
+        lotData.lotKind || currentLot.lot_kind || "LOT",
         nextStatus,
         lotData.presentation || "Pergamino",
         lotData.grossWeightKg,
