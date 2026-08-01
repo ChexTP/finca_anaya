@@ -93,6 +93,11 @@ const toItemQuantityKg = (item) => (
   item.quantityUnit === "lb" ? poundsToKg(item.quantityKg) : Number(item.quantityKg || 0)
 );
 
+const formatProfileOptionLabel = (profile) => {
+  const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
+  return [code, profile?.name].filter(Boolean).join(" - ");
+};
+
 const getQuoteCodeFromForm = (form) => {
   if (!form.manualCodeNumber) return null;
 
@@ -196,7 +201,7 @@ const CommercialPage = () => {
         .map((profile) => ({
           id: `profile-${profile.id}`,
           value: String(profile.id),
-          label: profile.name,
+          label: formatProfileOptionLabel(profile),
           source: "profile",
           raw: profile,
         }));

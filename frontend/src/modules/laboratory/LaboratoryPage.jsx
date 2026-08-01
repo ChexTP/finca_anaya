@@ -84,6 +84,11 @@ const cuppingFields = [
   ["cleanCup", "Taza limpia"],
 ];
 
+const formatProfileOptionLabel = (profile) => {
+  const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
+  return [code, profile?.name].filter(Boolean).join(" - ");
+};
+
 const processFilters = [
   { key: "pendiente_laboratorio", label: "Por analizar" },
 ];
@@ -1657,7 +1662,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     <option value="">Perfil comercial</option>
                     {catalogs?.coffeeProfiles?.map((profile) => (
                       <option key={profile.id} value={profile.id}>
-                        {profile.name}
+                        {formatProfileOptionLabel(profile)}
                       </option>
                     ))}
                   </select>

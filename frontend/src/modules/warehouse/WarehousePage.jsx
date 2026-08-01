@@ -79,6 +79,11 @@ export const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
+const formatProfileOptionLabel = (profile) => {
+  const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
+  return [code, profile?.name].filter(Boolean).join(" - ");
+};
+
 const getProfilePrimaryComponent = (item) => {
   return Array.isArray(item.profile_components)
     ? item.profile_components.find((component) => component?.purchase_coffee_name)?.purchase_coffee_name
@@ -1114,7 +1119,7 @@ const WarehousePage = () => {
                   <option value="">Perfil comercial del proceso</option>
                   {stockCoffeeProfileOptions.map((profile) => (
                     <option key={profile.id} value={profile.id}>
-                      {profile.name}
+                      {formatProfileOptionLabel(profile)}
                     </option>
                   ))}
                 </select>
@@ -1245,7 +1250,7 @@ const WarehousePage = () => {
                 <option value="">Perfil de venta del proceso</option>
                 {stockCoffeeProfileOptions.map((profile) => (
                   <option key={profile.id} value={profile.id}>
-                    {profile.name}
+                    {formatProfileOptionLabel(profile)}
                   </option>
                 ))}
               </select>

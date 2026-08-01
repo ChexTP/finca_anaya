@@ -87,6 +87,11 @@ const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
 });
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
+const formatProfileOptionLabel = (profile) => {
+  const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
+  return [code, profile?.name].filter(Boolean).join(" - ");
+};
+
 const getProcessLocationGroup = (processType) => {
   if (processType === "Trilladora") return "En trilla";
   if (processType === "Seleccion electronica") return "En seleccionadora";
@@ -1109,7 +1114,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   <option value="">Perfil comercial si aplica</option>
                   {catalogs?.coffeeProfiles?.map((profile) => (
                     <option key={profile.id} value={profile.id}>
-                      {profile.name}
+                      {formatProfileOptionLabel(profile)}
                     </option>
                   ))}
                 </select>
@@ -2453,7 +2458,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     <option value="">Perfil comercial si aplica</option>
                     {catalogs?.coffeeProfiles?.map((profile) => (
                       <option key={profile.id} value={profile.id}>
-                        {profile.name}
+                        {formatProfileOptionLabel(profile)}
                       </option>
                     ))}
                   </select>

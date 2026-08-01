@@ -88,6 +88,11 @@ const statusOrder = {
   cancelada: 10,
 };
 
+const formatProfileOptionLabel = (profile) => {
+  const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
+  return [code, profile?.name].filter(Boolean).join(" - ");
+};
+
 const formatDate = (value) => {
   if (!value) return "-";
   const [datePart] = String(value).split("T");
@@ -827,7 +832,7 @@ const SamplesPage = () => {
                   <option value="">Perfil o cafe comercial</option>
                   {catalogs?.coffeeProfiles?.map((profile) => (
                     <option key={profile.id} value={profile.id}>
-                      {profile.name}
+                      {formatProfileOptionLabel(profile)}
                     </option>
                   ))}
                 </select>
