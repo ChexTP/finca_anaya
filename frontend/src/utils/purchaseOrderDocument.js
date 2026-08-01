@@ -10,7 +10,7 @@ const escapeHtml = (value) => String(value ?? "")
 const formatMoney = (value, { withCurrency = true } = {}) => {
   const formatted = Number(value || 0).toLocaleString("es-CO", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   });
 
   return withCurrency ? `COP ${formatted}` : formatted;

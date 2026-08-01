@@ -81,6 +81,10 @@ const initialAdminProcessEdit = {
 
 const formatKg = formatOperationalKg;
 const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
+const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
 const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor = 90) => {
@@ -105,13 +109,13 @@ const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor
     };
   }
 
-  const adjustmentPercent = factor - negotiatedBaseFactor;
+  const adjustmentPercent = negotiatedBaseFactor - factor;
   const adjustedPriceCarga = Number((basePriceCarga * (1 + adjustmentPercent / 100)).toFixed(2));
 
   return {
-    adjustmentPercent,
+    adjustmentPercent: Number(adjustmentPercent.toFixed(2)),
     adjustedPriceCarga,
-    purchasePricePerKg: Number((adjustedPriceCarga / 125).toFixed(4)),
+    purchasePricePerKg: Number((adjustedPriceCarga / 125).toFixed(2)),
   };
 };
 
@@ -145,8 +149,8 @@ const buildLiquidationForm = (lots, user) => {
   supplierAddress: firstLot.supplier_address || "",
   lotCode: items.map((item) => item.lotCode).filter(Boolean).join(", "),
   lotPresentation: firstLot.presentation || "Pergamino",
-  grossWeightKg: totalGrossWeight ? Number(totalGrossWeight.toFixed(3)) : "",
-  netWeightKg: totalNetWeight ? Number(totalNetWeight.toFixed(3)) : "",
+  grossWeightKg: totalGrossWeight ? Number(totalGrossWeight.toFixed(2)) : "",
+  netWeightKg: totalNetWeight ? Number(totalNetWeight.toFixed(2)) : "",
   performanceFactor: items.length === 1 ? items[0]?.performanceFactor || "" : "",
   createdByName: user?.name || user?.username || "",
   coffeeDetail: items.length === 1 ? items[0]?.coffeeDetail || "" : `Liquidacion agrupada de ${items.length} lotes`,
@@ -362,8 +366,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
         ...currentForm,
         items: nextItems,
         lotCode: nextItems.map((item) => item.lotCode).filter(Boolean).join(", "),
-        grossWeightKg: totalGrossWeight ? Number(totalGrossWeight.toFixed(3)) : "",
-        netWeightKg: totalNetWeight ? Number(totalNetWeight.toFixed(3)) : "",
+        grossWeightKg: totalGrossWeight ? Number(totalGrossWeight.toFixed(2)) : "",
+        netWeightKg: totalNetWeight ? Number(totalNetWeight.toFixed(2)) : "",
         coffeeDetail: nextItems.length === 1 ? nextItems[0]?.coffeeDetail || "" : `Liquidacion agrupada de ${nextItems.length} lotes`,
         purchasePriceFactor90: nextItems.length === 1 ? nextItems[0]?.purchasePriceFactor90 || "" : "",
         purchasePricePerKg: nextItems.length === 1 ? nextItems[0]?.purchasePricePerKg || "" : "",
@@ -782,13 +786,13 @@ const InventoryPage = ({ mode = "inventory" }) => {
   };
 
   const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
-    ? Number(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg)).toLocaleString("es-CO")
+    ? formatMoneyValue(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg))
     : "0";
   const liquidationTotal = selectedLiquidationLot
-    ? (liquidationForm.items || []).reduce(
+    ? formatMoneyValue((liquidationForm.items || []).reduce(
       (sum, item) => sum + (Number(item.netWeightKg || 0) * Number(item.purchasePricePerKg || 0)),
       0
-    ).toLocaleString("es-CO")
+    ))
     : "0";
 
   const presentationNames = [
@@ -1889,7 +1893,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                             <p className="text-xs text-slate-600">{item.lotCode || "Sin codigo"} · {item.coffeeDetail || "Cafe"}</p>
                           </div>
                           <p className="rounded bg-white px-3 py-1 text-sm font-bold text-amber-800">
-                            Total: COP {itemTotal.toLocaleString("es-CO")}
+                            Total: COP {formatMoneyValue(itemTotal)}
                           </p>
                         </div>
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1982,8 +1986,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
                           </label>
                           <div className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
                             <p className="text-xs font-semibold uppercase text-slate-500">Precio ajustado</p>
-                            <p className="font-bold text-ink">Carga: COP {itemPrices.adjustedPriceCarga.toLocaleString("es-CO")}</p>
-                            <p className="text-xs">Kg: COP {itemPrices.purchasePricePerKg.toLocaleString("es-CO")} · Ajuste {itemPrices.adjustmentPercent}%</p>
+                            <p className="font-bold text-ink">Carga: COP {formatMoneyValue(itemPrices.adjustedPriceCarga)}</p>
+                            <p className="text-xs">Kg: COP {formatMoneyValue(itemPrices.purchasePricePerKg)} · Ajuste {formatMoneyValue(itemPrices.adjustmentPercent)}%</p>
                           </div>
                           <label className="space-y-1 text-xs font-semibold uppercase text-slate-500 md:col-span-2">
                             Detalle del cafe

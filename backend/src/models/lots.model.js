@@ -990,8 +990,8 @@ function calculateLiquidationPricePerKg({ purchaseBaseFactor, purchasePriceFacto
     : Number(performanceFactor);
 
   if (Number.isFinite(basePriceCarga) && basePriceCarga > 0 && Number.isFinite(factor) && Number.isFinite(negotiatedBaseFactor)) {
-    const adjustedPriceCarga = basePriceCarga * (1 + (factor - negotiatedBaseFactor) / 100);
-    return Number((adjustedPriceCarga / 125).toFixed(4));
+    const adjustedPriceCarga = basePriceCarga * (1 + (negotiatedBaseFactor - factor) / 100);
+    return Number((adjustedPriceCarga / 125).toFixed(2));
   }
 
   return Number(purchasePricePerKg || 0);
