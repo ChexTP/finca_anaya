@@ -140,34 +140,80 @@ export const findPayableById = async (id) => {
 };
 
 export const updatePurchaseOrderDocument = async ({ id, code, purchaseOrderSnapshot, total, notes }) => {
-  const result = await pool.query(
-    `
-    UPDATE accounts_payable
-    SET
-      code = COALESCE($2, code),
-      purchase_order_snapshot = COALESCE($3::jsonb, purchase_order_snapshot),
-      total = COALESCE($4, total),
-      balance_due = GREATEST(COALESCE($4, total) - amount_paid, 0),
-      status = CASE
-        WHEN amount_paid >= COALESCE($4, total) THEN 'pagada'
-        WHEN amount_paid > 0 THEN 'pago_parcial'
-        ELSE status
-      END,
-      notes = COALESCE($5, notes),
-      updated_at = NOW()
-    WHERE id = $1
-    RETURNING *
-    `,
-    [
-      id,
-      code || null,
-      purchaseOrderSnapshot ? JSON.stringify(purchaseOrderSnapshot) : null,
-      total ?? null,
-      notes ?? null,
-    ]
-  );
+  const client = await pool.connect();
 
-  return result.rows[0] || null;
+  try {
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `
+      UPDATE accounts_payable
+      SET
+        code = COALESCE($2, code),
+        purchase_order_snapshot = COALESCE($3::jsonb, purchase_order_snapshot),
+        total = COALESCE($4, total),
+        balance_due = GREATEST(COALESCE($4, total) - amount_paid, 0),
+        status = CASE
+          WHEN amount_paid >= COALESCE($4, total) THEN 'pagada'
+          WHEN amount_paid > 0 THEN 'pago_parcial'
+          ELSE status
+        END,
+        notes = COALESCE($5, notes),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [
+        id,
+        code || null,
+        purchaseOrderSnapshot ? JSON.stringify(purchaseOrderSnapshot) : null,
+        total ?? null,
+        notes ?? null,
+      ]
+    );
+    const payable = result.rows[0];
+
+    if (!payable) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const snapshotItems = Array.isArray(purchaseOrderSnapshot?.items)
+      ? purchaseOrderSnapshot.items
+      : [];
+
+    for (const item of snapshotItems) {
+      const lotId = Number(item.id);
+      const purchasePricePerKg = Number(item.purchasePricePerKg);
+      const purchaseTotal = Number(item.purchaseTotal);
+
+      if (
+        Number.isInteger(lotId) &&
+        Number.isFinite(purchasePricePerKg) &&
+        Number.isFinite(purchaseTotal)
+      ) {
+        await client.query(
+          `
+          UPDATE coffee_lots
+          SET
+            purchase_price_per_kg = $1,
+            purchase_total = $2,
+            updated_at = NOW()
+          WHERE id = $3
+          `,
+          [purchasePricePerKg, purchaseTotal, lotId]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    return payable;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const createPayable = async ({

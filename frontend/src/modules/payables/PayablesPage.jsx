@@ -50,6 +50,56 @@ const toInputDate = (value) => {
 
 const parseAmount = (value) => Number(String(value ?? "0").replace(",", ".")) || 0;
 
+const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor = 90) => {
+  const basePriceCarga = Number(priceFactor90 || 0);
+  const negotiatedBaseFactor = baseFactor === "" || baseFactor === null || baseFactor === undefined
+    ? 90
+    : Number(baseFactor);
+  const factor = performanceFactor === "" || performanceFactor === null || performanceFactor === undefined
+    ? negotiatedBaseFactor
+    : Number(performanceFactor);
+
+  if (
+    !Number.isFinite(basePriceCarga) ||
+    basePriceCarga <= 0 ||
+    !Number.isFinite(factor) ||
+    !Number.isFinite(negotiatedBaseFactor)
+  ) {
+    return {
+      adjustmentPercent: 0,
+      adjustedPriceCarga: 0,
+      purchasePricePerKg: 0,
+    };
+  }
+
+  const adjustmentPercent = negotiatedBaseFactor - factor;
+  const adjustedPriceCarga = Number((basePriceCarga * (1 + adjustmentPercent / 100)).toFixed(2));
+
+  return {
+    adjustmentPercent: Number(adjustmentPercent.toFixed(2)),
+    adjustedPriceCarga,
+    purchasePricePerKg: Number((adjustedPriceCarga / 125).toFixed(2)),
+  };
+};
+
+const calculateEditItem = (item) => {
+  const priceData = calculateLiquidationPrices(
+    item.purchasePriceFactor90,
+    item.performanceFactor,
+    item.purchaseBaseFactor
+  );
+  const netWeightKg = parseAmount(item.netWeightKg);
+  const purchaseTotal = Number((netWeightKg * Number(priceData.purchasePricePerKg || 0)).toFixed(2));
+
+  return {
+    ...item,
+    adjustmentPercent: priceData.adjustmentPercent,
+    adjustedPriceCarga: priceData.adjustedPriceCarga,
+    purchasePricePerKg: priceData.purchasePricePerKg,
+    purchaseTotal,
+  };
+};
+
 const buildEditForm = (order) => {
   const snapshot = getSnapshot(order);
   const snapshotItems = getSnapshotItems(order);
@@ -82,7 +132,7 @@ const buildEditForm = (order) => {
     lotPresentation: snapshot.lotPresentation || order.lot_presentation || "",
     createdByName: snapshot.createdByName || order.created_by_name || "",
     notes: snapshot.notes || order.notes || "",
-    items: fallbackItems.map((item, index) => ({
+    items: fallbackItems.map((item, index) => calculateEditItem({
       id: item.id || `${item.lotCode || "item"}-${index}`,
       lotCode: item.lotCode || "",
       coffeeDetail: item.coffeeDetail || item.detail || "Cafe liquidado",
@@ -94,33 +144,35 @@ const buildEditForm = (order) => {
       adjustedPriceCarga: item.adjustedPriceCarga ?? item.priceCarga ?? "",
       purchasePricePerKg: item.purchasePricePerKg ?? item.priceKg ?? "",
       purchaseTotal: item.purchaseTotal ?? item.total ?? "",
+      adjustmentPercent: item.adjustmentPercent ?? 0,
     })),
   };
 };
 
 const getEditFormTotal = (form) => {
   const items = form?.items || [];
-  return items.reduce((sum, item) => {
-    const explicitTotal = parseAmount(item.purchaseTotal);
-    if (explicitTotal > 0) return sum + explicitTotal;
-    return sum + (parseAmount(item.netWeightKg) * parseAmount(item.purchasePricePerKg));
-  }, 0);
+  return items.reduce((sum, item) => sum + Number(calculateEditItem(item).purchaseTotal || 0), 0);
 };
 
 const buildSnapshotFromEditForm = (form) => {
-  const items = (form.items || []).map((item) => ({
-    id: item.id,
-    lotCode: item.lotCode,
-    coffeeDetail: item.coffeeDetail,
-    grossWeightKg: parseAmount(item.grossWeightKg),
-    netWeightKg: parseAmount(item.netWeightKg),
-    performanceFactor: item.performanceFactor,
-    purchaseBaseFactor: parseAmount(item.purchaseBaseFactor) || 90,
-    purchasePriceFactor90: parseAmount(item.purchasePriceFactor90),
-    adjustedPriceCarga: parseAmount(item.adjustedPriceCarga),
-    purchasePricePerKg: parseAmount(item.purchasePricePerKg),
-    purchaseTotal: parseAmount(item.purchaseTotal) || (parseAmount(item.netWeightKg) * parseAmount(item.purchasePricePerKg)),
-  }));
+  const items = (form.items || []).map((rawItem) => {
+    const item = calculateEditItem(rawItem);
+
+    return {
+      id: item.id,
+      lotCode: item.lotCode,
+      coffeeDetail: item.coffeeDetail,
+      grossWeightKg: parseAmount(item.grossWeightKg),
+      netWeightKg: parseAmount(item.netWeightKg),
+      performanceFactor: item.performanceFactor,
+      purchaseBaseFactor: parseAmount(item.purchaseBaseFactor) || 90,
+      purchasePriceFactor90: parseAmount(item.purchasePriceFactor90),
+      adjustedPriceCarga: Number(item.adjustedPriceCarga || 0),
+      adjustmentPercent: Number(item.adjustmentPercent || 0),
+      purchasePricePerKg: Number(item.purchasePricePerKg || 0),
+      purchaseTotal: Number(item.purchaseTotal || 0),
+    };
+  });
   const total = items.reduce((sum, item) => sum + Number(item.purchaseTotal || 0), 0);
 
   return {
@@ -219,7 +271,7 @@ const PayablesPage = () => {
     setEditForm((currentForm) => ({
       ...currentForm,
       items: (currentForm.items || []).map((item) => (
-        item.id === itemId ? { ...item, [field]: value } : item
+        item.id === itemId ? calculateEditItem({ ...item, [field]: value }) : item
       )),
     }));
   };
@@ -518,6 +570,8 @@ const PayablesPage = () => {
                           <span>Factor rendimiento</span>
                           <input
                             className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.01"
                             value={item.performanceFactor}
                             onChange={(event) => updateEditItem(item.id, "performanceFactor", event.target.value)}
                           />
@@ -526,6 +580,8 @@ const PayablesPage = () => {
                           <span>Peso bruto kg</span>
                           <input
                             className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.001"
                             value={item.grossWeightKg}
                             onChange={(event) => updateEditItem(item.id, "grossWeightKg", event.target.value)}
                           />
@@ -534,6 +590,8 @@ const PayablesPage = () => {
                           <span>Peso neto kg</span>
                           <input
                             className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.001"
                             value={item.netWeightKg}
                             onChange={(event) => updateEditItem(item.id, "netWeightKg", event.target.value)}
                           />
@@ -542,42 +600,32 @@ const PayablesPage = () => {
                           <span>Factor base negociado</span>
                           <input
                             className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.01"
                             value={item.purchaseBaseFactor}
                             onChange={(event) => updateEditItem(item.id, "purchaseBaseFactor", event.target.value)}
                           />
                         </label>
                         <label className="space-y-1 text-sm font-semibold text-slate-700">
-                          <span>Precio factor base</span>
+                          <span>Precio factor 90 por carga</span>
                           <input
-                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            className="w-full rounded border border-amber-300 bg-white px-3 py-2 font-semibold text-ink"
+                            type="number"
+                            step="0.01"
                             value={item.purchasePriceFactor90}
                             onChange={(event) => updateEditItem(item.id, "purchasePriceFactor90", event.target.value)}
                           />
                         </label>
-                        <label className="space-y-1 text-sm font-semibold text-slate-700">
-                          <span>Precio carga ajustado</span>
-                          <input
-                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
-                            value={item.adjustedPriceCarga}
-                            onChange={(event) => updateEditItem(item.id, "adjustedPriceCarga", event.target.value)}
-                          />
-                        </label>
-                        <label className="space-y-1 text-sm font-semibold text-slate-700">
-                          <span>Precio kg</span>
-                          <input
-                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
-                            value={item.purchasePricePerKg}
-                            onChange={(event) => updateEditItem(item.id, "purchasePricePerKg", event.target.value)}
-                          />
-                        </label>
-                        <label className="space-y-1 text-sm font-semibold text-slate-700">
-                          <span>Total lote</span>
-                          <input
-                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
-                            value={item.purchaseTotal}
-                            onChange={(event) => updateEditItem(item.id, "purchaseTotal", event.target.value)}
-                          />
-                        </label>
+                        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          <p className="text-xs font-semibold uppercase">Calculo automatico</p>
+                          <p>Carga ajustada: <span className="font-bold">{formatMoney(item.adjustedPriceCarga)}</span></p>
+                          <p>Precio kg: <span className="font-bold">{formatMoney(item.purchasePricePerKg)}</span></p>
+                          <p>Ajuste: <span className="font-bold">{Number(item.adjustmentPercent || 0).toLocaleString("es-CO", { maximumFractionDigits: 2 })}%</span></p>
+                        </div>
+                        <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                          <p className="text-xs font-semibold uppercase">Total lote</p>
+                          <p className="text-base font-bold">{formatMoney(item.purchaseTotal)}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
