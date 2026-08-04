@@ -5,6 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { printable } from "../../utils/printFormatting";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -169,7 +170,7 @@ const buildSampleItemLabSummary = (item) => {
 
 const formatRequestedCoffee = (item) => {
   const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
-  return [...new Set(details)].join(" - ") || "Cafe sin especificar";
+  return printable([...new Set(details)].join(" - ") || "Cafe sin especificar");
 };
 
 const getSampleActions = (sample) => {
@@ -192,7 +193,7 @@ const buildSampleOrderHtml = (sample) => {
       (item) => `
         <tr>
           <td>${formatRequestedCoffee(item)}</td>
-          <td>${item.coffee_type_name || "-"}</td>
+          <td>${printable(item.coffee_type_name)}</td>
           <td>${item.quantity_grams} g</td>
           <td></td>
         </tr>
@@ -220,8 +221,8 @@ const buildSampleOrderHtml = (sample) => {
                 .map(
                   (blend) => `
                     <tr>
-                      <td>${blend.component_description || blend.lot_code || "-"} (${blend.percentage}%)</td>
-                      <td>${blend.notes || "-"}</td>
+                      <td>${printable(blend.component_description || blend.lot_code)} (${blend.percentage}%)</td>
+                      <td>${printable(blend.notes)}</td>
                       <td>${blend.calculated_grams}</td>
                       <td></td>
                     </tr>
@@ -248,7 +249,7 @@ const buildSampleOrderHtml = (sample) => {
           h2 { font-size: 13px; margin: 22px 0 8px; text-transform: uppercase; }
           p { font-size: 12px; margin: 4px 0; }
           table { border-collapse: collapse; margin-top: 10px; width: 100%; }
-          th, td { border: 1px solid #111827; font-size: 12px; padding: 8px; text-align: left; vertical-align: middle; }
+          th, td { border: 1px solid #111827; font-size: 12px; padding: 8px; text-align: center; vertical-align: middle; }
           th { background: #f2f2f2; font-weight: 700; text-align: center; }
           td:nth-child(3), td:nth-child(4) { text-align: center; width: 90px; }
           .logo { height: 72px; object-fit: contain; width: 150px; }
@@ -265,8 +266,8 @@ const buildSampleOrderHtml = (sample) => {
           <div>
             <h1>ORDEN DE MUESTRA - ${sample.code}</h1>
             <p><strong>Fecha de Inicio orden:</strong> ${formatDate(sample.requested_at)}</p>
-            <p><strong>Categoria:</strong> ${sample.items?.[0]?.coffee_type_name || sample.coffee_type_name || "CAFE"}</p>
-            <p><strong>Cliente:</strong> ${sample.requester_company || sample.requester_name || "-"}</p>
+            <p><strong>Categoria:</strong> ${printable(sample.items?.[0]?.coffee_type_name || sample.coffee_type_name || "Cafe")}</p>
+            <p><strong>Cliente:</strong> ${printable(sample.requester_company || sample.requester_name)}</p>
             <p><strong>Datos laboratorio:</strong> ${buildSampleLabSummary(sample) || "-"}</p>
             <p><strong>Dia estimado de despacho:</strong> ${formatDate(sample.tentative_delivery_date)}</p>
             ${sample.sample_lab_notes ? `<p><strong>Notas laboratorio:</strong> ${sample.sample_lab_notes}</p>` : ""}

@@ -5,6 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { printable } from "../../utils/printFormatting";
 
 const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
@@ -38,9 +39,9 @@ const buildDocumentHtml = (document) => {
       (item) => `
         <tr>
           <td>Anaya</td>
-          <td><strong>${item.productForm || "-"}</strong></td>
-          <td>${item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-"}</td>
-          <td>${item.processType || "-"}</td>
+          <td><strong>${printable(item.productForm)}</strong></td>
+          <td>${printable(item.description || item.coffeeProfile || item.coffeeType || item.lotCode)}</td>
+          <td>${printable(item.processType)}</td>
           <td>${formatMoney(currency, item.unitPrice)}</td>
           <td>${item.quantityKg}</td>
         </tr>
@@ -67,10 +68,10 @@ const buildDocumentHtml = (document) => {
               (payment) => `
                 <tr>
                   <td>${formatDate(payment.paidAt)}</td>
-                  <td>${payment.paymentMethod || "-"}</td>
+                  <td>${printable(payment.paymentMethod)}</td>
                   <td>${payment.paymentReference || "-"}</td>
                   <td>${formatMoney(currency, payment.amount)}</td>
-                  <td>${payment.notes || "-"}</td>
+                  <td>${printable(payment.notes)}</td>
                 </tr>
               `
             )
@@ -88,16 +89,16 @@ const buildDocumentHtml = (document) => {
       const review = item.labReview || {};
       return `
         <tr>
-          <td>${item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-"}</td>
+          <td>${printable(item.description || item.coffeeProfile || item.coffeeType || item.lotCode)}</td>
           <td>${review.humidity || "-"}</td>
-          <td>${review.aroma || "-"}</td>
-          <td>${review.flavor || "-"}</td>
-          <td>${review.sweetness || "-"}</td>
-          <td>${review.body || "-"}</td>
-          <td>${review.residual || "-"}</td>
-          <td>${review.cleanCup || "-"}</td>
+          <td>${printable(review.aroma)}</td>
+          <td>${printable(review.flavor)}</td>
+          <td>${printable(review.sweetness)}</td>
+          <td>${printable(review.body)}</td>
+          <td>${printable(review.residual)}</td>
+          <td>${printable(review.cleanCup)}</td>
           <td>${review.score || "-"}</td>
-          <td>${review.notes || "-"}</td>
+          <td>${printable(review.notes)}</td>
         </tr>
       `;
     })
@@ -119,7 +120,6 @@ const buildDocumentHtml = (document) => {
           table { border-collapse: collapse; margin-top: 14px; width: 100%; }
           th, td { border: 1px solid #111827; font-size: 12px; padding: 7px; text-align: center; vertical-align: middle; }
           th { background: #f2f2f2; font-weight: 700; }
-          td:nth-child(2) { text-align: left; }
           .logo { height: 72px; object-fit: contain; width: 150px; }
           .company { text-align: right; }
           .recipient { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 12px 0 16px; }
@@ -150,8 +150,10 @@ const buildDocumentHtml = (document) => {
         <section class="recipient">
           <div>
             <p>Mr,</p>
-            <p>${document.client?.name || "-"}</p>
-            <p>${document.client?.address || ""}</p>
+            <p><strong>${printable(document.client?.name)}</strong></p>
+            ${document.client?.documentType || document.client?.documentNumber ? `<p>${document.client.documentType || "Documento"}: ${document.client.documentNumber || "-"}</p>` : ""}
+            <p>${printable(document.client?.address, "")}</p>
+            ${document.client?.city || document.client?.country ? `<p>${[printable(document.client?.city, ""), printable(document.client?.country, "")].filter(Boolean).join(" - ")}</p>` : ""}
           </div>
           <div class="company">
             <p>Date: ${formatDate(document.dates?.createdAt)}</p>

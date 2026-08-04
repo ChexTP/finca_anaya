@@ -9,6 +9,7 @@ import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { readImageFileAsDataUrl } from "../../utils/files";
+import { printable } from "../../utils/printFormatting";
 
 const initialSupplier = {
   name: "",
@@ -105,11 +106,11 @@ export const getWarehouseItemComponentSummary = (item) => {
   const parts = [];
 
   if (item.coffee_profile_category === "Exotico" && primaryComponent && item.coffee_profile_name) {
-    parts.push(`Componente principal: ${primaryComponent} para ${item.coffee_profile_name}`);
+    parts.push(`Componente principal: ${printable(primaryComponent)} para ${printable(item.coffee_profile_name)}`);
   }
 
   if (item.base_purchase_coffee_name) {
-    parts.push(`Base principal: ${item.base_purchase_coffee_name}`);
+    parts.push(`Base principal: ${printable(item.base_purchase_coffee_name)}`);
   }
 
   return parts.join("<br>");
@@ -125,8 +126,8 @@ export const buildWarehouseOrderHtml = (sale) => {
 
         return `
         <tr>
-          <td>${itemLabel}</td>
-          <td>${[item.product_form ? `<strong>${item.product_form}</strong>` : "", processSummary, componentSummary].filter(Boolean).join("<br>") || "-"}</td>
+          <td>${printable(itemLabel)}</td>
+          <td>${[item.product_form ? `<strong>${printable(item.product_form)}</strong>` : "", printable(processSummary, ""), componentSummary].filter(Boolean).join("<br>") || "-"}</td>
           <td>${formatOperationalKg(item.quantity_kg)}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${formatOperationalKg(item.operational_weight_kg)}</span>` : ""}</td>
           <td></td>
         </tr>
@@ -142,8 +143,8 @@ export const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${getWarehouseItemLabel(item)}</h3>
-              <p><strong>${item.product_form || "Presentacion no definida"}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
+              <h3>${printable(getWarehouseItemLabel(item))}</h3>
+              <p><strong>${printable(item.product_form || "Presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
             </div>
             <strong>Mezcla final</strong>
           </div>
@@ -161,8 +162,8 @@ export const buildWarehouseOrderHtml = (sale) => {
                 .map(
                   (blend) => `
                     <tr>
-                      <td>${formatCoffeeLotCodeName(blend)} (${blend.percentage}%)</td>
-                      <td>${blend.coffee_type_name || blend.coffee_profile_name || "-"}</td>
+                      <td>${printable(formatCoffeeLotCodeName(blend))} (${blend.percentage}%)</td>
+                      <td>${printable(blend.coffee_type_name || blend.coffee_profile_name)}</td>
                       <td>${formatOperationalKg(blend.calculated_operational_kg || blend.calculated_quantity_kg)}</td>
                       <td></td>
                     </tr>
@@ -194,8 +195,8 @@ export const buildWarehouseOrderHtml = (sale) => {
                 .map(
                   (input) => `
                     <tr>
-                      <td>${formatCoffeeLotCodeName(input)} (${input.input_percentage}%)</td>
-                      <td>${input.coffee_type_name || input.coffee_profile_name || "-"}</td>
+                      <td>${printable(formatCoffeeLotCodeName(input))} (${input.input_percentage}%)</td>
+                      <td>${printable(input.coffee_type_name || input.coffee_profile_name)}</td>
                       <td>${formatOperationalKg(input.quantity_kg)}</td>
                       <td></td>
                     </tr>
@@ -211,8 +212,8 @@ export const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${formatCoffeeLotCodeName(lot)}</h3>
-              <p>${lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind || "-"}</p>
+              <h3>${printable(formatCoffeeLotCodeName(lot))}</h3>
+              <p>${printable(lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind)}</p>
             </div>
             <strong>${formatOperationalKg(lot.quantity_kg)}</strong>
           </div>
@@ -236,7 +237,7 @@ export const buildWarehouseOrderHtml = (sale) => {
           h3 { font-size: 13px; margin: 0 0 3px; }
           p { font-size: 12px; margin: 4px 0; }
           table { border-collapse: collapse; margin-top: 10px; width: 100%; }
-          th, td { border: 1px solid #111827; font-size: 12px; padding: 8px; text-align: left; vertical-align: middle; }
+          th, td { border: 1px solid #111827; font-size: 12px; padding: 8px; text-align: center; vertical-align: middle; }
           th { background: #f2f2f2; font-weight: 700; text-align: center; }
           td:nth-child(3), td:nth-child(4) { text-align: center; width: 90px; }
           .logo { height: 72px; object-fit: contain; width: 150px; }
@@ -254,10 +255,10 @@ export const buildWarehouseOrderHtml = (sale) => {
       <body>
         <header>
           <div>
-            <h1>${sale.client_name || "Cliente"} - ORDEN DE PEDIDO - COTIZACION ${sale.quote_code || sale.code}</h1>
+            <h1>${printable(sale.client_name || "Cliente")} - ORDEN DE PEDIDO - COTIZACION ${sale.quote_code || sale.code}</h1>
             <p><strong>Fecha de Inicio orden:</strong> ${formatDate(new Date())}</p>
-            <p><strong>Presentaciones del pedido:</strong> ${[...new Set((sale.items || []).map((item) => item.product_form).filter(Boolean))].join(" / ") || "CAFE"}</p>
-            <p><strong>Cliente:</strong> ${sale.client_name || "-"}</p>
+            <p><strong>Presentaciones del pedido:</strong> ${printable([...new Set((sale.items || []).map((item) => item.product_form).filter(Boolean))].join(" / ") || "Cafe")}</p>
+            <p><strong>Cliente:</strong> ${printable(sale.client_name)}</p>
             <p><strong>Encargado de pedido:</strong> ${sale.order_assignee || "-"}</p>
             <p><strong>Dia estimado de despacho:</strong> ${formatDate(sale.estimated_delivery_date)}</p>
           </div>

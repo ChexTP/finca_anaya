@@ -7,6 +7,7 @@ import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { readImageFileAsDataUrl } from "../../utils/files";
+import { printable } from "../../utils/printFormatting";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
 
@@ -52,7 +53,7 @@ const buildWarehouseOrderHtml = (sale) => {
     ?.map(
       (item) => `
         <tr>
-          <td>${item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "-"}</td>
+          <td>${printable(item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code)}</td>
           <td>${item.quantity_kg} kg</td>
         </tr>
       `
@@ -66,7 +67,7 @@ const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"}</h3>
+              <h3>${printable(item.description || item.coffee_profile_name || item.coffee_type_name || "Producto")}</h3>
               <p>${item.quantity_kg} kg solicitados</p>
             </div>
             <strong>Mezcla final</strong>
@@ -85,8 +86,8 @@ const buildWarehouseOrderHtml = (sale) => {
                 .map(
                   (blend) => `
                     <tr>
-                      <td>${blend.commercial_classification || "-"}</td>
-                      <td>${formatCoffeeLotCodeName(blend)}</td>
+                      <td>${printable(blend.commercial_classification)}</td>
+                      <td>${printable(formatCoffeeLotCodeName(blend))}</td>
                       <td>${blend.percentage}%</td>
                       <td>${blend.calculated_operational_kg || blend.calculated_quantity_kg} kg</td>
                     </tr>
@@ -118,8 +119,8 @@ const buildWarehouseOrderHtml = (sale) => {
                 .map(
                   (input) => `
                     <tr>
-                      <td>${formatCoffeeLotCodeName(input)}</td>
-                      <td>${formatInputLabel(input)}</td>
+                      <td>${printable(formatCoffeeLotCodeName(input))}</td>
+                      <td>${printable(formatInputLabel(input))}</td>
                       <td>${input.input_percentage}%</td>
                       <td>${input.quantity_kg} kg</td>
                     </tr>
@@ -135,8 +136,8 @@ const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${formatCoffeeLotCodeName(lot)}</h3>
-              <p>${lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind || "-"}</p>
+              <h3>${printable(formatCoffeeLotCodeName(lot))}</h3>
+              <p>${printable(lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind)}</p>
             </div>
             <strong>${lot.quantity_kg} kg a sacar</strong>
           </div>
@@ -160,7 +161,7 @@ const buildWarehouseOrderHtml = (sale) => {
           h3 { font-size: 14px; margin: 0 0 3px; }
           p { font-size: 12px; margin: 3px 0; }
           table { border-collapse: collapse; margin-top: 10px; width: 100%; }
-          th, td { border: 1px solid #d8ded8; font-size: 12px; padding: 8px; text-align: left; }
+          th, td { border: 1px solid #d8ded8; font-size: 12px; padding: 8px; text-align: center; vertical-align: middle; }
           th { background: #f3f6f3; }
           .meta { display: grid; gap: 4px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
           .lot-block { border: 1px solid #d8ded8; margin-top: 12px; padding: 12px; page-break-inside: avoid; }
@@ -168,7 +169,7 @@ const buildWarehouseOrderHtml = (sale) => {
           .mix-table th { background: #fff7d6; }
           .muted { color: #667085; }
           .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
-          .line { border-top: 1px solid #17201a; padding-top: 6px; }
+          .line { border-top: 1px solid #17201a; padding-top: 6px; text-align: center; }
           @media print { body { margin: 18px; } }
         </style>
       </head>
@@ -187,9 +188,9 @@ const buildWarehouseOrderHtml = (sale) => {
         </header>
 
         <section class="meta">
-          <p><strong>Cliente:</strong> ${sale.client_name || "-"}</p>
+          <p><strong>Cliente:</strong> ${printable(sale.client_name)}</p>
           <p><strong>Telefono:</strong> ${sale.client_phone || "-"}</p>
-          <p><strong>Direccion:</strong> ${sale.client_address || "-"}</p>
+          <p><strong>Direccion:</strong> ${printable(sale.client_address)}</p>
           <p><strong>Estado:</strong> ${sale.status || "-"}</p>
         </section>
 

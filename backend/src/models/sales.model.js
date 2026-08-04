@@ -67,7 +67,12 @@ export const findSaleById = async (id) => {
       sales.*,
       clients.name AS client_name,
       clients.phone AS client_phone,
+      clients.email AS client_email,
       clients.address AS client_address,
+      clients.document_type AS client_document_type,
+      clients.document_number AS client_document_number,
+      clients.city AS client_city,
+      clients.country AS client_country,
       users.name AS seller_name,
       quotes.code AS quote_code
     FROM sales

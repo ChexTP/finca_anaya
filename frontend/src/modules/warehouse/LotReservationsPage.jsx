@@ -161,7 +161,7 @@ const printRows = ({ title, headers, rows, summary }) => {
           h2 { font-size: 16px; margin: 26px 0 10px; }
           p { font-size: 12px; margin: 4px 0; }
           table { border-collapse: collapse; width: 100%; font-size: 12px; }
-          th, td { border: 1px solid #d7dee8; padding: 7px; text-align: left; vertical-align: top; }
+          th, td { border: 1px solid #d7dee8; padding: 7px; text-align: center; vertical-align: middle; }
           th { background: #eef2f7; }
           .company { text-align: right; }
           .logo { height: 72px; object-fit: contain; width: 150px; }

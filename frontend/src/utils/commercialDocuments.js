@@ -1,4 +1,5 @@
 import { companyBrand, getPrintableLogo } from "./brand";
+import { printable } from "./printFormatting";
 
 export const formatDocumentMoney = (currency, value) => {
   return `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO")}`;
@@ -128,9 +129,9 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
       return `
         <tr>
           <td>Anaya</td>
-          <td><strong>${escapeHtml(item.productForm || "-")}</strong></td>
-          <td>${escapeHtml(description)}</td>
-          <td>${escapeHtml(item.processType || "-")}</td>
+          <td><strong>${escapeHtml(printable(item.productForm))}</strong></td>
+          <td>${escapeHtml(printable(description))}</td>
+          <td>${escapeHtml(printable(item.processType))}</td>
           ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.unitPrice)}</td>` : ""}
           <td>${escapeHtml(item.quantityKg || "-")}</td>
           ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.lineTotal)}</td>` : ""}
@@ -147,16 +148,16 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
 
       return `
         <tr>
-          <td>${escapeHtml(description)}</td>
+          <td>${escapeHtml(printable(description))}</td>
           <td>${escapeHtml(review.humidity || "-")}</td>
-          <td>${escapeHtml(review.aroma || "-")}</td>
-          <td>${escapeHtml(review.flavor || "-")}</td>
-          <td>${escapeHtml(review.sweetness || "-")}</td>
-          <td>${escapeHtml(review.body || "-")}</td>
-          <td>${escapeHtml(review.residual || "-")}</td>
-          <td>${escapeHtml(review.cleanCup || "-")}</td>
+          <td>${escapeHtml(printable(review.aroma))}</td>
+          <td>${escapeHtml(printable(review.flavor))}</td>
+          <td>${escapeHtml(printable(review.sweetness))}</td>
+          <td>${escapeHtml(printable(review.body))}</td>
+          <td>${escapeHtml(printable(review.residual))}</td>
+          <td>${escapeHtml(printable(review.cleanCup))}</td>
           <td>${escapeHtml(review.score || "-")}</td>
-          <td>${escapeHtml(review.notes || "-")}</td>
+          <td>${escapeHtml(printable(review.notes))}</td>
         </tr>
       `;
     })
@@ -178,10 +179,10 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           table { border-collapse: collapse; margin-top: 14px; width: 100%; }
           th, td { border: 1px solid #111827; font-size: 12px; padding: 7px; text-align: center; vertical-align: middle; }
           th { background: #f2f2f2; font-weight: 700; }
-          td:nth-child(2) { text-align: left; }
           .logo { height: 72px; object-fit: contain; width: 150px; }
           .company { text-align: right; }
           .recipient { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 12px 0 16px; }
+          .client-box p { line-height: 1.35; }
           .intro { margin: 16px 0 8px; }
           .totals { margin-left: auto; margin-top: 16px; width: 280px; }
           .totals p { display: flex; justify-content: space-between; }
@@ -212,10 +213,12 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
         <section class="recipient">
           <div>
             <p><strong>${text.customer}</strong></p>
-            <p>${escapeHtml(document.client?.name || "-")}</p>
-            <p>${escapeHtml(document.client?.address || "")}</p>
-            <p>${escapeHtml(document.client?.phone || "")}</p>
-            <p>${escapeHtml(document.client?.email || "")}</p>
+            <p><strong>${escapeHtml(printable(document.client?.name))}</strong></p>
+            ${document.client?.documentType || document.client?.documentNumber ? `<p>${escapeHtml(document.client?.documentType || "Documento")}: ${escapeHtml(document.client?.documentNumber || "-")}</p>` : ""}
+            ${document.client?.address ? `<p>${escapeHtml(printable(document.client.address))}</p>` : ""}
+            ${document.client?.city || document.client?.country ? `<p>${escapeHtml([printable(document.client?.city, ""), printable(document.client?.country, "")].filter(Boolean).join(" - "))}</p>` : ""}
+            ${document.client?.phone ? `<p>${escapeHtml(document.client.phone)}</p>` : ""}
+            ${document.client?.email ? `<p>${escapeHtml(String(document.client.email).toLocaleLowerCase("es-CO"))}</p>` : ""}
           </div>
           <div class="company">
             <p>${text.date}: ${formatDocumentDate(document.dates?.createdAt)}</p>

@@ -1,4 +1,5 @@
 import { companyBrand, getPrintableLogo } from "./brand";
+import { printable } from "./printFormatting";
 
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;")
@@ -80,7 +81,7 @@ const getPurchaseOrderItems = (payable) => {
       const adjustedPriceCarga = Number(item.adjustedPriceCarga || (priceKg * 125));
 
       return {
-        detail: item.coffeeDetail || item.lotCode || "Cafe liquidado",
+        detail: printable(item.coffeeDetail || item.lotCode || "Cafe liquidado"),
         lotCode: item.lotCode || "",
         grossKilos: Number(item.grossWeightKg || 0),
         kilos,
@@ -101,7 +102,7 @@ const getPurchaseOrderItems = (payable) => {
   const priceKg = Number(snapshotValue(payable, "purchasePricePerKg", payable.purchase_price_per_kg || (kilos ? Number(payable.total || 0) / kilos : 0)));
 
   return [{
-    detail: getCoffeeDetail(payable) || "Cafe liquidado",
+    detail: printable(getCoffeeDetail(payable) || "Cafe liquidado"),
     lotCode: snapshotValue(payable, "lotCode", payable.lot_code || ""),
     grossKilos: Number(snapshotValue(payable, "grossWeightKg", payable.gross_weight_kg || 0)),
     kilos,
@@ -133,7 +134,7 @@ export const buildPurchaseOrderHtml = (payable) => {
   const total = Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || items.reduce((sum, item) => sum + Number(item.total || 0), 0)));
   const firstItem = items[0] || {};
   const orderCode = getOrderCode(payable);
-  const supplierName = snapshotValue(payable, "supplierName", payable.supplier_name || payable.third_party_name || "");
+  const supplierName = printable(snapshotValue(payable, "supplierName", payable.supplier_name || payable.third_party_name || ""), "");
   const footerAddress = companyBrand.address.replaceAll(",", "");
   const notes = snapshotValue(payable, "notes", payable.notes || "");
   const performanceFactor = snapshotValue(payable, "performanceFactor", firstItem.performanceFactor || payable.performance_factor || "");
@@ -248,7 +249,7 @@ export const buildPurchaseOrderHtml = (payable) => {
           th, td {
             border: 1px solid #d7dee8;
             padding: 8px 9px;
-            text-align: right;
+            text-align: center;
             vertical-align: middle;
           }
           th {
@@ -258,7 +259,7 @@ export const buildPurchaseOrderHtml = (payable) => {
             font-weight: 800;
             text-transform: uppercase;
           }
-          td:first-child, th:first-child { text-align: left; }
+          td:first-child, th:first-child { text-align: center; }
           .money { font-weight: 700; white-space: nowrap; }
           .summary {
             display: grid;

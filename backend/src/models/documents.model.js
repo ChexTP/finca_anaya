@@ -27,6 +27,10 @@ export const buildQuoteDocument = async (id) => {
       phone: quote.client_phone,
       email: quote.client_email,
       address: quote.client_address,
+      documentType: quote.client_document_type,
+      documentNumber: quote.client_document_number,
+      city: quote.client_city,
+      country: quote.client_country,
     },
     seller: {
       name: quote.seller_name,
@@ -81,7 +85,12 @@ export const buildSaleDocument = async ({ id, includePayments = false }) => {
     client: {
       name: sale.client_name,
       phone: sale.client_phone,
+      email: sale.client_email,
       address: sale.client_address,
+      documentType: sale.client_document_type,
+      documentNumber: sale.client_document_number,
+      city: sale.client_city,
+      country: sale.client_country,
     },
     seller: {
       name: sale.seller_name,
