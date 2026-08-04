@@ -101,20 +101,43 @@ const labels = {
 const defaultQuoteTerms = {
   es: {
     advance: "30%",
-    deliveryTime: "15 dias",
-    standard: "3/20",
-    delivery: "Pitalito Huila",
-    packaging: "Bolsa y tula tradicional",
+    deliveryTime: "20 dias",
+    standard: "3/20 UGQ o EP",
+    delivery: "Contraentrega en Pitalito Huila",
+    packaging: "Tula y bolsa tradicional",
     payment: "Consignacion nacional",
   },
   en: {
     advance: "30%",
-    deliveryTime: "15 days",
-    standard: "3/20",
-    delivery: "Pitalito Huila",
+    deliveryTime: "20 days",
+    standard: "3/20 UGQ or EP",
+    delivery: "Cash on delivery in Pitalito Huila",
     packaging: "Traditional bag and jute sack",
-    payment: "National bank transfer",
+    payment: "National bank deposit",
   },
+};
+
+const englishTermTranslations = {
+  "8 dias": "8 days",
+  "20 dias": "20 days",
+  "0/20 UGQ o EP": "0/20 UGQ or EP",
+  "3/20 UGQ o EP": "3/20 UGQ or EP",
+  "8/35 UGQ o EP": "8/35 UGQ or EP",
+  "12/60 UGQ o EP": "12/60 UGQ or EP",
+  "Contraentrega en Pitalito Huila": "Cash on delivery in Pitalito Huila",
+  "Pitalito Huila": "Pitalito Huila",
+  "Tula y bolsa tradicional": "Traditional bag and jute sack",
+  "Empaque al vacio 20kg o 24kg": "Vacuum packaging 20kg or 24kg",
+  "Sacos por 70kg mas bolsa": "70kg sacks plus bag",
+  "Sacos por 35kg mas bolsa": "35kg sacks plus bag",
+  "Consignacion nacional": "National bank deposit",
+  "Bancolombia - Ahorros - 453 0000 6876": "Bancolombia - Savings - 453 0000 6876",
+};
+
+const formatTermValue = (value, fallback, language) => {
+  const term = value || fallback;
+  if (language !== "en") return term;
+  return englishTermTranslations[term] || term;
 };
 
 export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) => {
@@ -123,6 +146,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
   const currency = document.totals?.currency || "COP";
   const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
   const showCommercialAmounts = isQuote;
+  const terms = document.terms || {};
   const rows = document.items
     ?.map((item) => {
       const description = item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-";
@@ -222,7 +246,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           </div>
           <div class="company">
             <p>${text.date}: ${formatDocumentDate(document.dates?.createdAt)}</p>
-            <p>${text.estimatedDeliveryDate}: ${formatDocumentDate(document.dates?.estimatedDeliveryDate)}</p>
+            ${document.dates?.estimatedDeliveryDate ? `<p>${text.estimatedDeliveryDate}: ${formatDocumentDate(document.dates.estimatedDeliveryDate)}</p>` : ""}
             <p>${text.quoteCode}: ${escapeHtml(document.code)}</p>
           </div>
         </section>
@@ -249,15 +273,15 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           <h2>${text.termsTitle}</h2>
           <table>
             <tbody>
-              <tr><td>${text.advance}:</td><td>${escapeHtml(document.terms?.advance || defaultTerms.advance)}</td></tr>
-              <tr><td>${text.deliveryTime}:</td><td>${escapeHtml(document.terms?.deliveryTime || defaultTerms.deliveryTime)}</td></tr>
-              <tr><td>${text.standard}:</td><td>${escapeHtml(document.terms?.standard || defaultTerms.standard)}</td></tr>
-              <tr><td>${text.delivery}:</td><td>${escapeHtml(document.terms?.deliveryTerms || defaultTerms.delivery)}</td></tr>
-              <tr><td>${text.packaging}:</td><td>${escapeHtml(document.terms?.packaging || defaultTerms.packaging)}</td></tr>
-              <tr><td>${text.payment}:</td><td>${escapeHtml(document.terms?.paymentTerms || defaultTerms.payment)}</td></tr>
-              <tr><td>${text.bankDetails}:</td><td>${escapeHtml(document.terms?.bankDetails || companyBrand.bankDetails)}</td></tr>
-              <tr><td>${text.company}:</td><td>${escapeHtml(document.terms?.company || companyBrand.legalName)}</td></tr>
-              <tr><td>${text.taxId}:</td><td>${escapeHtml(document.terms?.taxId || companyBrand.nit)}</td></tr>
+              <tr><td>${text.advance}:</td><td>${escapeHtml(formatTermValue(terms.advance, defaultTerms.advance, language))}</td></tr>
+              <tr><td>${text.deliveryTime}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTime, defaultTerms.deliveryTime, language))}</td></tr>
+              <tr><td>${text.standard}:</td><td>${escapeHtml(formatTermValue(terms.standard, defaultTerms.standard, language))}</td></tr>
+              <tr><td>${text.delivery}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTerms, defaultTerms.delivery, language))}</td></tr>
+              <tr><td>${text.packaging}:</td><td>${escapeHtml(formatTermValue(terms.packaging, defaultTerms.packaging, language))}</td></tr>
+              <tr><td>${text.payment}:</td><td>${escapeHtml(formatTermValue(terms.paymentTerms, defaultTerms.payment, language))}</td></tr>
+              <tr><td>${text.bankDetails}:</td><td>${escapeHtml(formatTermValue(terms.bankDetails, companyBrand.bankDetails, language))}</td></tr>
+              <tr><td>${text.company}:</td><td>${escapeHtml(terms.company || companyBrand.legalName)}</td></tr>
+              <tr><td>${text.taxId}:</td><td>${escapeHtml(terms.taxId || companyBrand.nit)}</td></tr>
             </tbody>
           </table>
         </section>
