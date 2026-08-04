@@ -81,7 +81,6 @@ const initialQuickClient = {
 
 const quoteFilters = [
   { key: "all", label: "Todas" },
-  { key: "borrador", label: "Borradores" },
   { key: "enviada", label: "Enviadas" },
   { key: "aceptada", label: "Aceptadas" },
   { key: "anulada", label: "Anuladas" },
@@ -747,55 +746,82 @@ const CommercialPage = () => {
             <div className="mt-4 rounded border border-slate-200 p-3">
               <p className="text-sm font-semibold text-slate-800">Cafe solicitado</p>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={itemForm.productForm} onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value })}>
-                  <option value="Excelso">Excelso</option>
-                  <option value="Pergamino">Pergamino</option>
-                </select>
-                <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={itemForm.processType} onChange={(event) => updateRequestedProcessType(event.target.value)}>
-                  {(catalogs?.coffeeTypes || []).map((type) => (
-                    <option key={type.id} value={type.name}>{type.name}</option>
-                  ))}
-                </select>
-                <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={itemForm.itemType} onChange={(event) => updateItemType(event.target.value)}>
-                  <option value="Regional">Regional</option>
-                  <option value="Varietal">Varietal</option>
-                  <option value="Exotico">Exotico</option>
-                  <option value="description">Descripcion libre</option>
-                </select>
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Presentacion
+                  <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.productForm} onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value })}>
+                    <option value="Excelso">Excelso</option>
+                    <option value="Pergamino">Pergamino</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Proceso
+                  <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.processType} onChange={(event) => updateRequestedProcessType(event.target.value)}>
+                    {(catalogs?.coffeeTypes || []).map((type) => (
+                      <option key={type.id} value={type.name}>{type.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Categoria del cafe
+                  <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.itemType} onChange={(event) => updateItemType(event.target.value)}>
+                    <option value="Regional">Regional</option>
+                    <option value="Varietal">Varietal</option>
+                    <option value="Exotico">Exotico</option>
+                    <option value="description">Descripcion libre</option>
+                  </select>
+                </label>
                 {itemForm.itemType !== "description" ? (
-                  <select
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={itemForm.itemType === "Exotico" ? itemForm.coffeeProfileId : itemForm.purchaseCoffeeId}
-                    onChange={(event) => selectRequestedCoffee(event.target.value)}
-                  >
-                    <option value="">Cafe {itemForm.itemType.toLowerCase()}</option>
-                    {availableCoffeeOptions.map((option) => (
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Cafe exacto
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={itemForm.itemType === "Exotico" ? itemForm.coffeeProfileId : itemForm.purchaseCoffeeId}
+                      onChange={(event) => selectRequestedCoffee(event.target.value)}
+                    >
+                      <option value="">Cafe {itemForm.itemType.toLowerCase()}</option>
+                      {availableCoffeeOptions.map((option) => (
                         <option key={option.id} value={option.value}>{option.label}</option>
                       ))}
-                  </select>
+                    </select>
+                  </label>
                 ) : (
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Descripcion del cafe solicitado" value={itemForm.description} onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })} />
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Descripcion del cafe
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Descripcion del cafe solicitado" value={itemForm.description} onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })} />
+                  </label>
                 )}
-                <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Variedad o detalle opcional" value={itemForm.variety} onChange={(event) => setItemForm({ ...itemForm, variety: event.target.value })} />
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Variedad o detalle
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Variedad o detalle opcional" value={itemForm.variety} onChange={(event) => setItemForm({ ...itemForm, variety: event.target.value })} />
+                </label>
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
-                  <input
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder={itemForm.quantityUnit === "lb" ? "Cantidad lb" : "Cantidad kg"}
-                    type="number"
-                    step="0.001"
-                    value={itemForm.quantityKg}
-                    onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })}
-                  />
-                  <select
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={itemForm.quantityUnit}
-                    onChange={(event) => setItemForm({ ...itemForm, quantityUnit: event.target.value })}
-                  >
-                    <option value="kg">Kg</option>
-                    <option value="lb">Libra</option>
-                  </select>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Cantidad
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      placeholder={itemForm.quantityUnit === "lb" ? "Cantidad lb" : "Cantidad kg"}
+                      type="number"
+                      step="0.001"
+                      value={itemForm.quantityKg}
+                      onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Unidad
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={itemForm.quantityUnit}
+                      onChange={(event) => setItemForm({ ...itemForm, quantityUnit: event.target.value })}
+                    >
+                      <option value="kg">Kg</option>
+                      <option value="lb">Libra</option>
+                    </select>
+                  </label>
                 </div>
-                <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder={`Precio por kg en ${quoteForm.currency}`} type="number" step="0.01" value={itemForm.unitPrice} onChange={(event) => setItemForm({ ...itemForm, unitPrice: event.target.value })} />
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Precio por kg
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder={`Precio por kg en ${quoteForm.currency}`} type="number" step="0.01" value={itemForm.unitPrice} onChange={(event) => setItemForm({ ...itemForm, unitPrice: event.target.value })} />
+                </label>
               </div>
               {Number(itemForm.quantityKg || 0) > 0 && (
                 <div className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
