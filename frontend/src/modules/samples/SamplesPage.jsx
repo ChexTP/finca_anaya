@@ -233,6 +233,26 @@ const buildSampleOrderHtml = (sample) => {
     )
     .join("");
 
+  const labRows = (sample.items || [])
+    .filter((item) => buildSampleItemLabSummary(item))
+    .map(
+      (item) => `
+        <tr>
+          <td>${formatRequestedCoffee(item)}</td>
+          <td>${formatLabValue(item.sample_humidity_percent)}</td>
+          <td>${printable(item.sample_lab_aroma)}</td>
+          <td>${printable(item.sample_lab_flavor)}</td>
+          <td>${printable(item.sample_lab_sweetness)}</td>
+          <td>${printable(item.sample_lab_body)}</td>
+          <td>${printable(item.sample_lab_residual)}</td>
+          <td>${printable(item.sample_lab_clean_cup)}</td>
+          <td>${formatLabValue(item.sample_lab_score)}</td>
+          <td>${printable(item.sample_lab_notes)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
   return `
     <!doctype html>
     <html>
@@ -288,6 +308,33 @@ const buildSampleOrderHtml = (sample) => {
         </table>
 
         ${blendRows}
+
+        ${
+          labRows
+            ? `
+              <section class="lot-block">
+                <h2>DATOS DE LABORATORIO POR CAFE</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>CAFE</th>
+                      <th>HUMEDAD</th>
+                      <th>AROMA</th>
+                      <th>SABOR</th>
+                      <th>DULZOR</th>
+                      <th>CUERPO</th>
+                      <th>RESIDUAL</th>
+                      <th>TAZA LIMPIA</th>
+                      <th>SCORE</th>
+                      <th>NOTAS</th>
+                    </tr>
+                  </thead>
+                  <tbody>${labRows}</tbody>
+                </table>
+              </section>
+            `
+            : ""
+        }
 
         <section class="instructions">
           <p>- Hacer registro fotografico.</p>

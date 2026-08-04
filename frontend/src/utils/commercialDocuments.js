@@ -64,6 +64,20 @@ const labels = {
     total: "Total",
     notes: "Notas",
     termsTitle: "Terminos:",
+    labAnalysis: "Analisis de laboratorio",
+    product: "Producto",
+    humidity: "Humedad",
+    aroma: "Aroma",
+    flavor: "Sabor",
+    sweetness: "Dulzor",
+    body: "Cuerpo",
+    residual: "Residual",
+    cleanCup: "Taza limpia",
+    score: "Score",
+    labNotes: "Notas",
+    dispatchSupport: "Soporte de despacho",
+    receiptUploaded: "Recibo cargado",
+    supportDate: "Fecha soporte",
   },
   en: {
     quote: "Coffee quotation",
@@ -95,6 +109,20 @@ const labels = {
     total: "Total",
     notes: "Notes",
     termsTitle: "Terms:",
+    labAnalysis: "Laboratory analysis",
+    product: "Product",
+    humidity: "Humidity",
+    aroma: "Aroma",
+    flavor: "Flavor",
+    sweetness: "Sweetness",
+    body: "Body",
+    residual: "Aftertaste",
+    cleanCup: "Clean cup",
+    score: "Score",
+    labNotes: "Notes",
+    dispatchSupport: "Dispatch support",
+    receiptUploaded: "Receipt uploaded",
+    supportDate: "Support date",
   },
 };
 
@@ -295,20 +323,20 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
         ${
           labRows
             ? `
-              <h3>Analisis de laboratorio</h3>
+              <h3>${text.labAnalysis}</h3>
               <table>
                 <thead>
                   <tr>
-                    <th>Producto</th>
-                    <th>Humedad</th>
-                    <th>Aroma</th>
-                    <th>Sabor</th>
-                    <th>Dulzor</th>
-                    <th>Cuerpo</th>
-                    <th>Residual</th>
-                    <th>Taza limpia</th>
-                    <th>Score</th>
-                    <th>Notas</th>
+                    <th>${text.product}</th>
+                    <th>${text.humidity}</th>
+                    <th>${text.aroma}</th>
+                    <th>${text.flavor}</th>
+                    <th>${text.sweetness}</th>
+                    <th>${text.body}</th>
+                    <th>${text.residual}</th>
+                    <th>${text.cleanCup}</th>
+                    <th>${text.score}</th>
+                    <th>${text.labNotes}</th>
                   </tr>
                 </thead>
                 <tbody>${labRows}</tbody>
@@ -322,9 +350,9 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
         ${
           document.dispatchReceipt?.hasImage
             ? `
-              <h3>Soporte de despacho</h3>
-              <p>Recibo cargado${document.dispatchReceipt.fileName ? `: ${escapeHtml(document.dispatchReceipt.fileName)}` : ""}</p>
-              <p>Fecha soporte: ${formatDocumentDate(document.dispatchReceipt.uploadedAt)}</p>
+              <h3>${text.dispatchSupport}</h3>
+              <p>${text.receiptUploaded}${document.dispatchReceipt.fileName ? `: ${escapeHtml(document.dispatchReceipt.fileName)}` : ""}</p>
+              <p>${text.supportDate}: ${formatDocumentDate(document.dispatchReceipt.uploadedAt)}</p>
             `
             : ""
         }

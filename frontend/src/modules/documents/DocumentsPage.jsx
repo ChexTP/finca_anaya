@@ -4,8 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { companyBrand, getPrintableLogo } from "../../utils/brand";
-import { printable } from "../../utils/printFormatting";
+import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 
 const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
@@ -29,208 +28,6 @@ const hasLabReview = (item) => {
     review.cleanCup,
     review.score,
   ].some((value) => value !== null && value !== undefined && value !== "");
-};
-
-const buildDocumentHtml = (document) => {
-  const currency = document.totals?.currency || "COP";
-  const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
-  const rows = document.items
-    .map(
-      (item) => `
-        <tr>
-          <td>Anaya</td>
-          <td><strong>${printable(item.productForm)}</strong></td>
-          <td>${printable(item.description || item.coffeeProfile || item.coffeeType || item.lotCode)}</td>
-          <td>${printable(item.processType)}</td>
-          <td>${formatMoney(currency, item.unitPrice)}</td>
-          <td>${item.quantityKg}</td>
-        </tr>
-      `
-    )
-    .join("");
-
-  const payments = document.payments?.length
-    ? `
-      <h3>Pagos</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Metodo</th>
-            <th>Referencia</th>
-            <th>Valor</th>
-            <th>Notas</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${document.payments
-            .map(
-              (payment) => `
-                <tr>
-                  <td>${formatDate(payment.paidAt)}</td>
-                  <td>${printable(payment.paymentMethod)}</td>
-                  <td>${payment.paymentReference || "-"}</td>
-                  <td>${formatMoney(currency, payment.amount)}</td>
-                  <td>${printable(payment.notes)}</td>
-                </tr>
-              `
-            )
-            .join("")}
-        </tbody>
-      </table>
-    `
-    : document.totals?.amountPaid !== undefined
-      ? "<h3>Pagos</h3><p>No hay abonos registrados para esta venta.</p>"
-    : "";
-
-  const labReviewRows = document.items
-    .filter(hasLabReview)
-    .map((item) => {
-      const review = item.labReview || {};
-      return `
-        <tr>
-          <td>${printable(item.description || item.coffeeProfile || item.coffeeType || item.lotCode)}</td>
-          <td>${review.humidity || "-"}</td>
-          <td>${printable(review.aroma)}</td>
-          <td>${printable(review.flavor)}</td>
-          <td>${printable(review.sweetness)}</td>
-          <td>${printable(review.body)}</td>
-          <td>${printable(review.residual)}</td>
-          <td>${printable(review.cleanCup)}</td>
-          <td>${review.score || "-"}</td>
-          <td>${printable(review.notes)}</td>
-        </tr>
-      `;
-    })
-    .join("");
-
-  return `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${document.code}</title>
-        <style>
-          body { color: #111827; font-family: Arial, sans-serif; margin: 32px; }
-          header { align-items: flex-start; display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
-          h1 { font-size: 18px; margin: 0 0 6px; }
-          h2 { font-size: 15px; margin: 24px 0 8px; }
-          h3 { font-size: 14px; margin: 18px 0 8px; }
-          p { font-size: 12px; margin: 3px 0; }
-          table { border-collapse: collapse; margin-top: 14px; width: 100%; }
-          th, td { border: 1px solid #111827; font-size: 12px; padding: 7px; text-align: center; vertical-align: middle; }
-          th { background: #f2f2f2; font-weight: 700; }
-          .logo { height: 72px; object-fit: contain; width: 150px; }
-          .company { text-align: right; }
-          .recipient { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 12px 0 16px; }
-          .intro { margin: 16px 0 8px; }
-          .totals { margin-left: auto; margin-top: 16px; width: 280px; }
-          .totals p { display: flex; justify-content: space-between; }
-          .total { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; }
-          .terms { margin-top: 18px; width: 420px; }
-          .terms td { text-align: left; }
-          @media print { button { display: none; } body { margin: 18px; } }
-        </style>
-      </head>
-      <body>
-        <header>
-          <div>
-            <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
-          </div>
-          <div class="company">
-            <p><strong>${companyBrand.legalName}</strong></p>
-            <p>NIT: ${companyBrand.nit}</p>
-            <p>${companyBrand.address}</p>
-            <p>Tel: ${companyBrand.phone}</p>
-            <p>Email: ${companyBrand.email}</p>
-            <p>Instagram: ${companyBrand.instagram}</p>
-          </div>
-        </header>
-
-        <section class="recipient">
-          <div>
-            <p>Mr,</p>
-            <p><strong>${printable(document.client?.name)}</strong></p>
-            ${document.client?.documentType || document.client?.documentNumber ? `<p>${document.client.documentType || "Documento"}: ${document.client.documentNumber || "-"}</p>` : ""}
-            <p>${printable(document.client?.address, "")}</p>
-            ${document.client?.city || document.client?.country ? `<p>${[printable(document.client?.city, ""), printable(document.client?.country, "")].filter(Boolean).join(" - ")}</p>` : ""}
-          </div>
-          <div class="company">
-            <p>Date: ${formatDate(document.dates?.createdAt)}</p>
-            <p>${isQuote ? "Quotation" : "Invoice"} ${document.code}</p>
-            ${document.externalInvoiceReference ? `<p>Factura externa: ${document.externalInvoiceReference}</p>` : ""}
-          </div>
-        </section>
-
-        <p class="intro">${isQuote ? "Tenemos el placer de compartirle la siguiente oferta:" : "Detalle interno de venta:"}</p>
-
-        <table>
-          <thead>
-            <tr>
-              <th>FARM</th>
-              <th>PRESENTACION</th>
-              <th>VARIETY</th>
-              <th>PROCESS</th>
-              <th>KG-CPS</th>
-              <th>QTY (Kg)</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-
-        <table class="terms">
-          <tbody>
-            <tr><td><strong>Anticipo:</strong></td><td>${document.terms?.paymentTerms || "-"}</td></tr>
-            <tr><td><strong>Tiempo de entrega:</strong></td><td>${formatDate(document.dates?.estimatedDeliveryDate || document.dates?.estimatedPaymentDate)}</td></tr>
-            <tr><td><strong>Empaque:</strong></td><td>${document.terms?.deliveryTerms || "-"}</td></tr>
-            <tr><td><strong>Pago:</strong></td><td>${document.paymentStatus || document.status || "-"}</td></tr>
-            <tr><td><strong>Datos Bancarios:</strong></td><td>Bancolombia - Ahorros - 453 0000 6876</td></tr>
-            <tr><td><strong>Empresa:</strong></td><td>${companyBrand.legalName}</td></tr>
-            <tr><td><strong>Nit:</strong></td><td>${companyBrand.nit}</td></tr>
-          </tbody>
-        </table>
-
-        <div class="totals">
-          <p><span>Subtotal</span><span>${formatMoney(currency, document.totals?.subtotal)}</span></p>
-          <p><span>Envio</span><span>${formatMoney(currency, document.totals?.shippingCost)}</span></p>
-          <p class="total"><span>Total</span><span>${formatMoney(currency, document.totals?.total)}</span></p>
-          ${
-            document.totals?.amountPaid !== undefined
-              ? `<p><span>Pagado</span><span>${formatMoney(currency, document.totals.amountPaid)}</span></p>
-                 <p><span>Saldo</span><span>${formatMoney(currency, document.totals.balanceDue)}</span></p>`
-              : ""
-          }
-        </div>
-
-        ${payments}
-        ${
-          labReviewRows
-            ? `
-              <h3>Analisis de laboratorio</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Producto</th>
-                    <th>Humedad</th>
-                    <th>Aroma</th>
-                    <th>Sabor</th>
-                    <th>Dulzor</th>
-                    <th>Cuerpo</th>
-                    <th>Residual</th>
-                    <th>Taza limpia</th>
-                    <th>Score</th>
-                    <th>Notas</th>
-                  </tr>
-                </thead>
-                <tbody>${labReviewRows}</tbody>
-              </table>
-            `
-            : ""
-        }
-        ${document.notes ? `<h3>Notas</h3><p>${document.notes}</p>` : ""}
-      </body>
-    </html>
-  `;
 };
 
 const DocumentsPage = () => {
@@ -273,24 +70,18 @@ const DocumentsPage = () => {
     setError("");
   };
 
-  const printDocument = () => {
+  const printDocument = (language = "es") => {
     if (!selectedDocument) {
       setError("Seleccione un documento.");
       return;
     }
 
-    const printWindow = window.open("", "_blank");
-
-    if (!printWindow) {
-      setError("El navegador bloqueo la ventana de impresion.");
-      return;
+    try {
+      openCommercialDocumentPrint(selectedDocument, { language });
+      setMessage(`Documento abierto en ${language === "en" ? "ingles" : "espanol"} para imprimir o guardar como PDF.`);
+    } catch (printError) {
+      setError(printError.message);
     }
-
-    printWindow.document.write(buildDocumentHtml(selectedDocument));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    setMessage("Documento abierto para imprimir o guardar como PDF.");
   };
 
   return (
@@ -475,13 +266,22 @@ const DocumentsPage = () => {
                   )}
                 </div>
               )}
-              <button
-                className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
-                onClick={printDocument}
-              >
-                <Printer size={16} />
-                Imprimir / guardar PDF
-              </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
+                  onClick={() => printDocument("es")}
+                >
+                  <Printer size={16} />
+                  PDF espanol
+                </button>
+                <button
+                  className="inline-flex w-full items-center justify-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                  onClick={() => printDocument("en")}
+                >
+                  <Printer size={16} />
+                  PDF ingles
+                </button>
+              </div>
               <p className="flex items-center gap-2 text-xs text-slate-500">
                 <Download size={14} />
                 En la ventana de impresion puede elegir “Guardar como PDF”.
