@@ -129,6 +129,7 @@ export const postSample = async (req, res) => {
       tentativeDeliveryDate,
       notes,
       status = "borrador",
+      code,
     } = req.body;
 
     if (!["borrador", "enviada"].includes(status)) {
@@ -187,9 +188,9 @@ export const postSample = async (req, res) => {
       });
     }
 
-    const code = await getNextSampleCode();
+    const sampleCode = code ? String(code).trim().toUpperCase() : await getNextSampleCode();
     const sample = await createSampleRequest({
-      code,
+      code: sampleCode,
       requesterName,
       requesterPhone: requesterPhone || null,
       requesterEmail,

@@ -1,4 +1,4 @@
-import { Edit, Eye, FileDown, Plus, RefreshCw, Save, Trash2, UserPlus, XCircle } from "lucide-react";
+import { Edit, Eye, FileDown, FlaskConical, Plus, RefreshCw, Save, Trash2, UserPlus, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -46,6 +46,35 @@ const initialQuote = {
   shippingCost: "",
   estimatedDeliveryDate: "",
   notes: "",
+};
+
+const today = new Date().toISOString().slice(0, 10);
+
+const initialSample = {
+  manualCodeNumber: "",
+  manualCodeYear: String(new Date().getFullYear()),
+  requesterName: "",
+  requesterPhone: "",
+  requesterEmail: "",
+  requesterCompany: "",
+  requesterAddress: "",
+  requesterCity: "",
+  requesterCountry: "",
+  coffeeTypeId: "",
+  coffeeProfileId: "",
+  description: "",
+  quantityGrams: "",
+  requestedAt: today,
+  tentativeDeliveryDate: "",
+  notes: "",
+  status: "enviada",
+};
+
+const emptySampleItem = {
+  coffeeTypeId: "",
+  coffeeProfileId: "",
+  description: "",
+  quantityGrams: "",
 };
 
 const createInitialQuote = () => ({
@@ -110,14 +139,18 @@ const formatProfileOptionLabel = (profile) => {
   return [code, profile?.name].filter(Boolean).join(" - ");
 };
 
-const getQuoteCodeFromForm = (form) => {
+const getCodeFromForm = (form, prefix) => {
   if (!form.manualCodeNumber) return null;
 
-  return `COT-${form.manualCodeYear || new Date().getFullYear()}-${String(Number(form.manualCodeNumber) || 0).padStart(4, "0")}`;
+  return `${prefix}-${form.manualCodeYear || new Date().getFullYear()}-${String(Number(form.manualCodeNumber) || 0).padStart(4, "0")}`;
 };
 
-const getCodeParts = (code) => {
-  const match = String(code || "").match(/^COT-(\d{4})-(\d+)$/i);
+const getQuoteCodeFromForm = (form) => {
+  return getCodeFromForm(form, "COT");
+};
+
+const getCodeParts = (code, prefix = "COT") => {
+  const match = String(code || "").match(new RegExp(`^${prefix}-(\\d{4})-(\\d+)$`, "i"));
 
   return {
     manualCodeYear: match?.[1] || String(new Date().getFullYear()),
@@ -153,13 +186,18 @@ const itemFromQuoteItem = (item) => ({
 const CommercialPage = () => {
   const { user } = useAuth();
   const [quotes, setQuotes] = useState([]);
+  const [samples, setSamples] = useState([]);
   const [clients, setClients] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
+  const [codeCounters, setCodeCounters] = useState([]);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [editingQuoteId, setEditingQuoteId] = useState(null);
+  const [formMode, setFormMode] = useState("quote");
   const [quoteForm, setQuoteForm] = useState(createInitialQuote);
   const [itemForm, setItemForm] = useState(initialItem);
   const [quoteItems, setQuoteItems] = useState([]);
+  const [sampleForm, setSampleForm] = useState(initialSample);
+  const [sampleItems, setSampleItems] = useState([]);
   const [saleForm, setSaleForm] = useState(initialSale);
   const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
   const [showQuickClient, setShowQuickClient] = useState(false);
@@ -181,6 +219,15 @@ const CommercialPage = () => {
         [field]: value,
       },
     }));
+  };
+
+  const getNextCodeParts = (prefix) => {
+    const nextCode = codeCounters.find((counter) => counter.prefix === prefix)?.nextCode;
+    return getCodeParts(nextCode, prefix);
+  };
+
+  const getSampleCodeFromForm = (form) => {
+    return getCodeFromForm(form, "MUE");
   };
 
   const itemOperationalKg = useMemo(() => calculateOperationalKg({
@@ -254,14 +301,28 @@ const CommercialPage = () => {
   }, [catalogs, itemForm.itemType, itemForm.processType]);
 
   const loadData = async () => {
-    const [quoteData, clientData, catalogData] = await Promise.all([
+    const [quoteData, sampleData, clientData, catalogData, countersData] = await Promise.all([
       apiRequest("/quotes"),
+      apiRequest("/samples"),
       apiRequest("/clients"),
       apiRequest("/catalogs"),
+      apiRequest("/code-counters"),
     ]);
     setQuotes(quoteData);
+    setSamples(sampleData.filter((sample) => sample.status !== "entregada"));
     setClients(clientData);
     setCatalogs(catalogData);
+    setCodeCounters(countersData);
+    setQuoteForm((currentForm) => (
+      editingQuoteId || currentForm.clientId || quoteItems.length > 0 || itemForm.quantityKg
+        ? currentForm
+        : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "COT")?.nextCode, "COT") }
+    ));
+    setSampleForm((currentForm) => (
+      currentForm.requesterName || sampleItems.length > 0 || currentForm.quantityGrams
+        ? currentForm
+        : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "MUE")?.nextCode, "MUE") }
+    ));
   };
 
   useEffect(() => {
@@ -270,9 +331,11 @@ const CommercialPage = () => {
 
   const resetForm = () => {
     setEditingQuoteId(null);
-    setQuoteForm(createInitialQuote());
+    setQuoteForm({ ...createInitialQuote(), ...getNextCodeParts("COT") });
     setItemForm(initialItem);
     setQuoteItems([]);
+    setSampleForm({ ...initialSample, ...getNextCodeParts("MUE") });
+    setSampleItems([]);
     setError("");
   };
 
@@ -411,6 +474,79 @@ const CommercialPage = () => {
       unitPrice: String(item.unitPrice || ""),
     });
     removeItem(index);
+  };
+
+  const getSampleItemName = (item) => (
+    [
+      catalogs?.coffeeTypes?.find((type) => String(type.id) === String(item.coffeeTypeId))?.name,
+      catalogs?.coffeeProfiles?.find((profile) => String(profile.id) === String(item.coffeeProfileId))?.name,
+      item.description,
+    ].filter(Boolean).join(" - ") || "Muestra"
+  );
+
+  const addSampleItem = () => {
+    if ((!sampleForm.coffeeTypeId && !sampleForm.coffeeProfileId && !sampleForm.description.trim()) || !sampleForm.quantityGrams) {
+      setError("Seleccione o describa el cafe e indique la cantidad en gramos.");
+      return;
+    }
+
+    setSampleItems((currentItems) => [
+      ...currentItems,
+      {
+        coffeeTypeId: sampleForm.coffeeTypeId ? Number(sampleForm.coffeeTypeId) : null,
+        coffeeProfileId: sampleForm.coffeeProfileId ? Number(sampleForm.coffeeProfileId) : null,
+        description: sampleForm.description || null,
+        coffeeName: getSampleItemName(sampleForm),
+        quantityGrams: Number(sampleForm.quantityGrams),
+        price: null,
+      },
+    ]);
+    setSampleForm((currentForm) => ({ ...currentForm, ...emptySampleItem }));
+    setError("");
+  };
+
+  const removeSampleItem = (index) => {
+    setSampleItems((currentItems) => currentItems.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const saveSampleRequest = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const currentItem = sampleForm.quantityGrams ? [{
+        coffeeTypeId: sampleForm.coffeeTypeId ? Number(sampleForm.coffeeTypeId) : null,
+        coffeeProfileId: sampleForm.coffeeProfileId ? Number(sampleForm.coffeeProfileId) : null,
+        description: sampleForm.description || null,
+        quantityGrams: Number(sampleForm.quantityGrams),
+        price: null,
+      }] : [];
+      const items = [...sampleItems, ...currentItem];
+      if (items.length === 0) throw new Error("Agregue al menos una muestra.");
+
+      const response = await apiRequest("/samples", {
+        method: "POST",
+        body: JSON.stringify({
+          ...sampleForm,
+          code: getSampleCodeFromForm(sampleForm),
+          requestedAt: sampleForm.requestedAt || today,
+          status: "enviada",
+          currency: "COP",
+          items,
+        }),
+      });
+
+      setSampleForm({ ...initialSample, ...getNextCodeParts("MUE") });
+      setSampleItems([]);
+      await loadData();
+      setMessage(`Solicitud de muestra ${response.data?.code || ""} creada y enviada para aprobacion.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveQuote = async (event) => {
@@ -647,15 +783,31 @@ const CommercialPage = () => {
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <div className="min-w-0 space-y-5">
-          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={saveQuote}>
+          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={formMode === "quote" ? saveQuote : saveSampleRequest}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Plus size={17} className="text-leaf" />
+                {formMode === "quote" ? <Plus size={17} className="text-leaf" /> : <FlaskConical size={17} className="text-leaf" />}
                 <h2 className="text-sm font-semibold text-slate-800">
-                  {editingQuoteId ? "Editar cotizacion" : "Nueva cotizacion"}
+                  {formMode === "quote" ? (editingQuoteId ? "Editar cotizacion" : "Nueva cotizacion") : "Nueva solicitud de muestra"}
                 </h2>
               </div>
-              {editingQuoteId && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold ${formMode === "quote" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+                  type="button"
+                  onClick={() => setFormMode("quote")}
+                >
+                  Cotizacion de venta
+                </button>
+                <button
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold ${formMode === "sample" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+                  type="button"
+                  onClick={() => setFormMode("sample")}
+                >
+                  Solicitud de muestra
+                </button>
+              </div>
+              {formMode === "quote" && editingQuoteId && (
                 <button
                   className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
                   type="button"
@@ -667,6 +819,8 @@ const CommercialPage = () => {
               )}
             </div>
 
+            {formMode === "quote" ? (
+              <>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 md:col-span-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Codigo de cotizacion</p>
@@ -726,18 +880,6 @@ const CommercialPage = () => {
                 step="0.01"
                 value={quoteForm.shippingCost}
                 onChange={(event) => setQuoteForm({ ...quoteForm, shippingCost: event.target.value })}
-              />
-              <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Condiciones de pago"
-                value={quoteForm.paymentTerms}
-                onChange={(event) => setQuoteForm({ ...quoteForm, paymentTerms: event.target.value })}
-              />
-              <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2"
-                placeholder="Condiciones de entrega"
-                value={quoteForm.deliveryTerms}
-                onChange={(event) => setQuoteForm({ ...quoteForm, deliveryTerms: event.target.value })}
               />
             </div>
 
@@ -972,6 +1114,103 @@ const CommercialPage = () => {
               <Save size={16} />
               {editingQuoteId ? "Actualizar cotizacion" : "Guardar cotizacion"}
             </button>
+              </>
+            ) : (
+              <>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 md:col-span-2">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Codigo de muestra</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_160px]">
+                      <div className="rounded bg-white px-3 py-2 text-sm font-semibold text-ink">
+                        {getSampleCodeFromForm(sampleForm) || "MUE-automatico"}
+                      </div>
+                      <input
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Ano"
+                        type="number"
+                        value={sampleForm.manualCodeYear}
+                        onChange={(event) => setSampleForm({ ...sampleForm, manualCodeYear: event.target.value })}
+                      />
+                      <input
+                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="Numero final"
+                        type="number"
+                        value={sampleForm.manualCodeNumber}
+                        onChange={(event) => setSampleForm({ ...sampleForm, manualCodeNumber: event.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Nombre de quien solicita" value={sampleForm.requesterName} onChange={(event) => setSampleForm({ ...sampleForm, requesterName: event.target.value })} required />
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Telefono" value={sampleForm.requesterPhone} onChange={(event) => setSampleForm({ ...sampleForm, requesterPhone: event.target.value })} />
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Correo opcional" value={sampleForm.requesterEmail} onChange={(event) => setSampleForm({ ...sampleForm, requesterEmail: event.target.value })} />
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Empresa opcional" value={sampleForm.requesterCompany} onChange={(event) => setSampleForm({ ...sampleForm, requesterCompany: event.target.value })} />
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2" placeholder="Direccion de envio" value={sampleForm.requesterAddress} onChange={(event) => setSampleForm({ ...sampleForm, requesterAddress: event.target.value })} />
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Ciudad" value={sampleForm.requesterCity} onChange={(event) => setSampleForm({ ...sampleForm, requesterCity: event.target.value })} />
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Pais" value={sampleForm.requesterCountry} onChange={(event) => setSampleForm({ ...sampleForm, requesterCountry: event.target.value })} />
+                </div>
+
+                <div className="mt-4 rounded border border-slate-200 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Cafe solicitado para muestra</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                      Proceso
+                      <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={sampleForm.coffeeTypeId} onChange={(event) => setSampleForm({ ...sampleForm, coffeeTypeId: event.target.value })}>
+                        <option value="">Proceso del cafe</option>
+                        {catalogs?.coffeeTypes?.map((type) => (
+                          <option key={type.id} value={type.id}>{type.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                      Perfil o cafe comercial
+                      <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={sampleForm.coffeeProfileId} onChange={(event) => setSampleForm({ ...sampleForm, coffeeProfileId: event.target.value })}>
+                        <option value="">Perfil o cafe comercial</option>
+                        {catalogs?.coffeeProfiles?.map((profile) => (
+                          <option key={profile.id} value={profile.id}>{formatProfileOptionLabel(profile)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <textarea className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2" placeholder="Descripcion si no aplica tipo o perfil exacto" value={sampleForm.description} onChange={(event) => setSampleForm({ ...sampleForm, description: event.target.value })} />
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Cantidad en gramos" type="number" step="1" value={sampleForm.quantityGrams} onChange={(event) => setSampleForm({ ...sampleForm, quantityGrams: event.target.value })} required={sampleItems.length === 0} />
+                    <button className="inline-flex items-center justify-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50" type="button" onClick={addSampleItem}>
+                      <Plus size={16} />
+                      Agregar otra muestra
+                    </button>
+                  </div>
+                  {sampleItems.length > 0 && (
+                    <div className="mt-3 divide-y divide-slate-100 rounded border border-slate-200">
+                      {sampleItems.map((item, index) => (
+                        <div key={`${item.coffeeName}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                          <div>
+                            <p className="font-medium text-ink">{item.coffeeName}</p>
+                            <p className="text-slate-500">{item.quantityGrams} g</p>
+                          </div>
+                          <button className="rounded p-2 text-rose-600 hover:bg-rose-50" type="button" aria-label="Quitar muestra" onClick={() => removeSampleItem(index)}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Fecha solicitud
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="date" value={sampleForm.requestedAt} onChange={(event) => setSampleForm({ ...sampleForm, requestedAt: event.target.value })} required />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Entrega tentativa
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="date" value={sampleForm.tentativeDeliveryDate} onChange={(event) => setSampleForm({ ...sampleForm, tentativeDeliveryDate: event.target.value })} />
+                  </label>
+                </div>
+                <textarea className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Notas internas" value={sampleForm.notes} onChange={(event) => setSampleForm({ ...sampleForm, notes: event.target.value })} />
+                <button className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
+                  <Save size={16} />
+                  Crear solicitud de muestra
+                </button>
+              </>
+            )}
           </form>
 
           <div className="rounded border border-slate-200 bg-white">

@@ -65,10 +65,7 @@ const statusTones = {
 
 const sampleFilters = [
   { key: "all", label: "Todas" },
-  { key: "borrador", label: "Borradores" },
-  { key: "enviada", label: "Enviadas" },
   { key: "aprobada", label: "Aprobadas" },
-  { key: "solicitada", label: "Solicitadas" },
   { key: "en_preparacion", label: "En preparacion" },
   { key: "pendiente_laboratorio", label: "Pendientes lab" },
   { key: "aprobada_laboratorio", label: "Aprobadas lab" },
@@ -323,7 +320,7 @@ const SamplesPage = () => {
   const [blendSampleId, setBlendSampleId] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
 
-  const canCreate = ["admin", "accounting", "seller"].includes(user?.role);
+  const canCreate = false;
   const canManageSamples = ["admin", "samples"].includes(user?.role);
   const canApproveSampleOrders = ["admin", "accounting"].includes(user?.role);
   const canApproveSamples = canApproveSampleOrders;

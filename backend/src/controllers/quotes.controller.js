@@ -53,8 +53,8 @@ const buildCleanQuoteData = async ({
   terms,
   items,
 }) => {
-  if (!clientId || !quoteType || !currency || !estimatedDeliveryDate || !Array.isArray(items) || items.length === 0) {
-    const error = new Error("Cliente, tipo de cotizacion, moneda, fecha de entrega e items son obligatorios");
+  if (!clientId || !quoteType || !currency || !Array.isArray(items) || items.length === 0) {
+    const error = new Error("Cliente, moneda e items son obligatorios");
     error.statusCode = 400;
     throw error;
   }
@@ -184,7 +184,7 @@ const buildCleanQuoteData = async ({
     paymentTerms: paymentTerms || null,
     deliveryTerms: deliveryTerms || null,
     shippingCost: shipping,
-    estimatedDeliveryDate,
+    estimatedDeliveryDate: estimatedDeliveryDate || null,
     notes: notes || null,
     terms: cleanQuoteTerms(terms),
     subtotal,
