@@ -9,13 +9,6 @@ import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
 
-const initialPurchase = {
-  purchasePricePerKg: "",
-  paymentMethodId: "",
-  paymentReference: "",
-  paidAt: new Date().toISOString().slice(0, 10),
-};
-
 const initialLiquidation = {
   orderCode: "",
   orderDate: new Date().toISOString().slice(0, 10),
@@ -234,15 +227,12 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [inProcessInventory, setInProcessInventory] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
-  const [unpaidLots, setUnpaidLots] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
-  const [selectedLot, setSelectedLot] = useState(null);
   const [selectedLiquidationLot, setSelectedLiquidationLot] = useState(null);
   const [selectedLiquidationLotIds, setSelectedLiquidationLotIds] = useState([]);
   const [selectedAdminLot, setSelectedAdminLot] = useState(null);
   const [selectedAdminProcess, setSelectedAdminProcess] = useState(null);
-  const [purchaseForm, setPurchaseForm] = useState(initialPurchase);
   const [liquidationForm, setLiquidationForm] = useState(initialLiquidation);
   const [adminLotForm, setAdminLotForm] = useState(initialAdminLotEdit);
   const [adminProcessForm, setAdminProcessForm] = useState(initialAdminProcessEdit);
@@ -296,14 +286,6 @@ const InventoryPage = ({ mode = "inventory" }) => {
     setSampleOutputs(sampleOutputData || []);
     setPendingLiquidationLots(
       allLots.filter((lot) => lot.status === "pendiente_liquidacion")
-    );
-    setUnpaidLots(
-      allLots.filter(
-        (lot) =>
-          lot.lab_reviewed_at &&
-          !lot.purchase_paid &&
-          !["pendiente_laboratorio", "pendiente_liquidacion", "rechazado", "retirado"].includes(lot.status)
-      )
     );
     setCatalogs(catalogData || null);
     setSuppliers(
@@ -474,46 +456,6 @@ const InventoryPage = ({ mode = "inventory" }) => {
   useEffect(() => {
     loadData().catch((requestError) => setError(requestError.message));
   }, []);
-
-  const selectApprovedLot = (lot) => {
-    setSelectedLot(lot);
-    setPurchaseForm(initialPurchase);
-    setMessage("");
-    setError("");
-  };
-
-  const registerPurchase = async (event) => {
-    event.preventDefault();
-
-    if (!selectedLot) {
-      setError("Seleccione un lote pendiente de pago.");
-      return;
-    }
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-    try {
-      await apiRequest(`/lots/${selectedLot.id}/purchase`, {
-        method: "PUT",
-        body: JSON.stringify({
-          purchasePricePerKg: Number(purchaseForm.purchasePricePerKg),
-          paymentMethodId: Number(purchaseForm.paymentMethodId),
-          paymentReference: purchaseForm.paymentReference,
-          paidAt: purchaseForm.paidAt,
-        }),
-      });
-      setSelectedLot(null);
-      setPurchaseForm(initialPurchase);
-      await loadData();
-      setMessage("Pago registrado sin modificar la disponibilidad del lote.");
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const adjustInventory = async (lot) => {
     const action = window.prompt(`Ajuste para ${formatCoffeeLotCodeName(lot)}: escriba + para sumar o - para restar`, "-");
@@ -799,9 +741,6 @@ const InventoryPage = ({ mode = "inventory" }) => {
     }
   };
 
-  const purchaseTotal = selectedLot && purchaseForm.purchasePricePerKg
-    ? formatMoneyValue(Number(selectedLot.net_weight_kg) * Number(purchaseForm.purchasePricePerKg))
-    : "0";
   const liquidationTotal = selectedLiquidationLot
     ? formatMoneyValue((liquidationForm.items || []).reduce(
       (sum, item) => sum + (Number(item.netWeightKg || 0) * Number(item.purchasePricePerKg || 0)),
@@ -1584,110 +1523,6 @@ const InventoryPage = ({ mode = "inventory" }) => {
               >
                 <Save size={16} />
                 Revisar orden de compra
-              </button>
-            </div>
-          </form>
-
-          <div className="min-w-0 rounded border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-semibold text-slate-800">Lotes aprobados pendientes de pago</h2>
-            </div>
-            {unpaidLots.length === 0 ? (
-              <div className="p-4">
-                <EmptyState title="Sin pagos pendientes" message="Los lotes aprobados que aun no se hayan pagado apareceran aqui." />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-100 text-slate-600">
-                    <tr>
-                      <th className="px-3 py-2">Codigo</th>
-                      <th className="px-3 py-2">Proveedor</th>
-                      <th className="px-3 py-2">Peso bruto</th>
-                      <th className="px-3 py-2">Peso neto</th>
-                      <th className="px-3 py-2">Clasificacion</th>
-                      <th className="px-3 py-2">Factor</th>
-                      <th className="px-3 py-2">Score</th>
-                      <th className="px-3 py-2">Accion</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {unpaidLots.map((lot) => (
-                      <tr key={lot.id}>
-                        <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
-                        <td className="px-3 py-2">{lot.supplier_name || "-"}</td>
-                        <td className="px-3 py-2">{formatOptionalKg(lot.gross_weight_kg)}</td>
-                        <td className="px-3 py-2">{formatOptionalKg(lot.net_weight_kg)}</td>
-                        <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
-                        <td className="px-3 py-2">{lot.performance_factor ?? "-"}</td>
-                        <td className="px-3 py-2">{lot.lab_score || "-"}</td>
-                        <td className="px-3 py-2">
-                          <button
-                            className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
-                            onClick={() => selectApprovedLot(lot)}
-                          >
-                            Registrar pago
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={registerPurchase}>
-            <h2 className="text-sm font-semibold text-slate-800">Pago de lote</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedLot ? `Lote seleccionado: ${formatCoffeeLotCodeName(selectedLot)}` : "Seleccione un lote pendiente de pago."}
-            </p>
-            <p className="mt-2 rounded bg-sky-50 px-3 py-2 text-xs text-sky-700">
-              El lote liquidado ya esta disponible operativamente. Registrar el pago solo completa la informacion financiera.
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Precio por kg"
-                type="number"
-                step="0.01"
-                value={purchaseForm.purchasePricePerKg}
-                onChange={(event) => setPurchaseForm({ ...purchaseForm, purchasePricePerKg: event.target.value })}
-              />
-              <select
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                value={purchaseForm.paymentMethodId}
-                onChange={(event) => setPurchaseForm({ ...purchaseForm, paymentMethodId: event.target.value })}
-              >
-                <option value="">Metodo de pago</option>
-                {catalogs?.paymentMethods?.map((method) => (
-                  <option key={method.id} value={method.id}>
-                    {method.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Referencia de pago"
-                value={purchaseForm.paymentReference}
-                onChange={(event) => setPurchaseForm({ ...purchaseForm, paymentReference: event.target.value })}
-              />
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                type="date"
-                value={purchaseForm.paidAt}
-                onChange={(event) => setPurchaseForm({ ...purchaseForm, paidAt: event.target.value })}
-              />
-              <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                Total estimado: <span className="font-semibold text-ink">COP {purchaseTotal}</span>
-              </div>
-              <button
-                className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                disabled={saving || !selectedLot}
-              >
-                <Save size={16} />
-                Registrar pago
               </button>
             </div>
           </form>
