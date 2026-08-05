@@ -1,5 +1,5 @@
 import { Edit, Eye, FileDown, FlaskConical, Plus, RefreshCw, Save, Trash2, UserPlus, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -193,11 +193,24 @@ const CommercialPage = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const formPanelRef = useRef(null);
+  const detailPanelRef = useRef(null);
 
   const canConvertToSale = ["admin", "accounting"].includes(user?.role);
   const canDeleteRecords = user?.role === "admin";
   const termInputClass = "rounded border border-amber-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink";
   const termLabelClass = "grid gap-1 text-xs font-semibold uppercase text-amber-900";
+
+  const scrollToPanel = (panelRef) => {
+    window.requestAnimationFrame(() => {
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const showErrorAlert = (messageText) => {
+    setError(messageText);
+    window.alert(`Error: ${messageText}`);
+  };
 
   const updateQuoteTerm = (field, value) => {
     setQuoteForm((currentForm) => ({
@@ -531,7 +544,7 @@ const CommercialPage = () => {
       await loadData();
       setMessage(`Solicitud de muestra ${response.data?.code || ""} creada y enviada para aprobacion.`);
     } catch (requestError) {
-      setError(requestError.message);
+      showErrorAlert(requestError.message);
     } finally {
       setSaving(false);
     }
@@ -572,7 +585,7 @@ const CommercialPage = () => {
       setSelectedQuote(response.data);
       setMessage(editingQuoteId ? "Cotizacion actualizada correctamente." : "Cotizacion creada correctamente.");
     } catch (requestError) {
-      setError(requestError.message);
+      showErrorAlert(requestError.message);
     } finally {
       setSaving(false);
     }
@@ -600,7 +613,7 @@ const CommercialPage = () => {
       setQuoteForm((currentForm) => ({ ...currentForm, clientId: String(createdClient.id) }));
       setMessage("Cliente creado y seleccionado para la cotizacion.");
     } catch (requestError) {
-      setError(requestError.message);
+      showErrorAlert(requestError.message);
     } finally {
       setSaving(false);
     }
@@ -611,6 +624,7 @@ const CommercialPage = () => {
     setSelectedQuote(quote);
     setMessage("");
     setError("");
+    scrollToPanel(detailPanelRef);
   };
 
   const loadQuoteForEdit = async (quoteId) => {
@@ -634,6 +648,7 @@ const CommercialPage = () => {
     setItemForm(initialItem);
     setMessage(`Editando cotizacion ${quote.code}.`);
     setError("");
+    scrollToPanel(formPanelRef);
   };
 
   const updateQuoteStatus = async (quote, status) => {
@@ -653,7 +668,7 @@ const CommercialPage = () => {
       await loadQuoteDetail(quote.id);
       setMessage("Estado de cotizacion actualizado.");
     } catch (requestError) {
-      setError(requestError.message);
+      showErrorAlert(requestError.message);
     } finally {
       setSaving(false);
     }
@@ -683,7 +698,7 @@ const CommercialPage = () => {
       await loadData();
       setMessage(`Cotizacion ${quote.code} eliminada correctamente.`);
     } catch (requestError) {
-      setError(requestError.message);
+      showErrorAlert(requestError.message);
     } finally {
       setSaving(false);
     }
@@ -699,7 +714,7 @@ const CommercialPage = () => {
       openCommercialDocumentPrint(document, { language });
       setMessage(`Cotizacion abierta en ${language === "en" ? "ingles" : "espanol"} para imprimir o guardar como PDF.`);
     } catch (requestError) {
-      setError(requestError.message);
+      showErrorAlert(requestError.message);
     } finally {
       setSaving(false);
     }
@@ -707,14 +722,12 @@ const CommercialPage = () => {
 
   const convertQuoteToSale = async (quote = selectedQuote) => {
     if (!quote) {
-      setError("Seleccione una cotizacion para convertir.");
-      window.alert("No se pudo crear la venta: seleccione una cotizacion.");
+      showErrorAlert("No se pudo crear la venta: seleccione una cotizacion.");
       return;
     }
 
     if (quote.status === "anulada") {
-      setError("No se puede convertir una cotizacion anulada.");
-      window.alert("No se pudo crear la venta: la cotizacion esta anulada.");
+      showErrorAlert("No se pudo crear la venta: la cotizacion esta anulada.");
       return;
     }
 
@@ -736,8 +749,7 @@ const CommercialPage = () => {
       setMessage(`Venta ${saleCode} creada correctamente.`);
       window.alert(`Venta creada exitosamente: ${saleCode}`);
     } catch (requestError) {
-      setError(requestError.message);
-      window.alert(`No se pudo crear la venta: ${requestError.message}`);
+      showErrorAlert(`No se pudo crear la venta: ${requestError.message}`);
     } finally {
       setSaving(false);
     }
@@ -765,7 +777,7 @@ const CommercialPage = () => {
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <div className="min-w-0 space-y-5">
-          <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={formMode === "quote" ? saveQuote : saveSampleRequest}>
+          <form ref={formPanelRef} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={formMode === "quote" ? saveQuote : saveSampleRequest}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 {formMode === "quote" ? <Plus size={17} className="text-leaf" /> : <FlaskConical size={17} className="text-leaf" />}
@@ -777,14 +789,20 @@ const CommercialPage = () => {
                 <button
                   className={`rounded border px-3 py-1.5 text-xs font-semibold ${formMode === "quote" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
                   type="button"
-                  onClick={() => setFormMode("quote")}
+                  onClick={() => {
+                    setFormMode("quote");
+                    scrollToPanel(formPanelRef);
+                  }}
                 >
                   Cotizacion de venta
                 </button>
                 <button
                   className={`rounded border px-3 py-1.5 text-xs font-semibold ${formMode === "sample" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
                   type="button"
-                  onClick={() => setFormMode("sample")}
+                  onClick={() => {
+                    setFormMode("sample");
+                    scrollToPanel(formPanelRef);
+                  }}
                 >
                   Solicitud de muestra
                 </button>
@@ -1257,7 +1275,7 @@ const CommercialPage = () => {
           </div>
         </div>
 
-        <aside className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4">
+        <aside ref={detailPanelRef} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-slate-800">Detalle</h2>
           {!selectedQuote ? (
             <div className="mt-3"><EmptyState title="Seleccione una cotizacion" message="Aqui vera productos, PDF y conversion a venta." /></div>
