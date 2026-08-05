@@ -130,12 +130,15 @@ const AppLayout = () => {
     if (!main) return undefined;
 
     const showLatestError = () => {
-      const errorElement = [...main.querySelectorAll(".bg-rose-50, .text-rose-700, .text-red-700")]
+      const errorElement = [...main.querySelectorAll("p.rounded.bg-rose-50, div.rounded.bg-rose-50")]
         .reverse()
         .find((element) => {
           const text = element.textContent?.trim();
           const box = element.getBoundingClientRect();
-          return text && box.width > 0 && box.height > 0;
+          const isActionOrTableText = Boolean(element.closest("button, a, table, thead, tbody, tfoot"));
+          const looksLikeSystemError = /^(error|no se pudo|seleccione|agregue|antes de|el navegador|la guia|la imagen|el codigo|nombre, telefono|metodo|referencia|cada cafe|debe)/i.test(text || "");
+
+          return text && box.width > 0 && box.height > 0 && !isActionOrTableText && looksLikeSystemError;
         });
 
       const message = errorElement?.textContent?.trim();
