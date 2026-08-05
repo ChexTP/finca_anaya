@@ -221,8 +221,8 @@ const CommercialPage = () => {
     }));
   };
 
-  const getNextCodeParts = (prefix) => {
-    const nextCode = codeCounters.find((counter) => counter.prefix === prefix)?.nextCode;
+  const getNextCodeParts = (prefix, counters = codeCounters) => {
+    const nextCode = counters.find((counter) => counter.prefix === prefix)?.nextCode;
     return getCodeParts(nextCode, prefix);
   };
 
@@ -323,18 +323,19 @@ const CommercialPage = () => {
         ? currentForm
         : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "MUE")?.nextCode, "MUE") }
     ));
+    return { countersData };
   };
 
   useEffect(() => {
     loadData().catch((requestError) => setError(requestError.message));
   }, []);
 
-  const resetForm = () => {
+  const resetForm = (freshCounters = codeCounters) => {
     setEditingQuoteId(null);
-    setQuoteForm({ ...createInitialQuote(), ...getNextCodeParts("COT") });
+    setQuoteForm({ ...createInitialQuote(), ...getNextCodeParts("COT", freshCounters) });
     setItemForm(initialItem);
     setQuoteItems([]);
-    setSampleForm({ ...initialSample, ...getNextCodeParts("MUE") });
+    setSampleForm({ ...initialSample, ...getNextCodeParts("MUE", freshCounters) });
     setSampleItems([]);
     setError("");
   };
@@ -538,9 +539,9 @@ const CommercialPage = () => {
         }),
       });
 
-      setSampleForm({ ...initialSample, ...getNextCodeParts("MUE") });
       setSampleItems([]);
-      await loadData();
+      const refreshedData = await loadData();
+      setSampleForm({ ...initialSample, ...getNextCodeParts("MUE", refreshedData.countersData) });
       setMessage(`Solicitud de muestra ${response.data?.code || ""} creada y enviada para aprobacion.`);
     } catch (requestError) {
       showErrorAlert(requestError.message);
@@ -579,10 +580,19 @@ const CommercialPage = () => {
         body: JSON.stringify(payload),
       });
 
-      resetForm();
-      await loadData();
+      const wasEditing = Boolean(editingQuoteId);
+      const refreshedData = await loadData();
+      if (wasEditing) {
+        resetForm(refreshedData.countersData);
+      } else {
+        setEditingQuoteId(null);
+        setQuoteForm({ ...createInitialQuote(), ...getNextCodeParts("COT", refreshedData.countersData) });
+        setItemForm(initialItem);
+        setQuoteItems([]);
+        setError("");
+      }
       setSelectedQuote(response.data);
-      setMessage(editingQuoteId ? "Cotizacion actualizada correctamente." : "Cotizacion creada correctamente.");
+      setMessage(wasEditing ? "Cotizacion actualizada correctamente." : "Cotizacion creada correctamente.");
     } catch (requestError) {
       showErrorAlert(requestError.message);
     } finally {

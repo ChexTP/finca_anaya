@@ -19,17 +19,14 @@ const getDefinitionByPrefix = (prefix) => {
 const getLastUsedNumber = async ({ prefix, tableName, year, client = pool }) => {
   const result = await client.query(
     `
-    SELECT code
+    SELECT COALESCE(MAX((split_part(code, '-', 3))::integer), 0) AS last_number
     FROM ${tableName}
-    WHERE code LIKE $1
-    ORDER BY code DESC
-    LIMIT 1
+    WHERE code ~ $1
     `,
-    [`${prefix}-${year}-%`]
+    [`^${prefix}-${year}-[0-9]+$`]
   );
 
-  const lastCode = result.rows[0]?.code;
-  return lastCode ? Number(lastCode.split("-")[2]) || 0 : 0;
+  return Number(result.rows[0]?.last_number || 0);
 };
 
 const formatCode = ({ prefix, year, number }) => {
@@ -73,7 +70,9 @@ export const listCodeCounters = async () => {
       tableName: definition.tableName,
       year,
     });
-    const nextNumber = current?.next_number || lastUsedNumber + 1;
+    // El consecutivo visible siempre debe respetar los codigos reales existentes.
+    // Esto evita repetir codigos cuando se crea o edita uno manualmente.
+    const nextNumber = Math.max(Number(current?.next_number || 1), lastUsedNumber + 1);
 
     return {
       ...definition,
@@ -122,7 +121,8 @@ export const getNextCode = async ({ prefix, tableName, client = pool }) => {
   );
 
   const counter = counterResult.rows[0];
-  let nextNumber = counter?.next_number || (await getLastUsedNumber({ prefix, tableName, year, client })) + 1;
+  const lastUsedNumber = await getLastUsedNumber({ prefix, tableName, year, client });
+  let nextNumber = Math.max(Number(counter?.next_number || 1), lastUsedNumber + 1);
 
   // Si administracion configura un numero que ya existe, se avanza al siguiente libre.
   while (await codeExists({ prefix, tableName, year, number: nextNumber, client })) {
