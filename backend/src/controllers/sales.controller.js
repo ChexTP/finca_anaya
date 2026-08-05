@@ -503,7 +503,7 @@ export const getSaleLotReservations = async (_req, res) => {
 export const postSaleFromQuote = async (req, res) => {
   try {
     const {
-      paymentStatus,
+      paymentStatus = "pendiente_pago",
       amountPaid = 0,
       estimatedPaymentDate,
       externalInvoiceReference,
@@ -539,17 +539,10 @@ export const postSaleFromQuote = async (req, res) => {
       });
     }
 
-    if (["pago_parcial", "pendiente_pago"].includes(paymentStatus) && !estimatedPaymentDate) {
-      return res.status(400).json({
-        message: "La fecha estimada de pago es obligatoria si la venta no esta pagada",
-      });
-    }
-
-    if (paid > 0 && (!paymentMethodId || !paymentReference)) {
-      return res.status(400).json({
-        message: "Metodo y referencia de pago son obligatorios si hay pago inicial",
-      });
-    }
+    const defaultEstimatedPaymentDate = new Date();
+    defaultEstimatedPaymentDate.setDate(defaultEstimatedPaymentDate.getDate() + 3);
+    const normalizedEstimatedPaymentDate =
+      estimatedPaymentDate || defaultEstimatedPaymentDate.toISOString().slice(0, 10);
 
     if (paymentMethodId) {
       const paymentMethod = await findPaymentMethodById(paymentMethodId);
@@ -559,13 +552,14 @@ export const postSaleFromQuote = async (req, res) => {
       }
     }
 
-    const code = await getNextSaleCode();
+    const quoteBasedSaleCode = String(quote.code || "").replace(/^COT/i, "VEN");
+    const code = quoteBasedSaleCode || await getNextSaleCode();
     const sale = await convertQuoteToSale({
       quoteId: req.params.quoteId,
       code,
       paymentStatus,
       amountPaid: paid,
-      estimatedPaymentDate,
+      estimatedPaymentDate: normalizedEstimatedPaymentDate,
       externalInvoiceReference,
       paymentMethodId,
       paymentReference,
@@ -580,7 +574,7 @@ export const postSaleFromQuote = async (req, res) => {
 
     if (sale.invalidQuoteStatus) {
       return res.status(409).json({
-        message: "Solo se pueden convertir cotizaciones aceptadas",
+        message: "Solo se pueden convertir cotizaciones enviadas o aceptadas",
         data: sale.quote,
       });
     }

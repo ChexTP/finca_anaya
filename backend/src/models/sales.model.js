@@ -1148,7 +1148,7 @@ export const convertQuoteToSale = async ({
       return null;
     }
 
-    if (quote.status !== "aceptada") {
+    if (!["enviada", "aceptada"].includes(quote.status)) {
       await client.query("ROLLBACK");
       return { invalidQuoteStatus: true, quote };
     }
@@ -1161,6 +1161,18 @@ export const convertQuoteToSale = async ({
     }
 
     const balanceDue = Number((Number(quote.total) - amountPaid).toFixed(2));
+
+    if (quote.status !== "aceptada") {
+      await client.query(
+        `
+        UPDATE quotes
+        SET status = 'aceptada',
+            updated_at = NOW()
+        WHERE id = $1
+        `,
+        [quote.id]
+      );
+    }
 
     const saleResult = await client.query(
       `

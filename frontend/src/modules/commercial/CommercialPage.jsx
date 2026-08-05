@@ -97,17 +97,6 @@ const initialItem = {
   unitPrice: "",
 };
 
-const initialSale = {
-  paymentStatus: "pagada",
-  amountPaid: "0",
-  estimatedPaymentDate: new Date().toISOString().slice(0, 10),
-  externalInvoiceReference: "",
-  paymentMethodId: "",
-  paymentReference: "",
-  paidAt: new Date().toISOString().slice(0, 10),
-  notes: "",
-};
-
 const initialQuickClient = {
   name: "",
   documentType: "",
@@ -198,7 +187,6 @@ const CommercialPage = () => {
   const [quoteItems, setQuoteItems] = useState([]);
   const [sampleForm, setSampleForm] = useState(initialSample);
   const [sampleItems, setSampleItems] = useState([]);
-  const [saleForm, setSaleForm] = useState(initialSale);
   const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
   const [showQuickClient, setShowQuickClient] = useState(false);
   const [quoteFilter, setQuoteFilter] = useState("all");
@@ -621,11 +609,6 @@ const CommercialPage = () => {
   const loadQuoteDetail = async (quoteId) => {
     const quote = await apiRequest(`/quotes/${quoteId}`);
     setSelectedQuote(quote);
-    setSaleForm({
-      ...initialSale,
-      amountPaid: String(quote.total || 0),
-      paymentStatus: "pagada",
-    });
     setMessage("");
     setError("");
   };
@@ -722,15 +705,20 @@ const CommercialPage = () => {
     }
   };
 
-  const convertQuoteToSale = async (event) => {
-    event.preventDefault();
-
-    if (!selectedQuote) {
-      setError("Seleccione una cotizacion aceptada.");
+  const convertQuoteToSale = async (quote = selectedQuote) => {
+    if (!quote) {
+      setError("Seleccione una cotizacion para convertir.");
+      window.alert("No se pudo crear la venta: seleccione una cotizacion.");
       return;
     }
 
-    const confirmed = window.confirm(`Confirma convertir ${selectedQuote.code} en venta y enviarla a bodega?`);
+    if (quote.status === "anulada") {
+      setError("No se puede convertir una cotizacion anulada.");
+      window.alert("No se pudo crear la venta: la cotizacion esta anulada.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Confirma aceptar ${quote.code} y crear la venta para enviarla a bodega?`);
     if (!confirmed) return;
 
     setSaving(true);
@@ -738,24 +726,18 @@ const CommercialPage = () => {
     setError("");
 
     try {
-      await apiRequest(`/sales/from-quote/${selectedQuote.id}`, {
+      const response = await apiRequest(`/sales/from-quote/${quote.id}`, {
         method: "POST",
-        body: JSON.stringify({
-          notes: saleForm.notes,
-          paymentStatus: saleForm.paymentStatus,
-          amountPaid: Number(saleForm.amountPaid || 0),
-          estimatedPaymentDate: saleForm.estimatedPaymentDate || null,
-          externalInvoiceReference: saleForm.externalInvoiceReference || null,
-          paymentMethodId: saleForm.paymentMethodId || null,
-          paymentReference: saleForm.paymentReference || null,
-          paidAt: saleForm.paidAt || null,
-        }),
+        body: JSON.stringify({}),
       });
       await loadData();
-      await loadQuoteDetail(selectedQuote.id);
-      setMessage("Cotizacion convertida en venta correctamente.");
+      await loadQuoteDetail(quote.id);
+      const saleCode = response?.data?.code || quote.code?.replace(/^COT/i, "VEN") || "la venta";
+      setMessage(`Venta ${saleCode} creada correctamente.`);
+      window.alert(`Venta creada exitosamente: ${saleCode}`);
     } catch (requestError) {
       setError(requestError.message);
+      window.alert(`No se pudo crear la venta: ${requestError.message}`);
     } finally {
       setSaving(false);
     }
@@ -1324,38 +1306,13 @@ const CommercialPage = () => {
                 <button className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={saving || selectedQuote.status === "enviada"} onClick={() => updateQuoteStatus(selectedQuote, "enviada")}>
                   Enviada
                 </button>
-                <button className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || selectedQuote.status === "aceptada"} onClick={() => updateQuoteStatus(selectedQuote, "aceptada")}>
-                  Aceptada
+                <button className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || !canConvertToSale || selectedQuote.status === "anulada"} onClick={() => convertQuoteToSale(selectedQuote)}>
+                  Aceptar y crear venta
                 </button>
                 <button className="rounded border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={saving || selectedQuote.status === "anulada"} onClick={() => updateQuoteStatus(selectedQuote, "anulada")}>
                   Anular
                 </button>
               </div>
-
-              {canConvertToSale && selectedQuote.status === "aceptada" && (
-                <form className="space-y-3 border-t border-slate-200 pt-4" onSubmit={convertQuoteToSale}>
-                  <p className="text-xs font-semibold uppercase text-slate-500">Convertir cotizacion en venta</p>
-                  <select className="w-full rounded border border-slate-300 px-3 py-2 text-sm" value={saleForm.paymentStatus} onChange={(event) => setSaleForm({ ...saleForm, paymentStatus: event.target.value })}>
-                    <option value="pagada">Pagada</option>
-                    <option value="pago_parcial">Pago parcial</option>
-                    <option value="pendiente_pago">Pendiente de pago</option>
-                  </select>
-                  <input className="w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Valor pagado" type="number" step="0.01" value={saleForm.amountPaid} onChange={(event) => setSaleForm({ ...saleForm, amountPaid: event.target.value })} />
-                  <input className="w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Fecha estimada de pago" type="date" value={saleForm.estimatedPaymentDate} onChange={(event) => setSaleForm({ ...saleForm, estimatedPaymentDate: event.target.value })} />
-                  <input className="w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Referencia factura externa opcional" value={saleForm.externalInvoiceReference} onChange={(event) => setSaleForm({ ...saleForm, externalInvoiceReference: event.target.value })} />
-                  <select className="w-full rounded border border-slate-300 px-3 py-2 text-sm" value={saleForm.paymentMethodId} onChange={(event) => setSaleForm({ ...saleForm, paymentMethodId: event.target.value })}>
-                    <option value="">Metodo si hay pago</option>
-                    {catalogs?.paymentMethods?.map((method) => (
-                      <option key={method.id} value={method.id}>{method.name}</option>
-                    ))}
-                  </select>
-                  <input className="w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Referencia si hay pago" value={saleForm.paymentReference} onChange={(event) => setSaleForm({ ...saleForm, paymentReference: event.target.value })} />
-                  <textarea className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Notas para bodega" value={saleForm.notes} onChange={(event) => setSaleForm({ ...saleForm, notes: event.target.value })} />
-                  <button className="inline-flex w-full items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
-                    <Save size={16} /> Convertir en venta
-                  </button>
-                </form>
-              )}
             </div>
           )}
         </aside>
