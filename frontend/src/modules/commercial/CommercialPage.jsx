@@ -209,7 +209,6 @@ const CommercialPage = () => {
 
   const showErrorAlert = (messageText) => {
     setError(messageText);
-    window.alert(`Error: ${messageText}`);
   };
 
   const updateQuoteTerm = (field, value) => {

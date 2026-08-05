@@ -16,7 +16,7 @@ import {
   UserCog,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { companyBrand } from "../utils/brand";
@@ -64,10 +64,96 @@ const navigation = [
   { label: "Usuarios", path: "/usuarios", icon: UserCog, roles: ["admin"] },
 ];
 
+const actionScrollWords = [
+  "ver",
+  "ver mas",
+  "editar",
+  "liquidar",
+  "seleccionar",
+  "ajustar",
+  "definir",
+  "abrir",
+];
+
+const shouldAutoScrollAfterClick = (target) => {
+  const action = target.closest("button, a");
+  if (!action || !action.closest("main")) return null;
+
+  const label = (action.textContent || action.getAttribute("aria-label") || action.getAttribute("title") || "")
+    .trim()
+    .toLowerCase();
+
+  if (!label || label.includes("ocultar")) return null;
+  if (!actionScrollWords.some((word) => label.includes(word))) return null;
+
+  return label.includes("ver") || label.includes("abrir") ? "detail" : "form";
+};
+
+const findVisiblePanel = (selector) => {
+  return [...document.querySelectorAll(selector)].find((element) => {
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  });
+};
+
+const scrollToUpdatedPanel = (preferredTarget) => {
+  const dialog = findVisiblePanel("[role='dialog'], .fixed.inset-0");
+  const preferredPanel = preferredTarget === "detail"
+    ? findVisiblePanel("main [data-autoscroll-panel='detail'], main aside")
+    : findVisiblePanel("main [data-autoscroll-panel='form'], main form");
+  const fallbackPanel = findVisiblePanel("main aside, main form, main [data-autoscroll-panel]");
+  const panel = dialog || preferredPanel || fallbackPanel;
+
+  panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 const AppLayout = () => {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const lastAlertedErrorRef = useRef("");
   const items = navigation.filter((item) => item.roles.includes(user?.role));
+
+  useEffect(() => {
+    const handleClick = (event) => {
+      const preferredTarget = shouldAutoScrollAfterClick(event.target);
+      if (!preferredTarget) return;
+
+      window.setTimeout(() => scrollToUpdatedPanel(preferredTarget), 180);
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, []);
+
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return undefined;
+
+    const showLatestError = () => {
+      const errorElement = [...main.querySelectorAll(".bg-rose-50, .text-rose-700, .text-red-700")]
+        .reverse()
+        .find((element) => {
+          const text = element.textContent?.trim();
+          const box = element.getBoundingClientRect();
+          return text && box.width > 0 && box.height > 0;
+        });
+
+      const message = errorElement?.textContent?.trim();
+      if (!message || message === lastAlertedErrorRef.current) return;
+
+      lastAlertedErrorRef.current = message;
+      window.alert(`Error: ${message}`);
+    };
+
+    const observer = new MutationObserver(showLatestError);
+    observer.observe(main, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50">
