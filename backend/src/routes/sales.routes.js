@@ -13,6 +13,7 @@ import {
   putSaleReadyForBlend,
   putSaleBlendOrder,
   putSaleWithoutBlend,
+  putSaleReturnToWarehouse,
   putSalePriority,
   putSaleOrderAssignee,
   putSaleItemShortage,
@@ -101,6 +102,12 @@ router.put(
   requireAuth,
   requireRoles("admin", "accounting", "laboratory"),
   putSaleWithoutBlend
+);
+router.put(
+  "/:id/return-to-warehouse",
+  requireAuth,
+  requireRoles("admin", "accounting", "warehouse", "laboratory"),
+  putSaleReturnToWarehouse
 );
 router.put(
   "/:id/priority",

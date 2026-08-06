@@ -180,7 +180,10 @@ const WarehousePendingPage = () => {
   const getSelectedLotOption = (row) => {
     if (!row?.lotId) return null;
 
-    const assignedLot = (selectedSale?.deductedLots || []).find((lot) => String(lot.lot_id) === String(row.lotId));
+    const assignedLot = (selectedSale?.deductedLots || []).find((lot) => (
+      String(lot.lot_id) === String(row.lotId) &&
+      String(lot.sale_item_id) === String(row.saleItemId)
+    ));
     if (assignedLot) {
       return {
         value: row.lotId,
@@ -198,9 +201,16 @@ const WarehousePendingPage = () => {
       };
     }
 
+    if (row.lotLabel) {
+      return {
+        value: row.lotId,
+        label: row.lotLabel,
+      };
+    }
+
     return {
       value: row.lotId,
-      label: `Lote asignado ${row.lotId}`,
+      label: `Lote seleccionado pendiente de recargar (${row.lotId})`,
     };
   };
 
@@ -378,6 +388,7 @@ const WarehousePendingPage = () => {
             return rows.map((lot) => ({
               saleItemId: String(lot.sale_item_id),
               lotId: String(lot.lot_id),
+              lotLabel: `${formatCoffeeLotCodeName(lot)} - ${formatOperationalKg(lot.quantity_kg)} asignados`,
               quantityKg: String(lot.quantity_kg),
               assignmentType: getAssignmentTypeFromNotes(lot.notes),
               notes: cleanAssignmentNotes(lot.notes),

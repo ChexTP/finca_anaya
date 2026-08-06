@@ -123,6 +123,10 @@ const getAssignedLotsForSaleItem = (sale, saleItemId) => {
   );
 };
 
+const saleHasItemsWithoutAssignedLots = (sale) => {
+  return (sale?.items || []).some((item) => getAssignedLotsForSaleItem(sale, item.id).length === 0);
+};
+
 const formatAssignedLotOption = (lot) => {
   return `${getAssignmentRole(lot.notes)} - ${formatCoffeeLotCodeName(lot)} - ${formatKg(lot.quantity_kg)} asignados`;
 };
@@ -923,6 +927,38 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       setBlendRows([]);
       await loadData();
       setMessage("Venta liberada sin mezcla. Bodega ya puede asignar el lote procesado y alistar.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const returnSaleToWarehouse = async () => {
+    if (!selectedSale) return;
+
+    const notes = window.prompt(
+      "Motivo para devolver esta venta a bodega",
+      "Venta enviada a laboratorio sin lotes asignados para ensamble."
+    );
+
+    if (notes === null) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/return-to-warehouse`, {
+        method: "PUT",
+        body: JSON.stringify({
+          notes: notes.trim() || "Venta devuelta a bodega para asignar lotes.",
+        }),
+      });
+      setSelectedSale(null);
+      setBlendRows([]);
+      await loadData();
+      setMessage("Venta devuelta a bodega. Ahora se pueden asignar los lotes y enviarla nuevamente a ensamble.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -2333,6 +2369,15 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
 
               {selectedSale && (
                 <div className="mt-4 space-y-4">
+                  {saleHasItemsWithoutAssignedLots(selectedSale) && (
+                    <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                      <p className="font-semibold">Esta venta tiene productos sin lotes asignados.</p>
+                      <p className="mt-1">
+                        Use el boton de devolucion para enviarla a bodega y corregir la asignacion antes de definir el ensamble.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="rounded bg-slate-50 p-3 text-sm">
                     <p className="font-medium text-ink">Productos pedidos</p>
                     <div className="mt-2 space-y-1">
@@ -2469,6 +2514,14 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      className="rounded border border-amber-500 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-60"
+                      type="button"
+                      disabled={saving}
+                      onClick={returnSaleToWarehouse}
+                    >
+                      Devolver a bodega
+                    </button>
                     {selectedSale.status === "listo_para_ensamble" && (
                     <button
                       className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
@@ -2481,7 +2534,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     )}
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                      disabled={saving}
+                      disabled={saving || saleHasItemsWithoutAssignedLots(selectedSale)}
                     >
                       <Save size={16} />
                       Guardar ensamble

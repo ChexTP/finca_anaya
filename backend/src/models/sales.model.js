@@ -660,6 +660,52 @@ export const markSaleWithoutBlend = async ({ saleId }) => {
   }
 };
 
+export const returnSaleToWarehouseForAssignments = async ({ saleId, notes }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (!["listo_para_ensamble", "ensamble_definido", "pendiente_laboratorio"].includes(sale.status)) {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, sale };
+    }
+
+    // Si laboratorio detecta que faltaron lotes, la orden de ensamble deja de ser valida.
+    await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [saleId]);
+
+    const cleanNote = String(notes || "Venta devuelta a bodega para revisar/asignar lotes").trim();
+    const noteLine = `[${new Date().toISOString()}] ${cleanNote}`;
+    const nextNotes = [sale.notes, noteLine].filter(Boolean).join("\n");
+
+    const updateResult = await client.query(
+      `
+      UPDATE sales
+      SET status = 'pendiente_bodega', blend_required = FALSE, notes = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+      `,
+      [nextNotes, saleId]
+    );
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const markSaleReadyForBlend = async ({ saleId, notes }) => {
   const result = await pool.query(
     `

@@ -12,6 +12,7 @@ import {
   replaceSaleBlendOrder,
   markSaleReadyForBlend,
   markSaleWithoutBlend,
+  returnSaleToWarehouseForAssignments,
   updateSaleWarehousePriority,
   updateSaleOrderAssignee,
   updateSaleItemShortage,
@@ -264,6 +265,37 @@ export const putSaleWithoutBlend = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al liberar la venta sin mezcla",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleReturnToWarehouse = async (req, res) => {
+  try {
+    const result = await returnSaleToWarehouseForAssignments({
+      saleId: req.params.id,
+      notes: req.body.notes,
+    });
+
+    if (!result) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden devolver ventas que esten en laboratorio o ensamble",
+        data: result.sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+    res.json({
+      message: "Venta devuelta a bodega para revisar y asignar lotes",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al devolver venta a bodega",
       error: error.message,
     });
   }
