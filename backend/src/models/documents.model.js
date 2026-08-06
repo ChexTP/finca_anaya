@@ -55,6 +55,8 @@ export const buildQuoteDocument = async (id) => {
       quantityKg: item.quantity_kg,
       unitPrice: item.unit_price,
       lineTotal: item.line_total,
+      priceBasis: item.price_basis,
+      pricingSnapshot: item.pricing_snapshot || {},
     })),
     totals: {
       currency: quote.currency,

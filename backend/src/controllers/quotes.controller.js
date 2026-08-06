@@ -31,13 +31,47 @@ const cleanQuoteTerms = (terms = {}) => ({
   advance: terms.advance ? String(terms.advance).trim() : null,
   deliveryTime: terms.deliveryTime ? String(terms.deliveryTime).trim() : null,
   standard: terms.standard ? String(terms.standard).trim() : null,
+  qualityRuleType: terms.qualityRuleType ? String(terms.qualityRuleType).trim() : null,
+  qualityRule: terms.qualityRule ? String(terms.qualityRule).trim() : null,
   deliveryTerms: terms.deliveryTerms ? String(terms.deliveryTerms).trim() : null,
   packaging: terms.packaging ? String(terms.packaging).trim() : null,
   paymentTerms: terms.paymentTerms ? String(terms.paymentTerms).trim() : null,
   bankDetails: terms.bankDetails ? String(terms.bankDetails).trim() : null,
   company: terms.company ? String(terms.company).trim() : null,
   taxId: terms.taxId ? String(terms.taxId).trim() : null,
+  bankCountry: terms.bankCountry ? String(terms.bankCountry).trim() : null,
+  bankName: terms.bankName ? String(terms.bankName).trim() : null,
+  swiftCode: terms.swiftCode ? String(terms.swiftCode).trim() : null,
+  accountNumber: terms.accountNumber ? String(terms.accountNumber).trim() : null,
+  beneficiaryName: terms.beneficiaryName ? String(terms.beneficiaryName).trim() : null,
+  beneficiaryTaxId: terms.beneficiaryTaxId ? String(terms.beneficiaryTaxId).trim() : null,
+  exchangeRate: terms.exchangeRate ? Number(terms.exchangeRate) : null,
+  usdIncoterm: terms.usdIncoterm ? String(terms.usdIncoterm).trim() : null,
+  millCostCop: terms.millCostCop !== undefined && terms.millCostCop !== "" ? Number(terms.millCostCop) : null,
+  transportCostCop: terms.transportCostCop !== undefined && terms.transportCostCop !== "" ? Number(terms.transportCostCop) : null,
+  vacuumCostCop: terms.vacuumCostCop !== undefined && terms.vacuumCostCop !== "" ? Number(terms.vacuumCostCop) : null,
+  exportCostUsdLb: terms.exportCostUsdLb !== undefined && terms.exportCostUsdLb !== "" ? Number(terms.exportCostUsdLb) : null,
 });
+
+const cleanPricingSnapshot = (snapshot = {}) => {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return {};
+
+  return {
+    priceLoadCop: snapshot.priceLoadCop !== undefined && snapshot.priceLoadCop !== "" ? Number(snapshot.priceLoadCop) : null,
+    kgCpsPriceCop: snapshot.kgCpsPriceCop !== undefined ? Number(snapshot.kgCpsPriceCop) : null,
+    kgExcelsoPriceCop: snapshot.kgExcelsoPriceCop !== undefined ? Number(snapshot.kgExcelsoPriceCop) : null,
+    kgBasePriceCop: snapshot.kgBasePriceCop !== undefined ? Number(snapshot.kgBasePriceCop) : null,
+    kgVacuumPriceCop: snapshot.kgVacuumPriceCop !== undefined ? Number(snapshot.kgVacuumPriceCop) : null,
+    usdLbExw: snapshot.usdLbExw !== undefined ? Number(snapshot.usdLbExw) : null,
+    usdLbVacuumExw: snapshot.usdLbVacuumExw !== undefined ? Number(snapshot.usdLbVacuumExw) : null,
+    usdLbFob: snapshot.usdLbFob !== undefined ? Number(snapshot.usdLbFob) : null,
+    usdLbVacuumFob: snapshot.usdLbVacuumFob !== undefined ? Number(snapshot.usdLbVacuumFob) : null,
+    currency: snapshot.currency ? String(snapshot.currency).trim() : null,
+    exchangeRate: snapshot.exchangeRate !== undefined && snapshot.exchangeRate !== null && snapshot.exchangeRate !== "" ? Number(snapshot.exchangeRate) : null,
+    usdIncoterm: snapshot.usdIncoterm ? String(snapshot.usdIncoterm).trim() : null,
+    priceBasis: snapshot.priceBasis ? String(snapshot.priceBasis).trim() : null,
+  };
+};
 
 const buildCleanQuoteData = async ({
   code,
@@ -160,7 +194,11 @@ const buildCleanQuoteData = async ({
         processType: item.processType,
       }),
       unitPrice,
-      lineTotal: Number((quantityKg * unitPrice).toFixed(2)),
+      priceBasis: item.priceBasis || item.pricingSnapshot?.priceBasis || "kg",
+      pricingSnapshot: cleanPricingSnapshot(item.pricingSnapshot),
+      lineTotal: item.lineTotal !== undefined && Number.isFinite(toNumber(item.lineTotal))
+        ? Number(toNumber(item.lineTotal).toFixed(2))
+        : Number((quantityKg * unitPrice).toFixed(2)),
     });
   }
 

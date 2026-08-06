@@ -3,7 +3,10 @@ import { formatRequestedKg } from "./coffeeCalculations";
 import { printable } from "./printFormatting";
 
 export const formatDocumentMoney = (currency, value) => {
-  return `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO")}`;
+  return `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: currency === "USD" ? 4 : 2,
+  })}`;
 };
 
 export const formatDocumentDate = (value) => {
@@ -36,22 +39,22 @@ const escapeHtml = (value) => {
 
 const labels = {
   es: {
-    quote: "Cotizacion de cafe",
+    quote: "Cotización de Café",
     customer: "Cliente",
     date: "Fecha cotizacion",
     estimatedDeliveryDate: "Entrega estimada",
     quoteCode: "Cotizacion",
-    intro: "De acuerdo con su solicitud, presentamos la siguiente cotizacion de cafe.",
+    intro: "De acuerdo con su solicitud, tenemos el placer de presentarle la siguiente oferta:",
     farm: "FINCA",
     presentation: "PRESENTACION",
     variety: "CAFE / PERFIL",
     process: "PROCESO",
-    unitPrice: "PRECIO KG",
+    unitPrice: "PRECIO",
     quantity: "CANTIDAD (Kg)",
     lineTotal: "TOTAL",
     deliveryTime: "Tiempo de entrega",
     advance: "Anticipo",
-    standard: "Norma",
+    standard: "Norma / Factor",
     delivery: "Entrega",
     packaging: "Empaque",
     payment: "Pago",
@@ -91,12 +94,12 @@ const labels = {
     presentation: "PRESENTATION",
     variety: "COFFEE / PROFILE",
     process: "PROCESS",
-    unitPrice: "PRICE KG",
+    unitPrice: "PRICE",
     quantity: "QTY (Kg)",
     lineTotal: "TOTAL",
     deliveryTime: "Delivery time",
     advance: "Advance payment",
-    standard: "Standard",
+    standard: "Standard / Factor",
     delivery: "Delivery",
     packaging: "Packaging",
     payment: "Payment",
@@ -131,35 +134,33 @@ const defaultQuoteTerms = {
   es: {
     advance: "30%",
     deliveryTime: "20 dias",
-    standard: "3/20 UGQ o EP",
-    delivery: "Contraentrega en Pitalito Huila",
-    packaging: "Tula y bolsa tradicional",
+    standard: "3/20 UGQ",
+    delivery: "",
+    packaging: "Bolsa y tula tradicional",
     payment: "Consignacion nacional",
   },
   en: {
     advance: "30%",
     deliveryTime: "20 days",
-    standard: "3/20 UGQ or EP",
-    delivery: "Cash on delivery in Pitalito Huila",
+    standard: "3/20 UGQ",
+    delivery: "",
     packaging: "Traditional bag and jute sack",
-    payment: "National bank deposit",
+    payment: "National bank transfer",
   },
 };
 
 const englishTermTranslations = {
   "8 dias": "8 days",
   "20 dias": "20 days",
-  "0/20 UGQ o EP": "0/20 UGQ or EP",
-  "3/20 UGQ o EP": "3/20 UGQ or EP",
-  "8/35 UGQ o EP": "8/35 UGQ or EP",
-  "12/60 UGQ o EP": "12/60 UGQ or EP",
+  "Descripcion libre": "Free description",
   "Contraentrega en Pitalito Huila": "Cash on delivery in Pitalito Huila",
   "Pitalito Huila": "Pitalito Huila",
-  "Tula y bolsa tradicional": "Traditional bag and jute sack",
-  "Empaque al vacio 20kg o 24kg": "Vacuum packaging 20kg or 24kg",
-  "Sacos por 70kg mas bolsa": "70kg sacks plus bag",
-  "Sacos por 35kg mas bolsa": "35kg sacks plus bag",
-  "Consignacion nacional": "National bank deposit",
+  "Bolsa y tula tradicional": "Traditional bag and jute sack",
+  "Cajas x 20 Kg al vacio": "20 Kg vacuum boxes",
+  "Cajas x 24 Kg al vacio": "24 Kg vacuum boxes",
+  "Sacos x 70 Kg + bolsa": "70 Kg sacks + bag",
+  "Sacos x 35 Kg + bolsa": "35 Kg sacks + bag",
+  "Consignacion nacional": "National bank transfer",
   "Bancolombia - Ahorros - 453 0000 6876": "Bancolombia - Savings - 453 0000 6876",
 };
 
@@ -167,6 +168,32 @@ const formatTermValue = (value, fallback, language) => {
   const term = value || fallback;
   if (language !== "en") return term;
   return englishTermTranslations[term] || term;
+};
+
+const formatItemUnitPrice = (currency, item) => {
+  const basis = item.priceBasis || item.pricingSnapshot?.priceBasis || "kg";
+  const suffix = currency === "USD" && basis === "lb" ? "/LB" : "/KG";
+  return `${formatDocumentMoney(currency, item.unitPrice)} ${suffix}`;
+};
+
+const getBankRows = (terms, text, language) => {
+  if (language === "en") {
+    return [
+      ["Bank Country", terms.bankCountry || "Colombia"],
+      ["Bank Name (Beneficiary)", terms.bankName || "Bancolombia"],
+      ["SWIFT Code", terms.swiftCode || "COLOCOBM"],
+      ["Account Number", terms.accountNumber || "453-000054-46 (Savings Account)"],
+      ["Beneficiary Name", terms.beneficiaryName || "GLOBOX SAS"],
+      ["Tax ID (Liendre)", terms.beneficiaryTaxId || "901.729.179"],
+    ];
+  }
+
+  return [
+    [text.payment, terms.paymentTerms || "Consignacion nacional"],
+    [text.bankDetails, terms.bankDetails || "Bancolombia - Ahorros - 453 0000 6876"],
+    [text.company, terms.company || "Asociación Huila Coffee Farmers"],
+    [text.taxId, terms.taxId || "901847571"],
+  ];
 };
 
 export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) => {
@@ -185,7 +212,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           <td><strong>${escapeHtml(printable(item.productForm))}</strong></td>
           <td>${escapeHtml(printable(description))}</td>
           <td>${escapeHtml(printable(item.processType))}</td>
-          ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.unitPrice)}</td>` : ""}
+          ${showCommercialAmounts ? `<td>${formatItemUnitPrice(currency, item)}</td>` : ""}
           <td>${escapeHtml(formatRequestedKg(item.quantityKg, {
             locale: language === "en" ? "en-US" : "es-CO",
             suffix: "",
@@ -307,13 +334,10 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
             <tbody>
               <tr><td>${text.advance}:</td><td>${escapeHtml(formatTermValue(terms.advance, defaultTerms.advance, language))}</td></tr>
               <tr><td>${text.deliveryTime}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTime, defaultTerms.deliveryTime, language))}</td></tr>
-              <tr><td>${text.standard}:</td><td>${escapeHtml(formatTermValue(terms.standard, defaultTerms.standard, language))}</td></tr>
+              <tr><td>${text.standard}:</td><td>${escapeHtml(formatTermValue(terms.qualityRule || terms.standard, defaultTerms.standard, language))}</td></tr>
               <tr><td>${text.delivery}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTerms, defaultTerms.delivery, language))}</td></tr>
               <tr><td>${text.packaging}:</td><td>${escapeHtml(formatTermValue(terms.packaging, defaultTerms.packaging, language))}</td></tr>
-              <tr><td>${text.payment}:</td><td>${escapeHtml(formatTermValue(terms.paymentTerms, defaultTerms.payment, language))}</td></tr>
-              <tr><td>${text.bankDetails}:</td><td>${escapeHtml(formatTermValue(terms.bankDetails, companyBrand.bankDetails, language))}</td></tr>
-              <tr><td>${text.company}:</td><td>${escapeHtml(terms.company || companyBrand.legalName)}</td></tr>
-              <tr><td>${text.taxId}:</td><td>${escapeHtml(terms.taxId || companyBrand.nit)}</td></tr>
+              ${getBankRows(terms, text, language).map(([label, value]) => `<tr><td>${escapeHtml(label)}:</td><td>${escapeHtml(formatTermValue(value, value, language))}</td></tr>`).join("")}
             </tbody>
           </table>
         </section>
@@ -373,6 +397,88 @@ export const openCommercialDocumentPrint = (document, options = {}) => {
   }
 
   printWindow.document.write(buildCommercialDocumentHtml(document, options));
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+};
+
+export const buildPriceListDocumentHtml = ({ client, currency = "COP", language = "es", terms = {}, items = [] }) => {
+  const text = labels[language] || labels.es;
+  const title = language === "en" ? "Coffee Price List" : "Lista de precios de café";
+  const intro = language === "en"
+    ? "According to your request, we are pleased to present the following coffee price list."
+    : "De acuerdo con su solicitud, tenemos el placer de presentarle la siguiente lista de precios:";
+  const priceHeader = currency === "USD" ? `${terms.usdIncoterm || "EXW"} USD/LB` : "PRECIO KG";
+  const rows = items.map((item) => `
+    <tr>
+      <td>${escapeHtml(printable(item.productForm))}</td>
+      <td>${escapeHtml(printable(item.name))}</td>
+      <td>${escapeHtml(printable(item.processType))}</td>
+      <td>${formatDocumentMoney("COP", item.priceLoadCop)}</td>
+      <td>${formatDocumentMoney("COP", item.kgVacuumPriceCop)}</td>
+      <td>USD ${Number(item.usdLbExw || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+      <td>${currency === "USD" ? `USD ${Number(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : formatDocumentMoney("COP", item.kgVacuumPriceCop)}</td>
+    </tr>
+  `).join("");
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          body { color: #111827; font-family: Arial, sans-serif; margin: 32px; }
+          header { align-items: flex-start; display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+          h1 { font-size: 19px; margin: 18px 0 8px; }
+          p { font-size: 12px; margin: 3px 0; }
+          table { border-collapse: collapse; margin-top: 14px; width: 100%; }
+          th, td { border: 1px solid #111827; font-size: 12px; padding: 7px; text-align: center; vertical-align: middle; }
+          th { background: #f2f2f2; font-weight: 700; }
+          .logo { height: 78px; object-fit: contain; width: 165px; }
+          .company { text-align: right; }
+        </style>
+      </head>
+      <body>
+        <header>
+          <img class="logo" src="${getPrintableLogo()}" alt="Anaya Coffee" />
+          <div class="company">
+            <p><strong>${escapeHtml(companyBrand.legalName)}</strong></p>
+            <p>NIT: ${escapeHtml(companyBrand.nit)}</p>
+            <p>${escapeHtml(companyBrand.address)}</p>
+            <p>Tel: ${escapeHtml(companyBrand.phone)}</p>
+          </div>
+        </header>
+        ${client?.name ? `<p><strong>${text.customer}</strong></p><p>${escapeHtml(printable(client.name))}</p>` : ""}
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(intro)}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>${text.presentation}</th>
+              <th>${text.variety}</th>
+              <th>${text.process}</th>
+              <th>${language === "en" ? "LOAD PRICE COP" : "PRECIO CARGA COP"}</th>
+              <th>${language === "en" ? "COP/KG" : "PRECIO KG COP"}</th>
+              <th>USD/LB EXW</th>
+              <th>${escapeHtml(priceHeader)}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+};
+
+export const openPriceListDocumentPrint = (document) => {
+  const printWindow = window.open("", "_blank");
+
+  if (!printWindow) {
+    throw new Error("El navegador bloqueo la ventana de impresion.");
+  }
+
+  printWindow.document.write(buildPriceListDocumentHtml(document));
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();

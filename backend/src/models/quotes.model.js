@@ -181,9 +181,11 @@ export const createQuote = async (quoteData) => {
           quantity_kg,
           operational_weight_kg,
           unit_price,
-          line_total
+          line_total,
+          price_basis,
+          pricing_snapshot
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         `,
         [
           quote.id,
@@ -198,6 +200,8 @@ export const createQuote = async (quoteData) => {
           item.operationalWeightKg,
           item.unitPrice,
           item.lineTotal,
+          item.priceBasis,
+          item.pricingSnapshot || {},
         ]
       );
     }
@@ -280,9 +284,11 @@ export const updateQuote = async (id, quoteData) => {
           quantity_kg,
           operational_weight_kg,
           unit_price,
-          line_total
+          line_total,
+          price_basis,
+          pricing_snapshot
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         `,
         [
           id,
@@ -297,6 +303,8 @@ export const updateQuote = async (id, quoteData) => {
           item.operationalWeightKg,
           item.unitPrice,
           item.lineTotal,
+          item.priceBasis,
+          item.pricingSnapshot || {},
         ]
       );
     }

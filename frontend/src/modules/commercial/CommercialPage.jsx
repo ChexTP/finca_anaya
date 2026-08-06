@@ -6,37 +6,52 @@ import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import {
   calculateOperationalKg,
+  calculateCommercialItemPrice,
+  calculateCommercialLineTotal,
+  defaultCommercialPricing,
   formatOperationalKg,
   formatQuantityInputValue,
   formatRequestedKg,
 } from "../../utils/coffeeCalculations";
-import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
+import { openCommercialDocumentPrint, openPriceListDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
 const defaultQuoteTerms = {
   advance: "30%",
   deliveryTime: "20 dias",
-  standard: "3/20 UGQ o EP",
-  deliveryTerms: "Contraentrega en Pitalito Huila",
-  packaging: "Tula y bolsa tradicional",
+  qualityRuleType: "norma",
+  qualityRule: "3/20 UGQ",
+  deliveryTerms: "",
+  packaging: "Bolsa y tula tradicional",
   paymentTerms: "Consignacion nacional",
   bankDetails: "Bancolombia - Ahorros - 453 0000 6876",
-  company: "Asociacion Huila Coffee Farmers",
+  company: "Asociación Huila Coffee Farmers",
   taxId: "901847571",
+  bankCountry: "Colombia",
+  bankName: "Bancolombia",
+  swiftCode: "COLOCOBM",
+  accountNumber: "453-000054-46 (Savings Account)",
+  beneficiaryName: "GLOBOX SAS",
+  beneficiaryTaxId: "901.729.179",
+  ...defaultCommercialPricing,
 };
 
 const quoteTermOptions = {
   advance: ["20%", "30%", "40%", "50%"],
   deliveryTime: ["8 dias", "20 dias"],
-  standard: ["0/20 UGQ o EP", "3/20 UGQ o EP", "8/35 UGQ o EP", "12/60 UGQ o EP"],
-  deliveryTerms: ["Contraentrega en Pitalito Huila"],
+  qualityNorms: ["3/20 UGQ", "3/20 EP", "0/5 UGQ", "0/5 EP", "0/10 UGQ", "0/10 EP", "8/35 UGQ", "8/35 EP", "12/60 UGQ", "12/60 EP", "Descripcion libre"],
+  qualityFactors: ["93 CPS", "140 CPS", "Descripcion libre"],
   packaging: [
-    "Tula y bolsa tradicional",
-    "Empaque al vacio 20kg o 24kg",
-    "Sacos por 70kg mas bolsa",
-    "Sacos por 35kg mas bolsa",
+    "Bolsa y tula tradicional",
+    "Cajas x 20 Kg al vacio",
+    "Cajas x 24 Kg al vacio",
+    "Sacos x 70 Kg + bolsa",
+    "Sacos x 35 Kg + bolsa",
+    "Descripcion libre",
   ],
 };
+
+const processTypeOptions = ["Lavado", "Natural", "Semilavado", "Honey"];
 
 const initialQuote = {
   manualCodeNumber: "",
@@ -51,6 +66,16 @@ const initialQuote = {
   shippingCost: "",
   estimatedDeliveryDate: "",
   notes: "",
+};
+
+const initialPriceList = {
+  clientId: "",
+  language: "es",
+  currency: "COP",
+  terms: {
+    ...defaultQuoteTerms,
+    usdIncoterm: "EXW",
+  },
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -98,8 +123,9 @@ const initialItem = {
   processType: "Lavado",
   variety: "",
   quantityKg: "",
-  quantityUnit: "kg",
+  priceLoadCop: "",
   unitPrice: "",
+  pricingSnapshot: {},
 };
 
 const initialQuickClient = {
@@ -123,10 +149,11 @@ const quoteFilters = [
 ];
 
 const formatMoney = (currency, value) => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO")}`;
-const poundsToKg = (value) => Number(value || 0) * 0.45359237;
-const toItemQuantityKg = (item) => (
-  item.quantityUnit === "lb" ? poundsToKg(item.quantityKg) : Number(item.quantityKg || 0)
-);
+const formatUnitPrice = (currency, value, priceBasis = "kg") => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: currency === "USD" ? 4 : 2,
+})}/${priceBasis}`;
+const toItemQuantityKg = (item) => Number(item.quantityKg || 0);
 
 const formatProfileOptionLabel = (profile) => {
   const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
@@ -174,7 +201,9 @@ const itemFromQuoteItem = (item) => ({
   processType: item.process_type || "Lavado",
   variety: item.variety || "",
   quantityKg: formatQuantityInputValue(item.quantity_kg),
+  priceLoadCop: item.pricing_snapshot?.priceLoadCop || "",
   unitPrice: item.unit_price || "",
+  pricingSnapshot: item.pricing_snapshot || {},
 });
 
 const CommercialPage = () => {
@@ -192,6 +221,8 @@ const CommercialPage = () => {
   const [quoteItems, setQuoteItems] = useState([]);
   const [sampleForm, setSampleForm] = useState(initialSample);
   const [sampleItems, setSampleItems] = useState([]);
+  const [priceListForm, setPriceListForm] = useState(initialPriceList);
+  const [priceListItems, setPriceListItems] = useState([]);
   const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
   const [showQuickClient, setShowQuickClient] = useState(false);
   const [quoteFilter, setQuoteFilter] = useState("all");
@@ -226,6 +257,16 @@ const CommercialPage = () => {
     }));
   };
 
+  const updatePriceListTerm = (field, value) => {
+    setPriceListForm((currentForm) => ({
+      ...currentForm,
+      terms: {
+        ...(currentForm.terms || defaultQuoteTerms),
+        [field]: value,
+      },
+    }));
+  };
+
   const getNextCodeParts = (prefix, counters = codeCounters) => {
     const nextCode = counters.find((counter) => counter.prefix === prefix)?.nextCode;
     return getCodeParts(nextCode, prefix);
@@ -239,15 +280,56 @@ const CommercialPage = () => {
     quantityKg: toItemQuantityKg(itemForm),
     productForm: itemForm.productForm,
     processType: itemForm.processType,
-  }), [itemForm.quantityKg, itemForm.quantityUnit, itemForm.productForm, itemForm.processType]);
+  }), [itemForm.quantityKg, itemForm.productForm, itemForm.processType]);
+
+  const itemPriceCalculation = useMemo(() => calculateCommercialItemPrice({
+    priceLoadCop: itemForm.priceLoadCop,
+    productForm: itemForm.productForm,
+    processType: itemForm.processType,
+    packaging: quoteForm.terms?.packaging,
+    currency: quoteForm.currency,
+    exchangeRate: quoteForm.terms?.exchangeRate,
+    millCostCop: quoteForm.terms?.millCostCop,
+    transportCostCop: quoteForm.terms?.transportCostCop,
+    vacuumCostCop: quoteForm.terms?.vacuumCostCop,
+    exportCostUsdLb: quoteForm.terms?.exportCostUsdLb,
+    usdIncoterm: quoteForm.terms?.usdIncoterm,
+  }), [itemForm.priceLoadCop, itemForm.productForm, itemForm.processType, quoteForm.currency, quoteForm.terms]);
 
   const subtotal = useMemo(() => {
-    return quoteItems.reduce((total, item) => total + Number(item.quantityKg || 0) * Number(item.unitPrice || 0), 0);
+    return quoteItems.reduce((total, item) => total + Number(item.lineTotal || 0), 0);
   }, [quoteItems]);
 
   const total = useMemo(() => {
     return Number((subtotal + Number(quoteForm.shippingCost || 0)).toFixed(2));
   }, [quoteForm.shippingCost, subtotal]);
+
+  const priceListAvailableItems = useMemo(() => {
+    const profiles = (catalogs?.coffeeProfiles || [])
+      .filter((profile) => profile.is_active !== false)
+      .map((profile) => ({
+        id: `profile-${profile.id}`,
+        source: "profile",
+        sourceId: profile.id,
+        label: formatProfileOptionLabel(profile),
+        category: profile.category || "Exotico",
+        processType: profile.process_type || "",
+        productForm: "Excelso",
+      }));
+    const purchases = (catalogs?.purchaseCoffees || [])
+      .filter((coffee) => coffee.is_active !== false)
+      .map((coffee) => ({
+        id: `purchase-${coffee.id}`,
+        source: "purchase",
+        sourceId: coffee.id,
+        label: [coffee.internal_code, coffee.name].filter(Boolean).join(" - "),
+        category: coffee.family,
+        processType: coffee.process_type || "",
+        productForm: "Pergamino",
+      }));
+
+    return [...profiles, ...purchases].sort((left, right) => String(left.label || "").localeCompare(String(right.label || ""), "es"));
+  }, [catalogs]);
 
   const quoteCounts = useMemo(() => {
     return quotes.reduce(
@@ -335,6 +417,26 @@ const CommercialPage = () => {
     loadData().catch((requestError) => setError(requestError.message));
   }, []);
 
+  useEffect(() => {
+    if (!itemForm.priceLoadCop) return;
+    setItemForm((currentItem) => ({
+      ...currentItem,
+      unitPrice: itemPriceCalculation.unitPrice ? String(itemPriceCalculation.unitPrice) : "",
+      pricingSnapshot: {
+        ...(currentItem.pricingSnapshot || {}),
+        ...itemPriceCalculation,
+        priceLoadCop: Number(currentItem.priceLoadCop || 0),
+        currency: quoteForm.currency,
+        exchangeRate: quoteForm.terms?.exchangeRate || null,
+        millCostCop: quoteForm.terms?.millCostCop || 0,
+        transportCostCop: quoteForm.terms?.transportCostCop || 0,
+        vacuumCostCop: quoteForm.terms?.vacuumCostCop || 1500,
+        exportCostUsdLb: quoteForm.terms?.exportCostUsdLb || 0.4,
+        usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
+      },
+    }));
+  }, [itemPriceCalculation.unitPrice, itemForm.priceLoadCop, quoteForm.currency, quoteForm.terms]);
+
   const resetForm = (freshCounters = codeCounters) => {
     setEditingQuoteId(null);
     setQuoteForm({ ...createInitialQuote(), ...getNextCodeParts("COT", freshCounters) });
@@ -342,6 +444,8 @@ const CommercialPage = () => {
     setQuoteItems([]);
     setSampleForm({ ...initialSample, ...getNextCodeParts("MUE", freshCounters) });
     setSampleItems([]);
+    setPriceListForm(initialPriceList);
+    setPriceListItems([]);
     setError("");
   };
 
@@ -352,19 +456,14 @@ const CommercialPage = () => {
       productForm: itemForm.productForm,
       processType: itemForm.processType,
       quantityKg: itemForm.quantityKg,
-      quantityUnit: itemForm.quantityUnit,
+      priceLoadCop: itemForm.priceLoadCop,
       unitPrice: itemForm.unitPrice,
+      pricingSnapshot: itemForm.pricingSnapshot,
     });
-  };
-
-  const getProfilePrice = (profile, currency = quoteForm.currency) => {
-    const price = currency === "USD" ? profile?.base_price_usd : profile?.base_price_cop;
-    return price && Number(price) > 0 ? String(price) : "";
   };
 
   const selectProfile = (profileId) => {
     const profile = catalogs?.coffeeProfiles?.find((profileItem) => String(profileItem.id) === String(profileId));
-    const price = getProfilePrice(profile);
 
     setItemForm({
       ...itemForm,
@@ -372,7 +471,6 @@ const CommercialPage = () => {
       purchaseCoffeeId: "",
       description: "",
       variety: profile?.name || itemForm.variety,
-      unitPrice: price || itemForm.unitPrice,
     });
   };
 
@@ -413,24 +511,40 @@ const CommercialPage = () => {
   };
 
   const updateCurrency = (currency) => {
-    const profile = catalogs?.coffeeProfiles?.find((profileItem) => String(profileItem.id) === String(itemForm.coffeeProfileId));
-    const price = getProfilePrice(profile, currency);
-    setQuoteForm({ ...quoteForm, currency });
-    if (price) {
-      setItemForm((currentItem) => ({ ...currentItem, unitPrice: price }));
-    }
+    setQuoteForm({
+      ...quoteForm,
+      currency,
+      terms: {
+        ...(quoteForm.terms || defaultQuoteTerms),
+        usdIncoterm: currency === "USD" ? (quoteForm.terms?.usdIncoterm || "EXW") : "",
+      },
+    });
   };
 
   const buildItem = () => {
     if (!itemForm.quantityKg) throw new Error("Cada cafe debe tener cantidad.");
-    if (itemForm.unitPrice === "" || itemForm.unitPrice === null || itemForm.unitPrice === undefined) {
-      throw new Error("Cada cafe debe tener precio.");
+    if (!itemForm.priceLoadCop || Number(itemForm.priceLoadCop) <= 0) {
+      throw new Error("Cada cafe debe tener precio de carga en pesos.");
     }
+    if (quoteForm.currency === "USD" && (!quoteForm.terms?.exchangeRate || Number(quoteForm.terms.exchangeRate) <= 0)) throw new Error("Para cotizar en dolares indique el precio del dolar.");
     if (itemForm.itemType === "Exotico" && !itemForm.coffeeProfileId) throw new Error("Seleccione el cafe solicitado.");
     if (["Regional", "Varietal"].includes(itemForm.itemType) && !itemForm.description.trim()) throw new Error("Seleccione el cafe solicitado.");
     if (itemForm.itemType === "description" && !itemForm.description.trim()) throw new Error("Ingrese la descripcion del cafe solicitado.");
 
     const quantityKg = toItemQuantityKg(itemForm);
+    const pricingSnapshot = {
+      ...(itemForm.pricingSnapshot || {}),
+      ...itemPriceCalculation,
+      priceLoadCop: Number(itemForm.priceLoadCop || 0),
+      currency: quoteForm.currency,
+      exchangeRate: quoteForm.terms?.exchangeRate || null,
+      millCostCop: quoteForm.terms?.millCostCop || 0,
+      transportCostCop: quoteForm.terms?.transportCostCop || 0,
+      vacuumCostCop: quoteForm.terms?.vacuumCostCop || 1500,
+      exportCostUsdLb: quoteForm.terms?.exportCostUsdLb || 0.4,
+      usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
+    };
+    const unitPrice = Number(itemPriceCalculation.unitPrice || itemForm.unitPrice || 0);
 
     return {
       lotId: itemForm.lotId || null,
@@ -446,8 +560,15 @@ const CommercialPage = () => {
         productForm: itemForm.productForm,
         processType: itemForm.processType,
       }),
-      unitPrice: Number(itemForm.unitPrice || 0),
-      lineTotal: Number((quantityKg * Number(itemForm.unitPrice || 0)).toFixed(2)),
+      unitPrice,
+      priceBasis: itemPriceCalculation.priceBasis,
+      pricingSnapshot,
+      lineTotal: calculateCommercialLineTotal({
+        quantityKg,
+        unitPrice,
+        currency: quoteForm.currency,
+        priceBasis: itemPriceCalculation.priceBasis,
+      }),
     };
   };
 
@@ -476,7 +597,8 @@ const CommercialPage = () => {
       coffeeTypeId: item.coffeeTypeId ? String(item.coffeeTypeId) : "",
       lotId: item.lotId ? String(item.lotId) : "",
       quantityKg: formatQuantityInputValue(item.quantityKg),
-      quantityUnit: "kg",
+      priceLoadCop: item.priceLoadCop || item.pricingSnapshot?.priceLoadCop || "",
+      pricingSnapshot: item.pricingSnapshot || {},
       unitPrice: String(item.unitPrice || ""),
     });
     removeItem(index);
@@ -734,6 +856,10 @@ const CommercialPage = () => {
     }
   };
 
+  const printQuotePdfByCurrency = (quote) => {
+    return printQuotePdf(quote.id, quote.currency === "USD" ? "en" : "es");
+  };
+
   const convertQuoteToSale = async (quote = selectedQuote) => {
     if (!quote) {
       showErrorAlert("No se pudo crear la venta: seleccione una cotizacion.");
@@ -791,12 +917,12 @@ const CommercialPage = () => {
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <div className="min-w-0 space-y-5">
-          <form ref={formPanelRef} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={formMode === "quote" ? saveQuote : saveSampleRequest}>
+          <form ref={formPanelRef} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={formMode === "quote" ? saveQuote : formMode === "sample" ? saveSampleRequest : (event) => event.preventDefault()}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                {formMode === "quote" ? <Plus size={17} className="text-leaf" /> : <FlaskConical size={17} className="text-leaf" />}
+                {formMode === "sample" ? <FlaskConical size={17} className="text-leaf" /> : <Plus size={17} className="text-leaf" />}
                 <h2 className="text-sm font-semibold text-slate-800">
-                  {formMode === "quote" ? (editingQuoteId ? "Editar cotizacion" : "Nueva cotizacion") : "Nueva solicitud de muestra"}
+                  {formMode === "quote" ? (editingQuoteId ? "Editar cotizacion" : "Nueva cotizacion") : formMode === "sample" ? "Nueva solicitud de muestra" : "Lista de precios"}
                 </h2>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -819,6 +945,16 @@ const CommercialPage = () => {
                   }}
                 >
                   Solicitud de muestra
+                </button>
+                <button
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold ${formMode === "priceList" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+                  type="button"
+                  onClick={() => {
+                    setFormMode("priceList");
+                    scrollToPanel(formPanelRef);
+                  }}
+                >
+                  Lista de precios
                 </button>
               </div>
               {formMode === "quote" && editingQuoteId && (
@@ -887,6 +1023,33 @@ const CommercialPage = () => {
                 <option value="COP">COP - Pesos colombianos</option>
                 <option value="USD">USD - Dolares</option>
               </select>
+              {quoteForm.currency === "USD" && (
+                <>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Precio dolar / TRM
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      placeholder="Precio del dolar"
+                      type="number"
+                      step="0.01"
+                      value={quoteForm.terms.exchangeRate}
+                      onChange={(event) => updateQuoteTerm("exchangeRate", event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Condicion USD
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={quoteForm.terms.usdIncoterm || "EXW"}
+                      onChange={(event) => updateQuoteTerm("usdIncoterm", event.target.value)}
+                    >
+                      <option value="EXW">EXW</option>
+                      <option value="FOB">FOB</option>
+                    </select>
+                  </label>
+                </>
+              )}
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Costo de envio"
@@ -926,8 +1089,8 @@ const CommercialPage = () => {
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                   Proceso
                   <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.processType} onChange={(event) => updateRequestedProcessType(event.target.value)}>
-                    {(catalogs?.coffeeTypes || []).map((type) => (
-                      <option key={type.id} value={type.name}>{type.name}</option>
+                    {processTypeOptions.map((type) => (
+                      <option key={type} value={type}>{type}</option>
                     ))}
                   </select>
                 </label>
@@ -964,38 +1127,34 @@ const CommercialPage = () => {
                   Variedad o detalle
                   <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Variedad o detalle opcional" value={itemForm.variety} onChange={(event) => setItemForm({ ...itemForm, variety: event.target.value })} />
                 </label>
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
-                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                    Cantidad
-                    <input
-                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
-                      placeholder={itemForm.quantityUnit === "lb" ? "Cantidad lb" : "Cantidad kg"}
-                      type="number"
-                      step="0.01"
-                      value={itemForm.quantityKg}
-                      onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })}
-                    />
-                  </label>
-                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                    Unidad
-                    <select
-                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
-                      value={itemForm.quantityUnit}
-                      onChange={(event) => setItemForm({ ...itemForm, quantityUnit: event.target.value })}
-                    >
-                      <option value="kg">Kg</option>
-                      <option value="lb">Libra</option>
-                    </select>
-                  </label>
-                </div>
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                  Precio por kg
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder={`Precio por kg en ${quoteForm.currency}`} type="number" step="0.01" value={itemForm.unitPrice} onChange={(event) => setItemForm({ ...itemForm, unitPrice: event.target.value })} />
+                  Cantidad kg
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                    placeholder="Cantidad kg"
+                    type="number"
+                    step="0.01"
+                    value={itemForm.quantityKg}
+                    onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })}
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Precio carga COP
+                  <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Precio carga en pesos" type="number" step="0.01" value={itemForm.priceLoadCop} onChange={(event) => setItemForm({ ...itemForm, priceLoadCop: event.target.value })} />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Precio calculado
+                  <input className="rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-ink" readOnly value={itemForm.unitPrice ? formatUnitPrice(quoteForm.currency, itemForm.unitPrice, itemPriceCalculation.priceBasis) : ""} />
                 </label>
               </div>
               {Number(itemForm.quantityKg || 0) > 0 && (
                 <div className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   Operativo bodega: <span className="font-semibold">{formatOperationalKg(itemOperationalKg)}</span>
+                  {itemForm.priceLoadCop && (
+                    <span className="ml-2">
+                      Calculo: kg COP {Number(itemPriceCalculation.kgVacuumPriceCop || 0).toLocaleString("es-CO")} · lb USD {Number((itemPriceCalculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}
+                    </span>
+                  )}
                 </div>
               )}
               <button className="mt-3 inline-flex items-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50" type="button" onClick={addAnotherCoffee}>
@@ -1010,7 +1169,7 @@ const CommercialPage = () => {
                       <div>
                         <p className="font-medium text-slate-800">{getItemLabel(item, catalogs)}</p>
                         <p className="text-slate-500">
-                          {item.productForm} · {item.processType} · {formatRequestedKg(item.quantityKg)} · {formatMoney(quoteForm.currency, item.unitPrice)}/kg · {formatMoney(quoteForm.currency, item.lineTotal)}
+                          {item.productForm} · {item.processType} · {formatRequestedKg(item.quantityKg)} · {formatUnitPrice(quoteForm.currency, item.unitPrice, item.priceBasis || item.pricingSnapshot?.priceBasis || "kg")} · {formatMoney(quoteForm.currency, item.lineTotal)}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-2">
@@ -1051,39 +1210,76 @@ const CommercialPage = () => {
                   </select>
                 </label>
                 <label className={termLabelClass}>
-                  Norma
-                  <select className={termInputClass} value={quoteForm.terms.standard} onChange={(event) => updateQuoteTerm("standard", event.target.value)}>
-                    {quoteTermOptions.standard.map((option) => <option key={option} value={option}>{option}</option>)}
+                  Norma o factor
+                  <select
+                    className={termInputClass}
+                    value={quoteForm.terms.qualityRuleType || "norma"}
+                    onChange={(event) => {
+                      const type = event.target.value;
+                      setQuoteForm((currentForm) => ({
+                        ...currentForm,
+                        terms: {
+                          ...(currentForm.terms || defaultQuoteTerms),
+                          qualityRuleType: type,
+                          qualityRule: type === "factor" ? "93 CPS" : "3/20 UGQ",
+                        },
+                      }));
+                    }}
+                  >
+                    <option value="norma">Norma</option>
+                    <option value="factor">Factor</option>
                   </select>
                 </label>
                 <label className={termLabelClass}>
-                  Entrega
+                  Valor norma/factor
                   <select
                     className={termInputClass}
-                    value={quoteTermOptions.deliveryTerms.includes(quoteForm.terms.deliveryTerms) ? quoteForm.terms.deliveryTerms : "otro"}
-                    onChange={(event) => updateQuoteTerm("deliveryTerms", event.target.value === "otro" ? "" : event.target.value)}
+                    value={
+                      (quoteForm.terms.qualityRuleType === "factor" ? quoteTermOptions.qualityFactors : quoteTermOptions.qualityNorms).includes(quoteForm.terms.qualityRule)
+                        ? quoteForm.terms.qualityRule
+                        : "Descripcion libre"
+                    }
+                    onChange={(event) => updateQuoteTerm("qualityRule", event.target.value === "Descripcion libre" ? "" : event.target.value)}
                   >
-                    {quoteTermOptions.deliveryTerms.map((option) => <option key={option} value={option}>{option}</option>)}
-                    <option value="otro">Otro</option>
+                    {(quoteForm.terms.qualityRuleType === "factor" ? quoteTermOptions.qualityFactors : quoteTermOptions.qualityNorms).map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
-                {!quoteTermOptions.deliveryTerms.includes(quoteForm.terms.deliveryTerms) && (
+                {!(quoteForm.terms.qualityRuleType === "factor" ? quoteTermOptions.qualityFactors : quoteTermOptions.qualityNorms).includes(quoteForm.terms.qualityRule) && (
                   <label className={`${termLabelClass} md:col-span-2`}>
-                    Entrega personalizada
+                    Descripcion de norma/factor
                     <input
                       className={termInputClass}
-                      placeholder="Escriba la entrega acordada"
-                      value={quoteForm.terms.deliveryTerms}
-                      onChange={(event) => updateQuoteTerm("deliveryTerms", event.target.value)}
+                      placeholder="Escriba la norma o factor acordado"
+                      value={quoteForm.terms.qualityRule}
+                      onChange={(event) => updateQuoteTerm("qualityRule", event.target.value)}
                     />
                   </label>
                 )}
+                <label className={`${termLabelClass} md:col-span-2`}>
+                  Terminos de entrega
+                  <input
+                    className={termInputClass}
+                    placeholder="Descripcion libre de entrega"
+                    value={quoteForm.terms.deliveryTerms}
+                    onChange={(event) => updateQuoteTerm("deliveryTerms", event.target.value)}
+                  />
+                </label>
                 <label className={termLabelClass}>
                   Empaque
-                  <select className={termInputClass} value={quoteForm.terms.packaging} onChange={(event) => updateQuoteTerm("packaging", event.target.value)}>
+                  <select
+                    className={termInputClass}
+                    value={quoteTermOptions.packaging.includes(quoteForm.terms.packaging) ? quoteForm.terms.packaging : "Descripcion libre"}
+                    onChange={(event) => updateQuoteTerm("packaging", event.target.value === "Descripcion libre" ? "" : event.target.value)}
+                  >
                     {quoteTermOptions.packaging.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
+                {!quoteTermOptions.packaging.includes(quoteForm.terms.packaging) && (
+                  <label className={termLabelClass}>
+                    Empaque personalizado
+                    <input className={termInputClass} placeholder="Escriba el empaque acordado" value={quoteForm.terms.packaging} onChange={(event) => updateQuoteTerm("packaging", event.target.value)} />
+                  </label>
+                )}
                 <label className={termLabelClass}>
                   Pago
                   <input
@@ -1120,6 +1316,22 @@ const CommercialPage = () => {
                     onChange={(event) => updateQuoteTerm("taxId", event.target.value)}
                   />
                 </label>
+                <label className={termLabelClass}>
+                  Costo trilla / mill COP
+                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.millCostCop} onChange={(event) => updateQuoteTerm("millCostCop", event.target.value)} />
+                </label>
+                <label className={termLabelClass}>
+                  Transporte / cargues COP
+                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.transportCostCop} onChange={(event) => updateQuoteTerm("transportCostCop", event.target.value)} />
+                </label>
+                <label className={termLabelClass}>
+                  Costo al vacio COP
+                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.vacuumCostCop} onChange={(event) => updateQuoteTerm("vacuumCostCop", event.target.value)} />
+                </label>
+                <label className={termLabelClass}>
+                  Costo exportacion USD/LB
+                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.exportCostUsdLb} onChange={(event) => updateQuoteTerm("exportCostUsdLb", event.target.value)} />
+                </label>
               </div>
             </div>
 
@@ -1129,7 +1341,7 @@ const CommercialPage = () => {
               {editingQuoteId ? "Actualizar cotizacion" : "Guardar cotizacion"}
             </button>
               </>
-            ) : (
+            ) : formMode === "sample" ? (
               <>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 md:col-span-2">
@@ -1224,6 +1436,204 @@ const CommercialPage = () => {
                   Crear solicitud de muestra
                 </button>
               </>
+            ) : (
+              <>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Idioma del documento
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={priceListForm.language}
+                      onChange={(event) => setPriceListForm({ ...priceListForm, language: event.target.value, currency: event.target.value === "en" ? "USD" : "COP" })}
+                    >
+                      <option value="es">Espanol</option>
+                      <option value="en">Ingles</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Cliente
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={priceListForm.clientId}
+                      onChange={(event) => setPriceListForm({ ...priceListForm, clientId: event.target.value })}
+                    >
+                      <option value="">Cliente opcional</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>{client.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Moneda
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={priceListForm.currency}
+                      onChange={(event) => setPriceListForm({ ...priceListForm, currency: event.target.value, language: event.target.value === "USD" ? "en" : "es" })}
+                    >
+                      <option value="COP">COP - Pesos</option>
+                      <option value="USD">USD - Dolares</option>
+                    </select>
+                  </label>
+                  {priceListForm.currency === "USD" && (
+                    <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                      Condicion USD
+                      <select
+                        className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                        value={priceListForm.terms.usdIncoterm || "EXW"}
+                        onChange={(event) => updatePriceListTerm("usdIncoterm", event.target.value)}
+                      >
+                        <option value="EXW">EXW</option>
+                        <option value="FOB">FOB</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
+
+                <div className="mt-4 rounded border border-slate-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-800">Cafes para lista de precios</p>
+                    <button
+                      className="inline-flex items-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                      type="button"
+                      onClick={() => setPriceListItems((items) => [
+                        ...items,
+                        {
+                          id: crypto.randomUUID(),
+                          catalogId: "",
+                          productForm: "Excelso",
+                          processType: "Lavado",
+                          priceLoadCop: "",
+                          exchangeRate: priceListForm.terms.exchangeRate || "",
+                        },
+                      ])}
+                    >
+                      <Plus size={16} /> Agregar cafe
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {priceListItems.length === 0 ? (
+                      <EmptyState title="Sin cafes" message="Agregue los cafes que quiere mostrarle al cliente." />
+                    ) : priceListItems.map((item, index) => {
+                      const selectedOption = priceListAvailableItems.find((option) => option.id === item.catalogId);
+                      const calculation = calculateCommercialItemPrice({
+                        priceLoadCop: item.priceLoadCop,
+                        productForm: item.productForm,
+                        processType: item.processType,
+                        packaging: priceListForm.terms.packaging,
+                        currency: priceListForm.currency,
+                        exchangeRate: item.exchangeRate,
+                        millCostCop: priceListForm.terms.millCostCop,
+                        transportCostCop: priceListForm.terms.transportCostCop,
+                        vacuumCostCop: priceListForm.terms.vacuumCostCop,
+                        exportCostUsdLb: priceListForm.terms.exportCostUsdLb,
+                        usdIncoterm: priceListForm.terms.usdIncoterm,
+                      });
+                      const updatePriceItem = (field, value) => {
+                        setPriceListItems((items) => items.map((currentItem) => (
+                          currentItem.id === item.id ? { ...currentItem, [field]: value } : currentItem
+                        )));
+                      };
+
+                      return (
+                        <div key={item.id} className="rounded border border-slate-200 bg-slate-50 p-3">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                              Cafe / perfil
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.catalogId} onChange={(event) => updatePriceItem("catalogId", event.target.value)}>
+                                <option value="">Seleccione cafe</option>
+                                {priceListAvailableItems.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                              </select>
+                            </label>
+                            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                              Presentacion
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.productForm} onChange={(event) => updatePriceItem("productForm", event.target.value)}>
+                                <option value="Excelso">Excelso</option>
+                                <option value="Pergamino">Pergamino</option>
+                              </select>
+                            </label>
+                            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                              Proceso
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.processType || selectedOption?.processType || "Lavado"} onChange={(event) => updatePriceItem("processType", event.target.value)}>
+                                {processTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                              </select>
+                            </label>
+                            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                              Precio carga COP
+                              <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="0.01" value={item.priceLoadCop} onChange={(event) => updatePriceItem("priceLoadCop", event.target.value)} />
+                            </label>
+                            {priceListForm.currency === "USD" && (
+                              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                                Precio dolar / TRM
+                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="0.01" value={item.exchangeRate} onChange={(event) => updatePriceItem("exchangeRate", event.target.value)} />
+                              </label>
+                            )}
+                            <div className="rounded bg-white px-3 py-2 text-sm text-slate-600">
+                              <p>Kg: <span className="font-semibold text-ink">{formatMoney("COP", calculation.kgVacuumPriceCop)}</span></p>
+                              <p>Lb: <span className="font-semibold text-ink">USD {Number((calculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}</span></p>
+                            </div>
+                          </div>
+                          <button className="mt-3 rounded border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => setPriceListItems((items) => items.filter((_, itemIndex) => itemIndex !== index))}>
+                            Quitar cafe
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
+                  <h3 className="text-sm font-semibold text-amber-900">Parametros de calculo</h3>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <label className={termLabelClass}>Costo trilla / mill COP<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.millCostCop} onChange={(event) => updatePriceListTerm("millCostCop", event.target.value)} /></label>
+                    <label className={termLabelClass}>Transporte / cargues COP<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.transportCostCop} onChange={(event) => updatePriceListTerm("transportCostCop", event.target.value)} /></label>
+                    <label className={termLabelClass}>Costo al vacio COP<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.vacuumCostCop} onChange={(event) => updatePriceListTerm("vacuumCostCop", event.target.value)} /></label>
+                    <label className={termLabelClass}>Costo exportacion USD/LB<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.exportCostUsdLb} onChange={(event) => updatePriceListTerm("exportCostUsdLb", event.target.value)} /></label>
+                  </div>
+                </div>
+
+                <button
+                  className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving || priceListItems.length === 0}
+                  type="button"
+                  onClick={() => {
+                    const client = clients.find((clientItem) => String(clientItem.id) === String(priceListForm.clientId));
+                    const documentItems = priceListItems.map((item) => {
+                      const option = priceListAvailableItems.find((availableItem) => availableItem.id === item.catalogId);
+                      const calculation = calculateCommercialItemPrice({
+                        priceLoadCop: item.priceLoadCop,
+                        productForm: item.productForm,
+                        processType: item.processType || option?.processType,
+                        packaging: priceListForm.terms.packaging,
+                        currency: priceListForm.currency,
+                        exchangeRate: item.exchangeRate,
+                        millCostCop: priceListForm.terms.millCostCop,
+                        transportCostCop: priceListForm.terms.transportCostCop,
+                        vacuumCostCop: priceListForm.terms.vacuumCostCop,
+                        exportCostUsdLb: priceListForm.terms.exportCostUsdLb,
+                        usdIncoterm: priceListForm.terms.usdIncoterm,
+                      });
+                      return {
+                        name: option?.label || "Cafe",
+                        productForm: item.productForm,
+                        processType: item.processType || option?.processType || "-",
+                        priceLoadCop: item.priceLoadCop,
+                        exchangeRate: item.exchangeRate,
+                        ...calculation,
+                      };
+                    });
+                    openPriceListDocumentPrint({
+                      client,
+                      currency: priceListForm.currency,
+                      language: priceListForm.language,
+                      terms: priceListForm.terms,
+                      items: documentItems,
+                    });
+                  }}
+                >
+                  <FileDown size={16} />
+                  Generar lista de precios
+                </button>
+              </>
             )}
           </form>
 
@@ -1267,11 +1677,8 @@ const CommercialPage = () => {
                             <button className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50" onClick={() => loadQuoteForEdit(quote.id)} type="button" disabled={quote.status === "anulada"}>
                               <Edit size={14} /> Editar
                             </button>
-                            <button className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100 disabled:opacity-60" disabled={saving} onClick={() => printQuotePdf(quote.id, "es")} type="button">
-                              <FileDown size={14} /> PDF ES
-                            </button>
-                            <button className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60" disabled={saving} onClick={() => printQuotePdf(quote.id, "en")} type="button">
-                              <FileDown size={14} /> PDF EN
+                            <button className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100 disabled:opacity-60" disabled={saving} onClick={() => printQuotePdfByCurrency(quote)} type="button">
+                              <FileDown size={14} /> PDF {quote.currency === "USD" ? "EN" : "ES"}
                             </button>
                             {canDeleteRecords && (
                               <button className="inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={saving} onClick={() => deleteQuote(quote)} type="button">
@@ -1306,12 +1713,9 @@ const CommercialPage = () => {
                 <p className="text-slate-500">Envio: {formatMoney(selectedQuote.currency, selectedQuote.shipping_cost)}</p>
                 <p className="font-semibold text-ink">Total: {formatMoney(selectedQuote.currency, selectedQuote.total)}</p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60" disabled={saving} onClick={() => printQuotePdf(selectedQuote.id, "es")} type="button">
-                  <FileDown size={17} /> PDF espanol
-                </button>
-                <button className="inline-flex w-full items-center justify-center gap-2 rounded bg-amber-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-60" disabled={saving} onClick={() => printQuotePdf(selectedQuote.id, "en")} type="button">
-                  <FileDown size={17} /> PDF ingles
+              <div className="grid gap-2">
+                <button className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60" disabled={saving} onClick={() => printQuotePdfByCurrency(selectedQuote)} type="button">
+                  <FileDown size={17} /> PDF {selectedQuote.currency === "USD" ? "ingles" : "espanol"}
                 </button>
               </div>
               <button className="inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => loadQuoteForEdit(selectedQuote.id)}>
@@ -1330,7 +1734,7 @@ const CommercialPage = () => {
                     <p className="text-slate-500">
                       <span className="font-semibold text-slate-700">{item.product_form || "Sin presentacion"}</span> · {[item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {formatRequestedKg(item.quantity_kg)}
                     </p>
-                    <p className="text-slate-500">{formatMoney(selectedQuote.currency, item.unit_price)}/kg · {formatMoney(selectedQuote.currency, item.line_total)}</p>
+                    <p className="text-slate-500">{formatUnitPrice(selectedQuote.currency, item.unit_price, item.price_basis || item.pricing_snapshot?.priceBasis || "kg")} · {formatMoney(selectedQuote.currency, item.line_total)}</p>
                   </div>
                 ))}
               </div>

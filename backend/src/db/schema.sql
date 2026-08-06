@@ -484,6 +484,8 @@ ALTER TABLE quote_items ALTER COLUMN product_form TYPE VARCHAR(80);
 ALTER TABLE quote_items ALTER COLUMN process_type TYPE VARCHAR(80);
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS variety TEXT;
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS operational_weight_kg NUMERIC(12, 3);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS price_basis VARCHAR(20) NOT NULL DEFAULT 'kg';
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS pricing_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 DO $$
 BEGIN
