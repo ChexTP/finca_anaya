@@ -4,7 +4,12 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
+import {
+  calculateOperationalKg,
+  formatOperationalKg,
+  formatQuantityInputValue,
+  formatRequestedKg,
+} from "../../utils/coffeeCalculations";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
@@ -168,7 +173,7 @@ const itemFromQuoteItem = (item) => ({
   productForm: item.product_form || "Excelso",
   processType: item.process_type || "Lavado",
   variety: item.variety || "",
-  quantityKg: item.quantity_kg || "",
+  quantityKg: formatQuantityInputValue(item.quantity_kg),
   unitPrice: item.unit_price || "",
 });
 
@@ -470,7 +475,7 @@ const CommercialPage = () => {
       coffeeProfileId: item.coffeeProfileId ? String(item.coffeeProfileId) : "",
       coffeeTypeId: item.coffeeTypeId ? String(item.coffeeTypeId) : "",
       lotId: item.lotId ? String(item.lotId) : "",
-      quantityKg: String(item.quantityKg || ""),
+      quantityKg: formatQuantityInputValue(item.quantityKg),
       quantityUnit: "kg",
       unitPrice: String(item.unitPrice || ""),
     });
@@ -966,7 +971,7 @@ const CommercialPage = () => {
                       className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
                       placeholder={itemForm.quantityUnit === "lb" ? "Cantidad lb" : "Cantidad kg"}
                       type="number"
-                      step="0.001"
+                      step="0.01"
                       value={itemForm.quantityKg}
                       onChange={(event) => setItemForm({ ...itemForm, quantityKg: event.target.value })}
                     />
@@ -1005,7 +1010,7 @@ const CommercialPage = () => {
                       <div>
                         <p className="font-medium text-slate-800">{getItemLabel(item, catalogs)}</p>
                         <p className="text-slate-500">
-                          {item.productForm} · {item.processType} · {formatOperationalKg(item.quantityKg)} · {formatMoney(quoteForm.currency, item.unitPrice)}/kg · {formatMoney(quoteForm.currency, item.lineTotal)}
+                          {item.productForm} · {item.processType} · {formatRequestedKg(item.quantityKg)} · {formatMoney(quoteForm.currency, item.unitPrice)}/kg · {formatMoney(quoteForm.currency, item.lineTotal)}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-2">
@@ -1323,7 +1328,7 @@ const CommercialPage = () => {
                   <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
                     <p className="font-medium text-ink">{item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code}</p>
                     <p className="text-slate-500">
-                      <span className="font-semibold text-slate-700">{item.product_form || "Sin presentacion"}</span> · {[item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {formatOperationalKg(item.quantity_kg)}
+                      <span className="font-semibold text-slate-700">{item.product_form || "Sin presentacion"}</span> · {[item.process_type, item.variety].filter(Boolean).join(" · ") || "Sin detalle"} · {formatRequestedKg(item.quantity_kg)}
                     </p>
                     <p className="text-slate-500">{formatMoney(selectedQuote.currency, item.unit_price)}/kg · {formatMoney(selectedQuote.currency, item.line_total)}</p>
                   </div>

@@ -26,3 +26,22 @@ export const formatOperationalKg = (value) => {
     maximumFractionDigits: 1,
   })} kg`;
 };
+
+export const formatRequestedKg = (value, { locale = "es-CO", suffix = " kg", emptyValue = "-" } = {}) => {
+  const kg = Number(value);
+
+  if (!Number.isFinite(kg)) return emptyValue;
+
+  return `${kg.toLocaleString(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}${suffix}`;
+};
+
+export const formatQuantityInputValue = (value) => {
+  const quantity = Number(value);
+
+  if (!Number.isFinite(quantity)) return "";
+
+  return Number(quantity.toFixed(2)).toString();
+};

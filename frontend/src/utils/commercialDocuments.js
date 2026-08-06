@@ -1,4 +1,5 @@
 import { companyBrand, getPrintableLogo } from "./brand";
+import { formatRequestedKg } from "./coffeeCalculations";
 import { printable } from "./printFormatting";
 
 export const formatDocumentMoney = (currency, value) => {
@@ -185,7 +186,10 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           <td>${escapeHtml(printable(description))}</td>
           <td>${escapeHtml(printable(item.processType))}</td>
           ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.unitPrice)}</td>` : ""}
-          <td>${escapeHtml(item.quantityKg || "-")}</td>
+          <td>${escapeHtml(formatRequestedKg(item.quantityKg, {
+            locale: language === "en" ? "en-US" : "es-CO",
+            suffix: "",
+          }))}</td>
           ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.lineTotal)}</td>` : ""}
         </tr>
       `;
