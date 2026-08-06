@@ -357,6 +357,14 @@ const WarehousePage = () => {
     return receivedPurchaseCoffeeOptions.find((coffee) => String(coffee.id) === String(stockEntryForm.purchaseCoffeeId));
   }, [receivedPurchaseCoffeeOptions, stockEntryForm.purchaseCoffeeId]);
 
+  const selectedStockCoffeeProfile = useMemo(() => {
+    return stockCoffeeProfileOptions.find((profile) => String(profile.id) === String(stockEntryForm.coffeeProfileId));
+  }, [stockCoffeeProfileOptions, stockEntryForm.coffeeProfileId]);
+
+  const stockEntryUsesSalesProfiles =
+    stockEntryForm.lotKind === "PROC" ||
+    (stockEntryForm.lotKind === "PASILLA" && stockEntryForm.presentation === "Excelso");
+
   const stockEntryCodePrefix = stockEntryForm.lotKind === "PROC"
     ? "PROC"
     : stockEntryForm.lotKind === "PASILLA"
@@ -630,8 +638,12 @@ const WarehousePage = () => {
         throw new Error("Seleccione el perfil de compra del cafe.");
       }
 
-      if (stockEntryForm.lotKind === "PROC" && !stockEntryForm.coffeeProfileId) {
-        throw new Error("Seleccione el perfil comercial del proceso listo.");
+      if (stockEntryForm.lotKind === "PASILLA" && stockEntryForm.presentation !== "Excelso" && !stockEntryForm.purchaseCoffeeId) {
+        throw new Error("Seleccione si la pasilla es lavada o natural.");
+      }
+
+      if (stockEntryUsesSalesProfiles && !stockEntryForm.coffeeProfileId) {
+        throw new Error("Seleccione el perfil comercial al que pertenece este cafe.");
       }
 
       const response = await apiRequest("/lots/stock-entry", {
@@ -647,7 +659,9 @@ const WarehousePage = () => {
             : stockEntryForm.coffeeTypeId
               ? Number(stockEntryForm.coffeeTypeId)
               : null,
-          coffeeVariety: selectedStockPurchaseCoffee?.name || stockEntryForm.coffeeVariety,
+          coffeeVariety: stockEntryUsesSalesProfiles
+            ? selectedStockCoffeeProfile?.name || stockEntryForm.coffeeVariety
+            : selectedStockPurchaseCoffee?.name || stockEntryForm.coffeeVariety,
           commercialClassification:
             stockEntryForm.lotKind === "PROC"
               ? "Procesado"
@@ -1102,7 +1116,14 @@ const WarehousePage = () => {
               <select
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 value={stockEntryForm.presentation}
-                onChange={(event) => setStockEntryForm({ ...stockEntryForm, presentation: event.target.value })}
+                onChange={(event) => setStockEntryForm({
+                  ...stockEntryForm,
+                  presentation: event.target.value,
+                  purchaseCoffeeId: "",
+                  coffeeTypeId: "",
+                  coffeeProfileId: "",
+                  coffeeVariety: "",
+                })}
               >
                 {catalogs?.coffeePresentations?.map((presentation) => (
                   <option key={presentation.id} value={presentation.name}>
@@ -1110,14 +1131,16 @@ const WarehousePage = () => {
                   </option>
                 ))}
               </select>
-              {stockEntryForm.lotKind === "PROC" ? (
+              {stockEntryUsesSalesProfiles ? (
                 <select
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                   value={stockEntryForm.coffeeProfileId}
                   onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeProfileId: event.target.value })}
                   required
                 >
-                  <option value="">Perfil comercial del proceso</option>
+                  <option value="">
+                    {stockEntryForm.lotKind === "PASILLA" ? "Perfil comercial al que pertenece" : "Perfil comercial del proceso"}
+                  </option>
                   {stockCoffeeProfileOptions.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {formatProfileOptionLabel(profile)}

@@ -1063,10 +1063,11 @@ export const postStockEntry = async (req, res) => {
       return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
     }
 
+    const isPasillaExcelso = lotKind === "PASILLA" && presentation === "Excelso";
     const weight = toNumber(weightKg);
     const humidity = toNumber(humidityPercent);
 
-    if (lotKind !== "PROC" && !coffeeTypeId) {
+    if (lotKind !== "PROC" && !isPasillaExcelso && !coffeeTypeId) {
       return res.status(400).json({ message: "Tipo de cafe es obligatorio" });
     }
 
@@ -1087,14 +1088,18 @@ export const postStockEntry = async (req, res) => {
       }
     }
 
-    if (lotKind === "PASILLA" && !["Lavado", "Natural"].includes(coffeeType?.name)) {
+    if (lotKind === "PASILLA" && !isPasillaExcelso && !["Lavado", "Natural"].includes(coffeeType?.name)) {
       return res.status(400).json({ message: "Las pasillas solo se registran como Lavado o Natural" });
     }
 
     let coffeeProfile = null;
-    if (lotKind === "PROC") {
+    if (lotKind === "PROC" || isPasillaExcelso) {
       if (!coffeeProfileId) {
-        return res.status(400).json({ message: "El proceso listo necesita un perfil comercial" });
+        return res.status(400).json({
+          message: isPasillaExcelso
+            ? "La pasilla en excelso necesita el perfil comercial al que pertenece"
+            : "El proceso listo necesita un perfil comercial",
+        });
       }
 
       coffeeProfile = await findCoffeeProfileById(coffeeProfileId);
@@ -1137,7 +1142,7 @@ export const postStockEntry = async (req, res) => {
       humidityPercent: humidity,
       score: null,
       receivedAt: receivedAt || new Date(),
-      coffeeVariety: coffeeVariety || null,
+      coffeeVariety: coffeeProfile?.name || coffeeVariety || null,
       originZone,
       initialComment,
       commercialClassification:
