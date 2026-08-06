@@ -57,6 +57,7 @@ const labels = {
     standard: "Norma / Factor",
     delivery: "Entrega",
     packaging: "Empaque",
+    minimumOrder: "Pedido minimo",
     payment: "Pago",
     bankDetails: "Datos Bancarios",
     company: "Empresa",
@@ -102,6 +103,7 @@ const labels = {
     standard: "Standard / Factor",
     delivery: "Delivery",
     packaging: "Packaging",
+    minimumOrder: "Minimum order",
     payment: "Payment",
     bankDetails: "Bank details",
     company: "Company",
@@ -134,6 +136,7 @@ const defaultQuoteTerms = {
   es: {
     advance: "30%",
     deliveryTime: "20 dias",
+    minimumOrder: "12 Kg",
     standard: "3/20 UGQ",
     delivery: "",
     packaging: "Bolsa y tula tradicional",
@@ -142,6 +145,7 @@ const defaultQuoteTerms = {
   en: {
     advance: "30%",
     deliveryTime: "20 days",
+    minimumOrder: "12 Kg",
     standard: "3/20 UGQ",
     delivery: "",
     packaging: "Traditional bag and jute sack",
@@ -152,6 +156,7 @@ const defaultQuoteTerms = {
 const englishTermTranslations = {
   "8 dias": "8 days",
   "20 dias": "20 days",
+  "12 Kg": "12 Kg",
   "Descripcion libre": "Free description",
   "Contraentrega en Pitalito Huila": "Cash on delivery in Pitalito Huila",
   "Pitalito Huila": "Pitalito Huila",
@@ -171,7 +176,7 @@ const formatTermValue = (value, fallback, language) => {
 };
 
 const formatItemUnitPrice = (currency, item) => {
-  const basis = item.priceBasis || item.pricingSnapshot?.priceBasis || "kg";
+  const basis = item.priceBasis || item.pricingSnapshot?.priceBasis || item.pricing_snapshot?.priceBasis || "kg";
   const suffix = currency === "USD" && basis === "lb" ? "/LB" : "/KG";
   return `${formatDocumentMoney(currency, item.unitPrice)} ${suffix}`;
 };
@@ -206,10 +211,12 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
   const rows = document.items
     ?.map((item) => {
       const description = item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-";
+      const itemPackaging = item.pricingSnapshot?.packaging || item.pricing_snapshot?.packaging || item.packaging;
+      const presentation = [item.productForm, itemPackaging].filter(Boolean).join(" - ");
       return `
         <tr>
           <td>Anaya</td>
-          <td><strong>${escapeHtml(printable(item.productForm))}</strong></td>
+          <td><strong>${escapeHtml(printable(presentation))}</strong></td>
           <td>${escapeHtml(printable(description))}</td>
           <td>${escapeHtml(printable(item.processType))}</td>
           ${showCommercialAmounts ? `<td>${formatItemUnitPrice(currency, item)}</td>` : ""}
@@ -334,6 +341,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
             <tbody>
               <tr><td>${text.advance}:</td><td>${escapeHtml(formatTermValue(terms.advance, defaultTerms.advance, language))}</td></tr>
               <tr><td>${text.deliveryTime}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTime, defaultTerms.deliveryTime, language))}</td></tr>
+              <tr><td>${text.minimumOrder}:</td><td>${escapeHtml(formatTermValue(terms.minimumOrder, defaultTerms.minimumOrder, language))}</td></tr>
               <tr><td>${text.standard}:</td><td>${escapeHtml(formatTermValue(terms.qualityRule || terms.standard, defaultTerms.standard, language))}</td></tr>
               <tr><td>${text.delivery}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTerms, defaultTerms.delivery, language))}</td></tr>
               <tr><td>${text.packaging}:</td><td>${escapeHtml(formatTermValue(terms.packaging, defaultTerms.packaging, language))}</td></tr>
@@ -408,16 +416,15 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
   const intro = language === "en"
     ? "According to your request, we are pleased to present the following coffee price list."
     : "De acuerdo con su solicitud, tenemos el placer de presentarle la siguiente lista de precios:";
-  const priceHeader = currency === "USD" ? `${terms.usdIncoterm || "EXW"} USD/LB` : "PRECIO KG";
+  const priceHeader = currency === "USD" ? "PRECIO LB USD" : "PRECIO KG COP";
   const rows = items.map((item) => `
     <tr>
       <td>${escapeHtml(printable(item.productForm))}</td>
       <td>${escapeHtml(printable(item.name))}</td>
       <td>${escapeHtml(printable(item.processType))}</td>
       <td>${formatDocumentMoney("COP", item.priceLoadCop)}</td>
-      <td>${formatDocumentMoney("COP", item.kgVacuumPriceCop)}</td>
-      <td>USD ${Number(item.usdLbExw || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-      <td>${currency === "USD" ? `USD ${Number(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : formatDocumentMoney("COP", item.kgVacuumPriceCop)}</td>
+      <td>${escapeHtml(printable(item.packaging || ""))}</td>
+      <td>${currency === "USD" ? `USD ${Number(item.usdLbExw || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : formatDocumentMoney("COP", item.kgVacuumPriceCop)}</td>
     </tr>
   `).join("");
 
@@ -459,8 +466,7 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
               <th>${text.variety}</th>
               <th>${text.process}</th>
               <th>${language === "en" ? "LOAD PRICE COP" : "PRECIO CARGA COP"}</th>
-              <th>${language === "en" ? "COP/KG" : "PRECIO KG COP"}</th>
-              <th>USD/LB EXW</th>
+              <th>${language === "en" ? "PACKAGING" : "EMPAQUE"}</th>
               <th>${escapeHtml(priceHeader)}</th>
             </tr>
           </thead>

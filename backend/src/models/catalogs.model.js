@@ -223,6 +223,7 @@ export const createCoffeeProfile = async ({
   name,
   code,
   category,
+  processType,
   processPurchaseCoffeeId,
   basePurchaseCoffeeId,
   processPercentage,
@@ -242,6 +243,7 @@ export const createCoffeeProfile = async ({
         name,
         internal_code,
         category,
+        process_type,
         process_purchase_coffee_id,
         base_purchase_coffee_id,
         process_percentage,
@@ -249,13 +251,14 @@ export const createCoffeeProfile = async ({
         base_price_cop,
         base_price_usd
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
       `,
       [
         name,
         code,
         category,
+        processType,
         processPurchaseCoffeeId,
         basePurchaseCoffeeId,
         processPercentage,
@@ -284,6 +287,7 @@ export const updateCoffeeProfile = async (
     name,
     code,
     category,
+    processType,
     processPurchaseCoffeeId,
     basePurchaseCoffeeId,
     processPercentage,
@@ -306,21 +310,23 @@ export const updateCoffeeProfile = async (
         name = $1,
         internal_code = $2,
         category = $3,
-        process_purchase_coffee_id = $4,
-        base_purchase_coffee_id = $5,
-        process_percentage = $6,
-        base_percentage = $7,
-        base_price_cop = $8,
-        base_price_usd = $9,
-        is_active = $10,
+        process_type = $4,
+        process_purchase_coffee_id = $5,
+        base_purchase_coffee_id = $6,
+        process_percentage = $7,
+        base_percentage = $8,
+        base_price_cop = $9,
+        base_price_usd = $10,
+        is_active = $11,
         updated_at = NOW()
-      WHERE id = $11
+      WHERE id = $12
       RETURNING *
       `,
       [
         name,
         code,
         category,
+        processType,
         processPurchaseCoffeeId,
         basePurchaseCoffeeId,
         processPercentage,

@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS coffee_profiles (
   name VARCHAR(100) UNIQUE NOT NULL,
   internal_code VARCHAR(30),
   category VARCHAR(80),
+  process_type VARCHAR(80),
   process_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id),
   base_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id),
   process_percentage NUMERIC(5, 2),
@@ -247,6 +248,7 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS lab_reviewed_at TIMESTAMP;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS commercial_classification VARCHAR(30);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS internal_code VARCHAR(30);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS category VARCHAR(80);
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_type VARCHAR(80);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_percentage NUMERIC(5, 2);

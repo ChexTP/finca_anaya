@@ -9,6 +9,7 @@ import {
   calculateCommercialItemPrice,
   calculateCommercialLineTotal,
   defaultCommercialPricing,
+  fixedCommercialCosts,
   formatOperationalKg,
   formatQuantityInputValue,
   formatRequestedKg,
@@ -19,6 +20,7 @@ import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 const defaultQuoteTerms = {
   advance: "30%",
   deliveryTime: "20 dias",
+  minimumOrder: "12 Kg",
   qualityRuleType: "norma",
   qualityRule: "3/20 UGQ",
   deliveryTerms: "",
@@ -39,6 +41,7 @@ const defaultQuoteTerms = {
 const quoteTermOptions = {
   advance: ["20%", "30%", "40%", "50%"],
   deliveryTime: ["8 dias", "20 dias"],
+  minimumOrder: ["12 Kg", "Descripcion libre"],
   qualityNorms: ["3/20 UGQ", "3/20 EP", "0/5 UGQ", "0/5 EP", "0/10 UGQ", "0/10 EP", "8/35 UGQ", "8/35 EP", "12/60 UGQ", "12/60 EP", "Descripcion libre"],
   qualityFactors: ["93 CPS", "140 CPS", "Descripcion libre"],
   packaging: [
@@ -52,6 +55,7 @@ const quoteTermOptions = {
 };
 
 const processTypeOptions = ["Lavado", "Natural", "Semilavado", "Honey"];
+const itemPackagingOptions = ["Empaque tradicional", "Al vacio"];
 
 const initialQuote = {
   manualCodeNumber: "",
@@ -121,6 +125,7 @@ const initialItem = {
   description: "",
   productForm: "Excelso",
   processType: "Lavado",
+  packaging: "Empaque tradicional",
   variety: "",
   quantityKg: "",
   priceLoadCop: "",
@@ -199,6 +204,7 @@ const itemFromQuoteItem = (item) => ({
   description: item.description || "",
   productForm: item.product_form || "Excelso",
   processType: item.process_type || "Lavado",
+  packaging: item.pricing_snapshot?.packaging || "Empaque tradicional",
   variety: item.variety || "",
   quantityKg: formatQuantityInputValue(item.quantity_kg),
   priceLoadCop: item.pricing_snapshot?.priceLoadCop || "",
@@ -283,18 +289,18 @@ const CommercialPage = () => {
   }), [itemForm.quantityKg, itemForm.productForm, itemForm.processType]);
 
   const itemPriceCalculation = useMemo(() => calculateCommercialItemPrice({
-    priceLoadCop: itemForm.priceLoadCop,
-    productForm: itemForm.productForm,
-    processType: itemForm.processType,
-    packaging: quoteForm.terms?.packaging,
-    currency: quoteForm.currency,
+  priceLoadCop: itemForm.priceLoadCop,
+  productForm: itemForm.productForm,
+  processType: itemForm.processType,
+  packaging: itemForm.packaging,
+  currency: quoteForm.currency,
     exchangeRate: quoteForm.terms?.exchangeRate,
-    millCostCop: quoteForm.terms?.millCostCop,
-    transportCostCop: quoteForm.terms?.transportCostCop,
-    vacuumCostCop: quoteForm.terms?.vacuumCostCop,
-    exportCostUsdLb: quoteForm.terms?.exportCostUsdLb,
+    millCostCop: fixedCommercialCosts.millCostCop,
+    transportCostCop: fixedCommercialCosts.transportCostCop,
+    vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+    exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
     usdIncoterm: quoteForm.terms?.usdIncoterm,
-  }), [itemForm.priceLoadCop, itemForm.productForm, itemForm.processType, quoteForm.currency, quoteForm.terms]);
+}), [itemForm.priceLoadCop, itemForm.productForm, itemForm.processType, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
 
   const subtotal = useMemo(() => {
     return quoteItems.reduce((total, item) => total + Number(item.lineTotal || 0), 0);
@@ -314,6 +320,7 @@ const CommercialPage = () => {
         label: formatProfileOptionLabel(profile),
         category: profile.category || "Exotico",
         processType: profile.process_type || "",
+        priceLoadCop: Number(profile.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : "",
         productForm: "Excelso",
       }));
     const purchases = (catalogs?.purchaseCoffees || [])
@@ -325,6 +332,7 @@ const CommercialPage = () => {
         label: [coffee.internal_code, coffee.name].filter(Boolean).join(" - "),
         category: coffee.family,
         processType: coffee.process_type || "",
+        priceLoadCop: "",
         productForm: "Pergamino",
       }));
 
@@ -428,14 +436,15 @@ const CommercialPage = () => {
         priceLoadCop: Number(currentItem.priceLoadCop || 0),
         currency: quoteForm.currency,
         exchangeRate: quoteForm.terms?.exchangeRate || null,
-        millCostCop: quoteForm.terms?.millCostCop || 0,
-        transportCostCop: quoteForm.terms?.transportCostCop || 0,
-        vacuumCostCop: quoteForm.terms?.vacuumCostCop || 1500,
-        exportCostUsdLb: quoteForm.terms?.exportCostUsdLb || 0.4,
+        packaging: currentItem.packaging,
+        millCostCop: fixedCommercialCosts.millCostCop,
+        transportCostCop: fixedCommercialCosts.transportCostCop,
+        vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+        exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
         usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
       },
     }));
-  }, [itemPriceCalculation.unitPrice, itemForm.priceLoadCop, quoteForm.currency, quoteForm.terms]);
+  }, [itemPriceCalculation.unitPrice, itemForm.priceLoadCop, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
 
   const resetForm = (freshCounters = codeCounters) => {
     setEditingQuoteId(null);
@@ -455,6 +464,7 @@ const CommercialPage = () => {
       itemType,
       productForm: itemForm.productForm,
       processType: itemForm.processType,
+      packaging: itemForm.productForm === "Excelso" ? itemForm.packaging : "Empaque tradicional",
       quantityKg: itemForm.quantityKg,
       priceLoadCop: itemForm.priceLoadCop,
       unitPrice: itemForm.unitPrice,
@@ -470,7 +480,9 @@ const CommercialPage = () => {
       coffeeProfileId: profileId,
       purchaseCoffeeId: "",
       description: "",
+      processType: profile?.process_type || itemForm.processType,
       variety: profile?.name || itemForm.variety,
+      priceLoadCop: Number(profile?.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : itemForm.priceLoadCop,
     });
   };
 
@@ -538,10 +550,11 @@ const CommercialPage = () => {
       priceLoadCop: Number(itemForm.priceLoadCop || 0),
       currency: quoteForm.currency,
       exchangeRate: quoteForm.terms?.exchangeRate || null,
-      millCostCop: quoteForm.terms?.millCostCop || 0,
-      transportCostCop: quoteForm.terms?.transportCostCop || 0,
-      vacuumCostCop: quoteForm.terms?.vacuumCostCop || 1500,
-      exportCostUsdLb: quoteForm.terms?.exportCostUsdLb || 0.4,
+      packaging: itemForm.productForm === "Excelso" ? itemForm.packaging : "Empaque tradicional",
+      millCostCop: fixedCommercialCosts.millCostCop,
+      transportCostCop: fixedCommercialCosts.transportCostCop,
+      vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+      exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
       usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
     };
     const unitPrice = Number(itemPriceCalculation.unitPrice || itemForm.unitPrice || 0);
@@ -695,7 +708,13 @@ const CommercialPage = () => {
         currency: quoteForm.currency,
         paymentTerms: quoteForm.paymentTerms || null,
         deliveryTerms: quoteForm.deliveryTerms || null,
-        terms: quoteForm.terms,
+        terms: {
+          ...quoteForm.terms,
+          millCostCop: fixedCommercialCosts.millCostCop,
+          transportCostCop: fixedCommercialCosts.transportCostCop,
+          vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+          exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
+        },
         shippingCost: Number(quoteForm.shippingCost || 0),
         estimatedDeliveryDate: quoteForm.estimatedDeliveryDate,
         notes: quoteForm.notes || null,
@@ -1081,11 +1100,19 @@ const CommercialPage = () => {
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                   Presentacion
-                  <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.productForm} onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value })}>
+                  <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.productForm} onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value, packaging: event.target.value === "Excelso" ? itemForm.packaging : "Empaque tradicional" })}>
                     <option value="Excelso">Excelso</option>
                     <option value="Pergamino">Pergamino</option>
                   </select>
                 </label>
+                {itemForm.productForm === "Excelso" && (
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Empaque para calculo
+                    <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.packaging} onChange={(event) => setItemForm({ ...itemForm, packaging: event.target.value })}>
+                      {itemPackagingOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                )}
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                   Proceso
                   <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.processType} onChange={(event) => updateRequestedProcessType(event.target.value)}>
@@ -1142,10 +1169,13 @@ const CommercialPage = () => {
                   Precio carga COP
                   <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Precio carga en pesos" type="number" step="0.01" value={itemForm.priceLoadCop} onChange={(event) => setItemForm({ ...itemForm, priceLoadCop: event.target.value })} />
                 </label>
-                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                   Precio calculado
-                  <input className="rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-ink" readOnly value={itemForm.unitPrice ? formatUnitPrice(quoteForm.currency, itemForm.unitPrice, itemPriceCalculation.priceBasis) : ""} />
-                </label>
+                  <p className="mt-1 font-semibold text-ink">
+                    {itemForm.unitPrice ? formatUnitPrice(quoteForm.currency, itemForm.unitPrice, itemPriceCalculation.priceBasis) : "Pendiente de precio de carga"}
+                  </p>
+                  <p className="text-xs text-slate-500">{itemForm.productForm === "Excelso" ? itemForm.packaging : "Pergamino tradicional"}</p>
+                </div>
               </div>
               {Number(itemForm.quantityKg || 0) > 0 && (
                 <div className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -1169,7 +1199,7 @@ const CommercialPage = () => {
                       <div>
                         <p className="font-medium text-slate-800">{getItemLabel(item, catalogs)}</p>
                         <p className="text-slate-500">
-                          {item.productForm} · {item.processType} · {formatRequestedKg(item.quantityKg)} · {formatUnitPrice(quoteForm.currency, item.unitPrice, item.priceBasis || item.pricingSnapshot?.priceBasis || "kg")} · {formatMoney(quoteForm.currency, item.lineTotal)}
+                          {item.productForm} · {item.processType} · {item.pricingSnapshot?.packaging || item.packaging || "Empaque tradicional"} · {formatRequestedKg(item.quantityKg)} · {formatUnitPrice(quoteForm.currency, item.unitPrice, item.priceBasis || item.pricingSnapshot?.priceBasis || "kg")} · {formatMoney(quoteForm.currency, item.lineTotal)}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-2">
@@ -1209,6 +1239,22 @@ const CommercialPage = () => {
                     {quoteTermOptions.deliveryTime.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
+                <label className={termLabelClass}>
+                  Pedido minimo
+                  <select
+                    className={termInputClass}
+                    value={quoteTermOptions.minimumOrder.includes(quoteForm.terms.minimumOrder) ? quoteForm.terms.minimumOrder : "Descripcion libre"}
+                    onChange={(event) => updateQuoteTerm("minimumOrder", event.target.value === "Descripcion libre" ? "" : event.target.value)}
+                  >
+                    {quoteTermOptions.minimumOrder.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </label>
+                {!quoteTermOptions.minimumOrder.includes(quoteForm.terms.minimumOrder) && (
+                  <label className={termLabelClass}>
+                    Pedido minimo personalizado
+                    <input className={termInputClass} placeholder="Escriba el pedido minimo" value={quoteForm.terms.minimumOrder} onChange={(event) => updateQuoteTerm("minimumOrder", event.target.value)} />
+                  </label>
+                )}
                 <label className={termLabelClass}>
                   Norma o factor
                   <select
@@ -1318,19 +1364,19 @@ const CommercialPage = () => {
                 </label>
                 <label className={termLabelClass}>
                   Costo trilla / mill COP
-                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.millCostCop} onChange={(event) => updateQuoteTerm("millCostCop", event.target.value)} />
+                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.millCostCop} />
                 </label>
                 <label className={termLabelClass}>
                   Transporte / cargues COP
-                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.transportCostCop} onChange={(event) => updateQuoteTerm("transportCostCop", event.target.value)} />
+                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.transportCostCop} />
                 </label>
                 <label className={termLabelClass}>
                   Costo al vacio COP
-                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.vacuumCostCop} onChange={(event) => updateQuoteTerm("vacuumCostCop", event.target.value)} />
+                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.vacuumCostCop} />
                 </label>
                 <label className={termLabelClass}>
-                  Costo exportacion USD/LB
-                  <input className={termInputClass} type="number" step="0.01" value={quoteForm.terms.exportCostUsdLb} onChange={(event) => updateQuoteTerm("exportCostUsdLb", event.target.value)} />
+                  Costo exportacion USD/LB/FOB
+                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.exportCostUsdLb} />
                 </label>
               </div>
             </div>
@@ -1475,17 +1521,9 @@ const CommercialPage = () => {
                     </select>
                   </label>
                   {priceListForm.currency === "USD" && (
-                    <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                      Condicion USD
-                      <select
-                        className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
-                        value={priceListForm.terms.usdIncoterm || "EXW"}
-                        onChange={(event) => updatePriceListTerm("usdIncoterm", event.target.value)}
-                      >
-                        <option value="EXW">EXW</option>
-                        <option value="FOB">FOB</option>
-                      </select>
-                    </label>
+                    <p className="self-end rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      La lista de precios muestra costo por libra en USD sin costo de exportacion.
+                    </p>
                   )}
                 </div>
 
@@ -1502,6 +1540,7 @@ const CommercialPage = () => {
                           catalogId: "",
                           productForm: "Excelso",
                           processType: "Lavado",
+                          packaging: "Empaque tradicional",
                           priceLoadCop: "",
                           exchangeRate: priceListForm.terms.exchangeRate || "",
                         },
@@ -1519,18 +1558,32 @@ const CommercialPage = () => {
                         priceLoadCop: item.priceLoadCop,
                         productForm: item.productForm,
                         processType: item.processType,
-                        packaging: priceListForm.terms.packaging,
+                        packaging: item.packaging || "Empaque tradicional",
                         currency: priceListForm.currency,
                         exchangeRate: item.exchangeRate,
-                        millCostCop: priceListForm.terms.millCostCop,
-                        transportCostCop: priceListForm.terms.transportCostCop,
-                        vacuumCostCop: priceListForm.terms.vacuumCostCop,
-                        exportCostUsdLb: priceListForm.terms.exportCostUsdLb,
-                        usdIncoterm: priceListForm.terms.usdIncoterm,
+                        millCostCop: fixedCommercialCosts.millCostCop,
+                        transportCostCop: fixedCommercialCosts.transportCostCop,
+                        vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+                        exportCostUsdLb: 0,
+                        usdIncoterm: "EXW",
                       });
                       const updatePriceItem = (field, value) => {
                         setPriceListItems((items) => items.map((currentItem) => (
                           currentItem.id === item.id ? { ...currentItem, [field]: value } : currentItem
+                        )));
+                      };
+                      const selectPriceListCatalog = (catalogId) => {
+                        const option = priceListAvailableItems.find((availableItem) => availableItem.id === catalogId);
+                        setPriceListItems((items) => items.map((currentItem) => (
+                          currentItem.id === item.id
+                            ? {
+                              ...currentItem,
+                              catalogId,
+                              productForm: option?.productForm || currentItem.productForm,
+                              processType: option?.processType || currentItem.processType,
+                              priceLoadCop: option?.priceLoadCop || currentItem.priceLoadCop,
+                            }
+                            : currentItem
                         )));
                       };
 
@@ -1539,7 +1592,7 @@ const CommercialPage = () => {
                           <div className="grid gap-3 md:grid-cols-2">
                             <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                               Cafe / perfil
-                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.catalogId} onChange={(event) => updatePriceItem("catalogId", event.target.value)}>
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.catalogId} onChange={(event) => selectPriceListCatalog(event.target.value)}>
                                 <option value="">Seleccione cafe</option>
                                 {priceListAvailableItems.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                               </select>
@@ -1551,6 +1604,14 @@ const CommercialPage = () => {
                                 <option value="Pergamino">Pergamino</option>
                               </select>
                             </label>
+                            {item.productForm === "Excelso" && (
+                              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                                Empaque para calculo
+                                <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.packaging || "Empaque tradicional"} onChange={(event) => updatePriceItem("packaging", event.target.value)}>
+                                  {itemPackagingOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                </select>
+                              </label>
+                            )}
                             <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                               Proceso
                               <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.processType || selectedOption?.processType || "Lavado"} onChange={(event) => updatePriceItem("processType", event.target.value)}>
@@ -1568,8 +1629,8 @@ const CommercialPage = () => {
                               </label>
                             )}
                             <div className="rounded bg-white px-3 py-2 text-sm text-slate-600">
-                              <p>Kg: <span className="font-semibold text-ink">{formatMoney("COP", calculation.kgVacuumPriceCop)}</span></p>
-                              <p>Lb: <span className="font-semibold text-ink">USD {Number((calculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}</span></p>
+                              <p>Kg COP: <span className="font-semibold text-ink">{formatMoney("COP", calculation.kgVacuumPriceCop)}</span></p>
+                              <p>Lb USD: <span className="font-semibold text-ink">USD {Number((calculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}</span></p>
                             </div>
                           </div>
                           <button className="mt-3 rounded border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => setPriceListItems((items) => items.filter((_, itemIndex) => itemIndex !== index))}>
@@ -1583,12 +1644,9 @@ const CommercialPage = () => {
 
                 <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
                   <h3 className="text-sm font-semibold text-amber-900">Parametros de calculo</h3>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <label className={termLabelClass}>Costo trilla / mill COP<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.millCostCop} onChange={(event) => updatePriceListTerm("millCostCop", event.target.value)} /></label>
-                    <label className={termLabelClass}>Transporte / cargues COP<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.transportCostCop} onChange={(event) => updatePriceListTerm("transportCostCop", event.target.value)} /></label>
-                    <label className={termLabelClass}>Costo al vacio COP<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.vacuumCostCop} onChange={(event) => updatePriceListTerm("vacuumCostCop", event.target.value)} /></label>
-                    <label className={termLabelClass}>Costo exportacion USD/LB<input className={termInputClass} type="number" step="0.01" value={priceListForm.terms.exportCostUsdLb} onChange={(event) => updatePriceListTerm("exportCostUsdLb", event.target.value)} /></label>
-                  </div>
+                  <p className="mt-2 text-xs text-amber-900">
+                    Fijos del Excel: trilla/mill COP {fixedCommercialCosts.millCostCop.toLocaleString("es-CO")}, transporte/cargues COP {fixedCommercialCosts.transportCostCop.toLocaleString("es-CO")} y al vacio COP {fixedCommercialCosts.vacuumCostCop.toLocaleString("es-CO")}. La lista de precios no suma costo de exportacion.
+                  </p>
                 </div>
 
                 <button
@@ -1603,19 +1661,20 @@ const CommercialPage = () => {
                         priceLoadCop: item.priceLoadCop,
                         productForm: item.productForm,
                         processType: item.processType || option?.processType,
-                        packaging: priceListForm.terms.packaging,
+                        packaging: item.packaging || "Empaque tradicional",
                         currency: priceListForm.currency,
                         exchangeRate: item.exchangeRate,
-                        millCostCop: priceListForm.terms.millCostCop,
-                        transportCostCop: priceListForm.terms.transportCostCop,
-                        vacuumCostCop: priceListForm.terms.vacuumCostCop,
-                        exportCostUsdLb: priceListForm.terms.exportCostUsdLb,
-                        usdIncoterm: priceListForm.terms.usdIncoterm,
+                        millCostCop: fixedCommercialCosts.millCostCop,
+                        transportCostCop: fixedCommercialCosts.transportCostCop,
+                        vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+                        exportCostUsdLb: 0,
+                        usdIncoterm: "EXW",
                       });
                       return {
                         name: option?.label || "Cafe",
                         productForm: item.productForm,
                         processType: item.processType || option?.processType || "-",
+                        packaging: item.packaging || "Empaque tradicional",
                         priceLoadCop: item.priceLoadCop,
                         exchangeRate: item.exchangeRate,
                         ...calculation,

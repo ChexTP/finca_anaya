@@ -50,12 +50,19 @@ const POUNDS_PER_KG = 2.2046;
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 
+export const fixedCommercialCosts = {
+  millCostCop: 1215,
+  transportCostCop: 172,
+  vacuumCostCop: 1500,
+  exportCostUsdLb: 0.45,
+};
+
 export const defaultCommercialPricing = {
   exchangeRate: "",
-  millCostCop: "0",
-  transportCostCop: "0",
-  vacuumCostCop: "1500",
-  exportCostUsdLb: "0.4",
+  millCostCop: String(fixedCommercialCosts.millCostCop),
+  transportCostCop: String(fixedCommercialCosts.transportCostCop),
+  vacuumCostCop: String(fixedCommercialCosts.vacuumCostCop),
+  exportCostUsdLb: String(fixedCommercialCosts.exportCostUsdLb),
   usdIncoterm: "EXW",
 };
 
@@ -66,10 +73,10 @@ export const calculateCommercialItemPrice = ({
   packaging,
   currency = "COP",
   exchangeRate,
-  millCostCop = 0,
-  transportCostCop = 0,
-  vacuumCostCop = 1500,
-  exportCostUsdLb = 0.4,
+  millCostCop = fixedCommercialCosts.millCostCop,
+  transportCostCop = fixedCommercialCosts.transportCostCop,
+  vacuumCostCop = fixedCommercialCosts.vacuumCostCop,
+  exportCostUsdLb = fixedCommercialCosts.exportCostUsdLb,
   usdIncoterm = "EXW",
 }) => {
   const loadPrice = Number(priceLoadCop || 0);

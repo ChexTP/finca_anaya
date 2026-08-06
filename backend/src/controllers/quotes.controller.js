@@ -30,6 +30,7 @@ const allowedStatuses = ["borrador", "enviada", "aceptada", "anulada"];
 const cleanQuoteTerms = (terms = {}) => ({
   advance: terms.advance ? String(terms.advance).trim() : null,
   deliveryTime: terms.deliveryTime ? String(terms.deliveryTime).trim() : null,
+  minimumOrder: terms.minimumOrder ? String(terms.minimumOrder).trim() : null,
   standard: terms.standard ? String(terms.standard).trim() : null,
   qualityRuleType: terms.qualityRuleType ? String(terms.qualityRuleType).trim() : null,
   qualityRule: terms.qualityRule ? String(terms.qualityRule).trim() : null,
@@ -58,6 +59,7 @@ const cleanPricingSnapshot = (snapshot = {}) => {
 
   return {
     priceLoadCop: snapshot.priceLoadCop !== undefined && snapshot.priceLoadCop !== "" ? Number(snapshot.priceLoadCop) : null,
+    packaging: snapshot.packaging ? String(snapshot.packaging).trim() : null,
     kgCpsPriceCop: snapshot.kgCpsPriceCop !== undefined ? Number(snapshot.kgCpsPriceCop) : null,
     kgExcelsoPriceCop: snapshot.kgExcelsoPriceCop !== undefined ? Number(snapshot.kgExcelsoPriceCop) : null,
     kgBasePriceCop: snapshot.kgBasePriceCop !== undefined ? Number(snapshot.kgBasePriceCop) : null,

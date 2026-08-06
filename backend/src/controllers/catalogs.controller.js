@@ -24,6 +24,7 @@ const allowedCatalogs = {
 };
 
 const allowedCoffeeProfileCategories = ["Regional", "Varietal", "Exotico"];
+const allowedCoffeeProfileProcesses = ["Lavado", "Natural", "Semilavado", "Honey"];
 const allowedPurchaseCoffeeFamilies = ["Regional", "Varietal"];
 
 export const getCatalogs = async (req, res) => {
@@ -310,6 +311,7 @@ export const putCoffeeProfile = async (req, res) => {
       name,
       code,
       category,
+      processType,
       processPurchaseCoffeeId,
       basePurchaseCoffeeId,
       processPercentage,
@@ -322,6 +324,10 @@ export const putCoffeeProfile = async (req, res) => {
 
     if (!name || !allowedCoffeeProfileCategories.includes(category)) {
       return res.status(400).json({ message: "Nombre y categoria del cafe son obligatorios" });
+    }
+
+    if (processType && !allowedCoffeeProfileProcesses.includes(processType)) {
+      return res.status(400).json({ message: "Proceso comercial no valido" });
     }
 
     const priceCop = toNumber(basePriceCop);
@@ -352,6 +358,7 @@ export const putCoffeeProfile = async (req, res) => {
       name,
       code: code || null,
       category: category || null,
+      processType: processType || null,
       processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,
       basePurchaseCoffeeId: basePurchaseCoffeeId || null,
       processPercentage: processPct,
@@ -384,6 +391,7 @@ export const postCoffeeProfile = async (req, res) => {
       name,
       code,
       category,
+      processType,
       processPurchaseCoffeeId,
       basePurchaseCoffeeId,
       processPercentage,
@@ -395,6 +403,10 @@ export const postCoffeeProfile = async (req, res) => {
 
     if (!name || !allowedCoffeeProfileCategories.includes(category)) {
       return res.status(400).json({ message: "Nombre y categoria del cafe son obligatorios" });
+    }
+
+    if (processType && !allowedCoffeeProfileProcesses.includes(processType)) {
+      return res.status(400).json({ message: "Proceso comercial no valido" });
     }
 
     const priceCop = toNumber(basePriceCop);
@@ -419,6 +431,7 @@ export const postCoffeeProfile = async (req, res) => {
       name,
       code: code || null,
       category: category || null,
+      processType: processType || null,
       processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,
       basePurchaseCoffeeId: basePurchaseCoffeeId || null,
       processPercentage: processPct,

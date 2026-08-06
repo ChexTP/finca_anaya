@@ -8,15 +8,16 @@ const initialProfile = {
   name: "",
   code: "",
   category: "",
+  processType: "",
   components: [{ purchaseCoffeeId: "" }],
   basePurchaseCoffeeId: "",
-  // Campos de precio conservados en BD para compatibilidad, pero ocultos en el flujo operativo actual.
   basePriceCop: "",
   basePriceUsd: "",
   isActive: true,
 };
 
 const emptyComponent = { purchaseCoffeeId: "" };
+const processTypeOptions = ["Lavado", "Natural", "Semilavado", "Honey"];
 
 const buildLegacyComponents = (profile) => {
   const components = [];
@@ -103,6 +104,7 @@ const CoffeeProfilesPage = () => {
       name: profile.name || "",
       code: profile.internal_code || "",
       category: profile.category || "",
+      processType: profile.process_type || "",
       components: buildProfileComponents(profile),
       basePurchaseCoffeeId: getBasePurchaseCoffeeId(profile),
       basePriceCop: Number(profile.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : "",
@@ -135,7 +137,7 @@ const CoffeeProfilesPage = () => {
             purchaseCoffeeId: Number(component.purchaseCoffeeId),
           })),
         basePurchaseCoffeeId: form.basePurchaseCoffeeId ? Number(form.basePurchaseCoffeeId) : null,
-        basePriceCop: 0,
+        basePriceCop: form.basePriceCop === "" ? 0 : Number(form.basePriceCop),
         basePriceUsd: 0,
       };
 
@@ -223,9 +225,10 @@ const CoffeeProfilesPage = () => {
                     <th className="px-4 py-3">Perfil</th>
                     <th className="px-4 py-3">Codigo</th>
                     <th className="px-4 py-3">Categoria</th>
+                    <th className="px-4 py-3">Proceso</th>
                     <th className="px-4 py-3">Componentes</th>
                     <th className="px-4 py-3">Base principal</th>
-                    {/* Precios desactivados: se manejan en el software contable externo. */}
+                    <th className="px-4 py-3">Precio carga</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3 text-right">Accion</th>
                   </tr>
@@ -236,11 +239,14 @@ const CoffeeProfilesPage = () => {
                       <td className="px-4 py-3 font-medium text-ink">{profile.name}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.internal_code || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.category || "-"}</td>
+                      <td className="px-4 py-3 text-slate-600">{profile.process_type || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">
                         {formatComponentSummary(profile)}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{formatBaseSummary(profile)}</td>
-                      {/* Precios desactivados: se manejan en el software contable externo. */}
+                      <td className="px-4 py-3 text-slate-600">
+                        {Number(profile.base_price_cop || 0) > 0 ? `COP ${Number(profile.base_price_cop).toLocaleString("es-CO")}` : "-"}
+                      </td>
                       <td className="px-4 py-3">
                         <StatusBadge tone={profile.is_active ? "success" : "danger"}>
                           {profile.is_active ? "activo" : "inactivo"}
@@ -302,26 +308,30 @@ const CoffeeProfilesPage = () => {
               <option value="Varietal">Varietal</option>
               <option value="Exotico">Exotico</option>
             </select>
-            {/* Precios desactivados: se conservan en codigo solo por si se reactiva el modulo comercial.
             <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Precio base COP"
-                type="number"
-                step="0.01"
-                value={form.basePriceCop}
-                onChange={(event) => setForm({ ...form, basePriceCop: event.target.value })}
-              />
-              <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Precio base USD"
-                type="number"
-                step="0.01"
-                value={form.basePriceUsd}
-                onChange={(event) => setForm({ ...form, basePriceUsd: event.target.value })}
-              />
+              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                Proceso comercial
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                  value={form.processType}
+                  onChange={(event) => setForm({ ...form, processType: event.target.value })}
+                >
+                  <option value="">Sin proceso definido</option>
+                  {processTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                Precio carga COP
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                  placeholder="Vacio si no esta definido"
+                  type="number"
+                  step="0.01"
+                  value={form.basePriceCop}
+                  onChange={(event) => setForm({ ...form, basePriceCop: event.target.value })}
+                />
+              </label>
             </div>
-            */}
             <div className="min-w-0 overflow-hidden rounded border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs font-semibold uppercase text-amber-900">Componente principal</p>
               <div className="mt-3 grid gap-3">
