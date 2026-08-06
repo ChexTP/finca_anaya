@@ -153,12 +153,18 @@ const quoteFilters = [
   { key: "anulada", label: "Anuladas" },
 ];
 
-const formatMoney = (currency, value) => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO")}`;
+const formatMoney = (currency, value) => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO", {
+  maximumFractionDigits: 0,
+})}`;
 const formatUnitPrice = (currency, value, priceBasis = "kg") => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO", {
   minimumFractionDigits: 0,
-  maximumFractionDigits: currency === "USD" ? 4 : 2,
+  maximumFractionDigits: 0,
 })}/${priceBasis}`;
 const toItemQuantityKg = (item) => Number(item.quantityKg || 0);
+const formatPriceInputValue = (value) => {
+  const numericValue = Number(value || 0);
+  return numericValue > 0 ? String(Math.round(numericValue)) : "";
+};
 
 const formatProfileOptionLabel = (profile) => {
   const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
@@ -320,7 +326,7 @@ const CommercialPage = () => {
         label: formatProfileOptionLabel(profile),
         category: profile.category || "Exotico",
         processType: profile.process_type || "",
-        priceLoadCop: Number(profile.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : "",
+        priceLoadCop: formatPriceInputValue(profile.base_price_cop),
         productForm: "Excelso",
       }));
     const purchases = (catalogs?.purchaseCoffees || [])
@@ -466,7 +472,7 @@ const CommercialPage = () => {
       description: "",
       processType: profile?.process_type || itemForm.processType,
       variety: profile?.name || itemForm.variety,
-      priceLoadCop: Number(profile?.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : itemForm.priceLoadCop,
+      priceLoadCop: formatPriceInputValue(profile?.base_price_cop) || itemForm.priceLoadCop,
     });
   };
 
@@ -592,7 +598,7 @@ const CommercialPage = () => {
       coffeeTypeId: item.coffeeTypeId ? String(item.coffeeTypeId) : "",
       lotId: item.lotId ? String(item.lotId) : "",
       quantityKg: formatQuantityInputValue(item.quantityKg),
-      priceLoadCop: item.priceLoadCop || item.pricingSnapshot?.priceLoadCop || "",
+      priceLoadCop: formatPriceInputValue(item.priceLoadCop || item.pricingSnapshot?.priceLoadCop),
       pricingSnapshot: item.pricingSnapshot || {},
       unitPrice: String(item.unitPrice || ""),
     });
@@ -1164,7 +1170,7 @@ const CommercialPage = () => {
                   Operativo bodega: <span className="font-semibold">{formatOperationalKg(itemOperationalKg)}</span>
                   {itemForm.priceLoadCop && (
                     <span className="ml-2">
-                      Calculo: kg COP {Number(itemPriceCalculation.kgVacuumPriceCop || 0).toLocaleString("es-CO")} · lb USD {Number((itemPriceCalculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}
+                      Calculo: kg COP {Number(itemPriceCalculation.kgVacuumPriceCop || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })} · lb USD {Number(itemPriceCalculation.usdLbExw || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })}
                     </span>
                   )}
                 </div>
