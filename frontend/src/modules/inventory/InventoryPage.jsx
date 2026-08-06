@@ -1,5 +1,6 @@
 import { FileText, RefreshCw, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -221,6 +222,7 @@ const buildPurchaseOrderSnapshot = (form) => {
 
 const InventoryPage = ({ mode = "inventory" }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [lots, setLots] = useState([]);
   const [allLots, setAllLots] = useState([]);
   const [sampleOutputs, setSampleOutputs] = useState([]);
@@ -252,6 +254,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
   const canEditCodes = ["admin", "accounting", "warehouse"].includes(user?.role);
   const isEditMode = mode === "edit";
+  const isSampleOutputsMode = mode === "samples";
 
   const loadData = async () => {
     const requests = [
@@ -838,6 +841,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const totalInProcessKg = inProcessInventory.reduce((total, row) => total + Number(row.quantity_kg || 0), 0);
   const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
+  const totalSampleOutputsKg = sampleOutputs.reduce((total, movement) => total + Number(movement.quantity_kg || 0), 0);
   const getLotOriginLabel = (lot) => {
     if (!lot.origin_process_type) return null;
 
@@ -894,9 +898,13 @@ const InventoryPage = ({ mode = "inventory" }) => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">{isEditMode ? "Editar inventario" : "Inventario"}</h1>
+          <h1 className="text-xl font-bold text-ink">
+            {isSampleOutputsMode ? "Salidas a muestras" : isEditMode ? "Editar inventario" : "Inventario"}
+          </h1>
           <p className="text-sm text-slate-500">
-            {isEditMode
+            {isSampleOutputsMode
+              ? "Cafe descontado del inventario para preparar muestras."
+              : isEditMode
               ? "Busqueda y correccion de lotes, procesos, codigos, pesos y datos de laboratorio."
               : "Lotes disponibles, pendientes de compra y control por antiguedad."}
           </p>
@@ -912,6 +920,54 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+
+      {isSampleOutputsMode && (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase text-amber-800">Total en muestras</p>
+              <p className="mt-1 text-2xl font-bold text-amber-900">{formatKg(totalSampleOutputsKg)}</p>
+              <p className="mt-1 text-xs text-amber-800">{sampleOutputs.length} salidas registradas</p>
+            </div>
+          </div>
+          <div className="rounded border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <h2 className="text-sm font-semibold text-slate-800">Historico de cafe usado en muestras</h2>
+              <p className="mt-1 text-xs text-slate-500">Salidas manuales descontadas desde bodega para preparacion de muestras.</p>
+            </div>
+            {sampleOutputs.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="Sin salidas a muestras" message="Cuando bodega saque cafe para muestras, el registro aparecera aqui." />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-100 text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Lote</th>
+                      <th className="px-3 py-2">Cantidad</th>
+                      <th className="px-3 py-2">Referencia / notas</th>
+                      <th className="px-3 py-2">Usuario</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {sampleOutputs.map((movement) => (
+                      <tr key={movement.id}>
+                        <td className="px-3 py-2">{movement.created_at ? new Date(movement.created_at).toLocaleString("es-CO") : "-"}</td>
+                        <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(movement)}</td>
+                        <td className="px-3 py-2">{formatKg(movement.quantity_kg)}</td>
+                        <td className="px-3 py-2">{movement.notes || "-"}</td>
+                        <td className="px-3 py-2">{movement.created_by_name || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {canEditCodes && isEditMode && (
         <div className="rounded border border-slate-200 bg-white">
@@ -1357,7 +1413,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
         </div>
       )}
 
-      {!isEditMode && (
+      {!isEditMode && !isSampleOutputsMode && (
         <>
       {canRegisterPurchase && (
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
@@ -1561,6 +1617,14 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 <span className="text-xs">{option.count} lotes - {formatKg(option.kg)}</span>
               </button>
             ))}
+            <button
+              className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm text-amber-800 hover:bg-amber-100"
+              type="button"
+              onClick={() => navigate("/inventario/muestras")}
+            >
+              <span className="block font-semibold">Muestras</span>
+              <span className="text-xs">{sampleOutputs.length} salidas - {formatKg(totalSampleOutputsKg)}</span>
+            </button>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
