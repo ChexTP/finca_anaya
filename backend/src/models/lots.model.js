@@ -337,50 +337,169 @@ export const findLotById = async (id) => {
   return result.rows[0];
 };
 
-export const updateLotCode = async ({ id, code }) => {
-  const cleanCode = String(code || "").trim();
-
-  const result = await pool.query(
+const resetPurchaseOrderForLotCodeCorrection = async ({ client, lotId, userId }) => {
+  const payableResult = await client.query(
     `
-    UPDATE coffee_lots
-    SET code = $1, updated_at = NOW()
-    WHERE id = $2
-      AND NOT EXISTS (
+    SELECT id, lot_id, purchase_order_snapshot
+    FROM accounts_payable
+    WHERE lot_id = $1
+      OR EXISTS (
         SELECT 1
-        FROM coffee_lots duplicated
-        WHERE duplicated.code = $1
-          AND duplicated.id <> coffee_lots.id
+        FROM jsonb_array_elements_text(COALESCE(purchase_order_snapshot->'lotIds', '[]'::jsonb)) AS grouped_lot_id(value)
+        WHERE grouped_lot_id.value ~ '^\\d+$'
+          AND grouped_lot_id.value::int = $1
       )
-    RETURNING *
+    FOR UPDATE
     `,
-    [cleanCode, id]
+    [lotId]
   );
 
-  if (result.rows[0]) {
-    return result.rows[0];
+  const payables = payableResult.rows;
+  if (payables.length === 0) {
+    return { resetLotIds: [], deletedPayableIds: [] };
   }
 
-  const existingLot = await findLotById(id);
-  if (!existingLot) {
-    return null;
+  const resetLotIds = new Set();
+  for (const payable of payables) {
+    if (payable.lot_id) resetLotIds.add(Number(payable.lot_id));
+
+    const snapshotLotIds = Array.isArray(payable.purchase_order_snapshot?.lotIds)
+      ? payable.purchase_order_snapshot.lotIds
+      : [];
+    for (const snapshotLotId of snapshotLotIds) {
+      const parsedLotId = Number(snapshotLotId);
+      if (Number.isInteger(parsedLotId) && parsedLotId > 0) resetLotIds.add(parsedLotId);
+    }
+
+    const snapshotItems = Array.isArray(payable.purchase_order_snapshot?.items)
+      ? payable.purchase_order_snapshot.items
+      : [];
+    for (const item of snapshotItems) {
+      const parsedLotId = Number(item.id || item.lotId || item.lot_id);
+      if (Number.isInteger(parsedLotId) && parsedLotId > 0) resetLotIds.add(parsedLotId);
+    }
   }
 
-  const duplicateResult = await pool.query(
+  const lotIds = [...resetLotIds];
+  if (lotIds.length > 0) {
+    await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        status = 'pendiente_liquidacion',
+        available_weight_kg = 0,
+        purchase_price_per_kg = NULL,
+        purchase_total = NULL,
+        purchase_paid = FALSE,
+        purchase_payment_method_id = NULL,
+        purchase_payment_reference = NULL,
+        purchase_paid_at = NULL,
+        purchase_registered_by = NULL,
+        updated_at = NOW()
+      WHERE id = ANY($1::int[])
+        AND status <> 'pendiente_liquidacion'
+      `,
+      [lotIds]
+    );
+
+    for (const resetLotId of lotIds) {
+      await client.query(
+        `
+        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+        VALUES ($1, 'liquidacion_reabierta', 0, $2, $3)
+        `,
+        [
+          resetLotId,
+          "Liquidacion anterior reemplazada por correccion de codigo de lote",
+          userId || null,
+        ]
+      );
+    }
+  }
+
+  const payableIds = payables.map((payable) => payable.id);
+  await client.query(
     `
-    SELECT id
-    FROM coffee_lots
-    WHERE code = $1
-      AND id <> $2
-    LIMIT 1
+    DELETE FROM accounts_payable
+    WHERE id = ANY($1::int[])
     `,
-    [cleanCode, id]
+    [payableIds]
   );
 
-  if (duplicateResult.rows[0]) {
-    return { duplicate: true, lot: existingLot };
-  }
+  return { resetLotIds: lotIds, deletedPayableIds: payableIds };
+};
 
-  return existingLot;
+export const updateLotCode = async ({ id, code, updatedBy }) => {
+  const cleanCode = String(code || "").trim();
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET code = $1, updated_at = NOW()
+      WHERE id = $2
+        AND NOT EXISTS (
+          SELECT 1
+          FROM coffee_lots duplicated
+          WHERE duplicated.code = $1
+            AND duplicated.id <> coffee_lots.id
+        )
+      RETURNING *
+      `,
+      [cleanCode, id]
+    );
+
+    if (result.rows[0]) {
+      const resetResult = await resetPurchaseOrderForLotCodeCorrection({
+        client,
+        lotId: Number(id),
+        userId: updatedBy,
+      });
+      await client.query("COMMIT");
+      return { ...result.rows[0], liquidation_reset: resetResult };
+    }
+
+    const existingResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [id]
+    );
+    const existingLot = existingResult.rows[0];
+    if (!existingLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const duplicateResult = await client.query(
+      `
+      SELECT id
+      FROM coffee_lots
+      WHERE code = $1
+        AND id <> $2
+      LIMIT 1
+      `,
+      [cleanCode, id]
+    );
+
+    await client.query("ROLLBACK");
+    if (duplicateResult.rows[0]) {
+      return { duplicate: true, lot: existingLot };
+    }
+
+    return existingLot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const updateLotAdminData = async (id, lotData) => {

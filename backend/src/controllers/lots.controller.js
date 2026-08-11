@@ -90,7 +90,7 @@ export const putLotCode = async (req, res) => {
       return res.status(400).json({ message: "El codigo del lote es obligatorio" });
     }
 
-    const result = await updateLotCode({ id: req.params.id, code });
+    const result = await updateLotCode({ id: req.params.id, code, updatedBy: req.user.id });
 
     if (!result) {
       return res.status(404).json({ message: "Lote no encontrado" });

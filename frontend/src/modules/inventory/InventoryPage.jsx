@@ -545,12 +545,15 @@ const InventoryPage = ({ mode = "inventory" }) => {
     setError("");
 
     try {
-      await apiRequest(`/lots/${lot.id}/code`, {
+      const response = await apiRequest(`/lots/${lot.id}/code`, {
         method: "PUT",
         body: JSON.stringify({ code: cleanCode }),
       });
+      const resetCount = response?.data?.liquidation_reset?.resetLotIds?.length || 0;
       await loadData();
-      setMessage("Codigo de lote actualizado.");
+      setMessage(resetCount > 0
+        ? `Codigo de lote actualizado. Se reemplazo la liquidacion anterior y ${resetCount} lote(s) volvieron a pendientes de liquidacion.`
+        : "Codigo de lote actualizado.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -626,13 +629,6 @@ const InventoryPage = ({ mode = "inventory" }) => {
     try {
       const cleanCode = adminLotForm.code.trim();
 
-      if (cleanCode && cleanCode !== selectedAdminLot.code) {
-        await apiRequest(`/lots/${selectedAdminLot.id}/code`, {
-          method: "PUT",
-          body: JSON.stringify({ code: cleanCode }),
-        });
-      }
-
       await apiRequest(`/lots/${selectedAdminLot.id}/admin-data`, {
         method: "PUT",
         body: JSON.stringify({
@@ -663,9 +659,20 @@ const InventoryPage = ({ mode = "inventory" }) => {
         }),
       });
 
+      let resetCount = 0;
+      if (cleanCode && cleanCode !== selectedAdminLot.code) {
+        const codeResponse = await apiRequest(`/lots/${selectedAdminLot.id}/code`, {
+          method: "PUT",
+          body: JSON.stringify({ code: cleanCode }),
+        });
+        resetCount = codeResponse?.data?.liquidation_reset?.resetLotIds?.length || 0;
+      }
+
       cancelAdminLotEdit();
       await loadData();
-      setMessage("Datos del lote actualizados correctamente.");
+      setMessage(resetCount > 0
+        ? `Datos del lote actualizados. Se reemplazo la liquidacion anterior y ${resetCount} lote(s) volvieron a pendientes de liquidacion.`
+        : "Datos del lote actualizados correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
