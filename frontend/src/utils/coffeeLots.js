@@ -3,7 +3,7 @@ import { formatOperationalKg } from "./coffeeCalculations";
 export const getCoffeeLotGroup = (lot) => {
   const presentation = lot.presentation || "Pergamino";
 
-  if (lot.lot_kind === "PROC") return `${presentation} - Proceso`;
+  if (lot.lot_kind === "PROC") return `${presentation} - Proceso - ${lot.coffee_profile_name || lot.coffee_variety || "Sin perfil"}`;
   if (lot.lot_kind === "PASILLA") return `${presentation} - Pasillas`;
   if (lot.lot_kind === "RECUPERACION") return `${presentation} - Recuperacion ${lot.coffee_type_name || ""}`.trim();
 

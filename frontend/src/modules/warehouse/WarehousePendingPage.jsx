@@ -29,6 +29,13 @@ const priorityOrder = {
   baja: 3,
 };
 
+const presentationFilterOptions = ["Todas", "Pergamino", "Excelso"];
+const formatAssignmentKgInput = (value) => {
+  const kg = Number(value);
+  if (!Number.isFinite(kg) || kg <= 0) return "";
+  return Number(kg.toFixed(1)).toString();
+};
+
 const taskFilters = [
   { key: "all", label: "Todo" },
   { key: "decision", label: "Por decidir" },
@@ -102,10 +109,32 @@ const WarehousePendingPage = () => {
         ...lot,
         available_weight_kg: Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
       }))
-      .filter((lot) => Number(lot.available_weight_kg || 0) > 0);
+      .filter((lot) => Number(lot.available_weight_kg || 0) > 0)
+      .sort((left, right) => {
+        const leftDate = new Date(left.received_at || left.created_at || 0).getTime();
+        const rightDate = new Date(right.received_at || right.created_at || 0).getTime();
+        return leftDate - rightDate;
+      });
 
     return Object.values(groupCoffeeLots(assignableLots)).sort((left, right) => left.name.localeCompare(right.name));
   }, [availableLots]);
+
+  const getAvailableLotGroupsForRow = (row) => {
+    const presentationFilter = row.presentationFilter || "Todas";
+    if (presentationFilter === "Todas") return availableLotGroups;
+
+    return availableLotGroups
+      .map((group) => ({
+        ...group,
+        lots: group.lots.filter((lot) => (lot.presentation || "Pergamino") === presentationFilter),
+      }))
+      .filter((group) => group.lots.length > 0)
+      .map((group) => ({
+        ...group,
+        count: group.lots.length,
+        kg: group.lots.reduce((total, lot) => total + Number(lot.available_weight_kg || 0), 0),
+      }));
+  };
 
   const getSavedSaleLotQuantity = (lotId) => {
     if (!selectedSale?.deductedLots?.length) return 0;
@@ -389,7 +418,8 @@ const WarehousePendingPage = () => {
               saleItemId: String(lot.sale_item_id),
               lotId: String(lot.lot_id),
               lotLabel: `${formatCoffeeLotCodeName(lot)} - ${formatOperationalKg(lot.quantity_kg)} asignados`,
-              quantityKg: String(lot.quantity_kg),
+              quantityKg: formatAssignmentKgInput(lot.quantity_kg),
+              presentationFilter: lot.presentation || "Todas",
               assignmentType: getAssignmentTypeFromNotes(lot.notes),
               notes: cleanAssignmentNotes(lot.notes),
             }));
@@ -402,14 +432,16 @@ const WarehousePendingPage = () => {
                 {
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: String(suggested.processInputKg || ""),
+                  quantityKg: formatAssignmentKgInput(suggested.processInputKg),
+                  presentationFilter: item.product_form || "Todas",
                   assignmentType: "proceso",
                   notes: "",
                 },
                 {
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: String(suggested.baseKg || ""),
+                  quantityKg: formatAssignmentKgInput(suggested.baseKg),
+                  presentationFilter: item.product_form || "Todas",
                   assignmentType: "base",
                   notes: "",
                 },
@@ -418,6 +450,7 @@ const WarehousePendingPage = () => {
               saleItemId: String(item.id),
               lotId: "",
               quantityKg: "",
+              presentationFilter: item.product_form || "Todas",
               assignmentType: "directo",
               notes: "",
             }];
@@ -478,7 +511,11 @@ const WarehousePendingPage = () => {
 
   const updateAssignmentRow = (index, field, value) => {
     setAssignmentRows((currentRows) =>
-      currentRows.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row))
+      currentRows.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
+        if (field === "presentationFilter") return { ...row, presentationFilter: value, lotId: "", lotLabel: "" };
+        return { ...row, [field]: value };
+      })
     );
   };
 
@@ -489,6 +526,7 @@ const WarehousePendingPage = () => {
         saleItemId: String(item.id),
         lotId: "",
         quantityKg: "",
+        presentationFilter: item.product_form || "Todas",
         assignmentType,
         notes: "",
       },
@@ -658,9 +696,21 @@ const WarehousePendingPage = () => {
           const selectedLotOption = getSelectedLotOption(row);
           const selectedAvailableKg = row.lotId ? getLotAvailableForAssignmentRow(row.lotId, rowIndex) : 0;
           const quantityExceedsAvailable = row.lotId && Number(row.quantityKg || 0) > selectedAvailableKg;
+          const rowAvailableLotGroups = getAvailableLotGroupsForRow(row);
 
           return (
             <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-2">
+              <select
+                className="min-w-0 max-w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                value={row.presentationFilter || "Todas"}
+                onChange={(event) => updateAssignmentRow(rowIndex, "presentationFilter", event.target.value)}
+              >
+                {presentationFilterOptions.map((presentation) => (
+                  <option key={presentation} value={presentation}>
+                    {presentation === "Todas" ? "Todas las presentaciones" : presentation}
+                  </option>
+                ))}
+              </select>
               <select
                 className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-sm"
                 value={row.lotId}
@@ -670,7 +720,7 @@ const WarehousePendingPage = () => {
                 {selectedLotOption && (
                   <option value={selectedLotOption.value}>{selectedLotOption.label}</option>
                 )}
-                {availableLotGroups.map((group) => (
+                {rowAvailableLotGroups.map((group) => (
                   <optgroup key={group.name} label={`${group.name} (${formatOperationalKg(group.kg)})`}>
                     {group.lots
                       .filter((lot) => {
@@ -690,11 +740,12 @@ const WarehousePendingPage = () => {
                   className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
                   placeholder="Cantidad kg"
                   type="number"
-                  min="0.001"
-                  step="0.001"
+                  min="0.1"
+                  step="0.1"
                   max={row.lotId ? selectedAvailableKg : undefined}
                   value={row.quantityKg}
                   onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
+                  onBlur={(event) => updateAssignmentRow(rowIndex, "quantityKg", formatAssignmentKgInput(event.target.value))}
                 />
                 <button
                   className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"

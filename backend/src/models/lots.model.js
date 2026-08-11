@@ -1553,7 +1553,7 @@ export const createInitialInventoryLot = async (lotData) => {
         lotData.supplierId,
         lotData.coffeeTypeId,
         lotData.coffeeProfileId,
-        lotData.presentation || (lotData.lotKind === "PROC" ? "Excelso" : "Pergamino"),
+        lotData.presentation || "Pergamino",
         lotData.lotKind,
         lotData.commercialClassification,
         lotData.weightKg,

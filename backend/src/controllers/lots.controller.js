@@ -280,6 +280,10 @@ export const postReceivedLot = async (req, res) => {
       return res.status(400).json({ message: "Debe seleccionar el perfil de venta del proceso" });
     }
 
+    if (normalizedLotKind === "PROC" && !coffeeTypeId) {
+      return res.status(400).json({ message: "Debe seleccionar si el proceso es lavado, natural, honey u otro" });
+    }
+
     if (commercialClassification && !commercialClassifications.includes(commercialClassification)) {
       return res.status(400).json({ message: "La clasificacion comercial no es valida" });
     }
@@ -457,6 +461,10 @@ export const putReceptionData = async (req, res) => {
 
     if (normalizedLotKind === "PROC" && !coffeeProfileId) {
       return res.status(400).json({ message: "Debe seleccionar el perfil de venta del proceso" });
+    }
+
+    if (normalizedLotKind === "PROC" && !coffeeTypeId) {
+      return res.status(400).json({ message: "Debe seleccionar si el proceso es lavado, natural, honey u otro" });
     }
 
     if (!presentation?.trim()) {
@@ -1109,6 +1117,10 @@ export const postStockEntry = async (req, res) => {
       return res.status(400).json({ message: "Tipo de cafe es obligatorio" });
     }
 
+    if (lotKind === "PROC" && !coffeeTypeId) {
+      return res.status(400).json({ message: "Debe seleccionar si el proceso listo es lavado, natural, honey u otro" });
+    }
+
     if (!isValidNumber(weight) || weight <= 0) {
       return res.status(400).json({ message: "Tipo de cafe y cantidad en kg son obligatorios" });
     }
@@ -1189,7 +1201,7 @@ export const postStockEntry = async (req, res) => {
       purchaseTotal: null,
       purchasePaid: false,
       createdBy: req.user.id,
-      presentation: presentation || (lotKind === "PROC" ? "Excelso" : "Pergamino"),
+      presentation: presentation || "Pergamino",
     });
 
     res.status(201).json({
@@ -1233,7 +1245,7 @@ export const postInitialLoad = async (req, res) => {
       purchasePricePerKg,
       purchasePaid = false,
     } = req.body;
-    const presentation = req.body.presentation || (lotKind === "PROC" ? "Excelso" : "Pergamino");
+    const presentation = req.body.presentation || "Pergamino";
 
     if (!["LOT", "PROC", "PASILLA", "RECUPERACION"].includes(lotKind)) {
       return res.status(400).json({ message: "El tipo de lote debe ser LOT, PROC, PASILLA o RECUPERACION" });
@@ -1259,6 +1271,10 @@ export const postInitialLoad = async (req, res) => {
 
     if (lotKind === "PROC" && !coffeeProfileId) {
       return res.status(400).json({ message: "Los lotes PROC requieren perfil comercial" });
+    }
+
+    if (lotKind === "PROC" && !coffeeTypeId) {
+      return res.status(400).json({ message: "Los lotes PROC requieren tipo de proceso" });
     }
 
     if (supplierId) {

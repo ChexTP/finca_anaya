@@ -409,7 +409,7 @@ const WarehousePage = () => {
       coffeeTypeId: "",
       commercialClassification: lotKind === "PROC" ? "Procesado" : "",
       coffeeVariety: "",
-      presentation: lotKind === "PROC" ? "Excelso" : lotForm.presentation || "Pergamino",
+      presentation: lotKind === "PROC" ? "Pergamino" : lotForm.presentation || "Pergamino",
     });
   };
 
@@ -579,6 +579,9 @@ const WarehousePage = () => {
       if (lotForm.lotKind === "PROC" && !selectedReceivedCoffeeProfile) {
         throw new Error("Debe seleccionar el perfil de venta del proceso.");
       }
+      if (lotForm.lotKind === "PROC" && !lotForm.coffeeTypeId) {
+        throw new Error("Debe seleccionar si el proceso es lavado, natural, honey u otro.");
+      }
       if (editingLot && lotForm.lotKind !== "PROC" && !lotForm.coffeeTypeId) {
         throw new Error("Debe indicar el cafe comprado antes de guardar la correccion.");
       }
@@ -644,6 +647,10 @@ const WarehousePage = () => {
 
       if (stockEntryUsesSalesProfiles && !stockEntryForm.coffeeProfileId) {
         throw new Error("Seleccione el perfil comercial al que pertenece este cafe.");
+      }
+
+      if (stockEntryForm.lotKind === "PROC" && !stockEntryForm.coffeeTypeId) {
+        throw new Error("Seleccione si el proceso listo es lavado, natural, honey u otro.");
       }
 
       const response = await apiRequest("/lots/stock-entry", {
@@ -1159,7 +1166,22 @@ const WarehousePage = () => {
                       <option key={coffee.id} value={coffee.id}>
                         {coffee.name} - {coffee.family} / {coffee.process_type}
                       </option>
-                    ))}
+                  ))}
+                </select>
+              )}
+              {stockEntryForm.lotKind === "PROC" && (
+                <select
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={stockEntryForm.coffeeTypeId}
+                  onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeTypeId: event.target.value })}
+                  required
+                >
+                  <option value="">Proceso: lavado, natural, honey...</option>
+                  {catalogs?.coffeeTypes?.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
                 </select>
               )}
               <input
@@ -1289,6 +1311,21 @@ const WarehousePage = () => {
                 {receivedPurchaseCoffeeOptions.map((coffee) => (
                   <option key={coffee.id} value={coffee.id}>
                     {coffee.name} - {coffee.family} / {coffee.process_type}
+                  </option>
+                ))}
+              </select>
+            )}
+            {lotForm.lotKind === "PROC" && (
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={lotForm.coffeeTypeId}
+                onChange={(event) => setLotForm({ ...lotForm, coffeeTypeId: event.target.value })}
+                required
+              >
+                <option value="">Proceso: lavado, natural, honey...</option>
+                {catalogs?.coffeeTypes?.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
                   </option>
                 ))}
               </select>

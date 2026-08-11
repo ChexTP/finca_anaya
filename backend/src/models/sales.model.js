@@ -980,6 +980,8 @@ export const getOperationalLotReservations = async () => {
       coffee_lots.coffee_variety,
       coffee_lots.available_weight_kg,
       coffee_lots.status,
+      coffee_lots.received_at,
+      coffee_lots.created_at,
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
