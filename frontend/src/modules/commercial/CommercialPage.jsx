@@ -1858,6 +1858,150 @@ const CommercialPage = () => {
                   </p>
                 </div>
 
+                <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-900">Terminos de la lista de precios</h3>
+                    <p className="text-xs text-slate-600">Estos datos salen en el PDF igual que en una cotizacion y se pueden ajustar antes de generar.</p>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <label className={termLabelClass}>
+                      Anticipo
+                      <select className={termInputClass} value={priceListForm.terms.advance} onChange={(event) => updatePriceListTerm("advance", event.target.value)}>
+                        {quoteTermOptions.advance.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    <label className={termLabelClass}>
+                      Tiempo de entrega
+                      <select className={termInputClass} value={priceListForm.terms.deliveryTime} onChange={(event) => updatePriceListTerm("deliveryTime", event.target.value)}>
+                        {quoteTermOptions.deliveryTime.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    <label className={termLabelClass}>
+                      Pedido minimo
+                      <select
+                        className={termInputClass}
+                        value={quoteTermOptions.minimumOrder.includes(priceListForm.terms.minimumOrder) ? priceListForm.terms.minimumOrder : "Descripcion libre"}
+                        onChange={(event) => updatePriceListTerm("minimumOrder", event.target.value === "Descripcion libre" ? "" : event.target.value)}
+                      >
+                        {quoteTermOptions.minimumOrder.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    {!quoteTermOptions.minimumOrder.includes(priceListForm.terms.minimumOrder) && (
+                      <label className={termLabelClass}>
+                        Pedido minimo personalizado
+                        <input className={termInputClass} placeholder="Escriba el pedido minimo" value={priceListForm.terms.minimumOrder} onChange={(event) => updatePriceListTerm("minimumOrder", event.target.value)} />
+                      </label>
+                    )}
+                    <label className={termLabelClass}>
+                      Norma o factor
+                      <select
+                        className={termInputClass}
+                        value={priceListForm.terms.qualityRuleType || "norma"}
+                        onChange={(event) => {
+                          const type = event.target.value;
+                          setPriceListForm((currentForm) => ({
+                            ...currentForm,
+                            terms: {
+                              ...(currentForm.terms || defaultQuoteTerms),
+                              qualityRuleType: type,
+                              qualityRule: type === "factor" ? "93 CPS" : "3/20 UGQ",
+                            },
+                          }));
+                        }}
+                      >
+                        <option value="norma">Norma</option>
+                        <option value="factor">Factor</option>
+                      </select>
+                    </label>
+                    <label className={termLabelClass}>
+                      Valor norma/factor
+                      <select
+                        className={termInputClass}
+                        value={
+                          (priceListForm.terms.qualityRuleType === "factor" ? quoteTermOptions.qualityFactors : quoteTermOptions.qualityNorms).includes(priceListForm.terms.qualityRule)
+                            ? priceListForm.terms.qualityRule
+                            : "Descripcion libre"
+                        }
+                        onChange={(event) => updatePriceListTerm("qualityRule", event.target.value === "Descripcion libre" ? "" : event.target.value)}
+                      >
+                        {(priceListForm.terms.qualityRuleType === "factor" ? quoteTermOptions.qualityFactors : quoteTermOptions.qualityNorms).map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    {!(priceListForm.terms.qualityRuleType === "factor" ? quoteTermOptions.qualityFactors : quoteTermOptions.qualityNorms).includes(priceListForm.terms.qualityRule) && (
+                      <label className={`${termLabelClass} md:col-span-2`}>
+                        Descripcion de norma/factor
+                        <input
+                          className={termInputClass}
+                          placeholder="Escriba la norma o factor acordado"
+                          value={priceListForm.terms.qualityRule}
+                          onChange={(event) => updatePriceListTerm("qualityRule", event.target.value)}
+                        />
+                      </label>
+                    )}
+                    <label className={`${termLabelClass} md:col-span-2`}>
+                      Terminos de entrega
+                      <input
+                        className={termInputClass}
+                        placeholder="Descripcion libre de entrega"
+                        value={priceListForm.terms.deliveryTerms}
+                        onChange={(event) => updatePriceListTerm("deliveryTerms", event.target.value)}
+                      />
+                    </label>
+                    <label className={termLabelClass}>
+                      Empaque
+                      <select
+                        className={termInputClass}
+                        value={quoteTermOptions.packaging.includes(priceListForm.terms.packaging) ? priceListForm.terms.packaging : "Descripcion libre"}
+                        onChange={(event) => updatePriceListTerm("packaging", event.target.value === "Descripcion libre" ? "" : event.target.value)}
+                      >
+                        {quoteTermOptions.packaging.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    {!quoteTermOptions.packaging.includes(priceListForm.terms.packaging) && (
+                      <label className={termLabelClass}>
+                        Empaque personalizado
+                        <input className={termInputClass} placeholder="Escriba el empaque acordado" value={priceListForm.terms.packaging} onChange={(event) => updatePriceListTerm("packaging", event.target.value)} />
+                      </label>
+                    )}
+                    <label className={termLabelClass}>
+                      Pago
+                      <input
+                        className={termInputClass}
+                        placeholder="Condicion de pago"
+                        value={priceListForm.terms.paymentTerms}
+                        onChange={(event) => updatePriceListTerm("paymentTerms", event.target.value)}
+                      />
+                    </label>
+                    <label className={`${termLabelClass} md:col-span-2`}>
+                      Datos bancarios
+                      <input
+                        className={termInputClass}
+                        placeholder="Datos bancarios"
+                        value={priceListForm.terms.bankDetails}
+                        onChange={(event) => updatePriceListTerm("bankDetails", event.target.value)}
+                      />
+                    </label>
+                    <label className={termLabelClass}>
+                      Empresa
+                      <input
+                        className={termInputClass}
+                        placeholder="Empresa"
+                        value={priceListForm.terms.company}
+                        onChange={(event) => updatePriceListTerm("company", event.target.value)}
+                      />
+                    </label>
+                    <label className={termLabelClass}>
+                      Nit
+                      <input
+                        className={termInputClass}
+                        placeholder="Nit"
+                        value={priceListForm.terms.taxId}
+                        onChange={(event) => updatePriceListTerm("taxId", event.target.value)}
+                      />
+                    </label>
+                  </div>
+                </div>
+
                 <button
                   className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={saving || priceListItems.length === 0}
