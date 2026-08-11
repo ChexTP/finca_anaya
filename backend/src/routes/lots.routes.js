@@ -15,6 +15,7 @@ import {
   putLiquidation,
   postGroupedLiquidation,
   putRejectedLotWithdrawal,
+  putLotAdministrativeWithdrawal,
 } from "../controllers/lots.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
@@ -35,5 +36,6 @@ router.post("/liquidate-group", requireAuth, requireRoles("admin", "accounting")
 router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting"), putLiquidation);
 router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting"), putPurchase);
 router.put("/:id/withdraw-rejected", requireAuth, requireRoles("admin", "accounting", "warehouse"), putRejectedLotWithdrawal);
+router.put("/:id/withdraw", requireAuth, requireRoles("admin"), putLotAdministrativeWithdrawal);
 
 export default router;

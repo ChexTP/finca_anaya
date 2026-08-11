@@ -1353,6 +1353,73 @@ export const markRejectedLotAsWithdrawn = async ({ id, notes, withdrawnBy }) => 
   }
 };
 
+export const markLotAsAdministrativelyWithdrawn = async ({ id, notes, withdrawnBy }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (currentLot.status === "retirado") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot: currentLot };
+    }
+
+    const withdrawnQuantity = Number(currentLot.available_weight_kg || currentLot.net_weight_kg || 0);
+    const withdrawalNote = `Retiro administrativo: ${notes}`;
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        status = 'retirado',
+        available_weight_kg = 0,
+        initial_comment = CASE
+          WHEN initial_comment IS NULL OR initial_comment = '' THEN $1::text
+          ELSE initial_comment || E'\n' || $1::text
+        END,
+        updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+      `,
+      [withdrawalNote, id]
+    );
+
+    const lot = result.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'retiro_lote_inventario', $2, $3, $4)
+      `,
+      [lot.id, withdrawnQuantity, withdrawalNote, withdrawnBy]
+    );
+
+    await client.query("COMMIT");
+    return lot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const registerLotPurchase = async (id, purchaseData) => {
   const client = await pool.connect();
 

@@ -13,6 +13,7 @@ import {
   createReceivedLot,
   updateLotReceptionData,
   markRejectedLotAsWithdrawn,
+  markLotAsAdministrativelyWithdrawn,
   updateLotLabData,
   updateLotLabReview,
   updateLotPhysicalReview,
@@ -641,6 +642,43 @@ export const putRejectedLotWithdrawal = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al marcar lote rechazado como retirado",
+      error: error.message,
+    });
+  }
+};
+
+export const putLotAdministrativeWithdrawal = async (req, res) => {
+  try {
+    const notes = String(req.body.notes || "").trim();
+
+    if (!notes) {
+      return res.status(400).json({ message: "La nota del retiro es obligatoria" });
+    }
+
+    const lot = await markLotAsAdministrativelyWithdrawn({
+      id: req.params.id,
+      notes,
+      withdrawnBy: req.user.id,
+    });
+
+    if (!lot) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (lot.invalidStatus) {
+      return res.status(409).json({
+        message: "Este lote ya esta retirado del inventario",
+        data: lot.lot,
+      });
+    }
+
+    res.json({
+      message: "Lote retirado del inventario",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al retirar lote del inventario",
       error: error.message,
     });
   }

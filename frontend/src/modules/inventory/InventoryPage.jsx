@@ -253,6 +253,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const canRegisterPurchase = ["admin", "accounting"].includes(user?.role);
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
   const canEditCodes = ["admin", "accounting", "warehouse"].includes(user?.role);
+  const canWithdrawInventory = user?.role === "admin";
   const isEditMode = mode === "edit";
   const isSampleOutputsMode = mode === "samples";
 
@@ -487,6 +488,48 @@ const InventoryPage = ({ mode = "inventory" }) => {
       });
       await loadData();
       setMessage("Ajuste de inventario registrado.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const withdrawInventoryLot = async (lot) => {
+    if (!canWithdrawInventory) {
+      setError("Solo el administrador puede retirar lotes del inventario.");
+      return;
+    }
+
+    if (!lot || lot.status === "retirado") return;
+
+    const notes = window.prompt(
+      `Motivo para retirar ${formatCoffeeLotCodeName(lot)} del inventario`,
+      "Salida directa de inventario"
+    );
+    const cleanNotes = String(notes || "").trim();
+
+    if (!cleanNotes) {
+      setError("Debe escribir una nota para retirar el lote del inventario.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma retirar ${formatCoffeeLotCodeName(lot)} del inventario? Esta accion dejara el lote sin disponibilidad.`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${lot.id}/withdraw`, {
+        method: "PUT",
+        body: JSON.stringify({ notes: cleanNotes }),
+      });
+      if (selectedAdminLot?.id === lot.id) {
+        cancelAdminLotEdit();
+      }
+      await loadData();
+      setMessage("Lote retirado del inventario. La nota quedo guardada en el historial del lote.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1029,6 +1072,16 @@ const InventoryPage = ({ mode = "inventory" }) => {
                         >
                           Editar codigo
                         </button>
+                        {canWithdrawInventory && lot.status !== "retirado" && (
+                          <button
+                            className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                            type="button"
+                            disabled={saving}
+                            onClick={() => withdrawInventoryLot(lot)}
+                          >
+                            Retirar lote
+                          </button>
+                        )}
                         </div>
                       </td>
                     </tr>
@@ -2264,6 +2317,16 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 <p className="text-sm text-slate-500">{formatCoffeeLotCodeName(selectedAdminLot)}</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {canWithdrawInventory && selectedAdminLot.status !== "retirado" && (
+                  <button
+                    className="rounded border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => withdrawInventoryLot(selectedAdminLot)}
+                  >
+                    Retirar lote
+                  </button>
+                )}
                 <button
                   className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   type="button"
