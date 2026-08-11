@@ -806,7 +806,7 @@ export const updateSaleItemShortage = async ({ saleId, saleItemId, shortageMarke
   return result.rows[0];
 };
 
-export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) => {
+export const replaceSaleLotAssignments = async ({ saleId, items, itemAssignees = [], createdBy }) => {
   const client = await pool.connect();
 
   try {
@@ -896,6 +896,35 @@ export const replaceSaleLotAssignments = async ({ saleId, items, createdBy }) =>
         `,
         [item.saleItemId, item.lotId, item.quantityKg, item.notes || null, createdBy]
       );
+    }
+
+    for (const itemAssignee of itemAssignees) {
+      const saleItemId = Number(itemAssignee.saleItemId);
+      const assignee = String(itemAssignee.assignee || "").trim() || null;
+
+      if (!Number.isInteger(saleItemId)) {
+        throw new Error("El encargado del producto no tiene un producto valido");
+      }
+
+      if (assignee && assignee.length > 120) {
+        throw new Error("El encargado del producto no puede superar 120 caracteres");
+      }
+
+      const result = await client.query(
+        `
+        UPDATE sale_items
+        SET item_assignee = $1
+        WHERE id = $2
+          AND sale_id = $3
+        RETURNING id
+        `,
+        [assignee, saleItemId, saleId]
+      );
+
+      if (!result.rows[0]) {
+        throw new Error("El producto del encargado no pertenece a esta venta");
+      }
+
     }
 
     await client.query(

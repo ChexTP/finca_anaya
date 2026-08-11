@@ -53,6 +53,7 @@ const WarehousePendingPage = () => {
   const [taskFilter, setTaskFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [assignmentRows, setAssignmentRows] = useState([]);
+  const [itemAssignees, setItemAssignees] = useState({});
   const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
   const [dispatchReceiptFile, setDispatchReceiptFile] = useState(null);
@@ -358,6 +359,7 @@ const WarehousePendingPage = () => {
       method: "PUT",
       body: JSON.stringify({
         items: cleanAssignments,
+        itemAssignees: buildCleanItemAssignees(),
       }),
     });
   };
@@ -409,6 +411,12 @@ const WarehousePendingPage = () => {
       const sale = await apiRequest(`/sales/${saleId}`);
       setSelectedSale(sale);
       setOrderAssignee(sale.order_assignee || "");
+      setItemAssignees(
+        (sale.items || []).reduce((assignees, item) => ({
+          ...assignees,
+          [item.id]: item.item_assignee || "",
+        }), {})
+      );
       setAssignmentRows(
         sale.items?.flatMap((item) => {
           const rows = (sale.deductedLots || []).filter((lot) => Number(lot.sale_item_id) === Number(item.id));
@@ -519,6 +527,19 @@ const WarehousePendingPage = () => {
     );
   };
 
+  const updateItemAssignee = (itemId, value) => {
+    setItemAssignees((currentAssignees) => ({
+      ...currentAssignees,
+      [itemId]: value,
+    }));
+  };
+
+  const buildCleanItemAssignees = () =>
+    Object.entries(itemAssignees).map(([saleItemId, assignee]) => ({
+      saleItemId: Number(saleItemId),
+      assignee: String(assignee || "").trim() || null,
+    }));
+
   const addItemAssignmentRow = (item, assignmentType = "directo") => {
     setAssignmentRows((currentRows) => [
       ...currentRows,
@@ -568,6 +589,7 @@ const WarehousePendingPage = () => {
         method: "PUT",
         body: JSON.stringify({
           items: cleanAssignments,
+          itemAssignees: buildCleanItemAssignees(),
         }),
       });
       setSelectedSale(response.data);
@@ -1094,6 +1116,20 @@ const WarehousePendingPage = () => {
                               Cafe directo: asigne el lote disponible que cumpla las caracteristicas del pedido.
                             </p>
                           )}
+
+                          <div className="rounded border border-slate-200 bg-slate-50 p-3">
+                            <label className="text-xs font-semibold uppercase text-slate-500">
+                              Encargado de este cafe
+                            </label>
+                            <input
+                              className="mt-2 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                              placeholder="Nombre de la persona que alista este item"
+                              value={itemAssignees[item.id] || ""}
+                              maxLength={120}
+                              onChange={(event) => updateItemAssignee(item.id, event.target.value)}
+                              disabled={saving || ["alistada", "despachada"].includes(selectedSale.status)}
+                            />
+                          </div>
 
                           {item.shortage_marked && item.shortage_notes && (
                             <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">

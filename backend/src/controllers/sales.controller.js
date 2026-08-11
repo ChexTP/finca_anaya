@@ -427,7 +427,7 @@ export const putSaleItemShortage = async (req, res) => {
 
 export const putSaleLotAssignments = async (req, res) => {
   try {
-    const { items } = req.body;
+    const { items, itemAssignees = [] } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Debe agregar al menos un lote asignado" });
@@ -439,6 +439,12 @@ export const putSaleLotAssignments = async (req, res) => {
       quantityKg: toNumber(item.quantityKg),
       notes: item.notes || null,
     }));
+    const cleanItemAssignees = Array.isArray(itemAssignees)
+      ? itemAssignees.map((item) => ({
+          saleItemId: Number(item.saleItemId),
+          assignee: String(item.assignee || "").trim() || null,
+        }))
+      : [];
 
     const invalidItem = cleanItems.find(
       (item) =>
@@ -454,9 +460,20 @@ export const putSaleLotAssignments = async (req, res) => {
       });
     }
 
+    const invalidAssignee = cleanItemAssignees.find(
+      (item) => !Number.isInteger(item.saleItemId) || (item.assignee && item.assignee.length > 120)
+    );
+
+    if (invalidAssignee) {
+      return res.status(400).json({
+        message: "Cada encargado por cafe debe tener producto valido y maximo 120 caracteres",
+      });
+    }
+
     const sale = await replaceSaleLotAssignments({
       saleId: req.params.id,
       items: cleanItems,
+      itemAssignees: cleanItemAssignees,
       createdBy: req.user.id,
     });
 

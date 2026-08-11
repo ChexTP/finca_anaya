@@ -127,7 +127,7 @@ export const buildWarehouseOrderHtml = (sale) => {
         return `
         <tr>
           <td>${printable(itemLabel)}</td>
-          <td>${[item.product_form ? `<strong>${printable(item.product_form)}</strong>` : "", printable(processSummary, ""), componentSummary].filter(Boolean).join("<br>") || "-"}</td>
+          <td>${[item.product_form ? `<strong>${printable(item.product_form)}</strong>` : "", printable(processSummary, ""), componentSummary, item.item_assignee ? `<strong>Encargado:</strong> ${printable(item.item_assignee)}` : ""].filter(Boolean).join("<br>") || "-"}</td>
           <td>${formatOperationalKg(item.quantity_kg)}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${formatOperationalKg(item.operational_weight_kg)}</span>` : ""}</td>
           <td></td>
         </tr>
@@ -145,6 +145,7 @@ export const buildWarehouseOrderHtml = (sale) => {
             <div>
               <h3>${printable(getWarehouseItemLabel(item))}</h3>
               <p><strong>${printable(item.product_form || "Presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
+              ${item.item_assignee ? `<p><strong>Encargado:</strong> ${printable(item.item_assignee)}</p>` : ""}
             </div>
             <strong>Mezcla final</strong>
           </div>
