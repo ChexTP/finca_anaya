@@ -132,8 +132,8 @@ export const postSample = async (req, res) => {
       code,
     } = req.body;
 
-    if (!["borrador", "enviada"].includes(status)) {
-      return res.status(400).json({ message: "La muestra nueva solo puede quedar en borrador o enviada" });
+    if (!["borrador", "enviada", "solicitada"].includes(status)) {
+      return res.status(400).json({ message: "La muestra nueva solo puede quedar en borrador, enviada o solicitada" });
     }
 
     if (!requesterName || !requestedAt || !Array.isArray(items) || items.length === 0) {
@@ -302,7 +302,7 @@ export const putSampleStatus = async (req, res) => {
   try {
     const { status, notes } = req.body;
     const itemReviews = Array.isArray(req.body.itemReviews) ? req.body.itemReviews : [];
-    const commercialSampleStatuses = ["borrador", "enviada", "aprobada", "cancelada"];
+    const commercialSampleStatuses = ["borrador", "enviada", "cancelada"];
     const canManageCommercialSample = ["admin", "accounting"].includes(req.user.role);
 
     if (!validStatuses.includes(status)) {
@@ -326,12 +326,12 @@ export const putSampleStatus = async (req, res) => {
     }
 
     if (req.user.role === "samples") {
-      if (["aprobada", "solicitada"].includes(sampleBeforeUpdate.status) && status !== "en_preparacion") {
-        return res.status(403).json({ message: "Muestras debe iniciar preparacion desde una solicitud aprobada" });
+      if (["enviada", "aprobada", "solicitada"].includes(sampleBeforeUpdate.status) && status !== "en_preparacion") {
+        return res.status(403).json({ message: "Muestras debe iniciar preparacion desde una solicitud recibida" });
       }
 
-      if (!["aprobada", "solicitada"].includes(sampleBeforeUpdate.status) && status === "en_preparacion") {
-        return res.status(409).json({ message: "La solicitud debe estar aprobada antes de iniciar preparacion" });
+      if (!["enviada", "aprobada", "solicitada"].includes(sampleBeforeUpdate.status) && status === "en_preparacion") {
+        return res.status(409).json({ message: "La solicitud debe estar recibida antes de iniciar preparacion" });
       }
     }
 
@@ -354,7 +354,7 @@ export const putSampleStatus = async (req, res) => {
     }
 
     if (commercialSampleStatuses.includes(status) && !canManageCommercialSample) {
-      return res.status(403).json({ message: "Solo administracion o contabilidad puede aprobar o devolver muestras comerciales" });
+      return res.status(403).json({ message: "Solo administracion o contabilidad puede cancelar muestras comerciales" });
     }
 
     const cleanItemReviews = itemReviews.map((review) => ({

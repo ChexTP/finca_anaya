@@ -47,6 +47,8 @@ export const quoteStatusLabels = {
 };
 
 export const getQuoteNextAction = (quote) => {
+  if (quote?.quote_type === "lista_precios") return "Lista de precios enviada al cliente";
+
   const actions = {
     borrador: "Comercial debe revisar y enviar al cliente",
     enviada: "Esperar respuesta del cliente",

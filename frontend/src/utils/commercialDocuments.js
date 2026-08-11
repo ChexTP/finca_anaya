@@ -205,8 +205,10 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
   const text = labels[language] || labels.es;
   const defaultTerms = defaultQuoteTerms[language] || defaultQuoteTerms.es;
   const currency = document.totals?.currency || "COP";
-  const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa";
-  const showCommercialAmounts = isQuote;
+  const isPriceList = document.documentType === "ListaPrecios";
+  const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa" || isPriceList;
+  const showUnitPrice = isQuote;
+  const showQuantityAndTotal = isQuote && !isPriceList;
   const terms = document.terms || {};
   const rows = document.items
     ?.map((item) => {
@@ -219,12 +221,12 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           <td><strong>${escapeHtml(printable(presentation))}</strong></td>
           <td>${escapeHtml(printable(description))}</td>
           <td>${escapeHtml(printable(item.processType))}</td>
-          ${showCommercialAmounts ? `<td>${formatItemUnitPrice(currency, item)}</td>` : ""}
-          <td>${escapeHtml(formatRequestedKg(item.quantityKg, {
+          ${showUnitPrice ? `<td>${formatItemUnitPrice(currency, item)}</td>` : ""}
+          ${showQuantityAndTotal ? `<td>${escapeHtml(formatRequestedKg(item.quantityKg, {
             locale: language === "en" ? "en-US" : "es-CO",
             suffix: "",
-          }))}</td>
-          ${showCommercialAmounts ? `<td>${formatDocumentMoney(currency, item.lineTotal)}</td>` : ""}
+          }))}</td>` : ""}
+          ${showQuantityAndTotal ? `<td>${formatDocumentMoney(currency, item.lineTotal)}</td>` : ""}
         </tr>
       `;
     })
@@ -317,8 +319,10 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           </div>
         </section>
 
-        <h1>${text.quote}</h1>
-        <p class="intro">${text.intro}</p>
+        <h1>${isPriceList ? (language === "en" ? "Coffee Price List" : "Lista de precios de café") : text.quote}</h1>
+        <p class="intro">${isPriceList
+          ? escapeHtml(language === "en" ? "According to your request, we are pleased to present the following coffee price list." : "De acuerdo con su solicitud, presentamos la siguiente lista de precios de café.")
+          : text.intro}</p>
 
         <table>
           <thead>
@@ -327,9 +331,9 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
               <th>${text.presentation}</th>
               <th>${text.variety}</th>
               <th>${text.process}</th>
-              ${showCommercialAmounts ? `<th>${text.unitPrice}</th>` : ""}
-              <th>${text.quantity}</th>
-              ${showCommercialAmounts ? `<th>${text.lineTotal}</th>` : ""}
+              ${showUnitPrice ? `<th>${text.unitPrice}</th>` : ""}
+              ${showQuantityAndTotal ? `<th>${text.quantity}</th>` : ""}
+              ${showQuantityAndTotal ? `<th>${text.lineTotal}</th>` : ""}
             </tr>
           </thead>
           <tbody>${rows || ""}</tbody>
@@ -350,7 +354,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
           </table>
         </section>
 
-        ${showCommercialAmounts ? `<div class="totals">
+        ${showQuantityAndTotal ? `<div class="totals">
           <p><span>${text.subtotal}</span><span>${formatDocumentMoney(currency, document.totals?.subtotal)}</span></p>
           <p><span>${text.shipping}</span><span>${formatDocumentMoney(currency, document.totals?.shippingCost)}</span></p>
           <p class="total"><span>${text.total}</span><span>${formatDocumentMoney(currency, document.totals?.total)}</span></p>
@@ -422,7 +426,6 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
       <td>${escapeHtml(printable(item.productForm))}</td>
       <td>${escapeHtml(printable(item.name))}</td>
       <td>${escapeHtml(printable(item.processType))}</td>
-      <td>${formatDocumentMoney("COP", item.priceLoadCop)}</td>
       <td>${escapeHtml(printable(item.packaging || ""))}</td>
       <td>${currency === "USD" ? `USD ${Number(item.usdLbExw || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : formatDocumentMoney("COP", item.kgVacuumPriceCop)}</td>
     </tr>
@@ -465,13 +468,26 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
               <th>${text.presentation}</th>
               <th>${text.variety}</th>
               <th>${text.process}</th>
-              <th>${language === "en" ? "LOAD PRICE COP" : "PRECIO CARGA COP"}</th>
               <th>${language === "en" ? "PACKAGING" : "EMPAQUE"}</th>
               <th>${escapeHtml(priceHeader)}</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
+        <section class="terms">
+          <h2>${text.termsTitle}</h2>
+          <table>
+            <tbody>
+              <tr><td>${text.advance}:</td><td>${escapeHtml(formatTermValue(terms.advance, defaultQuoteTerms[language]?.advance || defaultQuoteTerms.es.advance, language))}</td></tr>
+              <tr><td>${text.deliveryTime}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTime, defaultQuoteTerms[language]?.deliveryTime || defaultQuoteTerms.es.deliveryTime, language))}</td></tr>
+              <tr><td>${text.minimumOrder}:</td><td>${escapeHtml(formatTermValue(terms.minimumOrder, defaultQuoteTerms[language]?.minimumOrder || defaultQuoteTerms.es.minimumOrder, language))}</td></tr>
+              <tr><td>${text.standard}:</td><td>${escapeHtml(formatTermValue(terms.qualityRule || terms.standard, defaultQuoteTerms[language]?.standard || defaultQuoteTerms.es.standard, language))}</td></tr>
+              <tr><td>${text.delivery}:</td><td>${escapeHtml(formatTermValue(terms.deliveryTerms, defaultQuoteTerms[language]?.delivery || defaultQuoteTerms.es.delivery, language))}</td></tr>
+              <tr><td>${text.packaging}:</td><td>${escapeHtml(formatTermValue(terms.packaging, defaultQuoteTerms[language]?.packaging || defaultQuoteTerms.es.packaging, language))}</td></tr>
+              ${getBankRows(terms, text, language).map(([label, value]) => `<tr><td>${escapeHtml(label)}:</td><td>${escapeHtml(formatTermValue(value, value, language))}</td></tr>`).join("")}
+            </tbody>
+          </table>
+        </section>
       </body>
     </html>
   `;

@@ -95,8 +95,8 @@ const buildCleanQuoteData = async ({
     throw error;
   }
 
-  if (!["inventario_disponible", "preventa"].includes(quoteType)) {
-    const error = new Error("El tipo de cotizacion debe ser inventario_disponible o preventa");
+  if (!["inventario_disponible", "preventa", "lista_precios"].includes(quoteType)) {
+    const error = new Error("El tipo de cotizacion debe ser inventario_disponible, preventa o lista_precios");
     error.statusCode = 400;
     throw error;
   }
@@ -307,10 +307,6 @@ export const putQuote = async (req, res) => {
 
     if (req.user.role === "seller" && existingQuote.seller_id !== req.user.id) {
       return res.status(403).json({ message: "No tiene permisos para editar esta cotizacion" });
-    }
-
-    if (await quoteHasSale(req.params.id)) {
-      return res.status(409).json({ message: "No se puede editar una cotizacion que ya fue convertida en venta" });
     }
 
     const quoteData = await buildCleanQuoteData({

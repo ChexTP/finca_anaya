@@ -65,7 +65,7 @@ const statusTones = {
 
 const sampleFilters = [
   { key: "all", label: "Todas" },
-  { key: "aprobada", label: "Aprobadas" },
+  { key: "solicitada", label: "Solicitadas" },
   { key: "en_preparacion", label: "En preparacion" },
   { key: "pendiente_laboratorio", label: "Pendientes lab" },
   { key: "aprobada_laboratorio", label: "Aprobadas lab" },
@@ -173,7 +173,7 @@ const formatRequestedCoffee = (item) => {
 const getSampleActions = (sample) => {
   const actionsByStatus = {
     borrador: ["enviada", "cancelada"],
-    enviada: ["aprobada", "cancelada"],
+    enviada: ["en_preparacion", "cancelada"],
     aprobada: ["en_preparacion", "cancelada"],
     solicitada: ["en_preparacion", "cancelada"],
     en_preparacion: ["pendiente_laboratorio", "cancelada"],
@@ -370,12 +370,11 @@ const SamplesPage = () => {
   const canCreate = false;
   const canManageSamples = ["admin", "samples"].includes(user?.role);
   const canApproveSampleOrders = ["admin", "accounting"].includes(user?.role);
-  const canApproveSamples = canApproveSampleOrders;
   const canPrintSampleOrder = ["admin", "accounting", "seller", "samples"].includes(user?.role);
   const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
   const canDeleteSamples = user?.role === "admin";
   const canUseSampleStatusAction = (status) => {
-    const commercialStatuses = ["borrador", "enviada", "aprobada", "cancelada"];
+    const commercialStatuses = ["borrador", "enviada", "cancelada"];
     if (canApproveSampleOrders && commercialStatuses.includes(status)) return true;
     if (canManageSamples && !commercialStatuses.includes(status)) return true;
     return false;
@@ -807,7 +806,6 @@ const SamplesPage = () => {
               >
                 <option value="borrador">Borrador</option>
                 <option value="enviada">Enviada para aprobacion</option>
-                {canApproveSamples && <option value="aprobada">Aprobada para muestras</option>}
               </select>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"

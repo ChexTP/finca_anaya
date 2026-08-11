@@ -14,7 +14,7 @@ import {
   formatQuantityInputValue,
   formatRequestedKg,
 } from "../../utils/coffeeCalculations";
-import { openCommercialDocumentPrint, openPriceListDocumentPrint } from "../../utils/commercialDocuments";
+import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
 
 const defaultQuoteTerms = {
@@ -73,6 +73,8 @@ const initialQuote = {
 };
 
 const initialPriceList = {
+  manualCodeNumber: "",
+  manualCodeYear: String(new Date().getFullYear()),
   clientId: "",
   language: "es",
   currency: "COP",
@@ -101,7 +103,8 @@ const initialSample = {
   requestedAt: today,
   tentativeDeliveryDate: "",
   notes: "",
-  status: "enviada",
+  status: "solicitada",
+  useFreeDescription: false,
 };
 
 const emptySampleItem = {
@@ -109,6 +112,7 @@ const emptySampleItem = {
   coffeeProfileId: "",
   description: "",
   quantityGrams: "",
+  useFreeDescription: false,
 };
 
 const createInitialQuote = () => ({
@@ -129,6 +133,7 @@ const initialItem = {
   variety: "",
   quantityKg: "",
   priceLoadCop: "",
+  priceInputMode: "load",
   unitPrice: "",
   pricingSnapshot: {},
 };
@@ -181,6 +186,10 @@ const getQuoteCodeFromForm = (form) => {
   return getCodeFromForm(form, "COT");
 };
 
+const getPriceListCodeFromForm = (form) => {
+  return getCodeFromForm(form, "COT");
+};
+
 const getCodeParts = (code, prefix = "COT") => {
   const match = String(code || "").match(new RegExp(`^${prefix}-(\\d{4})-(\\d+)$`, "i"));
 
@@ -214,6 +223,7 @@ const itemFromQuoteItem = (item) => ({
   variety: item.variety || "",
   quantityKg: formatQuantityInputValue(item.quantity_kg),
   priceLoadCop: item.pricing_snapshot?.priceLoadCop || "",
+  priceInputMode: item.pricing_snapshot?.priceInputMode || "load",
   unitPrice: item.unit_price || "",
   pricingSnapshot: item.pricing_snapshot || {},
 });
@@ -307,6 +317,17 @@ const CommercialPage = () => {
     exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
     usdIncoterm: quoteForm.terms?.usdIncoterm,
 }), [itemForm.priceLoadCop, itemForm.productForm, itemForm.processType, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
+
+  const effectiveItemPriceCalculation = useMemo(() => {
+    if (itemForm.priceInputMode !== "kg") return itemPriceCalculation;
+
+    return {
+      ...(itemForm.pricingSnapshot || {}),
+      unitPrice: Number(itemForm.unitPrice || 0),
+      priceBasis: "kg",
+      priceInputMode: "kg",
+    };
+  }, [itemForm.priceInputMode, itemForm.unitPrice, itemForm.pricingSnapshot, itemPriceCalculation]);
 
   const subtotal = useMemo(() => {
     return quoteItems.reduce((total, item) => total + Number(item.lineTotal || 0), 0);
@@ -408,6 +429,11 @@ const CommercialPage = () => {
         ? currentForm
         : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "MUE")?.nextCode, "MUE") }
     ));
+    setPriceListForm((currentForm) => (
+      currentForm.clientId || priceListItems.length > 0
+        ? currentForm
+        : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "COT")?.nextCode, "COT") }
+    ));
     return { countersData };
   };
 
@@ -416,6 +442,7 @@ const CommercialPage = () => {
   }, []);
 
   useEffect(() => {
+    if (itemForm.priceInputMode === "kg") return;
     if (!itemForm.priceLoadCop) return;
     setItemForm((currentItem) => ({
       ...currentItem,
@@ -424,6 +451,7 @@ const CommercialPage = () => {
         ...(currentItem.pricingSnapshot || {}),
         ...itemPriceCalculation,
         priceLoadCop: Number(currentItem.priceLoadCop || 0),
+        priceInputMode: "load",
         currency: quoteForm.currency,
         exchangeRate: quoteForm.terms?.exchangeRate || null,
         packaging: currentItem.packaging,
@@ -434,7 +462,7 @@ const CommercialPage = () => {
         usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
       },
     }));
-  }, [itemPriceCalculation.unitPrice, itemForm.priceLoadCop, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
+  }, [itemPriceCalculation.unitPrice, itemForm.priceInputMode, itemForm.priceLoadCop, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
 
   const resetForm = (freshCounters = codeCounters) => {
     setEditingQuoteId(null);
@@ -443,7 +471,7 @@ const CommercialPage = () => {
     setQuoteItems([]);
     setSampleForm({ ...initialSample, ...getNextCodeParts("MUE", freshCounters) });
     setSampleItems([]);
-    setPriceListForm(initialPriceList);
+    setPriceListForm({ ...initialPriceList, ...getNextCodeParts("COT", freshCounters) });
     setPriceListItems([]);
     setError("");
   };
@@ -457,6 +485,7 @@ const CommercialPage = () => {
       packaging: itemForm.productForm === "Excelso" ? itemForm.packaging : "Empaque tradicional",
       quantityKg: itemForm.quantityKg,
       priceLoadCop: itemForm.priceLoadCop,
+      priceInputMode: itemForm.priceInputMode,
       unitPrice: itemForm.unitPrice,
       pricingSnapshot: itemForm.pricingSnapshot,
     });
@@ -472,7 +501,7 @@ const CommercialPage = () => {
       description: "",
       processType: profile?.process_type || itemForm.processType,
       variety: profile?.name || itemForm.variety,
-      priceLoadCop: formatPriceInputValue(profile?.base_price_cop) || itemForm.priceLoadCop,
+      priceLoadCop: itemForm.priceInputMode === "load" ? (formatPriceInputValue(profile?.base_price_cop) || itemForm.priceLoadCop) : itemForm.priceLoadCop,
     });
   };
 
@@ -524,8 +553,11 @@ const CommercialPage = () => {
 
   const buildItem = () => {
     if (!itemForm.quantityKg) throw new Error("Cada cafe debe tener cantidad.");
-    if (!itemForm.priceLoadCop || Number(itemForm.priceLoadCop) <= 0) {
+    if (itemForm.priceInputMode === "load" && (!itemForm.priceLoadCop || Number(itemForm.priceLoadCop) <= 0)) {
       throw new Error("Cada cafe debe tener precio de carga en pesos.");
+    }
+    if (itemForm.priceInputMode === "kg" && (!itemForm.unitPrice || Number(itemForm.unitPrice) <= 0)) {
+      throw new Error("Cada cafe debe tener precio de kilo valido.");
     }
     if (quoteForm.currency === "USD" && (!quoteForm.terms?.exchangeRate || Number(quoteForm.terms.exchangeRate) <= 0)) throw new Error("Para cotizar en dolares indique el precio del dolar.");
     if (itemForm.itemType !== "description" && !itemForm.coffeeProfileId) throw new Error("Seleccione el cafe solicitado.");
@@ -534,8 +566,9 @@ const CommercialPage = () => {
     const quantityKg = toItemQuantityKg(itemForm);
     const pricingSnapshot = {
       ...(itemForm.pricingSnapshot || {}),
-      ...itemPriceCalculation,
-      priceLoadCop: Number(itemForm.priceLoadCop || 0),
+      ...effectiveItemPriceCalculation,
+      priceLoadCop: itemForm.priceInputMode === "load" ? Number(itemForm.priceLoadCop || 0) : null,
+      priceInputMode: itemForm.priceInputMode,
       currency: quoteForm.currency,
       exchangeRate: quoteForm.terms?.exchangeRate || null,
       packaging: itemForm.productForm === "Excelso" ? itemForm.packaging : "Empaque tradicional",
@@ -545,7 +578,7 @@ const CommercialPage = () => {
       exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
       usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
     };
-    const unitPrice = Number(itemPriceCalculation.unitPrice || itemForm.unitPrice || 0);
+    const unitPrice = Number(effectiveItemPriceCalculation.unitPrice || itemForm.unitPrice || 0);
 
     return {
       lotId: itemForm.lotId || null,
@@ -562,13 +595,13 @@ const CommercialPage = () => {
         processType: itemForm.processType,
       }),
       unitPrice,
-      priceBasis: itemPriceCalculation.priceBasis,
+      priceBasis: effectiveItemPriceCalculation.priceBasis || "kg",
       pricingSnapshot,
       lineTotal: calculateCommercialLineTotal({
         quantityKg,
         unitPrice,
         currency: quoteForm.currency,
-        priceBasis: itemPriceCalculation.priceBasis,
+        priceBasis: effectiveItemPriceCalculation.priceBasis || "kg",
       }),
     };
   };
@@ -599,6 +632,7 @@ const CommercialPage = () => {
       lotId: item.lotId ? String(item.lotId) : "",
       quantityKg: formatQuantityInputValue(item.quantityKg),
       priceLoadCop: formatPriceInputValue(item.priceLoadCop || item.pricingSnapshot?.priceLoadCop),
+      priceInputMode: item.priceInputMode || item.pricingSnapshot?.priceInputMode || "load",
       pricingSnapshot: item.pricingSnapshot || {},
       unitPrice: String(item.unitPrice || ""),
     });
@@ -625,6 +659,7 @@ const CommercialPage = () => {
         coffeeTypeId: sampleForm.coffeeTypeId ? Number(sampleForm.coffeeTypeId) : null,
         coffeeProfileId: sampleForm.coffeeProfileId ? Number(sampleForm.coffeeProfileId) : null,
         description: sampleForm.description || null,
+        useFreeDescription: sampleForm.useFreeDescription,
         coffeeName: getSampleItemName(sampleForm),
         quantityGrams: Number(sampleForm.quantityGrams),
         price: null,
@@ -661,7 +696,7 @@ const CommercialPage = () => {
           ...sampleForm,
           code: getSampleCodeFromForm(sampleForm),
           requestedAt: sampleForm.requestedAt || today,
-          status: "enviada",
+          status: "solicitada",
           currency: "COP",
           items,
         }),
@@ -670,7 +705,7 @@ const CommercialPage = () => {
       setSampleItems([]);
       const refreshedData = await loadData();
       setSampleForm({ ...initialSample, ...getNextCodeParts("MUE", refreshedData.countersData) });
-      setMessage(`Solicitud de muestra ${response.data?.code || ""} creada y enviada para aprobacion.`);
+      setMessage(`Solicitud de muestra ${response.data?.code || ""} creada y enviada a muestras.`);
     } catch (requestError) {
       showErrorAlert(requestError.message);
     } finally {
@@ -877,6 +912,10 @@ const CommercialPage = () => {
       showErrorAlert("No se pudo crear la venta: la cotizacion esta anulada.");
       return;
     }
+    if (quote.quote_type === "lista_precios") {
+      showErrorAlert("Una lista de precios no se convierte en venta. Cree una cotizacion de venta para cerrar el negocio.");
+      return;
+    }
 
     const confirmed = window.confirm(`Confirma aceptar ${quote.code} y crear la venta para enviarla a bodega?`);
     if (!confirmed) return;
@@ -897,6 +936,110 @@ const CommercialPage = () => {
       window.alert(`Venta creada exitosamente: ${saleCode}`);
     } catch (requestError) {
       showErrorAlert(`No se pudo crear la venta: ${requestError.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePriceListQuote = async () => {
+    if (!priceListForm.clientId) {
+      showErrorAlert("Seleccione un cliente para guardar la lista de precios con consecutivo.");
+      return;
+    }
+    if (priceListItems.length === 0) {
+      showErrorAlert("Agregue al menos un cafe para la lista de precios.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const items = priceListItems.map((item) => {
+        const option = priceListAvailableItems.find((availableItem) => availableItem.id === item.catalogId);
+        if (!option) throw new Error("Seleccione el cafe de cada linea de la lista de precios.");
+        if (!item.priceLoadCop || Number(item.priceLoadCop) <= 0) throw new Error("Cada cafe de la lista debe tener precio de carga.");
+        if (priceListForm.currency === "USD" && (!item.exchangeRate || Number(item.exchangeRate) <= 0)) throw new Error("Cada cafe en dolares debe tener precio del dolar.");
+
+        const calculation = calculateCommercialItemPrice({
+          priceLoadCop: item.priceLoadCop,
+          productForm: item.productForm,
+          processType: item.processType || option.processType,
+          packaging: item.packaging || "Empaque tradicional",
+          currency: priceListForm.currency,
+          exchangeRate: item.exchangeRate,
+          millCostCop: fixedCommercialCosts.millCostCop,
+          transportCostCop: fixedCommercialCosts.transportCostCop,
+          vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+          exportCostUsdLb: 0,
+          usdIncoterm: "EXW",
+        });
+
+        return {
+          lotId: null,
+          coffeeTypeId: null,
+          coffeeProfileId: option.source === "profile" ? Number(option.sourceId) : null,
+          description: option.source === "purchase" ? option.label : null,
+          productForm: item.productForm,
+          processType: item.processType || option.processType || "-",
+          variety: option.label,
+          quantityKg: 1,
+          operationalWeightKg: 1,
+          unitPrice: calculation.unitPrice,
+          priceBasis: calculation.priceBasis,
+          lineTotal: calculateCommercialLineTotal({
+            quantityKg: 1,
+            unitPrice: calculation.unitPrice,
+            currency: priceListForm.currency,
+            priceBasis: calculation.priceBasis,
+          }),
+          pricingSnapshot: {
+            ...calculation,
+            priceLoadCop: Number(item.priceLoadCop),
+            priceInputMode: "load",
+            packaging: item.packaging || "Empaque tradicional",
+            currency: priceListForm.currency,
+            exchangeRate: item.exchangeRate || null,
+          },
+        };
+      });
+
+      const response = await apiRequest("/quotes", {
+        method: "POST",
+        body: JSON.stringify({
+          code: getPriceListCodeFromForm(priceListForm),
+          clientId: Number(priceListForm.clientId),
+          quoteType: "lista_precios",
+          status: "enviada",
+          currency: priceListForm.currency,
+          paymentTerms: null,
+          deliveryTerms: null,
+          terms: {
+            ...priceListForm.terms,
+            millCostCop: fixedCommercialCosts.millCostCop,
+            transportCostCop: fixedCommercialCosts.transportCostCop,
+            vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+            exportCostUsdLb: 0,
+          },
+          shippingCost: 0,
+          estimatedDeliveryDate: null,
+          notes: "Lista de precios",
+          items,
+        }),
+      });
+
+      const refreshedData = await loadData();
+      setPriceListForm({ ...initialPriceList, ...getNextCodeParts("COT", refreshedData.countersData) });
+      setPriceListItems([]);
+      setSelectedQuote(response.data);
+      openCommercialDocumentPrint(
+        await apiRequest(`/documents/quotes/${response.data.id}`),
+        { language: priceListForm.language }
+      );
+      setMessage(`Lista de precios ${response.data?.code || ""} guardada y abierta para PDF.`);
+    } catch (requestError) {
+      showErrorAlert(requestError.message);
     } finally {
       setSaving(false);
     }
@@ -1154,13 +1297,57 @@ const CommercialPage = () => {
                   />
                 </label>
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Forma de precio
+                  <select
+                    className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                    value={itemForm.priceInputMode}
+                    onChange={(event) => {
+                      const priceInputMode = event.target.value;
+                      setItemForm({
+                        ...itemForm,
+                        priceInputMode,
+                        unitPrice: priceInputMode === "kg" ? itemForm.unitPrice : "",
+                        pricingSnapshot: priceInputMode === "kg"
+                          ? { ...(itemForm.pricingSnapshot || {}), priceInputMode: "kg", priceBasis: "kg" }
+                          : {},
+                      });
+                    }}
+                  >
+                    <option value="load">Precio por carga</option>
+                    <option value="kg">Precio por kilo</option>
+                  </select>
+                </label>
+                {itemForm.priceInputMode === "load" ? (
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                   Precio carga COP
                   <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Precio carga en pesos" type="number" step="0.01" value={itemForm.priceLoadCop} onChange={(event) => setItemForm({ ...itemForm, priceLoadCop: event.target.value })} />
                 </label>
+                ) : (
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Precio kilo {quoteForm.currency}
+                  <input
+                    className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                    placeholder="Precio por kilo"
+                    type="number"
+                    step="0.01"
+                    value={itemForm.unitPrice}
+                    onChange={(event) => setItemForm({
+                      ...itemForm,
+                      unitPrice: event.target.value,
+                      pricingSnapshot: {
+                        ...(itemForm.pricingSnapshot || {}),
+                        priceInputMode: "kg",
+                        priceBasis: "kg",
+                        unitPrice: Number(event.target.value || 0),
+                      },
+                    })}
+                  />
+                </label>
+                )}
                 <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                   Precio calculado
                   <p className="mt-1 font-semibold text-ink">
-                    {itemForm.unitPrice ? formatUnitPrice(quoteForm.currency, itemForm.unitPrice, itemPriceCalculation.priceBasis) : "Pendiente de precio de carga"}
+                    {itemForm.unitPrice ? formatUnitPrice(quoteForm.currency, itemForm.unitPrice, effectiveItemPriceCalculation.priceBasis) : (itemForm.priceInputMode === "kg" ? "Pendiente de precio por kilo" : "Pendiente de precio de carga")}
                   </p>
                   <p className="text-xs text-slate-500">{itemForm.productForm === "Excelso" ? itemForm.packaging : "Pergamino tradicional"}</p>
                 </div>
@@ -1168,7 +1355,7 @@ const CommercialPage = () => {
               {Number(itemForm.quantityKg || 0) > 0 && (
                 <div className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   Operativo bodega: <span className="font-semibold">{formatOperationalKg(itemOperationalKg)}</span>
-                  {itemForm.priceLoadCop && (
+                  {itemForm.priceInputMode === "load" && itemForm.priceLoadCop && (
                     <span className="ml-2">
                       Calculo: kg COP {Number(itemPriceCalculation.kgVacuumPriceCop || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })} · lb USD {Number(itemPriceCalculation.usdLbExw || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })}
                     </span>
@@ -1423,8 +1610,20 @@ const CommercialPage = () => {
                     </label>
                     <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                       Perfil o cafe comercial
-                      <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={sampleForm.coffeeProfileId} onChange={(event) => setSampleForm({ ...sampleForm, coffeeProfileId: event.target.value })}>
+                      <select
+                        className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                        value={sampleForm.useFreeDescription ? "__free__" : sampleForm.coffeeProfileId}
+                        onChange={(event) => {
+                          if (event.target.value === "__free__") {
+                            setSampleForm({ ...sampleForm, coffeeProfileId: "", useFreeDescription: true });
+                            return;
+                          }
+
+                          setSampleForm({ ...sampleForm, coffeeProfileId: event.target.value, useFreeDescription: false });
+                        }}
+                      >
                         <option value="">Perfil o cafe comercial</option>
+                        <option value="__free__">Descripcion libre</option>
                         {catalogs?.coffeeProfiles?.map((profile) => (
                           <option key={profile.id} value={profile.id}>{formatProfileOptionLabel(profile)}</option>
                         ))}
@@ -1472,6 +1671,28 @@ const CommercialPage = () => {
               </>
             ) : (
               <>
+                <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-3">
+                  <label className="text-xs font-semibold uppercase text-slate-500">Codigo de lista de precios</label>
+                  <div className="mt-2 grid gap-2 md:grid-cols-[1fr_160px_180px]">
+                    <div className="rounded bg-white px-3 py-2 text-sm font-semibold text-ink">
+                      {getPriceListCodeFromForm(priceListForm)}
+                    </div>
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Ano"
+                      type="number"
+                      value={priceListForm.manualCodeYear}
+                      onChange={(event) => setPriceListForm({ ...priceListForm, manualCodeYear: event.target.value })}
+                    />
+                    <input
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Numero final"
+                      type="number"
+                      value={priceListForm.manualCodeNumber}
+                      onChange={(event) => setPriceListForm({ ...priceListForm, manualCodeNumber: event.target.value })}
+                    />
+                  </div>
+                </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                     Idioma del documento
@@ -1491,7 +1712,7 @@ const CommercialPage = () => {
                       value={priceListForm.clientId}
                       onChange={(event) => setPriceListForm({ ...priceListForm, clientId: event.target.value })}
                     >
-                      <option value="">Cliente opcional</option>
+                      <option value="">Cliente</option>
                       {clients.map((client) => (
                         <option key={client.id} value={client.id}>{client.name}</option>
                       ))}
@@ -1641,44 +1862,10 @@ const CommercialPage = () => {
                   className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={saving || priceListItems.length === 0}
                   type="button"
-                  onClick={() => {
-                    const client = clients.find((clientItem) => String(clientItem.id) === String(priceListForm.clientId));
-                    const documentItems = priceListItems.map((item) => {
-                      const option = priceListAvailableItems.find((availableItem) => availableItem.id === item.catalogId);
-                      const calculation = calculateCommercialItemPrice({
-                        priceLoadCop: item.priceLoadCop,
-                        productForm: item.productForm,
-                        processType: item.processType || option?.processType,
-                        packaging: item.packaging || "Empaque tradicional",
-                        currency: priceListForm.currency,
-                        exchangeRate: item.exchangeRate,
-                        millCostCop: fixedCommercialCosts.millCostCop,
-                        transportCostCop: fixedCommercialCosts.transportCostCop,
-                        vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
-                        exportCostUsdLb: 0,
-                        usdIncoterm: "EXW",
-                      });
-                      return {
-                        name: option?.label || "Cafe",
-                        productForm: item.productForm,
-                        processType: item.processType || option?.processType || "-",
-                        packaging: item.packaging || "Empaque tradicional",
-                        priceLoadCop: item.priceLoadCop,
-                        exchangeRate: item.exchangeRate,
-                        ...calculation,
-                      };
-                    });
-                    openPriceListDocumentPrint({
-                      client,
-                      currency: priceListForm.currency,
-                      language: priceListForm.language,
-                      terms: priceListForm.terms,
-                      items: documentItems,
-                    });
-                  }}
+                  onClick={savePriceListQuote}
                 >
                   <FileDown size={16} />
-                  Generar lista de precios
+                  Guardar lista de precios / PDF
                 </button>
               </>
             )}
@@ -1789,7 +1976,7 @@ const CommercialPage = () => {
                 <button className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={saving || selectedQuote.status === "enviada"} onClick={() => updateQuoteStatus(selectedQuote, "enviada")}>
                   Enviada
                 </button>
-                <button className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || !canConvertToSale || selectedQuote.status === "anulada"} onClick={() => convertQuoteToSale(selectedQuote)}>
+                <button className="rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || !canConvertToSale || selectedQuote.status === "anulada" || selectedQuote.quote_type === "lista_precios"} onClick={() => convertQuoteToSale(selectedQuote)}>
                   Aceptar y crear venta
                 </button>
                 <button className="rounded border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={saving || selectedQuote.status === "anulada"} onClick={() => updateQuoteStatus(selectedQuote, "anulada")}>

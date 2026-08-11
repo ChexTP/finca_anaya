@@ -16,9 +16,11 @@ export const buildQuoteDocument = async (id) => {
     return null;
   }
 
+  const isPriceList = quote.quote_type === "lista_precios";
+
   return {
-    documentType: quote.quote_type === "preventa" ? "Preventa" : "Cotizacion",
-    title: quote.quote_type === "preventa" ? "Preventa de cafe" : "Cotizacion de cafe",
+    documentType: isPriceList ? "ListaPrecios" : quote.quote_type === "preventa" ? "Preventa" : "Cotizacion",
+    title: isPriceList ? "Lista de precios de cafe" : quote.quote_type === "preventa" ? "Preventa de cafe" : "Cotizacion de cafe",
     code: quote.code,
     status: quote.status,
     company: companyInfo,

@@ -1230,6 +1230,11 @@ export const convertQuoteToSale = async ({
       return { invalidQuoteStatus: true, quote };
     }
 
+    if (quote.quote_type === "lista_precios") {
+      await client.query("ROLLBACK");
+      return { invalidQuoteType: true, quote };
+    }
+
     const existingSale = await client.query("SELECT id FROM sales WHERE quote_id = $1 LIMIT 1", [quoteId]);
 
     if (existingSale.rows[0]) {

@@ -628,6 +628,13 @@ export const postSaleFromQuote = async (req, res) => {
       });
     }
 
+    if (sale.invalidQuoteType) {
+      return res.status(409).json({
+        message: "Una lista de precios no se puede convertir en venta",
+        data: sale.quote,
+      });
+    }
+
     if (sale.alreadyConverted) {
       return res.status(409).json({
         message: "La cotizacion ya fue convertida en venta",

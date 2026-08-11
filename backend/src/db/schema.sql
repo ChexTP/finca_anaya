@@ -451,7 +451,7 @@ CREATE TABLE IF NOT EXISTS quotes (
   total NUMERIC(14, 2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  CONSTRAINT quotes_type_check CHECK (quote_type IN ('inventario_disponible', 'preventa')),
+  CONSTRAINT quotes_type_check CHECK (quote_type IN ('inventario_disponible', 'preventa', 'lista_precios')),
   CONSTRAINT quotes_status_check CHECK (status IN ('borrador', 'enviada', 'aceptada', 'anulada')),
   CONSTRAINT quotes_currency_check CHECK (currency IN ('COP', 'USD')),
   CONSTRAINT quotes_amounts_check CHECK (shipping_cost >= 0 AND subtotal >= 0 AND total >= 0)
@@ -619,6 +619,9 @@ ALTER TABLE sales ADD COLUMN IF NOT EXISTS warehouse_priority VARCHAR(20) NOT NU
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS order_assignee VARCHAR(120);
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS estimated_delivery_date DATE;
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS quote_terms JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE quotes DROP CONSTRAINT IF EXISTS quotes_type_check;
+ALTER TABLE quotes
+ADD CONSTRAINT quotes_type_check CHECK (quote_type IN ('inventario_disponible', 'preventa', 'lista_precios'));
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS blend_required BOOLEAN;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS dispatch_receipt_image TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS dispatch_receipt_file_name TEXT;

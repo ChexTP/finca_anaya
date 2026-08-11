@@ -216,6 +216,117 @@ export const createQuote = async (quoteData) => {
   }
 };
 
+const syncSaleFromQuote = async (client, quote, quoteItems) => {
+  const saleResult = await client.query(
+    "SELECT * FROM sales WHERE quote_id = $1 FOR UPDATE",
+    [quote.id]
+  );
+  const sale = saleResult.rows[0];
+
+  if (!sale) return null;
+
+  if (["alistada", "despachada", "anulada"].includes(sale.status)) {
+    const error = new Error("La cotizacion ya tiene una venta alistada, despachada o anulada y no se puede sincronizar automaticamente");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  // Al cambiar la cotizacion, las reservas y ensambles pendientes dejan de ser confiables.
+  // Se limpian para que bodega trabaje otra vez con la orden actualizada.
+  await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [sale.id]);
+  await client.query(
+    `
+    DELETE FROM sale_item_lots
+    WHERE sale_item_id IN (
+      SELECT id FROM sale_items WHERE sale_id = $1
+    )
+    AND deducted_at IS NULL
+    `,
+    [sale.id]
+  );
+  await client.query("DELETE FROM sale_items WHERE sale_id = $1", [sale.id]);
+
+  const balanceDue = Number((Number(quote.total || 0) - Number(sale.amount_paid || 0)).toFixed(2));
+  const paymentStatus = balanceDue <= 0
+    ? "pagada"
+    : Number(sale.amount_paid || 0) > 0
+      ? "pago_parcial"
+      : "pendiente_pago";
+
+  await client.query(
+    `
+    UPDATE sales
+    SET
+      code = REGEXP_REPLACE($1, '^COT', 'VEN', 'i'),
+      client_id = $2,
+      seller_id = $3,
+      payment_status = $4,
+      currency = $5,
+      subtotal = $6,
+      shipping_cost = $7,
+      total = $8,
+      balance_due = GREATEST($8::numeric - COALESCE(amount_paid, 0), 0),
+      estimated_delivery_date = $9,
+      status = 'pendiente_bodega',
+      blend_required = FALSE,
+      updated_at = NOW()
+    WHERE id = $10
+    `,
+    [
+      quote.code,
+      quote.client_id,
+      quote.seller_id,
+      paymentStatus,
+      quote.currency,
+      quote.subtotal,
+      quote.shipping_cost,
+      quote.total,
+      quote.estimated_delivery_date,
+      sale.id,
+    ]
+  );
+
+  for (const item of quoteItems) {
+    await client.query(
+      `
+      INSERT INTO sale_items (
+        sale_id,
+        quote_item_id,
+        lot_id,
+        coffee_type_id,
+        coffee_profile_id,
+        description,
+        product_form,
+        process_type,
+        variety,
+        quantity_kg,
+        operational_weight_kg,
+        unit_price,
+        line_total
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `,
+      [
+        sale.id,
+        item.id,
+        item.lot_id,
+        item.coffee_type_id,
+        item.coffee_profile_id,
+        item.description,
+        item.product_form,
+        item.process_type,
+        item.variety,
+        item.quantity_kg,
+        item.operational_weight_kg,
+        item.unit_price,
+        item.line_total,
+      ]
+    );
+  }
+
+  return sale;
+};
+
 export const updateQuote = async (id, quoteData) => {
   const client = await pool.connect();
 
@@ -269,8 +380,10 @@ export const updateQuote = async (id, quoteData) => {
 
     await client.query("DELETE FROM quote_items WHERE quote_id = $1", [id]);
 
+    const insertedItems = [];
+
     for (const item of quoteData.items) {
-      await client.query(
+      const itemResult = await client.query(
         `
         INSERT INTO quote_items (
           quote_id,
@@ -289,6 +402,7 @@ export const updateQuote = async (id, quoteData) => {
           pricing_snapshot
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *
         `,
         [
           id,
@@ -307,7 +421,10 @@ export const updateQuote = async (id, quoteData) => {
           item.pricingSnapshot || {},
         ]
       );
+      insertedItems.push(itemResult.rows[0]);
     }
+
+    await syncSaleFromQuote(client, quote, insertedItems);
 
     await client.query("COMMIT");
     return quote;
