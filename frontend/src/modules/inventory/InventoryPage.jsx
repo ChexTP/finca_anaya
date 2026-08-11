@@ -284,7 +284,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
     }
 
     const [availableData, allLots, inProcessData, sampleOutputData, catalogData, supplierData, processData] = await Promise.all(requests);
-    setLots(availableData);
+    setLots((availableData || []).filter((lot) => lot.status !== "retirado"));
     setAllLots(allLots);
     setInProcessInventory(inProcessData || []);
     setSampleOutputs(sampleOutputData || []);

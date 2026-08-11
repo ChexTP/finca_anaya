@@ -2,7 +2,7 @@ import { pool } from "../db.js";
 
 export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId }) => {
   const params = [];
-  const conditions = ["coffee_lots.available_weight_kg > 0"];
+  const conditions = ["coffee_lots.available_weight_kg > 0", "coffee_lots.status <> 'retirado'"];
 
   if (status) {
     params.push(status);
