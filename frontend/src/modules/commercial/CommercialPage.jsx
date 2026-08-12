@@ -237,6 +237,7 @@ const CommercialPage = () => {
   const [codeCounters, setCodeCounters] = useState([]);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [editingQuoteId, setEditingQuoteId] = useState(null);
+  const [editingPriceListId, setEditingPriceListId] = useState(null);
   const [formMode, setFormMode] = useState("quote");
   const [quoteForm, setQuoteForm] = useState(createInitialQuote);
   const [itemForm, setItemForm] = useState(initialItem);
@@ -430,7 +431,7 @@ const CommercialPage = () => {
         : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "MUE")?.nextCode, "MUE") }
     ));
     setPriceListForm((currentForm) => (
-      currentForm.clientId || priceListItems.length > 0
+      editingPriceListId || currentForm.clientId || priceListItems.length > 0
         ? currentForm
         : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "COT")?.nextCode, "COT") }
     ));
@@ -466,6 +467,7 @@ const CommercialPage = () => {
 
   const resetForm = (freshCounters = codeCounters) => {
     setEditingQuoteId(null);
+    setEditingPriceListId(null);
     setQuoteForm({ ...createInitialQuote(), ...getNextCodeParts("COT", freshCounters) });
     setItemForm(initialItem);
     setQuoteItems([]);
@@ -807,6 +809,46 @@ const CommercialPage = () => {
 
   const loadQuoteForEdit = async (quoteId) => {
     const quote = await apiRequest(`/quotes/${quoteId}`);
+    if (quote.quote_type === "lista_precios") {
+      setEditingQuoteId(null);
+      setEditingPriceListId(quote.id);
+      setSelectedQuote(quote);
+      setFormMode("priceList");
+      setPriceListForm({
+        ...initialPriceList,
+        ...getCodeParts(quote.code, "COT"),
+        clientId: String(quote.client_id || ""),
+        language: quote.currency === "USD" ? "en" : "es",
+        currency: quote.currency || "COP",
+        terms: { ...defaultQuoteTerms, ...(quote.quote_terms || {}) },
+      });
+      setPriceListItems((quote.items || []).map((item) => {
+        const option = priceListAvailableItems.find((availableItem) => (
+          (item.coffee_profile_id && availableItem.id === `profile-${item.coffee_profile_id}`) ||
+          String(availableItem.label || "").toLowerCase() === String(item.variety || item.description || "").toLowerCase()
+        ));
+        const priceInputMode = item.pricing_snapshot?.priceInputMode || "load";
+
+        return {
+          id: crypto.randomUUID(),
+          catalogId: option?.id || "",
+          productForm: item.product_form || option?.productForm || "Excelso",
+          processType: item.process_type || option?.processType || "Lavado",
+          packaging: item.pricing_snapshot?.packaging || "Empaque tradicional",
+          priceLoadCop: formatPriceInputValue(item.pricing_snapshot?.priceLoadCop),
+          priceInputMode,
+          unitPrice: priceInputMode === "kg" ? formatPriceInputValue(item.unit_price) : "",
+          exchangeRate: item.pricing_snapshot?.exchangeRate || quote.quote_terms?.exchangeRate || "",
+          pricingSnapshot: item.pricing_snapshot || {},
+        };
+      }));
+      setMessage(`Editando lista de precios ${quote.code}.`);
+      setError("");
+      scrollToPanel(formPanelRef);
+      return;
+    }
+
+    setEditingPriceListId(null);
     setEditingQuoteId(quote.id);
     setSelectedQuote(quote);
     setQuoteForm({
@@ -1022,8 +1064,8 @@ const CommercialPage = () => {
         };
       });
 
-      const response = await apiRequest("/quotes", {
-        method: "POST",
+      const response = await apiRequest(editingPriceListId ? `/quotes/${editingPriceListId}` : "/quotes", {
+        method: editingPriceListId ? "PUT" : "POST",
         body: JSON.stringify({
           code: getPriceListCodeFromForm(priceListForm),
           clientId: Number(priceListForm.clientId),
@@ -1046,7 +1088,9 @@ const CommercialPage = () => {
         }),
       });
 
+      const wasEditing = Boolean(editingPriceListId);
       const refreshedData = await loadData();
+      setEditingPriceListId(null);
       setPriceListForm({ ...initialPriceList, ...getNextCodeParts("COT", refreshedData.countersData) });
       setPriceListItems([]);
       setSelectedQuote(response.data);
@@ -1054,7 +1098,7 @@ const CommercialPage = () => {
         await apiRequest(`/documents/quotes/${response.data.id}`),
         { language: priceListForm.language }
       );
-      setMessage(`Lista de precios ${response.data?.code || ""} guardada y abierta para PDF.`);
+      setMessage(`Lista de precios ${response.data?.code || ""} ${wasEditing ? "actualizada" : "guardada"} y abierta para PDF.`);
     } catch (requestError) {
       showErrorAlert(requestError.message);
     } finally {
@@ -1089,7 +1133,7 @@ const CommercialPage = () => {
               <div className="flex items-center gap-2">
                 {formMode === "sample" ? <FlaskConical size={17} className="text-leaf" /> : <Plus size={17} className="text-leaf" />}
                 <h2 className="text-sm font-semibold text-slate-800">
-                  {formMode === "quote" ? (editingQuoteId ? "Editar cotizacion" : "Nueva cotizacion") : formMode === "sample" ? "Nueva solicitud de muestra" : "Lista de precios"}
+                  {formMode === "quote" ? (editingQuoteId ? "Editar cotizacion" : "Nueva cotizacion") : formMode === "sample" ? "Nueva solicitud de muestra" : editingPriceListId ? "Editar lista de precios" : "Lista de precios"}
                 </h2>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1124,7 +1168,7 @@ const CommercialPage = () => {
                   Lista de precios
                 </button>
               </div>
-              {formMode === "quote" && editingQuoteId && (
+              {((formMode === "quote" && editingQuoteId) || (formMode === "priceList" && editingPriceListId)) && (
                 <button
                   className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
                   type="button"
@@ -2056,7 +2100,7 @@ const CommercialPage = () => {
                   onClick={savePriceListQuote}
                 >
                   <FileDown size={16} />
-                  Guardar lista de precios / PDF
+                  {editingPriceListId ? "Actualizar lista de precios / PDF" : "Guardar lista de precios / PDF"}
                 </button>
               </>
             )}
