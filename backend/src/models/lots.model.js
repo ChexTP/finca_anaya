@@ -1289,6 +1289,53 @@ export const updateLotPhysicalReview = async (id, reviewData) => {
   return result.rows[0];
 };
 
+export const deletePendingPhysicalReviewLot = async ({ id }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (currentLot.status !== "pendiente_revision_fisica") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot: currentLot };
+    }
+
+    await client.query("DELETE FROM inventory_movements WHERE lot_id = $1", [id]);
+    const result = await client.query(
+      `
+      DELETE FROM coffee_lots
+      WHERE id = $1
+      RETURNING *
+      `,
+      [id]
+    );
+
+    await client.query("COMMIT");
+    return result.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const markRejectedLotAsWithdrawn = async ({ id, notes, withdrawnBy }) => {
   const client = await pool.connect();
 

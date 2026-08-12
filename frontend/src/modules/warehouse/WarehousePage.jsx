@@ -1,4 +1,4 @@
-import { Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Save, Truck } from "lucide-react";
+import { Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Save, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -709,6 +709,30 @@ const WarehousePage = () => {
       });
       await loadData();
       setMessage("Revision fisica guardada. El lote paso a Laboratorio.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deletePendingPhysicalReviewLot = async (lot) => {
+    if (user?.role !== "admin") return;
+
+    const confirmed = window.confirm(
+      `Esto borrara completamente el ingreso ${formatCoffeeLotCodeName(lot)} y no quedara en historial. Confirma borrar este cafe?`
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      await apiRequest(`/lots/${lot.id}/pending-physical-review`, {
+        method: "DELETE",
+      });
+      await loadData();
+      setMessage("Ingreso de cafe borrado completamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1453,6 +1477,17 @@ const WarehousePage = () => {
                       onClick={() => startReceptionEdit(lot)}
                     >
                       Corregir ingreso
+                    </button>
+                  )}
+                  {user?.role === "admin" && (
+                    <button
+                      className="inline-flex items-center gap-2 rounded border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => deletePendingPhysicalReviewLot(lot)}
+                    >
+                      <Trash2 size={15} />
+                      Borrar ingreso
                     </button>
                   )}
                   <button

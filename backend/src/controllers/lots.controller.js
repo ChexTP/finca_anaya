@@ -17,6 +17,7 @@ import {
   updateLotLabData,
   updateLotLabReview,
   updateLotPhysicalReview,
+  deletePendingPhysicalReviewLot,
   liquidateLot,
   liquidateLotsGroup,
   registerLotPurchase,
@@ -620,6 +621,30 @@ export const putPhysicalReview = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Error al guardar revision fisica", error: error.message });
+  }
+};
+
+export const deletePendingPhysicalReview = async (req, res) => {
+  try {
+    const result = await deletePendingPhysicalReviewLot({ id: req.params.id });
+
+    if (!result) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se puede borrar completamente un lote pendiente de revision fisica",
+        data: result.lot,
+      });
+    }
+
+    res.json({
+      message: "Ingreso de cafe borrado completamente",
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error al borrar ingreso de cafe", error: error.message });
   }
 };
 
