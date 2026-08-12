@@ -1,5 +1,5 @@
 import { pool } from "../db.js";
-import { getNextCode } from "./codeCounters.model.js";
+import { advanceCounterFromCode, getNextCode } from "./codeCounters.model.js";
 
 export const getNextQuoteCode = async () => {
   return getNextCode({ prefix: "COT", tableName: "quotes" });
@@ -165,6 +165,7 @@ export const createQuote = async (quoteData) => {
       ]
     );
     const quote = quoteResult.rows[0];
+    await advanceCounterFromCode({ code: quote.code, client });
 
     for (const item of quoteData.items) {
       await client.query(
@@ -377,6 +378,7 @@ export const updateQuote = async (id, quoteData) => {
       await client.query("ROLLBACK");
       return null;
     }
+    await advanceCounterFromCode({ code: quote.code, client });
 
     await client.query("DELETE FROM quote_items WHERE quote_id = $1", [id]);
 

@@ -151,6 +151,33 @@ export const getNextCode = async ({ prefix, tableName, client = pool }) => {
   return formatCode({ prefix, year, number: nextNumber });
 };
 
+export const advanceCounterFromCode = async ({ code, client = pool }) => {
+  const match = String(code || "").match(/^([A-Z]+)-(\d{4})-(\d+)$/i);
+
+  if (!match) return;
+
+  const [, rawPrefix, rawYear, rawNumber] = match;
+  const prefix = rawPrefix.toUpperCase();
+  const year = Number(rawYear);
+  const number = Number(rawNumber);
+  const definition = getDefinitionByPrefix(prefix);
+
+  if (!definition || !year || !number) return;
+
+  await client.query(
+    `
+    INSERT INTO code_counters (prefix, year, next_number, last_generated_number)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (prefix, year)
+    DO UPDATE SET
+      next_number = GREATEST(code_counters.next_number, EXCLUDED.next_number),
+      last_generated_number = GREATEST(COALESCE(code_counters.last_generated_number, 0), EXCLUDED.last_generated_number),
+      updated_at = NOW()
+    `,
+    [prefix, year, number + 1, number]
+  );
+};
+
 export const reserveNextCodes = async ({ prefix, tableName, count, client = pool }) => {
   const codes = [];
 
