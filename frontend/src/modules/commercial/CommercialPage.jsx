@@ -959,22 +959,38 @@ const CommercialPage = () => {
       const items = priceListItems.map((item) => {
         const option = priceListAvailableItems.find((availableItem) => availableItem.id === item.catalogId);
         if (!option) throw new Error("Seleccione el cafe de cada linea de la lista de precios.");
-        if (!item.priceLoadCop || Number(item.priceLoadCop) <= 0) throw new Error("Cada cafe de la lista debe tener precio de carga.");
-        if (priceListForm.currency === "USD" && (!item.exchangeRate || Number(item.exchangeRate) <= 0)) throw new Error("Cada cafe en dolares debe tener precio del dolar.");
+        const priceInputMode = item.priceInputMode || "load";
+        if (priceInputMode === "kg" && (!item.unitPrice || Number(item.unitPrice) <= 0)) {
+          throw new Error("Cada cafe de la lista debe tener precio por kilo.");
+        }
+        if (priceInputMode !== "kg" && (!item.priceLoadCop || Number(item.priceLoadCop) <= 0)) {
+          throw new Error("Cada cafe de la lista debe tener precio de carga.");
+        }
+        if (priceInputMode !== "kg" && priceListForm.currency === "USD" && (!item.exchangeRate || Number(item.exchangeRate) <= 0)) {
+          throw new Error("Cada cafe en dolares debe tener precio del dolar.");
+        }
 
-        const calculation = calculateCommercialItemPrice({
-          priceLoadCop: item.priceLoadCop,
-          productForm: item.productForm,
-          processType: item.processType || option.processType,
-          packaging: item.packaging || "Empaque tradicional",
-          currency: priceListForm.currency,
-          exchangeRate: item.exchangeRate,
-          millCostCop: fixedCommercialCosts.millCostCop,
-          transportCostCop: fixedCommercialCosts.transportCostCop,
-          vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
-          exportCostUsdLb: 0,
-          usdIncoterm: "EXW",
-        });
+        const calculation = priceInputMode === "kg"
+          ? {
+            unitPrice: Number(item.unitPrice || 0),
+            priceBasis: "kg",
+            priceInputMode: "kg",
+            kgVacuumPriceCop: priceListForm.currency === "COP" ? Number(item.unitPrice || 0) : 0,
+            usdLbExw: priceListForm.currency === "USD" ? Number(item.unitPrice || 0) : 0,
+          }
+          : calculateCommercialItemPrice({
+            priceLoadCop: item.priceLoadCop,
+            productForm: item.productForm,
+            processType: item.processType || option.processType,
+            packaging: item.packaging || "Empaque tradicional",
+            currency: priceListForm.currency,
+            exchangeRate: item.exchangeRate,
+            millCostCop: fixedCommercialCosts.millCostCop,
+            transportCostCop: fixedCommercialCosts.transportCostCop,
+            vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+            exportCostUsdLb: 0,
+            usdIncoterm: "EXW",
+          });
 
         return {
           lotId: null,
@@ -996,8 +1012,9 @@ const CommercialPage = () => {
           }),
           pricingSnapshot: {
             ...calculation,
-            priceLoadCop: Number(item.priceLoadCop),
-            priceInputMode: "load",
+            priceLoadCop: priceInputMode === "kg" ? null : Number(item.priceLoadCop),
+            unitPrice: Number(calculation.unitPrice || 0),
+            priceInputMode,
             packaging: item.packaging || "Empaque tradicional",
             currency: priceListForm.currency,
             exchangeRate: item.exchangeRate || null,
@@ -1751,6 +1768,8 @@ const CommercialPage = () => {
                           processType: "Lavado",
                           packaging: "Empaque tradicional",
                           priceLoadCop: "",
+                          priceInputMode: "load",
+                          unitPrice: "",
                           exchangeRate: priceListForm.terms.exchangeRate || "",
                         },
                       ])}
@@ -1763,19 +1782,28 @@ const CommercialPage = () => {
                       <EmptyState title="Sin cafes" message="Agregue los cafes que quiere mostrarle al cliente." />
                     ) : priceListItems.map((item, index) => {
                       const selectedOption = priceListAvailableItems.find((option) => option.id === item.catalogId);
-                      const calculation = calculateCommercialItemPrice({
-                        priceLoadCop: item.priceLoadCop,
-                        productForm: item.productForm,
-                        processType: item.processType,
-                        packaging: item.packaging || "Empaque tradicional",
-                        currency: priceListForm.currency,
-                        exchangeRate: item.exchangeRate,
-                        millCostCop: fixedCommercialCosts.millCostCop,
-                        transportCostCop: fixedCommercialCosts.transportCostCop,
-                        vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
-                        exportCostUsdLb: 0,
-                        usdIncoterm: "EXW",
-                      });
+                      const priceInputMode = item.priceInputMode || "load";
+                      const calculation = priceInputMode === "kg"
+                        ? {
+                          unitPrice: Number(item.unitPrice || 0),
+                          priceBasis: "kg",
+                          priceInputMode: "kg",
+                          kgVacuumPriceCop: priceListForm.currency === "COP" ? Number(item.unitPrice || 0) : 0,
+                          usdLbExw: priceListForm.currency === "USD" ? Number(item.unitPrice || 0) : 0,
+                        }
+                        : calculateCommercialItemPrice({
+                          priceLoadCop: item.priceLoadCop,
+                          productForm: item.productForm,
+                          processType: item.processType,
+                          packaging: item.packaging || "Empaque tradicional",
+                          currency: priceListForm.currency,
+                          exchangeRate: item.exchangeRate,
+                          millCostCop: fixedCommercialCosts.millCostCop,
+                          transportCostCop: fixedCommercialCosts.transportCostCop,
+                          vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+                          exportCostUsdLb: 0,
+                          usdIncoterm: "EXW",
+                        });
                       const updatePriceItem = (field, value) => {
                         setPriceListItems((items) => items.map((currentItem) => (
                           currentItem.id === item.id ? { ...currentItem, [field]: value } : currentItem
@@ -1828,18 +1856,37 @@ const CommercialPage = () => {
                               </select>
                             </label>
                             <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                              Precio carga COP
-                              <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="0.01" value={item.priceLoadCop} onChange={(event) => updatePriceItem("priceLoadCop", event.target.value)} />
+                              Forma de precio
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={priceInputMode} onChange={(event) => updatePriceItem("priceInputMode", event.target.value)}>
+                                <option value="load">Precio por carga</option>
+                                <option value="kg">Precio por kilo</option>
+                              </select>
                             </label>
-                            {priceListForm.currency === "USD" && (
+                            {priceInputMode === "kg" ? (
+                              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                                Precio kilo {priceListForm.currency}
+                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.unitPrice || ""} onChange={(event) => updatePriceItem("unitPrice", event.target.value)} />
+                              </label>
+                            ) : (
+                              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                                Precio carga COP
+                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.priceLoadCop} onChange={(event) => updatePriceItem("priceLoadCop", event.target.value)} />
+                              </label>
+                            )}
+                            {priceListForm.currency === "USD" && priceInputMode !== "kg" && (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                                 Precio dolar / TRM
                                 <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="0.01" value={item.exchangeRate} onChange={(event) => updatePriceItem("exchangeRate", event.target.value)} />
                               </label>
                             )}
                             <div className="rounded bg-white px-3 py-2 text-sm text-slate-600">
-                              <p>Kg COP: <span className="font-semibold text-ink">{formatMoney("COP", calculation.kgVacuumPriceCop)}</span></p>
-                              <p>Lb USD: <span className="font-semibold text-ink">USD {Number((calculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}</span></p>
+                              <p>Precio final: <span className="font-semibold text-ink">{formatUnitPrice(priceListForm.currency, calculation.unitPrice, calculation.priceBasis)}</span></p>
+                              {priceInputMode !== "kg" && (
+                                <>
+                                  <p>Kg COP: <span className="font-semibold text-ink">{formatMoney("COP", calculation.kgVacuumPriceCop)}</span></p>
+                                  <p>Lb USD: <span className="font-semibold text-ink">USD {Number((calculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}</span></p>
+                                </>
+                              )}
                             </div>
                           </div>
                           <button className="mt-3 rounded border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => setPriceListItems((items) => items.filter((_, itemIndex) => itemIndex !== index))}>
