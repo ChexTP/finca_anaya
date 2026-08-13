@@ -46,7 +46,7 @@ export const formatQuantityInputValue = (value) => {
   return Number(quantity.toFixed(2)).toString();
 };
 
-const POUNDS_PER_KG = 2.2046;
+export const POUNDS_PER_KG = 2.2046;
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 

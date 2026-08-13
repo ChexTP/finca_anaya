@@ -4,7 +4,7 @@ export const companyBrand = {
   nit: "901847571",
   address: "Carrera 5E # 10-16, Pitalito, Huila - Colombia",
   phone: "+57 320 6083481",
-  email: "fincaanaya@gmail.com",
+  email: "contabilidad@anayafarm.com / contact@anayafarm.com",
   instagram: "@fincaanaya",
   bankDetails: "Bancolombia - Ahorros - 453 0000 6876",
   logo: "/logos/anaya-logo-mark.png",

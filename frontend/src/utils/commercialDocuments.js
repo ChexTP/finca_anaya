@@ -4,8 +4,8 @@ import { printable } from "./printFormatting";
 
 export const formatDocumentMoney = (currency, value) => {
   return `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: currency === "USD" ? 2 : 0,
+    maximumFractionDigits: currency === "USD" ? 2 : 0,
   })}`;
 };
 

@@ -13,6 +13,7 @@ import {
   formatOperationalKg,
   formatQuantityInputValue,
   formatRequestedKg,
+  POUNDS_PER_KG,
 } from "../../utils/coffeeCalculations";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
@@ -159,16 +160,52 @@ const quoteFilters = [
 ];
 
 const formatMoney = (currency, value) => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO", {
-  maximumFractionDigits: 0,
+  minimumFractionDigits: currency === "USD" ? 2 : 0,
+  maximumFractionDigits: currency === "USD" ? 2 : 0,
 })}`;
 const formatUnitPrice = (currency, value, priceBasis = "kg") => `${currency || "COP"} ${Number(value || 0).toLocaleString("es-CO", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
+  minimumFractionDigits: currency === "USD" ? 2 : 0,
+  maximumFractionDigits: currency === "USD" ? 2 : 0,
 })}/${priceBasis}`;
 const toItemQuantityKg = (item) => Number(item.quantityKg || 0);
 const formatPriceInputValue = (value) => {
   const numericValue = Number(value || 0);
   return numericValue > 0 ? String(Math.round(numericValue)) : "";
+};
+
+const calculateManualKgPrice = ({ priceKgCop, currency, exchangeRate }) => {
+  const kgPriceCop = Number(priceKgCop || 0);
+  const rate = Number(exchangeRate || 0);
+
+  if (!Number.isFinite(kgPriceCop) || kgPriceCop <= 0) {
+    return {
+      unitPrice: 0,
+      priceBasis: currency === "USD" ? "lb" : "kg",
+      priceInputMode: "kg",
+      kgVacuumPriceCop: 0,
+      usdLbExw: 0,
+    };
+  }
+
+  if (currency === "USD") {
+    const usdLb = rate > 0 ? kgPriceCop / POUNDS_PER_KG / rate : 0;
+
+    return {
+      unitPrice: Number(usdLb.toFixed(4)),
+      priceBasis: "lb",
+      priceInputMode: "kg",
+      kgVacuumPriceCop: Number(kgPriceCop.toFixed(2)),
+      usdLbExw: Number(usdLb.toFixed(4)),
+    };
+  }
+
+  return {
+    unitPrice: Number(kgPriceCop.toFixed(2)),
+    priceBasis: "kg",
+    priceInputMode: "kg",
+    kgVacuumPriceCop: Number(kgPriceCop.toFixed(2)),
+    usdLbExw: 0,
+  };
 };
 
 const formatProfileOptionLabel = (profile) => {
@@ -324,11 +361,13 @@ const CommercialPage = () => {
 
     return {
       ...(itemForm.pricingSnapshot || {}),
-      unitPrice: Number(itemForm.unitPrice || 0),
-      priceBasis: "kg",
-      priceInputMode: "kg",
+      ...calculateManualKgPrice({
+        priceKgCop: itemForm.unitPrice,
+        currency: quoteForm.currency,
+        exchangeRate: quoteForm.terms?.exchangeRate,
+      }),
     };
-  }, [itemForm.priceInputMode, itemForm.unitPrice, itemForm.pricingSnapshot, itemPriceCalculation]);
+  }, [itemForm.priceInputMode, itemForm.unitPrice, itemForm.pricingSnapshot, itemPriceCalculation, quoteForm.currency, quoteForm.terms?.exchangeRate]);
 
   const subtotal = useMemo(() => {
     return quoteItems.reduce((total, item) => total + Number(item.lineTotal || 0), 0);
@@ -837,7 +876,9 @@ const CommercialPage = () => {
           packaging: item.pricing_snapshot?.packaging || "Empaque tradicional",
           priceLoadCop: formatPriceInputValue(item.pricing_snapshot?.priceLoadCop),
           priceInputMode,
-          unitPrice: priceInputMode === "kg" ? formatPriceInputValue(item.unit_price) : "",
+          unitPrice: priceInputMode === "kg"
+            ? formatPriceInputValue(item.pricing_snapshot?.manualPriceKgCop || item.unit_price)
+            : "",
           exchangeRate: item.pricing_snapshot?.exchangeRate || quote.quote_terms?.exchangeRate || "",
           pricingSnapshot: item.pricing_snapshot || {},
         };
@@ -1008,18 +1049,16 @@ const CommercialPage = () => {
         if (priceInputMode !== "kg" && (!item.priceLoadCop || Number(item.priceLoadCop) <= 0)) {
           throw new Error("Cada cafe de la lista debe tener precio de carga.");
         }
-        if (priceInputMode !== "kg" && priceListForm.currency === "USD" && (!item.exchangeRate || Number(item.exchangeRate) <= 0)) {
+        if (priceListForm.currency === "USD" && (!item.exchangeRate || Number(item.exchangeRate) <= 0)) {
           throw new Error("Cada cafe en dolares debe tener precio del dolar.");
         }
 
         const calculation = priceInputMode === "kg"
-          ? {
-            unitPrice: Number(item.unitPrice || 0),
-            priceBasis: "kg",
-            priceInputMode: "kg",
-            kgVacuumPriceCop: priceListForm.currency === "COP" ? Number(item.unitPrice || 0) : 0,
-            usdLbExw: priceListForm.currency === "USD" ? Number(item.unitPrice || 0) : 0,
-          }
+          ? calculateManualKgPrice({
+            priceKgCop: item.unitPrice,
+            currency: priceListForm.currency,
+            exchangeRate: item.exchangeRate,
+          })
           : calculateCommercialItemPrice({
             priceLoadCop: item.priceLoadCop,
             productForm: item.productForm,
@@ -1055,6 +1094,7 @@ const CommercialPage = () => {
           pricingSnapshot: {
             ...calculation,
             priceLoadCop: priceInputMode === "kg" ? null : Number(item.priceLoadCop),
+            manualPriceKgCop: priceInputMode === "kg" ? Number(item.unitPrice || 0) : null,
             unitPrice: Number(calculation.unitPrice || 0),
             priceInputMode,
             packaging: item.packaging || "Empaque tradicional",
@@ -1369,7 +1409,7 @@ const CommercialPage = () => {
                         priceInputMode,
                         unitPrice: priceInputMode === "kg" ? itemForm.unitPrice : "",
                         pricingSnapshot: priceInputMode === "kg"
-                          ? { ...(itemForm.pricingSnapshot || {}), priceInputMode: "kg", priceBasis: "kg" }
+                          ? { ...(itemForm.pricingSnapshot || {}), priceInputMode: "kg" }
                           : {},
                       });
                     }}
@@ -1385,10 +1425,10 @@ const CommercialPage = () => {
                 </label>
                 ) : (
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                  Precio kilo {quoteForm.currency}
+                  Precio kilo COP
                   <input
                     className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
-                    placeholder="Precio por kilo"
+                    placeholder="Precio por kilo en pesos"
                     type="number"
                     step="0.01"
                     value={itemForm.unitPrice}
@@ -1398,8 +1438,7 @@ const CommercialPage = () => {
                       pricingSnapshot: {
                         ...(itemForm.pricingSnapshot || {}),
                         priceInputMode: "kg",
-                        priceBasis: "kg",
-                        unitPrice: Number(event.target.value || 0),
+                        manualPriceKgCop: Number(event.target.value || 0),
                       },
                     })}
                   />
@@ -1408,7 +1447,7 @@ const CommercialPage = () => {
                 <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                   Precio calculado
                   <p className="mt-1 font-semibold text-ink">
-                    {itemForm.unitPrice ? formatUnitPrice(quoteForm.currency, itemForm.unitPrice, effectiveItemPriceCalculation.priceBasis) : (itemForm.priceInputMode === "kg" ? "Pendiente de precio por kilo" : "Pendiente de precio de carga")}
+                    {effectiveItemPriceCalculation.unitPrice ? formatUnitPrice(quoteForm.currency, effectiveItemPriceCalculation.unitPrice, effectiveItemPriceCalculation.priceBasis) : (itemForm.priceInputMode === "kg" ? "Pendiente de precio por kilo" : "Pendiente de precio de carga")}
                   </p>
                   <p className="text-xs text-slate-500">{itemForm.productForm === "Excelso" ? itemForm.packaging : "Pergamino tradicional"}</p>
                 </div>
@@ -1418,7 +1457,7 @@ const CommercialPage = () => {
                   Operativo bodega: <span className="font-semibold">{formatOperationalKg(itemOperationalKg)}</span>
                   {itemForm.priceInputMode === "load" && itemForm.priceLoadCop && (
                     <span className="ml-2">
-                      Calculo: kg COP {Number(itemPriceCalculation.kgVacuumPriceCop || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })} · lb USD {Number(itemPriceCalculation.usdLbExw || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })}
+                      Calculo: kg COP {Number(itemPriceCalculation.kgVacuumPriceCop || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })} · lb USD {formatMoney("USD", itemPriceCalculation.usdLbExw)}
                     </span>
                   )}
                 </div>
@@ -1828,13 +1867,11 @@ const CommercialPage = () => {
                       const selectedOption = priceListAvailableItems.find((option) => option.id === item.catalogId);
                       const priceInputMode = item.priceInputMode || "load";
                       const calculation = priceInputMode === "kg"
-                        ? {
-                          unitPrice: Number(item.unitPrice || 0),
-                          priceBasis: "kg",
-                          priceInputMode: "kg",
-                          kgVacuumPriceCop: priceListForm.currency === "COP" ? Number(item.unitPrice || 0) : 0,
-                          usdLbExw: priceListForm.currency === "USD" ? Number(item.unitPrice || 0) : 0,
-                        }
+                        ? calculateManualKgPrice({
+                          priceKgCop: item.unitPrice,
+                          currency: priceListForm.currency,
+                          exchangeRate: item.exchangeRate,
+                        })
                         : calculateCommercialItemPrice({
                           priceLoadCop: item.priceLoadCop,
                           productForm: item.productForm,
@@ -1908,7 +1945,7 @@ const CommercialPage = () => {
                             </label>
                             {priceInputMode === "kg" ? (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                                Precio kilo {priceListForm.currency}
+                                Precio kilo COP
                                 <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.unitPrice || ""} onChange={(event) => updatePriceItem("unitPrice", event.target.value)} />
                               </label>
                             ) : (
@@ -1917,7 +1954,7 @@ const CommercialPage = () => {
                                 <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.priceLoadCop} onChange={(event) => updatePriceItem("priceLoadCop", event.target.value)} />
                               </label>
                             )}
-                            {priceListForm.currency === "USD" && priceInputMode !== "kg" && (
+                            {priceListForm.currency === "USD" && (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                                 Precio dolar / TRM
                                 <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="0.01" value={item.exchangeRate} onChange={(event) => updatePriceItem("exchangeRate", event.target.value)} />
@@ -1928,7 +1965,7 @@ const CommercialPage = () => {
                               {priceInputMode !== "kg" && (
                                 <>
                                   <p>Kg COP: <span className="font-semibold text-ink">{formatMoney("COP", calculation.kgVacuumPriceCop)}</span></p>
-                                  <p>Lb USD: <span className="font-semibold text-ink">USD {Number((calculation.usdLbExw || 0).toFixed(4)).toLocaleString("es-CO")}</span></p>
+                                  <p>Lb USD: <span className="font-semibold text-ink">{formatMoney("USD", calculation.usdLbExw)}</span></p>
                                 </>
                               )}
                             </div>
