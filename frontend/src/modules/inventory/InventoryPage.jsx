@@ -1,4 +1,4 @@
-import { FileText, RefreshCw, Save, X } from "lucide-react";
+import { Edit3, FileText, RefreshCw, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -82,6 +82,13 @@ const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
 const formatMoney = (value) => `COP ${formatMoneyValue(value)}`;
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
+const toInputDate = (value) => {
+  if (!value) return todayInputDate();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toISOString().slice(0, 10);
+};
+const parseAmount = (value) => Number(String(value ?? "0").replace(",", ".")) || 0;
 const getPurchaseOrderSnapshot = (order) => order?.purchase_order_snapshot && typeof order.purchase_order_snapshot === "object"
   ? order.purchase_order_snapshot
   : {};
@@ -122,6 +129,118 @@ const getPaymentMethodDisplayName = (method) => {
   return String(name).toLowerCase() === "transferencia" ? "Consignacion" : name;
 };
 const isLiquidationPaymentMethod = (method) => ["efectivo", "transferencia", "consignacion"].includes(String(method?.name || "").toLowerCase());
+const calculatePurchaseOrderEditItem = (item) => {
+  const priceData = calculateLiquidationPrices(
+    item.purchasePriceFactor90,
+    item.performanceFactor,
+    item.purchaseBaseFactor
+  );
+  const netWeightKg = parseAmount(item.netWeightKg);
+  const purchaseTotal = Number((netWeightKg * Number(priceData.purchasePricePerKg || 0)).toFixed(2));
+
+  return {
+    ...item,
+    adjustmentPercent: priceData.adjustmentPercent,
+    adjustedPriceCarga: priceData.adjustedPriceCarga,
+    purchasePricePerKg: priceData.purchasePricePerKg,
+    purchaseTotal,
+  };
+};
+const buildPurchaseOrderEditForm = (order) => {
+  const snapshot = getPurchaseOrderSnapshot(order);
+  const snapshotItems = getPurchaseOrderItems(order);
+  const fallbackItems = snapshotItems.length > 0
+    ? snapshotItems
+    : [{
+        id: order.lot_id || order.id,
+        lotCode: snapshot.lotCode || order.lot_code || "",
+        coffeeDetail: snapshot.coffeeDetail || getPurchaseOrderCoffeeName(order),
+        grossWeightKg: snapshot.grossWeightKg || order.gross_weight_kg || "",
+        netWeightKg: snapshot.netWeightKg || order.net_weight_kg || "",
+        performanceFactor: snapshot.performanceFactor || order.performance_factor || "",
+        purchaseBaseFactor: snapshot.purchaseBaseFactor || 90,
+        purchasePriceFactor90: snapshot.purchasePriceFactor90 || "",
+        adjustedPriceCarga: snapshot.adjustedPriceCarga || "",
+        purchasePricePerKg: snapshot.purchasePricePerKg || order.purchase_price_per_kg || "",
+        purchaseTotal: snapshot.purchaseTotal || order.purchase_total || order.total || "",
+      }];
+
+  return {
+    id: order.id,
+    originalSnapshot: snapshot,
+    orderCode: snapshot.orderCode || order.code || "",
+    orderDate: toInputDate(snapshot.orderDate || order.created_at),
+    supplierName: snapshot.supplierName || order.supplier_name || order.third_party_name || "",
+    supplierDocument: snapshot.supplierDocument || order.supplier_document || "",
+    supplierPhone: snapshot.supplierPhone || order.supplier_phone || "",
+    supplierOriginZone: snapshot.supplierOriginZone || order.supplier_origin_zone || "",
+    supplierAddress: snapshot.supplierAddress || order.supplier_address || "",
+    lotPresentation: snapshot.lotPresentation || order.lot_presentation || "",
+    createdByName: snapshot.createdByName || order.created_by_name || "",
+    notes: snapshot.notes || order.notes || "",
+    items: fallbackItems.map((item, index) => calculatePurchaseOrderEditItem({
+      id: item.id || `${item.lotCode || "item"}-${index}`,
+      lotCode: item.lotCode || "",
+      coffeeDetail: item.coffeeDetail || item.detail || "Cafe liquidado",
+      grossWeightKg: item.grossWeightKg ?? item.grossKilos ?? "",
+      netWeightKg: item.netWeightKg ?? item.kilos ?? "",
+      performanceFactor: item.performanceFactor ?? "",
+      purchaseBaseFactor: item.purchaseBaseFactor ?? 90,
+      purchasePriceFactor90: item.purchasePriceFactor90 ?? item.priceFactor90 ?? "",
+      adjustedPriceCarga: item.adjustedPriceCarga ?? item.priceCarga ?? "",
+      purchasePricePerKg: item.purchasePricePerKg ?? item.priceKg ?? "",
+      purchaseTotal: item.purchaseTotal ?? item.total ?? "",
+      adjustmentPercent: item.adjustmentPercent ?? 0,
+    })),
+  };
+};
+const getPurchaseOrderEditTotal = (form) => (form?.items || []).reduce(
+  (sum, item) => sum + Number(calculatePurchaseOrderEditItem(item).purchaseTotal || 0),
+  0
+);
+const buildSnapshotFromPurchaseOrderEditForm = (form) => {
+  const items = (form.items || []).map((rawItem) => {
+    const item = calculatePurchaseOrderEditItem(rawItem);
+
+    return {
+      id: item.id,
+      lotCode: item.lotCode,
+      coffeeDetail: item.coffeeDetail,
+      grossWeightKg: parseAmount(item.grossWeightKg),
+      netWeightKg: parseAmount(item.netWeightKg),
+      performanceFactor: item.performanceFactor,
+      purchaseBaseFactor: parseAmount(item.purchaseBaseFactor) || 90,
+      purchasePriceFactor90: parseAmount(item.purchasePriceFactor90),
+      adjustedPriceCarga: Number(item.adjustedPriceCarga || 0),
+      adjustmentPercent: Number(item.adjustmentPercent || 0),
+      purchasePricePerKg: Number(item.purchasePricePerKg || 0),
+      purchaseTotal: Number(item.purchaseTotal || 0),
+    };
+  });
+  const total = items.reduce((sum, item) => sum + Number(item.purchaseTotal || 0), 0);
+
+  return {
+    ...form.originalSnapshot,
+    orderCode: form.orderCode,
+    orderDate: form.orderDate,
+    supplierName: form.supplierName,
+    supplierDocument: form.supplierDocument,
+    supplierPhone: form.supplierPhone,
+    supplierOriginZone: form.supplierOriginZone,
+    supplierAddress: form.supplierAddress,
+    lotCode: items.length > 1 ? items.map((item) => item.lotCode).filter(Boolean).join(", ") : items[0]?.lotCode || "",
+    lotPresentation: form.lotPresentation,
+    coffeeDetail: items.length > 1 ? `Liquidacion agrupada de ${items.length} lotes` : items[0]?.coffeeDetail || "",
+    grossWeightKg: items.reduce((sum, item) => sum + Number(item.grossWeightKg || 0), 0),
+    netWeightKg: items.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0),
+    performanceFactor: items.length > 1 ? "" : items[0]?.performanceFactor || "",
+    purchaseTotal: total,
+    notes: form.notes,
+    createdByName: form.createdByName,
+    isGrouped: items.length > 1 || Boolean(form.originalSnapshot?.isGrouped),
+    items,
+  };
+};
 const formatProfileOptionLabel = (profile) => {
   const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
   return [code, profile?.name].filter(Boolean).join(" - ");
@@ -274,6 +393,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [purchaseOrderStatusFilter, setPurchaseOrderStatusFilter] = useState("pendientes");
   const [purchaseOrderSearch, setPurchaseOrderSearch] = useState("");
   const [paymentOrder, setPaymentOrder] = useState(null);
+  const [purchaseOrderEditForm, setPurchaseOrderEditForm] = useState(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     paymentMethodId: "",
@@ -531,6 +651,69 @@ const InventoryPage = ({ mode = "inventory" }) => {
     });
     setMessage("");
     setError("");
+  };
+
+  const openPurchaseOrderEdit = async (order) => {
+    try {
+      const fullOrder = await apiRequest(`/payables/${order.id}`);
+      setPurchaseOrderEditForm(buildPurchaseOrderEditForm(fullOrder));
+      setMessage("");
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  const updatePurchaseOrderEditField = (field, value) => {
+    setPurchaseOrderEditForm((currentForm) => ({
+      ...currentForm,
+      [field]: value,
+    }));
+  };
+
+  const updatePurchaseOrderEditItem = (itemId, field, value) => {
+    setPurchaseOrderEditForm((currentForm) => ({
+      ...currentForm,
+      items: (currentForm.items || []).map((item) => (
+        item.id === itemId ? calculatePurchaseOrderEditItem({ ...item, [field]: value }) : item
+      )),
+    }));
+  };
+
+  const savePurchaseOrderEdit = async ({ shouldPrint = false } = {}) => {
+    if (!purchaseOrderEditForm?.orderCode?.trim()) {
+      setError("El codigo de la orden es obligatorio.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const snapshot = buildSnapshotFromPurchaseOrderEditForm(purchaseOrderEditForm);
+      const total = getPurchaseOrderEditTotal(purchaseOrderEditForm);
+      const response = await apiRequest(`/payables/${purchaseOrderEditForm.id}/purchase-order`, {
+        method: "PUT",
+        body: JSON.stringify({
+          code: purchaseOrderEditForm.orderCode,
+          purchaseOrderSnapshot: snapshot,
+          total,
+          notes: purchaseOrderEditForm.notes,
+        }),
+      });
+      const updatedOrder = response.data;
+      setPurchaseOrderEditForm(null);
+      await loadData();
+      setMessage("Orden de compra actualizada. Ya puede confirmar el pago con los datos corregidos.");
+      if (shouldPrint) {
+        openPurchaseOrderPrint(updatedOrder);
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const closePurchaseOrderPayment = () => {
@@ -1925,14 +2108,25 @@ const InventoryPage = ({ mode = "inventory" }) => {
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-2">
                           {balanceDue > 0 && (
-                            <button
-                              className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
-                              type="button"
-                              disabled={saving}
-                              onClick={() => openPurchaseOrderPayment(order)}
-                            >
-                              Registrar pago
-                            </button>
+                            <>
+                              <button
+                                className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
+                                type="button"
+                                disabled={saving}
+                                onClick={() => openPurchaseOrderEdit(order)}
+                              >
+                                <Edit3 size={14} />
+                                Editar orden
+                              </button>
+                              <button
+                                className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                                type="button"
+                                disabled={saving}
+                                onClick={() => openPurchaseOrderPayment(order)}
+                              >
+                                Registrar pago
+                              </button>
+                            </>
                           )}
                           <button
                             className="inline-flex items-center gap-1 rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -2249,6 +2443,236 @@ const InventoryPage = ({ mode = "inventory" }) => {
         </div>
       )}
         </>
+      )}
+
+      {purchaseOrderEditForm && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/45 p-4">
+          <div className="my-6 w-full max-w-5xl rounded border border-slate-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-ink">Editar orden de compra</h2>
+                <p className="text-sm text-slate-500">Corrija los datos antes de registrar el pago.</p>
+              </div>
+              <button
+                className="rounded border border-slate-300 p-2 text-slate-600 hover:bg-slate-50"
+                type="button"
+                onClick={() => setPurchaseOrderEditForm(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Codigo de orden</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={purchaseOrderEditForm.orderCode}
+                    onChange={(event) => updatePurchaseOrderEditField("orderCode", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Fecha del documento</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    type="date"
+                    value={purchaseOrderEditForm.orderDate}
+                    onChange={(event) => updatePurchaseOrderEditField("orderDate", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Presentacion</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={purchaseOrderEditForm.lotPresentation}
+                    onChange={(event) => updatePurchaseOrderEditField("lotPresentation", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Proveedor</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={purchaseOrderEditForm.supplierName}
+                    onChange={(event) => updatePurchaseOrderEditField("supplierName", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>NIT o C.C.</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={purchaseOrderEditForm.supplierDocument}
+                    onChange={(event) => updatePurchaseOrderEditField("supplierDocument", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Telefono</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={purchaseOrderEditForm.supplierPhone}
+                    onChange={(event) => updatePurchaseOrderEditField("supplierPhone", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Ciudad / zona</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={purchaseOrderEditForm.supplierOriginZone}
+                    onChange={(event) => updatePurchaseOrderEditField("supplierOriginZone", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-1 text-sm font-semibold text-slate-700 md:col-span-2">
+                  <span>Direccion</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={purchaseOrderEditForm.supplierAddress}
+                    onChange={(event) => updatePurchaseOrderEditField("supplierAddress", event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="rounded border border-slate-200">
+                <div className="border-b border-slate-200 px-4 py-3">
+                  <h3 className="text-sm font-bold text-ink">Lotes incluidos en el documento</h3>
+                  <p className="text-xs text-slate-500">Estos valores son los que salen impresos en la orden.</p>
+                </div>
+                <div className="space-y-3 p-4">
+                  {(purchaseOrderEditForm.items || []).map((item) => (
+                    <div key={item.id} className="rounded border border-slate-200 bg-slate-50 p-3">
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Codigo de lote</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.lotCode}
+                            onChange={(event) => updatePurchaseOrderEditItem(item.id, "lotCode", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700 md:col-span-2">
+                          <span>Detalle del cafe</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            value={item.coffeeDetail}
+                            onChange={(event) => updatePurchaseOrderEditItem(item.id, "coffeeDetail", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Factor rendimiento</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.01"
+                            value={item.performanceFactor}
+                            onChange={(event) => updatePurchaseOrderEditItem(item.id, "performanceFactor", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Peso bruto kg</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.001"
+                            value={item.grossWeightKg}
+                            onChange={(event) => updatePurchaseOrderEditItem(item.id, "grossWeightKg", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Peso neto kg</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.001"
+                            value={item.netWeightKg}
+                            onChange={(event) => updatePurchaseOrderEditItem(item.id, "netWeightKg", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Factor base negociado</span>
+                          <input
+                            className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                            type="number"
+                            step="0.01"
+                            value={item.purchaseBaseFactor}
+                            onChange={(event) => updatePurchaseOrderEditItem(item.id, "purchaseBaseFactor", event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>Precio factor 90 por carga</span>
+                          <input
+                            className="w-full rounded border border-amber-300 bg-white px-3 py-2 font-semibold text-ink"
+                            type="number"
+                            step="0.01"
+                            value={item.purchasePriceFactor90}
+                            onChange={(event) => updatePurchaseOrderEditItem(item.id, "purchasePriceFactor90", event.target.value)}
+                          />
+                        </label>
+                        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          <p className="text-xs font-semibold uppercase">Calculo automatico</p>
+                          <p>Carga ajustada: <span className="font-bold">{formatMoney(item.adjustedPriceCarga)}</span></p>
+                          <p>Precio kg: <span className="font-bold">{formatMoney(item.purchasePricePerKg)}</span></p>
+                          <p>
+                            Ajuste:{" "}
+                            <span className="font-bold">
+                              {Number(item.adjustmentPercent || 0).toLocaleString("es-CO", { maximumFractionDigits: 2 })}%
+                            </span>
+                          </p>
+                        </div>
+                        <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                          <p className="text-xs font-semibold uppercase">Total lote</p>
+                          <p className="text-base font-bold">{formatMoney(item.purchaseTotal)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Notas</span>
+                <textarea
+                  className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  value={purchaseOrderEditForm.notes}
+                  onChange={(event) => updatePurchaseOrderEditField("notes", event.target.value)}
+                />
+              </label>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded bg-slate-50 p-3">
+                <p className="text-sm text-slate-700">
+                  Total del documento:{" "}
+                  <span className="font-bold text-ink">{formatMoney(getPurchaseOrderEditTotal(purchaseOrderEditForm))}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                    type="button"
+                    onClick={() => setPurchaseOrderEditForm(null)}
+                  >
+                    <X size={16} />
+                    Cancelar
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-2 rounded border border-leaf bg-white px-3 py-2 text-sm font-semibold text-leaf"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => savePurchaseOrderEdit()}
+                  >
+                    <Save size={16} />
+                    Guardar
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => savePurchaseOrderEdit({ shouldPrint: true })}
+                  >
+                    <FileText size={16} />
+                    Guardar e imprimir
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {paymentOrder && (

@@ -29,6 +29,7 @@ const navigation = [
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Liquidaciones", path: "/liquidaciones", icon: ReceiptText, roles: ["admin", "accounting"] },
+  { label: "Orden de compra", path: "/ordenes-compra", icon: ReceiptText, roles: ["admin", "accounting"] },
   { label: "Salidas a muestras", path: "/inventario/muestras", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
@@ -40,7 +41,6 @@ const navigation = [
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
 
   { label: "Cotizaciones", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting"] },
-  { label: "Orden de compra", path: "/ordenes-compra", icon: ReceiptText, roles: ["admin", "accounting"] },
   { label: "Ordenes de pedido", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
 
