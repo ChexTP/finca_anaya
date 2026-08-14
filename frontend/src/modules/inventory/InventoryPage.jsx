@@ -256,6 +256,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const canWithdrawInventory = user?.role === "admin";
   const isEditMode = mode === "edit";
   const isSampleOutputsMode = mode === "samples";
+  const isLiquidationsMode = mode === "liquidations";
 
   const loadData = async () => {
     const requests = [
@@ -949,13 +950,15 @@ const InventoryPage = ({ mode = "inventory" }) => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">
-            {isSampleOutputsMode ? "Salidas a muestras" : isEditMode ? "Editar inventario" : "Inventario"}
+            {isSampleOutputsMode ? "Salidas a muestras" : isEditMode ? "Editar inventario" : isLiquidationsMode ? "Liquidaciones" : "Inventario"}
           </h1>
           <p className="text-sm text-slate-500">
             {isSampleOutputsMode
               ? "Cafe descontado del inventario para preparar muestras."
               : isEditMode
               ? "Busqueda y correccion de lotes, procesos, codigos, pesos y datos de laboratorio."
+              : isLiquidationsMode
+              ? "Lotes aprobados por laboratorio pendientes de liquidar y generar orden de compra."
               : "Lotes disponibles, pendientes de compra y control por antiguedad."}
           </p>
         </div>
@@ -1473,7 +1476,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
         </div>
       )}
 
-      {!isEditMode && !isSampleOutputsMode && (
+      {isLiquidationsMode && (
         <>
       {canRegisterPurchase && (
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
@@ -1644,7 +1647,11 @@ const InventoryPage = ({ mode = "inventory" }) => {
           </form>
         </div>
       )}
+        </>
+      )}
 
+      {!isEditMode && !isSampleOutputsMode && !isLiquidationsMode && (
+        <>
       {lots.length > 0 && (
         <div className="rounded border border-slate-200 bg-white p-4">
           <div className="mb-3 flex flex-wrap gap-2 border-b border-slate-100 pb-3">
