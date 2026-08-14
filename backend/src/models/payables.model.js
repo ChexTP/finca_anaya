@@ -59,7 +59,24 @@ export const listPayables = async ({ status, categoryId, supplierId, lotId }) =>
       coffee_profiles.name AS coffee_profile_name,
       coffee_lots.commercial_classification,
       coffee_lots.coffee_variety,
-      users.name AS created_by_name
+      users.name AS created_by_name,
+      COALESCE((
+        SELECT json_agg(
+          json_build_object(
+            'id', accounts_payable_payments.id,
+            'amount', accounts_payable_payments.amount,
+            'payment_method_id', accounts_payable_payments.payment_method_id,
+            'payment_method_name', payment_methods.name,
+            'payment_reference', accounts_payable_payments.payment_reference,
+            'paid_at', accounts_payable_payments.paid_at,
+            'notes', accounts_payable_payments.notes
+          )
+          ORDER BY accounts_payable_payments.paid_at ASC, accounts_payable_payments.id ASC
+        )
+        FROM accounts_payable_payments
+        LEFT JOIN payment_methods ON payment_methods.id = accounts_payable_payments.payment_method_id
+        WHERE accounts_payable_payments.payable_id = accounts_payable.id
+      ), '[]'::json) AS payments
     FROM accounts_payable
     INNER JOIN payable_categories ON payable_categories.id = accounts_payable.category_id
     LEFT JOIN suppliers ON suppliers.id = accounts_payable.supplier_id

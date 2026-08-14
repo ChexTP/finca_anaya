@@ -79,8 +79,49 @@ const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 });
+const formatMoney = (value) => `COP ${formatMoneyValue(value)}`;
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
+const getPurchaseOrderSnapshot = (order) => order?.purchase_order_snapshot && typeof order.purchase_order_snapshot === "object"
+  ? order.purchase_order_snapshot
+  : {};
+const getPurchaseOrderItems = (order) => {
+  const items = getPurchaseOrderSnapshot(order).items;
+  return Array.isArray(items) ? items : [];
+};
+const getPurchaseOrderCoffeeName = (order) => {
+  const snapshot = getPurchaseOrderSnapshot(order);
+  const items = getPurchaseOrderItems(order);
+
+  if (items.length > 1) return snapshot.coffeeDetail || `Liquidacion agrupada de ${items.length} lotes`;
+  if (items.length === 1) return items[0].coffeeDetail || snapshot.coffeeDetail || "Cafe liquidado";
+
+  return [
+    order.lot_presentation,
+    order.coffee_profile_name || order.coffee_variety || order.coffee_type_name || order.commercial_classification,
+  ].filter(Boolean).join(" - ") || "Cafe liquidado";
+};
+const getPurchaseOrderLotLabel = (order) => {
+  const items = getPurchaseOrderItems(order);
+  if (items.length > 0) return items.map((item) => item.lotCode).filter(Boolean).join(", ");
+  return order.lot_code || "-";
+};
+const getPurchaseOrderKg = (order) => {
+  const items = getPurchaseOrderItems(order);
+  if (items.length > 0) return items.reduce((sum, item) => sum + Number(item.netWeightKg || 0), 0);
+  return Number(order.net_weight_kg || 0);
+};
+const payableStatusLabels = {
+  pendiente: "Pendiente",
+  pago_parcial: "Abono",
+  pagada: "Pagada",
+};
+const payableStatusTone = (status) => (status === "pagada" ? "success" : "warning");
+const getPaymentMethodDisplayName = (method) => {
+  const name = method?.name || method?.payment_method_name || "";
+  return String(name).toLowerCase() === "transferencia" ? "Consignacion" : name;
+};
+const isLiquidationPaymentMethod = (method) => ["efectivo", "transferencia", "consignacion"].includes(String(method?.name || "").toLowerCase());
 const formatProfileOptionLabel = (profile) => {
   const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
   return [code, profile?.name].filter(Boolean).join(" - ");
@@ -229,6 +270,17 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [inProcessInventory, setInProcessInventory] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [purchaseOrderStatusFilter, setPurchaseOrderStatusFilter] = useState("pendientes");
+  const [purchaseOrderSearch, setPurchaseOrderSearch] = useState("");
+  const [paymentOrder, setPaymentOrder] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    paymentMethodId: "",
+    paymentReference: "",
+    paidAt: todayInputDate(),
+    notes: "",
+  });
   const [catalogs, setCatalogs] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [selectedLiquidationLot, setSelectedLiquidationLot] = useState(null);
@@ -284,7 +336,13 @@ const InventoryPage = ({ mode = "inventory" }) => {
       requests.push(Promise.resolve([]));
     }
 
-    const [availableData, allLots, inProcessData, sampleOutputData, catalogData, supplierData, processData] = await Promise.all(requests);
+    if (canRegisterPurchase) {
+      requests.push(apiRequest("/payables"));
+    } else {
+      requests.push(Promise.resolve([]));
+    }
+
+    const [availableData, allLots, inProcessData, sampleOutputData, catalogData, supplierData, processData, payableData] = await Promise.all(requests);
     setLots((availableData || []).filter((lot) => lot.status !== "retirado"));
     setAllLots(allLots);
     setInProcessInventory(inProcessData || []);
@@ -297,6 +355,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       [...(supplierData || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"))
     );
     setProcesses(processData || []);
+    setPurchaseOrders(payableData || []);
   };
 
   const selectLiquidationLot = (lot) => {
@@ -451,6 +510,88 @@ const InventoryPage = ({ mode = "inventory" }) => {
       setShowLiquidationReviewModal(false);
       await loadData();
       setMessage("Liquidacion guardada. El cafe queda disponible y la orden de compra se puede descargar desde Orden de compra.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openPurchaseOrderPayment = (order) => {
+    const balanceDue = Number(order.balance_due ?? order.total ?? 0);
+    const defaultMethod = (catalogs?.paymentMethods || []).find((method) => isLiquidationPaymentMethod(method));
+
+    setPaymentOrder(order);
+    setPaymentForm({
+      amount: balanceDue > 0 ? String(balanceDue) : "",
+      paymentMethodId: defaultMethod?.id ? String(defaultMethod.id) : "",
+      paymentReference: "",
+      paidAt: todayInputDate(),
+      notes: "",
+    });
+    setMessage("");
+    setError("");
+  };
+
+  const closePurchaseOrderPayment = () => {
+    setPaymentOrder(null);
+    setPaymentForm({
+      amount: "",
+      paymentMethodId: "",
+      paymentReference: "",
+      paidAt: todayInputDate(),
+      notes: "",
+    });
+  };
+
+  const registerPurchaseOrderPayment = async (event) => {
+    event.preventDefault();
+
+    if (!paymentOrder) return;
+
+    const amount = Number(String(paymentForm.amount || "0").replace(",", "."));
+    const balanceDue = Number(paymentOrder.balance_due || 0);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Ingrese un valor de pago valido.");
+      return;
+    }
+
+    if (amount > balanceDue) {
+      setError("El pago no puede superar el saldo pendiente.");
+      return;
+    }
+
+    if (!paymentForm.paymentMethodId) {
+      setError("Seleccione si el pago fue en efectivo o consignacion.");
+      return;
+    }
+
+    if (!paymentForm.paymentReference.trim()) {
+      setError("Ingrese el numero de referencia o recibo del pago.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma registrar pago de ${formatMoney(amount)} para ${paymentOrder.code}?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/payables/${paymentOrder.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          amount,
+          paymentMethodId: Number(paymentForm.paymentMethodId),
+          paymentReference: paymentForm.paymentReference.trim(),
+          paidAt: paymentForm.paidAt || todayInputDate(),
+          notes: paymentForm.notes,
+        }),
+      });
+      closePurchaseOrderPayment();
+      await loadData();
+      setMessage("Pago registrado correctamente. La orden se reclasifico segun el saldo pendiente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -801,6 +942,37 @@ const InventoryPage = ({ mode = "inventory" }) => {
       0
     ))
     : "0";
+  const liquidationPaymentMethods = (catalogs?.paymentMethods || []).filter(isLiquidationPaymentMethod);
+  const pendingPurchaseOrders = purchaseOrders.filter((order) => order.status === "pendiente");
+  const partialPurchaseOrders = purchaseOrders.filter((order) => order.status === "pago_parcial");
+  const paidPurchaseOrders = purchaseOrders.filter((order) => order.status === "pagada");
+  const selectedPurchaseOrders = purchaseOrderStatusFilter === "pagadas"
+    ? paidPurchaseOrders
+    : purchaseOrderStatusFilter === "parciales"
+    ? partialPurchaseOrders
+    : pendingPurchaseOrders;
+  const purchaseOrderSearchTerm = purchaseOrderSearch.trim().toLowerCase();
+  const filteredPurchaseOrders = selectedPurchaseOrders.filter((order) => {
+    if (!purchaseOrderSearchTerm) return true;
+
+    return [
+      order.code,
+      getPurchaseOrderLotLabel(order),
+      order.supplier_name,
+      order.third_party_name,
+      getPurchaseOrderCoffeeName(order),
+      order.status,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(purchaseOrderSearchTerm);
+  });
+  const purchaseOrderTotals = {
+    pending: pendingPurchaseOrders.reduce((sum, order) => sum + Number(order.balance_due || 0), 0),
+    partial: partialPurchaseOrders.reduce((sum, order) => sum + Number(order.balance_due || 0), 0),
+    paid: paidPurchaseOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+  };
 
   const presentationNames = [
     ...new Set([
@@ -1647,6 +1819,139 @@ const InventoryPage = ({ mode = "inventory" }) => {
           </form>
         </div>
       )}
+
+      <div className="rounded border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">Historico de ordenes de compra</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Control de liquidaciones pendientes, abonos parciales y compras pagadas.
+              </p>
+            </div>
+            <div className="grid gap-2 text-xs sm:grid-cols-3">
+              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                <span className="block font-semibold">Pendientes</span>
+                <span>{pendingPurchaseOrders.length} · {formatMoney(purchaseOrderTotals.pending)}</span>
+              </div>
+              <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sky-900">
+                <span className="block font-semibold">Parciales</span>
+                <span>{partialPurchaseOrders.length} · {formatMoney(purchaseOrderTotals.partial)}</span>
+              </div>
+              <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
+                <span className="block font-semibold">Pagadas</span>
+                <span>{paidPurchaseOrders.length} · {formatMoney(purchaseOrderTotals.paid)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              ["pendientes", `Pendientes (${pendingPurchaseOrders.length})`],
+              ["parciales", `Pagos parciales (${partialPurchaseOrders.length})`],
+              ["pagadas", `Pagadas / historico (${paidPurchaseOrders.length})`],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                className={`rounded border px-3 py-2 text-sm font-semibold ${
+                  purchaseOrderStatusFilter === value ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => setPurchaseOrderStatusFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <input
+            className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Buscar por proveedor, numero de lote, orden o cafe comprado"
+            value={purchaseOrderSearch}
+            onChange={(event) => setPurchaseOrderSearch(event.target.value)}
+          />
+        </div>
+
+        {filteredPurchaseOrders.length === 0 ? (
+          <div className="p-4">
+            <EmptyState title="Sin ordenes en esta categoria" message="Cambie el filtro o la busqueda para revisar otras liquidaciones." />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-100 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2">Orden</th>
+                  <th className="px-3 py-2">Proveedor</th>
+                  <th className="px-3 py-2">Lotes</th>
+                  <th className="px-3 py-2">Cafe</th>
+                  <th className="px-3 py-2">Kilos</th>
+                  <th className="px-3 py-2">Pago</th>
+                  <th className="px-3 py-2">Referencia</th>
+                  <th className="px-3 py-2">Accion</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredPurchaseOrders.map((order) => {
+                  const payments = Array.isArray(order.payments) ? order.payments : [];
+                  const lastPayment = payments[payments.length - 1];
+                  const balanceDue = Number(order.balance_due || 0);
+
+                  return (
+                    <tr key={order.id}>
+                      <td className="px-3 py-2 font-semibold text-ink">{order.code}</td>
+                      <td className="px-3 py-2">{order.supplier_name || order.third_party_name || "-"}</td>
+                      <td className="px-3 py-2">{getPurchaseOrderLotLabel(order)}</td>
+                      <td className="px-3 py-2">{getPurchaseOrderCoffeeName(order)}</td>
+                      <td className="px-3 py-2">{formatKg(getPurchaseOrderKg(order))}</td>
+                      <td className="px-3 py-2">
+                        <div className="space-y-1">
+                          <StatusBadge tone={payableStatusTone(order.status)}>
+                            {payableStatusLabels[order.status] || order.status}
+                          </StatusBadge>
+                          <p className="text-xs text-slate-600">Pagado: {formatMoney(order.amount_paid)}</p>
+                          <p className="text-xs font-semibold text-amber-700">Saldo: {formatMoney(balanceDue)}</p>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600">
+                        {lastPayment ? (
+                          <div>
+                            <p className="font-semibold text-slate-700">{getPaymentMethodDisplayName(lastPayment)} · {lastPayment.payment_reference}</p>
+                            <p>{lastPayment.paid_at ? new Date(lastPayment.paid_at).toLocaleDateString("es-CO") : "-"}</p>
+                            {payments.length > 1 && <p>{payments.length} pagos registrados</p>}
+                          </div>
+                        ) : "-"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-2">
+                          {balanceDue > 0 && (
+                            <button
+                              className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                              type="button"
+                              disabled={saving}
+                              onClick={() => openPurchaseOrderPayment(order)}
+                            >
+                              Registrar pago
+                            </button>
+                          )}
+                          <button
+                            className="inline-flex items-center gap-1 rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            type="button"
+                            onClick={() => openPurchaseOrderPrint(order)}
+                          >
+                            <FileText size={14} />
+                            PDF
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
         </>
       )}
 
@@ -1944,6 +2249,126 @@ const InventoryPage = ({ mode = "inventory" }) => {
         </div>
       )}
         </>
+      )}
+
+      {paymentOrder && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+          <form
+            className="my-6 w-full max-w-xl rounded border border-slate-200 bg-white shadow-xl"
+            onSubmit={registerPurchaseOrderPayment}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <h2 className="text-base font-bold text-ink">Registrar pago de orden</h2>
+                <p className="text-sm text-slate-500">
+                  {paymentOrder.code} · {paymentOrder.supplier_name || paymentOrder.third_party_name || "Proveedor"}
+                </p>
+              </div>
+              <button
+                className="rounded border border-slate-300 p-2 text-slate-600 hover:bg-slate-50"
+                type="button"
+                onClick={closePurchaseOrderPayment}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div className="grid gap-3 rounded bg-slate-50 p-3 text-sm text-slate-700 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Total</p>
+                  <p className="font-bold text-ink">{formatMoney(paymentOrder.total)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Pagado</p>
+                  <p className="font-bold text-leaf">{formatMoney(paymentOrder.amount_paid)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Saldo</p>
+                  <p className="font-bold text-amber-700">{formatMoney(paymentOrder.balance_due)}</p>
+                </div>
+              </div>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Valor del pago o abono</span>
+                <input
+                  className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={paymentForm.amount}
+                  onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })}
+                  required
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Metodo de pago</span>
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    value={paymentForm.paymentMethodId}
+                    onChange={(event) => setPaymentForm({ ...paymentForm, paymentMethodId: event.target.value })}
+                    required
+                  >
+                    <option value="">Seleccione metodo</option>
+                    {liquidationPaymentMethods.map((method) => (
+                      <option key={method.id} value={method.id}>
+                        {getPaymentMethodDisplayName(method)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                  <span>Fecha de pago</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                    type="date"
+                    value={paymentForm.paidAt}
+                    onChange={(event) => setPaymentForm({ ...paymentForm, paidAt: event.target.value })}
+                    required
+                  />
+                </label>
+              </div>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Numero de referencia o recibo</span>
+                <input
+                  className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  value={paymentForm.paymentReference}
+                  onChange={(event) => setPaymentForm({ ...paymentForm, paymentReference: event.target.value })}
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Notas opcionales</span>
+                <textarea
+                  className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  value={paymentForm.notes}
+                  onChange={(event) => setPaymentForm({ ...paymentForm, notes: event.target.value })}
+                />
+              </label>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={closePurchaseOrderPayment}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving}
+                >
+                  Confirmar pago
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       )}
 
       {showLiquidationReviewModal && selectedLiquidationLot && (
