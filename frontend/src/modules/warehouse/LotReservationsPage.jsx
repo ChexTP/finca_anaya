@@ -49,6 +49,17 @@ const getPrimaryComponentName = (item) => {
     : null;
 };
 
+const getProfileComponents = (item) => {
+  const components = Array.isArray(item.profile_components)
+    ? item.profile_components.filter((component) => component?.purchase_coffee_name)
+    : [];
+
+  if (components.length > 0) return components;
+
+  const fallbackName = item.process_purchase_coffee_name || getPrimaryComponentName(item);
+  return fallbackName ? [{ purchase_coffee_name: fallbackName }] : [];
+};
+
 const getDeficitCoffeeName = (item) => {
   const primaryComponent = getPrimaryComponentName(item);
 
@@ -68,6 +79,36 @@ const getShortageKindFromNotes = (notes = "") => {
   return null;
 };
 
+const buildProcessDeficitComponents = ({ item, targetKg, reservedKg = 0, useOperationalConversion = false }) => {
+  const components = getProfileComponents(item);
+  if (components.length === 0 || targetKg <= 0) return [];
+
+  const explicitPercentages = components.some((component) => Number(component.percentage || 0) > 0);
+
+  return components
+    .map((component) => {
+      const ratio = explicitPercentages
+        ? Number(component.percentage || 0) / 100
+        : 1 / components.length;
+      const targetPartKg = roundRequirementKg(targetKg * ratio);
+      const reservedPartKg = roundRequirementKg(Number(reservedKg || 0) * ratio);
+      const rawMissingKg = Math.max(targetPartKg - reservedPartKg, 0);
+      const missingKg = useOperationalConversion
+        ? calculateOperationalKg({
+            quantityKg: rawMissingKg,
+            productForm: item.product_form,
+            processType: item.process_type,
+          })
+        : roundRequirementKg(rawMissingKg);
+
+      return {
+        name: `${component.purchase_coffee_name} para ${item.coffee_profile_name}`,
+        kg: missingKg,
+      };
+    })
+    .filter((component) => Number(component.kg || 0) > 0);
+};
+
 const getEstimatedDeficitParts = (item) => {
   const requiredKg = getItemOperationalRequiredKg(item) || Number(item.required_kg || 0);
   const reservedTotalKg = Number(item.reserved_kg || 0);
@@ -80,18 +121,26 @@ const getEstimatedDeficitParts = (item) => {
   const baseComponent = item.base_purchase_coffee_name || "Cafe base estimado";
   const shortageKind = getShortageKindFromNotes(item.shortage_notes);
 
-  if (item.coffee_profile_category !== "Exotico" || !primaryComponent || missingKg <= 0 || requestedKg <= 0) {
+  if (item.coffee_profile_category !== "Exotico" || getProfileComponents(item).length === 0 || missingKg <= 0 || requestedKg <= 0) {
     return null;
   }
 
   if (hasSeparatedReservations && requiredKg > 0) {
     const processTargetKg = roundRequirementKg(requiredKg * 0.4);
     const baseTargetKg = roundRequirementKg(requiredKg * 0.6);
-    const processInputKg = roundRequirementKg(Math.max(processTargetKg - reservedProcessKg, 0));
+    const processComponents = shortageKind === "base"
+      ? []
+      : buildProcessDeficitComponents({
+          item,
+          targetKg: processTargetKg,
+          reservedKg: reservedProcessKg,
+        });
+    const processInputKg = processComponents.reduce((total, component) => total + Number(component.kg || 0), 0);
     const baseKg = roundRequirementKg(Math.max(baseTargetKg - reservedBaseKg, 0));
 
     return {
-      processComponentName: `${primaryComponent} para ${item.coffee_profile_name}`,
+      processComponentName: processComponents.map((component) => component.name).join(" / ") || `${primaryComponent} para ${item.coffee_profile_name}`,
+      processComponents,
       processInputKg: shortageKind === "base" ? 0 : processInputKg,
       baseComponentName: baseComponent,
       baseKg: shortageKind === "proceso" ? 0 : baseKg,
@@ -108,11 +157,14 @@ const getEstimatedDeficitParts = (item) => {
   const processFinalKg = roundRequirementKg(missingFinalKg * 0.4);
   const baseFinalKg = roundRequirementKg(missingFinalKg * 0.6);
   const processBeforeYieldKg = roundRequirementKg(processFinalKg / 0.95);
-  const processInputKg = calculateOperationalKg({
-    quantityKg: processBeforeYieldKg,
-    productForm: item.product_form,
-    processType: item.process_type,
-  });
+  const processComponents = shortageKind === "base"
+    ? []
+    : buildProcessDeficitComponents({
+        item,
+        targetKg: processBeforeYieldKg,
+        useOperationalConversion: true,
+      });
+  const processInputKg = processComponents.reduce((total, component) => total + Number(component.kg || 0), 0);
   const baseKg = calculateOperationalKg({
     quantityKg: baseFinalKg,
     productForm: item.product_form,
@@ -121,7 +173,8 @@ const getEstimatedDeficitParts = (item) => {
 
   // Estimacion interna: 40% proceso con rendimiento 95%, 60% base y conversion pergamino/excelso por trilladora.
   return {
-    processComponentName: `${primaryComponent} para ${item.coffee_profile_name}`,
+    processComponentName: processComponents.map((component) => component.name).join(" / ") || `${primaryComponent} para ${item.coffee_profile_name}`,
+    processComponents,
     processInputKg: shortageKind === "base" ? 0 : processInputKg,
     baseComponentName: baseComponent,
     baseKg: shortageKind === "proceso" ? 0 : baseKg,
@@ -150,6 +203,17 @@ const downloadCsv = ({ filename, headers, rows }) => {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+};
+
+const getEstimatedProcessParts = (estimatedParts) => {
+  if (!estimatedParts) return [];
+  if (Array.isArray(estimatedParts.processComponents) && estimatedParts.processComponents.length > 0) {
+    return estimatedParts.processComponents;
+  }
+  if (Number(estimatedParts.processInputKg || 0) > 0) {
+    return [{ name: estimatedParts.processComponentName, kg: estimatedParts.processInputKg }];
+  }
+  return [];
 };
 
 const printRows = ({ title, headers, rows, summary }) => {
@@ -299,11 +363,11 @@ const LotReservationsPage = () => {
         const estimatedParts = getEstimatedDeficitParts(item);
         const parts = estimatedParts
           ? [
-              {
-                coffee: estimatedParts.processComponentName,
+              ...getEstimatedProcessParts(estimatedParts).map((component) => ({
+                coffee: component.name,
                 category: "Proceso faltante",
-                kg: estimatedParts.processInputKg,
-              },
+                kg: component.kg,
+              })),
               {
                 coffee: estimatedParts.baseComponentName,
                 category: "Base faltante",
@@ -415,9 +479,9 @@ const LotReservationsPage = () => {
         missing: formatKg(missingKg),
         estimate: estimatedParts
           ? [
-              Number(estimatedParts.processInputKg || 0) > 0
-                ? `Proceso faltante - ${estimatedParts.processComponentName}: ${formatKg(estimatedParts.processInputKg)}`
-                : null,
+              ...getEstimatedProcessParts(estimatedParts).map((component) =>
+                `Proceso faltante - ${component.name}: ${formatKg(component.kg)}`
+              ),
               Number(estimatedParts.baseKg || 0) > 0
                 ? `Base faltante - ${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)}`
                 : null,
@@ -866,11 +930,11 @@ const LotReservationsPage = () => {
                       <td className="px-3 py-2">
                         {estimatedParts ? (
                           <div className="space-y-1 text-xs">
-                            {Number(estimatedParts.processInputKg || 0) > 0 && (
-                              <p className="font-semibold text-rose-700">
-                                Proceso faltante - {estimatedParts.processComponentName}: {formatKg(estimatedParts.processInputKg)}
+                            {getEstimatedProcessParts(estimatedParts).map((component) => (
+                              <p key={component.name} className="font-semibold text-rose-700">
+                                Proceso faltante - {component.name}: {formatKg(component.kg)}
                               </p>
-                            )}
+                            ))}
                             {Number(estimatedParts.baseKg || 0) > 0 && (
                               <p className="font-semibold text-amber-700">
                                 Base faltante - {estimatedParts.baseComponentName}: {formatKg(estimatedParts.baseKg)}

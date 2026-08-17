@@ -471,14 +471,18 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
     }
 
     const profileComponents = Array.isArray(item.profile_components)
-      ? item.profile_components.filter((component) => Number(component.percentage || 0) > 0)
+      ? item.profile_components.filter((component) => component.purchase_coffee_name)
       : [];
 
     if (profileComponents.length > 0) {
-      profileComponents.forEach((component) => {
-        const percentage = Number(component.percentage || 0);
+      const hasExplicitPercentages = profileComponents.some((component) => Number(component.percentage || 0) > 0);
 
-        if (percentage <= 0) {
+      profileComponents.forEach((component) => {
+        const percentage = hasExplicitPercentages
+          ? Number(component.percentage || 0)
+          : 100 / profileComponents.length;
+
+        if (percentage <= 0 || !component.purchase_coffee_name) {
           return;
         }
 

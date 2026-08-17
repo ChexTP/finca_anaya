@@ -240,19 +240,45 @@ const WarehousePendingPage = () => {
       (row.assignmentType || "directo") === assignmentType
     ));
 
+  const normalizeAssignmentType = (assignmentType = "directo") => {
+    if (String(assignmentType).startsWith("proceso")) return "proceso";
+    if (String(assignmentType).startsWith("base")) return "base";
+    return "directo";
+  };
+
+  const getAssignmentTypeKey = (assignmentType = "directo") => {
+    const parts = String(assignmentType).split(":");
+    return parts.length > 1 ? parts.slice(1).join(":") : "";
+  };
+
   const getAssignmentBlockTargetKg = (item, assignmentType) => {
     const suggested = getSuggestedQuantities(item);
+    const type = normalizeAssignmentType(assignmentType);
 
-    if (assignmentType === "proceso") return Number(suggested?.processInputKg || 0);
-    if (assignmentType === "base") return Number(suggested?.baseKg || 0);
+    if (type === "proceso") {
+      const key = getAssignmentTypeKey(assignmentType);
+      const component = suggested?.processComponents?.find((part) => String(part.key) === String(key));
+      return Number(component?.quantityKg ?? suggested?.processInputKg ?? 0);
+    }
+    if (type === "base") return Number(suggested?.baseKg || 0);
 
     return getItemOperationalKg(item);
   };
 
+  const getAssignmentRowTargetKg = (row) => {
+    const item = selectedSale?.items?.find((saleItem) => String(saleItem.id) === String(row.saleItemId));
+    if (!item) return 0;
+
+    const baseTargetKg = getAssignmentBlockTargetKg(item, row.assignmentType || "directo");
+    return calculateSourceKgForItem(item, baseTargetKg, row.presentationFilter);
+  };
+
   const getAssignmentBlockTotals = (item, assignmentType) => {
-    const assignedKg = getItemAssignmentRowsByType(item, assignmentType)
-      .reduce((total, row) => total + Number(row.quantityKg || 0), 0);
-    const targetKg = getAssignmentBlockTargetKg(item, assignmentType);
+    const rows = getItemAssignmentRowsByType(item, assignmentType);
+    const assignedKg = rows.reduce((total, row) => total + Number(row.quantityKg || 0), 0);
+    const targetKg = rows.length > 0
+      ? Math.max(...rows.map((row) => getAssignmentRowTargetKg(row)))
+      : getAssignmentBlockTargetKg(item, assignmentType);
 
     return {
       assignedKg: Number(assignedKg.toFixed(3)),
@@ -268,7 +294,7 @@ const WarehousePendingPage = () => {
     if (!item) return "";
 
     const assignmentType = row.assignmentType || "directo";
-    const targetKg = getAssignmentBlockTargetKg(item, assignmentType);
+    const targetKg = getAssignmentRowTargetKg(row);
     const assignedByOtherRows = rows.reduce((total, currentRow, currentIndex) => {
       if (currentIndex === rowIndex) return total;
       if (String(currentRow.saleItemId) !== String(row.saleItemId)) return total;
@@ -320,22 +346,25 @@ const WarehousePendingPage = () => {
   };
 
   const getAssignmentTypeFromNotes = (notes = "") => {
-    if (String(notes).startsWith("[Proceso]")) return "proceso";
+    const processMatch = String(notes).match(/^\[Proceso(?::([^\]]+))?\]/i);
+    if (processMatch) return processMatch[1] ? `proceso:${processMatch[1]}` : "proceso";
     if (String(notes).startsWith("[Base]")) return "base";
     return "directo";
   };
 
   const cleanAssignmentNotes = (notes = "") =>
-    String(notes).replace(/^\[(Proceso|Base|Directo)\]\s*/i, "");
+    String(notes).replace(/^\[(Proceso(?::[^\]]+)?|Base|Directo)\]\s*/i, "");
 
   const buildAssignmentNotes = (row) => {
+    const type = normalizeAssignmentType(row.assignmentType);
+    const key = getAssignmentTypeKey(row.assignmentType);
     const prefixes = {
-      proceso: "[Proceso]",
+      proceso: key ? `[Proceso:${key}]` : "[Proceso]",
       base: "[Base]",
       directo: "[Directo]",
     };
 
-    return [prefixes[row.assignmentType] || prefixes.directo, row.notes].filter(Boolean).join(" ");
+    return [prefixes[type] || prefixes.directo, row.notes].filter(Boolean).join(" ");
   };
 
   const getShortageKindFromNotes = (notes = "") => {
@@ -368,31 +397,34 @@ const WarehousePendingPage = () => {
     if (assignmentType === "directo") return true;
 
     const shortageKind = getShortageKindFromNotes(item.shortage_notes);
-    return shortageKind === "ambos" || shortageKind === assignmentType;
+    return shortageKind === "ambos" || shortageKind === normalizeAssignmentType(assignmentType);
   };
 
   const getNextShortageKind = (item, assignmentType) => {
-    if (assignmentType === "directo") {
+    const type = normalizeAssignmentType(assignmentType);
+
+    if (type === "directo") {
       return item.shortage_marked ? null : "ambos";
     }
 
-    if (!item.shortage_marked) return assignmentType;
+    if (!item.shortage_marked) return type;
 
     const currentKind = getShortageKindFromNotes(item.shortage_notes);
 
     if (currentKind === "ambos") {
-      return assignmentType === "base" ? "proceso" : "base";
+      return type === "base" ? "proceso" : "base";
     }
 
-    if (currentKind === assignmentType) return null;
+    if (currentKind === type) return null;
 
     return "ambos";
   };
 
   const getShortageButtonLabel = (assignmentType, active) => {
     if (active) return "Quitar faltante";
-    if (assignmentType === "proceso") return "No hay proceso";
-    if (assignmentType === "base") return "No hay base";
+    const type = normalizeAssignmentType(assignmentType);
+    if (type === "proceso") return "No hay proceso";
+    if (type === "base") return "No hay base";
     return "No hay cafe";
   };
 
@@ -445,13 +477,43 @@ const WarehousePendingPage = () => {
     processType: item.process_type,
   });
 
+  const calculateSourceKgForItem = (item, quantityKg, presentation) => {
+    const selectedPresentation = presentation === "Todas" ? item.product_form : presentation;
+
+    if (selectedPresentation === "Pergamino") {
+      return calculateOperationalKg({
+        quantityKg,
+        productForm: "Pergamino",
+        processType: item.process_type,
+      });
+    }
+
+    return Math.ceil(Number(quantityKg || 0) - Number.EPSILON);
+  };
+
   const getSuggestedQuantities = (item) => {
     if (item.coffee_profile_category !== "Exotico") return null;
 
-    const requiredKg = getItemOperationalKg(item);
-    const processInputKg = Math.ceil((requiredKg * 0.4) - Number.EPSILON);
-    const baseKg = Math.ceil((requiredKg * 0.6) - Number.EPSILON);
-    const processName = item.profile_components?.[0]?.purchase_coffee_name || item.process_purchase_coffee_name || "Cafe para proceso";
+    const requestedKg = Math.ceil(Number(item.quantity_kg || 0) - Number.EPSILON);
+    const profileComponents = Array.isArray(item.profile_components) && item.profile_components.length > 0
+      ? item.profile_components
+      : [{ purchase_coffee_id: item.process_purchase_coffee_id || "principal", purchase_coffee_name: item.process_purchase_coffee_name || "Cafe para proceso" }];
+    const processTotalKg = Math.ceil((requestedKg * 0.4) - Number.EPSILON);
+    const processComponents = profileComponents.map((component, index) => {
+      const percentage = Number(component.percentage || 0);
+      const quantityKg = percentage > 0
+        ? Math.ceil((processTotalKg * percentage / 100) - Number.EPSILON)
+        : Math.ceil((processTotalKg / profileComponents.length) - Number.EPSILON);
+
+      return {
+        key: String(component.purchase_coffee_id || component.purchaseCoffeeId || index),
+        name: component.purchase_coffee_name || item.process_purchase_coffee_name || "Cafe para proceso",
+        quantityKg,
+      };
+    });
+    const processInputKg = processComponents.reduce((total, component) => total + Number(component.quantityKg || 0), 0);
+    const baseKg = Math.ceil((requestedKg * 0.6) - Number.EPSILON);
+    const processName = processComponents.map((component) => component.name).join(" / ") || "Cafe para proceso";
     const baseName = item.base_purchase_coffee_name || "Cafe base";
 
     return {
@@ -459,6 +521,7 @@ const WarehousePendingPage = () => {
       baseName,
       processInputKg,
       baseKg,
+      processComponents,
     };
   };
 
@@ -518,19 +581,19 @@ const WarehousePendingPage = () => {
 
           return suggested
             ? [
-                {
+                ...suggested.processComponents.map((component) => ({
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: formatSuggestedAssignmentKgInput(suggested.processInputKg),
-                  presentationFilter: "Todas",
-                  assignmentType: "proceso",
+                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas")),
+                  presentationFilter: item.product_form || "Todas",
+                  assignmentType: `proceso:${component.key}`,
                   notes: "",
-                },
+                })),
                 {
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: formatSuggestedAssignmentKgInput(suggested.baseKg),
-                  presentationFilter: "Todas",
+                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.baseKg, item.product_form || "Todas")),
+                  presentationFilter: item.product_form || "Todas",
                   assignmentType: "base",
                   notes: "",
                 },
@@ -538,8 +601,8 @@ const WarehousePendingPage = () => {
             : [{
               saleItemId: String(item.id),
               lotId: "",
-              quantityKg: "",
-              presentationFilter: "Todas",
+              quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, item.quantity_kg, item.product_form || "Todas")),
+              presentationFilter: item.product_form || "Todas",
               assignmentType: "directo",
               notes: "",
             }];
@@ -602,7 +665,13 @@ const WarehousePendingPage = () => {
     setAssignmentRows((currentRows) =>
       currentRows.map((row, rowIndex) => {
         if (rowIndex !== index) return row;
-        if (field === "presentationFilter") return { ...row, presentationFilter: value, lotId: "", lotLabel: "" };
+        if (field === "presentationFilter") {
+          const updatedRow = { ...row, presentationFilter: value, lotId: "", lotLabel: "" };
+          return {
+            ...updatedRow,
+            quantityKg: formatSuggestedAssignmentKgInput(getAssignmentRowTargetKg(updatedRow)),
+          };
+        }
         if (field === "lotId") {
           return {
             ...row,
@@ -636,7 +705,7 @@ const WarehousePendingPage = () => {
         saleItemId: String(item.id),
         lotId: "",
         quantityKg: formatSuggestedAssignmentKgInput(getAssignmentBlockTotals(item, assignmentType).missingKg),
-        presentationFilter: "Todas",
+        presentationFilter: item.product_form || "Todas",
         assignmentType,
         notes: "",
       },
@@ -1257,16 +1326,16 @@ const WarehousePendingPage = () => {
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
                             suggested ? (
                               <div className="space-y-3">
-                                {renderAssignmentBlock(item, {
-                                  assignmentType: "proceso",
-                                  title: "Asignar lote para proceso",
-                                  description: `Separe hasta ${formatOperationalKg(suggested.processInputKg)} de ${suggested.processName} para el proceso.`,
-                                  addLabel: "Agregar otro lote para proceso",
-                                })}
+                                {suggested.processComponents.map((component) => renderAssignmentBlock(item, {
+                                  assignmentType: `proceso:${component.key}`,
+                                  title: `Asignar lote para proceso - ${component.name}`,
+                                  description: `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas"))} de ${component.name} para este componente.`,
+                                  addLabel: "Agregar otro lote para este proceso",
+                                }))}
                                 {renderAssignmentBlock(item, {
                                   assignmentType: "base",
                                   title: "Asignar lote para base",
-                                  description: `Separe hasta ${formatOperationalKg(suggested.baseKg)} de ${suggested.baseName} como base.`,
+                                  description: `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, suggested.baseKg, item.product_form || "Todas"))} de ${suggested.baseName} como base.`,
                                   addLabel: "Agregar otro lote para base",
                                 })}
                               </div>

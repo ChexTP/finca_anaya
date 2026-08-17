@@ -1105,7 +1105,7 @@ export const getOperationalLotReservations = async () => {
       sale_items.shortage_marked,
       sale_items.shortage_notes,
       COALESCE(SUM(sale_item_lots.quantity_kg), 0) AS reserved_kg,
-      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.notes ILIKE '[Proceso]%'), 0) AS reserved_process_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.notes ILIKE '[Proceso%'), 0) AS reserved_process_kg,
       COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.notes ILIKE '[Base]%'), 0) AS reserved_base_kg,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.id AS coffee_profile_id,
