@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
-import { formatOperationalKg } from "../../utils/coffeeCalculations";
+import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import { readImageFileAsDataUrl } from "../../utils/files";
 import {
@@ -34,6 +34,12 @@ const formatAssignmentKgInput = (value) => {
   const kg = Number(value);
   if (!Number.isFinite(kg) || kg <= 0) return "";
   return Number(kg.toFixed(1)).toString();
+};
+
+const formatSuggestedAssignmentKgInput = (value) => {
+  const kg = Number(value);
+  if (!Number.isFinite(kg) || kg <= 0) return "";
+  return String(Math.ceil(kg - Number.EPSILON));
 };
 
 const taskFilters = [
@@ -240,7 +246,7 @@ const WarehousePendingPage = () => {
     if (assignmentType === "proceso") return Number(suggested?.processInputKg || 0);
     if (assignmentType === "base") return Number(suggested?.baseKg || 0);
 
-    return Number(item.operational_weight_kg || item.quantity_kg || 0);
+    return getItemOperationalKg(item);
   };
 
   const getAssignmentBlockTotals = (item, assignmentType) => {
@@ -273,7 +279,7 @@ const WarehousePendingPage = () => {
     const availableKg = getLotAvailableForAssignmentRowFromRows(lotId, rowIndex, rows);
     const suggestedKg = Math.min(missingKg || availableKg, availableKg);
 
-    return formatAssignmentKgInput(suggestedKg);
+    return formatSuggestedAssignmentKgInput(suggestedKg);
   };
 
   const getSelectedLotOption = (row) => {
@@ -433,20 +439,26 @@ const WarehousePendingPage = () => {
     });
   };
 
+  const getItemOperationalKg = (item) => calculateOperationalKg({
+    quantityKg: item.quantity_kg,
+    productForm: item.product_form,
+    processType: item.process_type,
+  });
+
   const getSuggestedQuantities = (item) => {
     if (item.coffee_profile_category !== "Exotico") return null;
 
-    const requiredKg = Number(item.operational_weight_kg || item.quantity_kg || 0);
-    const processInputKg = requiredKg * 0.4;
-    const baseKg = requiredKg * 0.6;
+    const requiredKg = getItemOperationalKg(item);
+    const processInputKg = Math.ceil((requiredKg * 0.4) - Number.EPSILON);
+    const baseKg = Math.ceil((requiredKg * 0.6) - Number.EPSILON);
     const processName = item.profile_components?.[0]?.purchase_coffee_name || item.process_purchase_coffee_name || "Cafe para proceso";
     const baseName = item.base_purchase_coffee_name || "Cafe base";
 
     return {
       processName,
       baseName,
-      processInputKg: Number(processInputKg.toFixed(3)),
-      baseKg: Number(baseKg.toFixed(3)),
+      processInputKg,
+      baseKg,
     };
   };
 
@@ -509,16 +521,16 @@ const WarehousePendingPage = () => {
                 {
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: formatAssignmentKgInput(suggested.processInputKg),
-                  presentationFilter: item.product_form || "Todas",
+                  quantityKg: formatSuggestedAssignmentKgInput(suggested.processInputKg),
+                  presentationFilter: "Todas",
                   assignmentType: "proceso",
                   notes: "",
                 },
                 {
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: formatAssignmentKgInput(suggested.baseKg),
-                  presentationFilter: item.product_form || "Todas",
+                  quantityKg: formatSuggestedAssignmentKgInput(suggested.baseKg),
+                  presentationFilter: "Todas",
                   assignmentType: "base",
                   notes: "",
                 },
@@ -527,7 +539,7 @@ const WarehousePendingPage = () => {
               saleItemId: String(item.id),
               lotId: "",
               quantityKg: "",
-              presentationFilter: item.product_form || "Todas",
+              presentationFilter: "Todas",
               assignmentType: "directo",
               notes: "",
             }];
@@ -623,8 +635,8 @@ const WarehousePendingPage = () => {
       {
         saleItemId: String(item.id),
         lotId: "",
-        quantityKg: formatAssignmentKgInput(getAssignmentBlockTotals(item, assignmentType).missingKg),
-        presentationFilter: item.product_form || "Todas",
+        quantityKg: formatSuggestedAssignmentKgInput(getAssignmentBlockTotals(item, assignmentType).missingKg),
+        presentationFilter: "Todas",
         assignmentType,
         notes: "",
       },
@@ -1202,8 +1214,8 @@ const WarehousePendingPage = () => {
                                 <span className="font-semibold text-slate-700">{item.product_form || "Sin presentacion"}</span>
                                 {" · "}
                                 Pedido: {formatOperationalKg(item.quantity_kg)}
-                                {item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) && (
-                                  <> · Operativo bodega: {formatOperationalKg(item.operational_weight_kg)}</>
+                                {getItemOperationalKg(item) !== Number(item.quantity_kg) && (
+                                  <> · Operativo bodega: {formatOperationalKg(getItemOperationalKg(item))}</>
                                 )}
                               </p>
                               <p className="mt-1 text-xs">

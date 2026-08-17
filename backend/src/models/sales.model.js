@@ -1,6 +1,15 @@
 import { pool } from "../db.js";
 import { getNextCode } from "./codeCounters.model.js";
 import { logger } from "../utils/logger.js";
+import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
+
+const requiredSaleItemKgSql = `
+  CASE
+    WHEN sale_items.product_form = 'Pergamino' AND sale_items.process_type = 'Natural' THEN CEIL(sale_items.quantity_kg * 140 / 70)
+    WHEN sale_items.product_form = 'Pergamino' AND sale_items.process_type = 'Lavado' THEN CEIL(sale_items.quantity_kg * 95 / 70)
+    ELSE CEIL(sale_items.quantity_kg)
+  END
+`;
 
 export const getNextSaleCode = async () => {
   return getNextCode({ prefix: "VEN", tableName: "sales" });
@@ -209,7 +218,7 @@ export const findSaleById = async (id) => {
       sale_blend_items.*,
       sale_items.quantity_kg AS requested_quantity_kg,
       ROUND((sale_items.quantity_kg * sale_blend_items.percentage / 100)::numeric, 3) AS calculated_quantity_kg,
-      ROUND((COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg) * sale_blend_items.percentage / 100)::numeric, 3) AS calculated_operational_kg,
+      ROUND(((${requiredSaleItemKgSql}) * sale_blend_items.percentage / 100)::numeric, 3) AS calculated_operational_kg,
       coffee_lots.code AS lot_code,
       coffee_lots.lot_kind,
       coffee_lots.presentation,
@@ -261,7 +270,11 @@ export const findSaleById = async (id) => {
     items: itemsResult.rows.map((item) => {
       const assignedLots = lotsBySaleItem[item.id] || [];
       const reservedKg = assignedLots.reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0);
-      const requiredKg = Number(item.operational_weight_kg || item.quantity_kg || 0);
+      const requiredKg = calculateOperationalKg({
+        quantityKg: item.quantity_kg,
+        productForm: item.product_form,
+        processType: item.process_type,
+      });
 
       return {
         ...item,
@@ -465,7 +478,7 @@ export const replaceSaleBlendOrder = async ({ saleId, items, createdBy }) => {
 
     const saleItemsResult = await client.query(
       `
-      SELECT id, COALESCE(operational_weight_kg, quantity_kg) AS required_kg
+      SELECT id, ${requiredSaleItemKgSql} AS required_kg
       FROM sale_items
       WHERE sale_id = $1
       `,
@@ -1088,7 +1101,7 @@ export const getOperationalLotReservations = async () => {
       sale_items.process_type,
       sale_items.variety,
       sale_items.quantity_kg AS requested_quantity_kg,
-      COALESCE(sale_items.operational_weight_kg, sale_items.quantity_kg) AS required_kg,
+      ${requiredSaleItemKgSql} AS required_kg,
       sale_items.shortage_marked,
       sale_items.shortage_notes,
       COALESCE(SUM(sale_item_lots.quantity_kg), 0) AS reserved_kg,
@@ -1156,10 +1169,10 @@ export const getOperationalLotReservations = async () => {
       const reservedProcessKg = Number(item.reserved_process_kg || 0);
       const reservedBaseKg = Number(item.reserved_base_kg || 0);
       const isExoticProfile = item.coffee_profile_category === "Exotico";
-      const processTargetKg = isExoticProfile ? Number((requiredKg * 0.4).toFixed(3)) : 0;
-      const baseTargetKg = isExoticProfile ? Number((requiredKg * 0.6).toFixed(3)) : 0;
-      const processMissingKg = Number(Math.max(processTargetKg - reservedProcessKg, 0).toFixed(3));
-      const baseMissingKg = Number(Math.max(baseTargetKg - reservedBaseKg, 0).toFixed(3));
+      const processTargetKg = isExoticProfile ? Math.ceil((requiredKg * 0.4) - Number.EPSILON) : 0;
+      const baseTargetKg = isExoticProfile ? Math.ceil((requiredKg * 0.6) - Number.EPSILON) : 0;
+      const processMissingKg = Math.ceil(Math.max(processTargetKg - reservedProcessKg, 0) - Number.EPSILON);
+      const baseMissingKg = Math.ceil(Math.max(baseTargetKg - reservedBaseKg, 0) - Number.EPSILON);
       const missingKg = isExoticProfile
         ? Number((processMissingKg + baseMissingKg).toFixed(3))
         : Number(Math.max(requiredKg - reservedKg, 0).toFixed(3));

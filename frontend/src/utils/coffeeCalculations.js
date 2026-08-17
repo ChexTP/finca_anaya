@@ -4,11 +4,11 @@ export const calculateOperationalKg = ({ quantityKg, productForm, processType })
   const process = String(processType || "").trim().toUpperCase();
 
   if (!Number.isFinite(kg) || kg <= 0) return 0;
-  if (form !== "EXCELSO") return Number(kg.toFixed(3));
-  if (process === "NATURAL") return Number((kg * 140 / 70).toFixed(3));
-  if (process === "LAVADO") return Number((kg * 95 / 70).toFixed(3));
+  if (form !== "PERGAMINO") return Math.ceil(kg - Number.EPSILON);
+  if (process === "NATURAL") return Math.ceil((kg * 140 / 70) - Number.EPSILON);
+  if (process === "LAVADO") return Math.ceil((kg * 95 / 70) - Number.EPSILON);
 
-  return Number(kg.toFixed(3));
+  return Math.ceil(kg - Number.EPSILON);
 };
 
 export const roundKgUpToHalf = (value) => {

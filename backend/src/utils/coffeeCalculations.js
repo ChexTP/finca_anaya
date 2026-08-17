@@ -9,18 +9,18 @@ export const calculateOperationalKg = ({ quantityKg, productForm, processType })
     return 0;
   }
 
-  if (form !== "EXCELSO") {
-    return Number(kg.toFixed(3));
+  if (form !== "PERGAMINO") {
+    return Math.ceil(kg - Number.EPSILON);
   }
 
   if (process === "NATURAL") {
-    return Number((kg * 140 / 70).toFixed(3));
+    return Math.ceil((kg * 140 / 70) - Number.EPSILON);
   }
 
   if (process === "LAVADO") {
-    return Number((kg * 95 / 70).toFixed(3));
+    return Math.ceil((kg * 95 / 70) - Number.EPSILON);
   }
 
   // Semilavado aun no tiene factor confirmado por la empresa.
-  return Number(kg.toFixed(3));
+  return Math.ceil(kg - Number.EPSILON);
 };

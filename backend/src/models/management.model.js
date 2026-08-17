@@ -32,24 +32,24 @@ const parseBenefitFromName = (value) => {
   return "";
 };
 
-// Replica la formula del Apps Script entregado por la empresa.
-// Un pedido de Excelso exige comprar/procesar mas cafe del peso final pedido.
+// Replica la regla operativa acordada para compras/procesos.
+// Excelso se separa igual al pedido; Pergamino se estima con conversion y se redondea hacia arriba.
 const calculateExcelsoRequiredKg = ({ requestedKg, benefit, productForm }) => {
   const kg = Number(requestedKg || 0);
   const form = normalizeUpper(productForm);
   const normalizedBenefit = normalizeUpper(benefit);
 
-  if (!form.includes("EXCELSO")) return round2(kg);
+  if (!form.includes("PERGAMINO")) return Math.ceil(kg - Number.EPSILON);
 
   if (normalizedBenefit.includes("NATURAL")) {
-    return round2(kg * 140 / 70);
+    return Math.ceil((kg * 140 / 70) - Number.EPSILON);
   }
 
   if (normalizedBenefit.includes("LAVADO")) {
-    return round2(kg * 95 / 70);
+    return Math.ceil((kg * 95 / 70) - Number.EPSILON);
   }
 
-  return round2(kg);
+  return Math.ceil(kg - Number.EPSILON);
 };
 
 const getActiveSales = async () => {

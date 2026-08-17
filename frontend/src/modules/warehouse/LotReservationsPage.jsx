@@ -13,6 +13,20 @@ import { useEffect, useMemo, useState } from "react";
 
 const formatKg = formatOperationalKg;
 
+const roundRequirementKg = (value) => {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return 0;
+  return Math.ceil(number - Number.EPSILON);
+};
+
+const getItemOperationalRequiredKg = (item) => {
+  return calculateOperationalKg({
+    quantityKg: item.requested_quantity_kg || item.quantity_kg,
+    productForm: item.product_form,
+    processType: item.process_type,
+  });
+};
+
 const getItemName = (item) => {
   return item.description || item.coffee_profile_name || item.coffee_type_name || item.variety || "Cafe solicitado";
 };
@@ -55,8 +69,9 @@ const getShortageKindFromNotes = (notes = "") => {
 };
 
 const getEstimatedDeficitParts = (item) => {
-  const missingKg = Number(item.missing_kg || 0);
-  const requiredKg = Number(item.required_kg || 0);
+  const requiredKg = getItemOperationalRequiredKg(item) || Number(item.required_kg || 0);
+  const reservedTotalKg = Number(item.reserved_kg || 0);
+  const missingKg = Math.max(Number(item.missing_kg || 0), requiredKg - reservedTotalKg, 0);
   const requestedKg = Number(item.requested_quantity_kg || 0);
   const reservedProcessKg = Number(item.reserved_process_kg || 0);
   const reservedBaseKg = Number(item.reserved_base_kg || 0);
@@ -70,29 +85,29 @@ const getEstimatedDeficitParts = (item) => {
   }
 
   if (hasSeparatedReservations && requiredKg > 0) {
-    const processTargetKg = requiredKg * 0.4;
-    const baseTargetKg = requiredKg * 0.6;
-    const processInputKg = Math.max(processTargetKg - reservedProcessKg, 0);
-    const baseKg = Math.max(baseTargetKg - reservedBaseKg, 0);
+    const processTargetKg = roundRequirementKg(requiredKg * 0.4);
+    const baseTargetKg = roundRequirementKg(requiredKg * 0.6);
+    const processInputKg = roundRequirementKg(Math.max(processTargetKg - reservedProcessKg, 0));
+    const baseKg = roundRequirementKg(Math.max(baseTargetKg - reservedBaseKg, 0));
 
     return {
       processComponentName: `${primaryComponent} para ${item.coffee_profile_name}`,
-      processInputKg: shortageKind === "base" ? 0 : Number(processInputKg.toFixed(3)),
+      processInputKg: shortageKind === "base" ? 0 : processInputKg,
       baseComponentName: baseComponent,
-      baseKg: shortageKind === "proceso" ? 0 : Number(baseKg.toFixed(3)),
-      finalMissingKg: Number((
+      baseKg: shortageKind === "proceso" ? 0 : baseKg,
+      finalMissingKg: roundRequirementKg(
         (shortageKind === "base" ? 0 : processInputKg) +
         (shortageKind === "proceso" ? 0 : baseKg)
-      ).toFixed(3)),
+      ),
     };
   }
 
   const missingFinalKg = requiredKg > 0
     ? requestedKg * (missingKg / requiredKg)
     : requestedKg;
-  const processFinalKg = missingFinalKg * 0.4;
-  const baseFinalKg = missingFinalKg * 0.6;
-  const processBeforeYieldKg = processFinalKg / 0.95;
+  const processFinalKg = roundRequirementKg(missingFinalKg * 0.4);
+  const baseFinalKg = roundRequirementKg(missingFinalKg * 0.6);
+  const processBeforeYieldKg = roundRequirementKg(processFinalKg / 0.95);
   const processInputKg = calculateOperationalKg({
     quantityKg: processBeforeYieldKg,
     productForm: item.product_form,
@@ -110,10 +125,10 @@ const getEstimatedDeficitParts = (item) => {
     processInputKg: shortageKind === "base" ? 0 : processInputKg,
     baseComponentName: baseComponent,
     baseKg: shortageKind === "proceso" ? 0 : baseKg,
-    finalMissingKg: Number((
+    finalMissingKg: roundRequirementKg(
       (shortageKind === "base" ? 0 : processInputKg) +
       (shortageKind === "proceso" ? 0 : baseKg)
-    ).toFixed(3)),
+    ),
   };
 };
 
@@ -313,7 +328,7 @@ const LotReservationsPage = () => {
             clients: new Set(),
           };
 
-          current.kg += Number(part.kg || 0);
+          current.kg += roundRequirementKg(part.kg);
           if (item.sale_code) current.sales.add(item.sale_code);
           if (item.client_name) current.clients.add(item.client_name);
           grouped[key] = current;
@@ -323,7 +338,7 @@ const LotReservationsPage = () => {
     return Object.values(grouped)
       .map((item) => ({
         ...item,
-        kg: Number(item.kg.toFixed(3)),
+        kg: roundRequirementKg(item.kg),
         sales: [...item.sales],
         clients: [...item.clients],
       }))
@@ -388,14 +403,16 @@ const LotReservationsPage = () => {
   const detailReports = useMemo(() => {
     const deficitRows = filteredDeficits.map((item) => {
       const estimatedParts = getEstimatedDeficitParts(item);
+      const requiredKg = getItemOperationalRequiredKg(item) || item.required_kg;
+      const missingKg = Math.max(Number(item.missing_kg || 0), Number(requiredKg || 0) - Number(item.reserved_kg || 0), 0);
 
       return {
         sale: item.sale_code,
         client: item.client_name,
         coffee: getDeficitCoffeeName(item),
-        requested: formatKg(item.required_kg),
+        requested: formatKg(requiredKg),
         reserved: formatKg(item.reserved_kg),
-        missing: formatKg(item.missing_kg),
+        missing: formatKg(missingKg),
         estimate: estimatedParts
           ? [
               Number(estimatedParts.processInputKg || 0) > 0
@@ -406,7 +423,7 @@ const LotReservationsPage = () => {
                 : null,
               `Final faltante: ${formatKg(estimatedParts.finalMissingKg)}`,
             ].filter(Boolean).join(" / ")
-          : formatKg(item.missing_kg),
+          : formatKg(missingKg),
         delivery: formatDate(item.estimated_delivery_date),
         assignee: item.order_assignee || "-",
       };
@@ -834,41 +851,47 @@ const LotReservationsPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredDeficits.map((item) => (
-                  <tr key={item.sale_item_id} className="border-t border-slate-100">
-                    <td className="px-3 py-2 font-semibold text-ink">{item.sale_code}</td>
-                    <td className="px-3 py-2">{item.client_name}</td>
-                    <td className="px-3 py-2">{getDeficitCoffeeName(item)}</td>
-                    <td className="px-3 py-2">{formatKg(item.required_kg)}</td>
-                    <td className="px-3 py-2">{formatKg(item.reserved_kg)}</td>
-                    <td className="px-3 py-2">
-                      {getEstimatedDeficitParts(item) ? (
-                        <div className="space-y-1 text-xs">
-                          {Number(getEstimatedDeficitParts(item).processInputKg || 0) > 0 && (
-                            <p className="font-semibold text-rose-700">
-                              Proceso faltante - {getEstimatedDeficitParts(item).processComponentName}: {formatKg(getEstimatedDeficitParts(item).processInputKg)}
-                            </p>
-                          )}
-                          {Number(getEstimatedDeficitParts(item).baseKg || 0) > 0 && (
-                            <p className="font-semibold text-amber-700">
-                              Base faltante - {getEstimatedDeficitParts(item).baseComponentName}: {formatKg(getEstimatedDeficitParts(item).baseKg)}
-                            </p>
-                          )}
-                          <p className="text-slate-500">Faltante perfil final: {formatKg(getEstimatedDeficitParts(item).finalMissingKg)}</p>
-                        </div>
-                      ) : (
-                        <span className="font-semibold text-rose-700">{formatKg(item.missing_kg)}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">{formatDate(item.estimated_delivery_date)}</td>
-                    <td className="px-3 py-2">
-                      <Link className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50" to="/bodega/pendientes">
-                        <Eye size={13} />
-                        Ver pedidos
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {filteredDeficits.map((item) => {
+                  const estimatedParts = getEstimatedDeficitParts(item);
+                  const requiredKg = getItemOperationalRequiredKg(item) || item.required_kg;
+                  const missingKg = Math.max(Number(item.missing_kg || 0), Number(requiredKg || 0) - Number(item.reserved_kg || 0), 0);
+
+                  return (
+                    <tr key={item.sale_item_id} className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-semibold text-ink">{item.sale_code}</td>
+                      <td className="px-3 py-2">{item.client_name}</td>
+                      <td className="px-3 py-2">{getDeficitCoffeeName(item)}</td>
+                      <td className="px-3 py-2">{formatKg(requiredKg)}</td>
+                      <td className="px-3 py-2">{formatKg(item.reserved_kg)}</td>
+                      <td className="px-3 py-2">
+                        {estimatedParts ? (
+                          <div className="space-y-1 text-xs">
+                            {Number(estimatedParts.processInputKg || 0) > 0 && (
+                              <p className="font-semibold text-rose-700">
+                                Proceso faltante - {estimatedParts.processComponentName}: {formatKg(estimatedParts.processInputKg)}
+                              </p>
+                            )}
+                            {Number(estimatedParts.baseKg || 0) > 0 && (
+                              <p className="font-semibold text-amber-700">
+                                Base faltante - {estimatedParts.baseComponentName}: {formatKg(estimatedParts.baseKg)}
+                              </p>
+                            )}
+                            <p className="text-slate-500">Faltante perfil final: {formatKg(estimatedParts.finalMissingKg)}</p>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-rose-700">{formatKg(missingKg)}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">{formatDate(item.estimated_delivery_date)}</td>
+                      <td className="px-3 py-2">
+                        <Link className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50" to="/bodega/pendientes">
+                          <Eye size={13} />
+                          Ver pedidos
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

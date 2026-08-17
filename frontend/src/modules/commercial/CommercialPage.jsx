@@ -328,6 +328,15 @@ const CommercialPage = () => {
     }));
   };
 
+  const getPricingCosts = (terms = {}, { includeExportCost = true } = {}) => ({
+    millCostCop: terms.millCostCop !== undefined && terms.millCostCop !== "" ? Number(terms.millCostCop) : fixedCommercialCosts.millCostCop,
+    transportCostCop: terms.transportCostCop !== undefined && terms.transportCostCop !== "" ? Number(terms.transportCostCop) : fixedCommercialCosts.transportCostCop,
+    vacuumCostCop: terms.vacuumCostCop !== undefined && terms.vacuumCostCop !== "" ? Number(terms.vacuumCostCop) : fixedCommercialCosts.vacuumCostCop,
+    exportCostUsdLb: includeExportCost
+      ? (terms.exportCostUsdLb !== undefined && terms.exportCostUsdLb !== "" ? Number(terms.exportCostUsdLb) : fixedCommercialCosts.exportCostUsdLb)
+      : 0,
+  });
+
   const getNextCodeParts = (prefix, counters = codeCounters) => {
     const nextCode = counters.find((counter) => counter.prefix === prefix)?.nextCode;
     return getCodeParts(nextCode, prefix);
@@ -344,18 +353,15 @@ const CommercialPage = () => {
   }), [itemForm.quantityKg, itemForm.productForm, itemForm.processType]);
 
   const itemPriceCalculation = useMemo(() => calculateCommercialItemPrice({
-  priceLoadCop: itemForm.priceLoadCop,
-  productForm: itemForm.productForm,
-  processType: itemForm.processType,
-  packaging: itemForm.packaging,
-  currency: quoteForm.currency,
+    priceLoadCop: itemForm.priceLoadCop,
+    productForm: itemForm.productForm,
+    processType: itemForm.processType,
+    packaging: itemForm.packaging,
+    currency: quoteForm.currency,
     exchangeRate: quoteForm.terms?.exchangeRate,
-    millCostCop: fixedCommercialCosts.millCostCop,
-    transportCostCop: fixedCommercialCosts.transportCostCop,
-    vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
-    exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
+    ...getPricingCosts(quoteForm.terms),
     usdIncoterm: quoteForm.terms?.usdIncoterm,
-}), [itemForm.priceLoadCop, itemForm.productForm, itemForm.processType, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
+  }), [itemForm.priceLoadCop, itemForm.productForm, itemForm.processType, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
 
   const effectiveItemPriceCalculation = useMemo(() => {
     if (itemForm.priceInputMode !== "kg") return itemPriceCalculation;
@@ -505,6 +511,7 @@ const CommercialPage = () => {
   useEffect(() => {
     if (itemForm.priceInputMode === "kg") return;
     if (!itemForm.priceLoadCop) return;
+    const pricingCosts = getPricingCosts(quoteForm.terms);
     setItemForm((currentItem) => ({
       ...currentItem,
       unitPrice: itemPriceCalculation.unitPrice ? String(itemPriceCalculation.unitPrice) : "",
@@ -516,10 +523,7 @@ const CommercialPage = () => {
         currency: quoteForm.currency,
         exchangeRate: quoteForm.terms?.exchangeRate || null,
         packaging: currentItem.packaging,
-        millCostCop: fixedCommercialCosts.millCostCop,
-        transportCostCop: fixedCommercialCosts.transportCostCop,
-        vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
-        exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
+        ...pricingCosts,
         usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
       },
     }));
@@ -626,6 +630,7 @@ const CommercialPage = () => {
     if (itemForm.itemType === "description" && !itemForm.description.trim()) throw new Error("Ingrese la descripcion del cafe solicitado.");
 
     const quantityKg = toItemQuantityKg(itemForm);
+    const pricingCosts = getPricingCosts(quoteForm.terms);
     const pricingSnapshot = {
       ...(itemForm.pricingSnapshot || {}),
       ...effectiveItemPriceCalculation,
@@ -634,10 +639,7 @@ const CommercialPage = () => {
       currency: quoteForm.currency,
       exchangeRate: quoteForm.terms?.exchangeRate || null,
       packaging: itemForm.productForm === "Excelso" ? itemForm.packaging : "Empaque tradicional",
-      millCostCop: fixedCommercialCosts.millCostCop,
-      transportCostCop: fixedCommercialCosts.transportCostCop,
-      vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
-      exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
+      ...pricingCosts,
       usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
     };
     const unitPrice = Number(effectiveItemPriceCalculation.unitPrice || itemForm.unitPrice || 0);
@@ -795,10 +797,7 @@ const CommercialPage = () => {
         deliveryTerms: quoteForm.deliveryTerms || null,
         terms: {
           ...quoteForm.terms,
-          millCostCop: fixedCommercialCosts.millCostCop,
-          transportCostCop: fixedCommercialCosts.transportCostCop,
-          vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
-          exportCostUsdLb: fixedCommercialCosts.exportCostUsdLb,
+          ...getPricingCosts(quoteForm.terms),
         },
         shippingCost: Number(quoteForm.shippingCost || 0),
         estimatedDeliveryDate: quoteForm.estimatedDeliveryDate,
@@ -1087,9 +1086,7 @@ const CommercialPage = () => {
             packaging: item.packaging || "Empaque tradicional",
             currency: priceListForm.currency,
             exchangeRate: item.exchangeRate,
-            millCostCop: fixedCommercialCosts.millCostCop,
-            transportCostCop: fixedCommercialCosts.transportCostCop,
-            vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+            ...getPricingCosts(priceListForm.terms, { includeExportCost: false }),
             exportCostUsdLb: 0,
             usdIncoterm: "EXW",
           });
@@ -1137,9 +1134,7 @@ const CommercialPage = () => {
           deliveryTerms: null,
           terms: {
             ...priceListForm.terms,
-            millCostCop: fixedCommercialCosts.millCostCop,
-            transportCostCop: fixedCommercialCosts.transportCostCop,
-            vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+            ...getPricingCosts(priceListForm.terms, { includeExportCost: false }),
             exportCostUsdLb: 0,
           },
           shippingCost: 0,
@@ -1660,19 +1655,19 @@ const CommercialPage = () => {
                 </label>
                 <label className={termLabelClass}>
                   Costo trilla / mill COP
-                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.millCostCop} />
+                  <input className={termInputClass} type="number" min="0" value={quoteForm.terms.millCostCop ?? fixedCommercialCosts.millCostCop} onChange={(event) => updateQuoteTerm("millCostCop", event.target.value)} />
                 </label>
                 <label className={termLabelClass}>
                   Transporte / cargues COP
-                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.transportCostCop} />
+                  <input className={termInputClass} type="number" min="0" value={quoteForm.terms.transportCostCop ?? fixedCommercialCosts.transportCostCop} onChange={(event) => updateQuoteTerm("transportCostCop", event.target.value)} />
                 </label>
                 <label className={termLabelClass}>
                   Costo al vacio COP
-                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.vacuumCostCop} />
+                  <input className={termInputClass} type="number" min="0" value={quoteForm.terms.vacuumCostCop ?? fixedCommercialCosts.vacuumCostCop} onChange={(event) => updateQuoteTerm("vacuumCostCop", event.target.value)} />
                 </label>
                 <label className={termLabelClass}>
                   Costo exportacion USD/LB/FOB
-                  <input className={`${termInputClass} bg-slate-50 text-slate-600`} readOnly value={fixedCommercialCosts.exportCostUsdLb} />
+                  <input className={termInputClass} type="number" min="0" step="0.01" value={quoteForm.terms.exportCostUsdLb ?? fixedCommercialCosts.exportCostUsdLb} onChange={(event) => updateQuoteTerm("exportCostUsdLb", event.target.value)} />
                 </label>
               </div>
             </div>
@@ -1900,9 +1895,7 @@ const CommercialPage = () => {
                           packaging: item.packaging || "Empaque tradicional",
                           currency: priceListForm.currency,
                           exchangeRate: item.exchangeRate,
-                          millCostCop: fixedCommercialCosts.millCostCop,
-                          transportCostCop: fixedCommercialCosts.transportCostCop,
-                          vacuumCostCop: fixedCommercialCosts.vacuumCostCop,
+                          ...getPricingCosts(priceListForm.terms, { includeExportCost: false }),
                           exportCostUsdLb: 0,
                           usdIncoterm: "EXW",
                         });
@@ -2147,6 +2140,18 @@ const CommercialPage = () => {
                         value={priceListForm.terms.taxId}
                         onChange={(event) => updatePriceListTerm("taxId", event.target.value)}
                       />
+                    </label>
+                    <label className={termLabelClass}>
+                      Costo trilla / mill COP
+                      <input className={termInputClass} type="number" min="0" value={priceListForm.terms.millCostCop ?? fixedCommercialCosts.millCostCop} onChange={(event) => updatePriceListTerm("millCostCop", event.target.value)} />
+                    </label>
+                    <label className={termLabelClass}>
+                      Transporte / cargues COP
+                      <input className={termInputClass} type="number" min="0" value={priceListForm.terms.transportCostCop ?? fixedCommercialCosts.transportCostCop} onChange={(event) => updatePriceListTerm("transportCostCop", event.target.value)} />
+                    </label>
+                    <label className={termLabelClass}>
+                      Costo al vacio COP
+                      <input className={termInputClass} type="number" min="0" value={priceListForm.terms.vacuumCostCop ?? fixedCommercialCosts.vacuumCostCop} onChange={(event) => updatePriceListTerm("vacuumCostCop", event.target.value)} />
                     </label>
                   </div>
                 </div>
