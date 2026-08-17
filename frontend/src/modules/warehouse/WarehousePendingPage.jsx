@@ -52,6 +52,7 @@ const WarehousePendingPage = () => {
   const [selectedSale, setSelectedSale] = useState(null);
   const [taskFilter, setTaskFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [itemAssignees, setItemAssignees] = useState({});
   const [orderAssignee, setOrderAssignee] = useState("");
@@ -81,9 +82,28 @@ const WarehousePendingPage = () => {
   }, [sales]);
 
   const sortedSales = useMemo(() => {
+    const searchTerm = search.trim().toLowerCase();
+
     return sales
       .filter((sale) => taskFilter === "all" || getSaleTaskKey(sale) === taskFilter)
       .filter((sale) => assigneeFilter === "all" || (sale.order_assignee || "Sin encargado") === assigneeFilter)
+      .filter((sale) => {
+        if (!searchTerm) return true;
+
+        return [
+          sale.code,
+          sale.client_name,
+          sale.order_assignee,
+          sale.warehouse_priority,
+          sale.status,
+          getSaleNextAction(sale),
+          ...(sale.items || []).map((item) => getWarehouseItemLabel(item)),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(searchTerm);
+      })
       .sort((left, right) => {
         const leftDue = isDeliveryDueSoon(left.estimated_delivery_date) ? 0 : 1;
         const rightDue = isDeliveryDueSoon(right.estimated_delivery_date) ? 0 : 1;
@@ -96,7 +116,7 @@ const WarehousePendingPage = () => {
         const rightDate = right.estimated_delivery_date ? new Date(right.estimated_delivery_date).getTime() : Number.MAX_SAFE_INTEGER;
         return leftDate - rightDate;
       });
-  }, [sales, taskFilter, assigneeFilter]);
+  }, [sales, taskFilter, assigneeFilter, search]);
 
   const assigneeOptions = useMemo(() => {
     return [...new Set(sales.map((sale) => sale.order_assignee || "Sin encargado"))].sort((left, right) =>
@@ -172,6 +192,16 @@ const WarehousePendingPage = () => {
     return Math.max(Number(availableKg.toFixed(3)), 0);
   };
 
+  const getLotAvailableForAssignmentRowFromRows = (lotId, rowIndex, rows) => {
+    const reservedKg = rows.reduce((total, row, index) => {
+      if (rowIndex !== null && index === rowIndex) return total;
+      if (String(row.lotId) !== String(lotId)) return total;
+      return total + Number(row.quantityKg || 0);
+    }, 0);
+    const availableKg = getLotAssignableKg(lotId) - reservedKg;
+    return Math.max(Number(availableKg.toFixed(3)), 0);
+  };
+
   const getLotOptionForRow = (lot, rowIndex) => ({
     ...lot,
     available_weight_kg: getLotAvailableForAssignmentRow(lot.id, rowIndex),
@@ -205,6 +235,27 @@ const WarehousePendingPage = () => {
       targetKg: Number(targetKg.toFixed(3)),
       missingKg: Number(Math.max(targetKg - assignedKg, 0).toFixed(3)),
     };
+  };
+
+  const getSuggestedQuantityForAssignmentRow = (row, lotId, rowIndex, rows = assignmentRows) => {
+    if (!lotId) return "";
+
+    const item = selectedSale?.items?.find((saleItem) => String(saleItem.id) === String(row.saleItemId));
+    if (!item) return "";
+
+    const assignmentType = row.assignmentType || "directo";
+    const targetKg = getAssignmentBlockTargetKg(item, assignmentType);
+    const assignedByOtherRows = rows.reduce((total, currentRow, currentIndex) => {
+      if (currentIndex === rowIndex) return total;
+      if (String(currentRow.saleItemId) !== String(row.saleItemId)) return total;
+      if ((currentRow.assignmentType || "directo") !== assignmentType) return total;
+      return total + Number(currentRow.quantityKg || 0);
+    }, 0);
+    const missingKg = Math.max(targetKg - assignedByOtherRows, 0);
+    const availableKg = getLotAvailableForAssignmentRowFromRows(lotId, rowIndex, rows);
+    const suggestedKg = Math.min(missingKg || availableKg, availableKg);
+
+    return formatAssignmentKgInput(suggestedKg);
   };
 
   const getSelectedLotOption = (row) => {
@@ -522,6 +573,14 @@ const WarehousePendingPage = () => {
       currentRows.map((row, rowIndex) => {
         if (rowIndex !== index) return row;
         if (field === "presentationFilter") return { ...row, presentationFilter: value, lotId: "", lotLabel: "" };
+        if (field === "lotId") {
+          return {
+            ...row,
+            lotId: value,
+            lotLabel: "",
+            quantityKg: getSuggestedQuantityForAssignmentRow(row, value, rowIndex, currentRows),
+          };
+        }
         return { ...row, [field]: value };
       })
     );
@@ -546,7 +605,7 @@ const WarehousePendingPage = () => {
       {
         saleItemId: String(item.id),
         lotId: "",
-        quantityKg: "",
+        quantityKg: formatAssignmentKgInput(getAssignmentBlockTotals(item, assignmentType).missingKg),
         presentationFilter: item.product_form || "Todas",
         assignmentType,
         notes: "",
@@ -684,10 +743,10 @@ const WarehousePendingPage = () => {
     const totals = getAssignmentBlockTotals(item, assignmentType);
 
     return (
-      <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+      <div className={`space-y-3 rounded border p-3 ${shortageActive ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50"}`}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase text-slate-500">{title}</p>
+            <p className="text-xs font-semibold uppercase text-slate-600">{title}</p>
             {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
             <p className="mt-1 text-xs text-slate-600">
               Sugerido: <span className="font-semibold">{formatOperationalKg(totals.targetKg)}</span>
@@ -721,56 +780,67 @@ const WarehousePendingPage = () => {
           const rowAvailableLotGroups = getAvailableLotGroupsForRow(row);
 
           return (
-            <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-2">
-              <select
-                className="min-w-0 max-w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                value={row.presentationFilter || "Todas"}
-                onChange={(event) => updateAssignmentRow(rowIndex, "presentationFilter", event.target.value)}
-              >
-                {presentationFilterOptions.map((presentation) => (
-                  <option key={presentation} value={presentation}>
-                    {presentation === "Todas" ? "Todas las presentaciones" : presentation}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                value={row.lotId}
-                onChange={(event) => updateAssignmentRow(rowIndex, "lotId", event.target.value)}
-              >
-                <option value="">Lote disponible</option>
-                {selectedLotOption && (
-                  <option value={selectedLotOption.value}>{selectedLotOption.label}</option>
-                )}
-                {rowAvailableLotGroups.map((group) => (
-                  <optgroup key={group.name} label={`${group.name} (${formatOperationalKg(group.kg)})`}>
-                    {group.lots
-                      .filter((lot) => {
-                        if (selectedLotOption && String(lot.id) === String(row.lotId)) return false;
-                        return getLotAvailableForAssignmentRow(lot.id, rowIndex) > 0;
-                      })
-                      .map((lot) => (
-                      <option key={lot.id} value={lot.id}>
-                        {formatCoffeeLotOption(getLotOptionForRow(lot, rowIndex))}
+            <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-3 rounded border border-slate-200 bg-white p-3">
+              <div className="grid min-w-0 gap-2 md:grid-cols-[160px_minmax(0,1fr)]">
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Presentacion
+                  <select
+                    className="min-w-0 max-w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
+                    value={row.presentationFilter || "Todas"}
+                    onChange={(event) => updateAssignmentRow(rowIndex, "presentationFilter", event.target.value)}
+                  >
+                    {presentationFilterOptions.map((presentation) => (
+                      <option key={presentation} value={presentation}>
+                        {presentation === "Todas" ? "Todas" : presentation}
                       </option>
                     ))}
-                  </optgroup>
-                ))}
-              </select>
+                  </select>
+                </label>
+                <label className="grid min-w-0 gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Lote a separar
+                  <select
+                    className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
+                    value={row.lotId}
+                    onChange={(event) => updateAssignmentRow(rowIndex, "lotId", event.target.value)}
+                  >
+                    <option value="">Lote disponible</option>
+                    {selectedLotOption && (
+                      <option value={selectedLotOption.value}>{selectedLotOption.label}</option>
+                    )}
+                    {rowAvailableLotGroups.map((group) => (
+                      <optgroup key={group.name} label={`${group.name} (${formatOperationalKg(group.kg)})`}>
+                        {group.lots
+                          .filter((lot) => {
+                            if (selectedLotOption && String(lot.id) === String(row.lotId)) return false;
+                            return getLotAvailableForAssignmentRow(lot.id, rowIndex) > 0;
+                          })
+                          .map((lot) => (
+                            <option key={lot.id} value={lot.id}>
+                              {formatCoffeeLotOption(getLotOptionForRow(lot, rowIndex))}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <input
-                  className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                  placeholder="Cantidad kg"
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  max={row.lotId ? selectedAvailableKg : undefined}
-                  value={row.quantityKg}
-                  onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
-                  onBlur={(event) => updateAssignmentRow(rowIndex, "quantityKg", formatAssignmentKgInput(event.target.value))}
-                />
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  Cantidad sugerida kg
+                  <input
+                    className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
+                    placeholder="Seleccione un lote para calcular"
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    max={row.lotId ? selectedAvailableKg : undefined}
+                    value={row.quantityKg}
+                    onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
+                    onBlur={(event) => updateAssignmentRow(rowIndex, "quantityKg", formatAssignmentKgInput(event.target.value))}
+                  />
+                </label>
                 <button
-                  className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  className="self-end rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                   type="button"
                   onClick={() => removeAssignmentRow(rowIndex)}
                   disabled={rows.length === 1}
@@ -784,12 +854,15 @@ const WarehousePendingPage = () => {
                   {quantityExceedsAvailable ? " · La cantidad supera lo disponible para este lote." : ""}
                 </p>
               )}
-              <input
-                className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                placeholder="Observacion opcional"
-                value={row.notes}
-                onChange={(event) => updateAssignmentRow(rowIndex, "notes", event.target.value)}
-              />
+              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                Observacion
+                <input
+                  className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
+                  placeholder="Opcional"
+                  value={row.notes}
+                  onChange={(event) => updateAssignmentRow(rowIndex, "notes", event.target.value)}
+                />
+              </label>
             </div>
           );
         })}
@@ -916,23 +989,31 @@ const WarehousePendingPage = () => {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-white p-3">
-        <label className="text-xs font-semibold uppercase text-slate-500">Encargado</label>
-        <select
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
-          value={assigneeFilter}
-          onChange={(event) => setAssigneeFilter(event.target.value)}
-        >
-          <option value="all">Todos</option>
-          {assigneeOptions.map((assignee) => (
-            <option key={assignee} value={assignee}>
-              {assignee}
-            </option>
-          ))}
-        </select>
+      <div className="grid gap-3 rounded border border-slate-200 bg-white p-3 md:grid-cols-[minmax(0,1fr)_220px]">
+        <input
+          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+          placeholder="Buscar por venta, cliente, cafe, encargado o estado"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+          Encargado
+          <select
+            className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+          >
+            <option value="all">Todos</option>
+            {assigneeOptions.map((assignee) => (
+              <option key={assignee} value={assignee}>
+                {assignee}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(440px,560px)]">
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Ordenes por hacer</h2>
@@ -1083,14 +1164,17 @@ const WarehousePendingPage = () => {
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
-                {selectedSale.items?.map((item) => (
-                  <div key={item.id} className="rounded border border-slate-200 p-3 text-sm">
+                {selectedSale.items?.map((item, itemIndex) => (
+                  <div key={item.id} className="overflow-hidden rounded border border-slate-200 bg-white text-sm shadow-sm">
                     {(() => {
                       const suggested = getSuggestedQuantities(item);
 
                       return (
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-4 p-3">
+                          <div className="flex items-start gap-3 border-b border-slate-100 pb-3">
+                            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-bold text-leaf">
+                              {itemIndex + 1}
+                            </span>
                             <div>
                               <p className="font-medium text-ink">{getWarehouseItemLabel(item)}</p>
                               <p className="text-slate-500">

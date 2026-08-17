@@ -286,6 +286,7 @@ const CommercialPage = () => {
   const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
   const [showQuickClient, setShowQuickClient] = useState(false);
   const [quoteFilter, setQuoteFilter] = useState("all");
+  const [quoteSearch, setQuoteSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -418,8 +419,28 @@ const CommercialPage = () => {
   }, [quotes]);
 
   const filteredQuotes = useMemo(() => {
-    return quotes.filter((quote) => quoteFilter === "all" || quote.status === quoteFilter);
-  }, [quotes, quoteFilter]);
+    const term = quoteSearch.trim().toLowerCase();
+
+    return quotes.filter((quote) => {
+      const matchesStatus = quoteFilter === "all" || quote.status === quoteFilter;
+      const matchesSearch = !term || [
+        quote.code,
+        quote.client_name,
+        quote.client_phone,
+        quote.status,
+        quote.currency,
+        ...(quote.items || []).map((item) => (
+          item.description || item.coffee_profile_name || item.coffee_type_name || item.variety
+        )),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [quotes, quoteFilter, quoteSearch]);
 
   const availableCoffeeOptions = useMemo(() => {
     if (itemForm.itemType === "description") return [];
@@ -2153,6 +2174,12 @@ const CommercialPage = () => {
                   </button>
                 ))}
               </div>
+              <input
+                className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Buscar por codigo, cliente, telefono, moneda, estado o cafe"
+                value={quoteSearch}
+                onChange={(event) => setQuoteSearch(event.target.value)}
+              />
             </div>
             {filteredQuotes.length === 0 ? (
               <div className="p-4"><EmptyState title="Sin cotizaciones" message="Las cotizaciones apareceran aqui." /></div>

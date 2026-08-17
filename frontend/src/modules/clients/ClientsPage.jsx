@@ -1,5 +1,5 @@
 import { RefreshCw, Save } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
@@ -22,6 +22,8 @@ const ClientsPage = () => {
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
   const [form, setForm] = useState(initialClient);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -34,6 +36,33 @@ const ClientsPage = () => {
   useEffect(() => {
     loadClients().catch((requestError) => setError(requestError.message));
   }, []);
+
+  const filteredClients = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return clients.filter((client) => {
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && client.is_active) ||
+        (statusFilter === "inactive" && !client.is_active);
+      const matchesSearch = !term || [
+        client.name,
+        client.document_type,
+        client.document_number,
+        client.phone,
+        client.email,
+        client.address,
+        client.city,
+        client.country,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [clients, search, statusFilter]);
 
   const selectClient = async (clientId) => {
     const client = await apiRequest(`/clients/${clientId}`);
@@ -109,32 +138,73 @@ const ClientsPage = () => {
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Listado</h2>
+            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Buscar por cliente, documento, telefono, correo o ciudad"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </select>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">{filteredClients.length} cliente(s) encontrados</p>
           </div>
-          {clients.length === 0 ? (
+          {filteredClients.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin clientes" message="Los clientes creados apareceran aqui." />
+              <EmptyState title="Sin clientes" message="No hay clientes para los filtros seleccionados." />
             </div>
           ) : (
-            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-              {clients.map((client) => (
-                <button
-                  key={client.id}
-                  className={`rounded border bg-white p-4 text-left hover:bg-slate-50 ${
-                    selectedClient?.id === client.id ? "border-leaf" : "border-slate-200"
-                  }`}
-                  onClick={() => selectClient(client.id)}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-semibold text-ink">{client.name}</p>
-                    <StatusBadge tone={client.is_active ? "success" : "danger"}>
-                      {client.is_active ? "activo" : "inactivo"}
-                    </StatusBadge>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-500">{client.phone}</p>
-                  <p className="mt-2 text-sm text-slate-600">{client.address}</p>
-                  <p className="text-sm text-slate-500">{[client.city, client.country].filter(Boolean).join(", ")}</p>
-                </button>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Cliente</th>
+                    <th className="px-3 py-2">Documento</th>
+                    <th className="px-3 py-2">Telefono</th>
+                    <th className="px-3 py-2">Ubicacion</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Accion</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredClients.map((client) => (
+                    <tr key={client.id} className={selectedClient?.id === client.id ? "bg-emerald-50" : ""}>
+                      <td className="px-3 py-2">
+                        <p className="font-semibold text-ink">{client.name}</p>
+                        <p className="text-xs text-slate-500">{client.email || "-"}</p>
+                      </td>
+                      <td className="px-3 py-2">{[client.document_type, client.document_number].filter(Boolean).join(" ") || "-"}</td>
+                      <td className="px-3 py-2">{client.phone || "-"}</td>
+                      <td className="px-3 py-2">
+                        <p>{client.address || "-"}</p>
+                        <p className="text-xs text-slate-500">{[client.city, client.country].filter(Boolean).join(", ") || "-"}</p>
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusBadge tone={client.is_active ? "success" : "danger"}>
+                          {client.is_active ? "activo" : "inactivo"}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                          onClick={() => selectClient(client.id)}
+                          type="button"
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

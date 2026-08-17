@@ -1,5 +1,5 @@
 import { Plus, RefreshCw, Save, SlidersHorizontal, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
@@ -81,6 +81,9 @@ const CoffeeProfilesPage = () => {
   const [catalogs, setCatalogs] = useState(null);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [form, setForm] = useState(initialProfile);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -97,6 +100,32 @@ const CoffeeProfilesPage = () => {
   useEffect(() => {
     loadProfiles().catch((requestError) => setError(requestError.message));
   }, []);
+
+  const filteredProfiles = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return profiles.filter((profile) => {
+      const matchesCategory = categoryFilter === "all" || profile.category === categoryFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && profile.is_active) ||
+        (statusFilter === "inactive" && !profile.is_active);
+      const matchesSearch = !term || [
+        profile.name,
+        profile.internal_code,
+        profile.category,
+        profile.process_type,
+        formatComponentSummary(profile),
+        formatBaseSummary(profile),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+
+      return matchesCategory && matchesStatus && matchesSearch;
+    });
+  }, [profiles, search, categoryFilter, statusFilter]);
 
   const selectProfile = (profile) => {
     setSelectedProfile(profile);
@@ -211,11 +240,39 @@ const CoffeeProfilesPage = () => {
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Listado</h2>
+            <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_160px_160px]">
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Buscar por perfil, codigo, categoria, proceso o componente"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+              >
+                <option value="all">Todas</option>
+                <option value="Regional">Regional</option>
+                <option value="Varietal">Varietal</option>
+                <option value="Exotico">Exotico</option>
+              </select>
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </select>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">{filteredProfiles.length} perfil(es) encontrados</p>
           </div>
 
-          {profiles.length === 0 ? (
+          {filteredProfiles.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin perfiles" message="Los perfiles de venta apareceran aqui." />
+              <EmptyState title="Sin perfiles" message="No hay perfiles para los filtros seleccionados." />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -234,7 +291,7 @@ const CoffeeProfilesPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {profiles.map((profile) => (
+                  {filteredProfiles.map((profile) => (
                     <tr key={profile.id}>
                       <td className="px-4 py-3 font-medium text-ink">{profile.name}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.internal_code || "-"}</td>

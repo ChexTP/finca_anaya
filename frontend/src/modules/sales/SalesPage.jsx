@@ -350,6 +350,9 @@ const SalesPage = () => {
         sale.order_assignee,
         sale.status,
         sale.payment_status,
+        ...(sale.items || []).map((item) => (
+          item.description || item.coffee_profile_name || item.coffee_type_name || item.variety
+        )),
       ]
         .filter(Boolean)
         .join(" ")
@@ -712,14 +715,12 @@ const SalesPage = () => {
                 </select>
               </div>
             )}
-            {canEditCodes && (
-              <input
-                className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Buscar ordenes por codigo, cliente, cotizacion, encargado o estado"
-                value={saleCodeSearch}
-                onChange={(event) => setSaleCodeSearch(event.target.value)}
-              />
-            )}
+            <input
+              className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Buscar ordenes por codigo, cliente, cotizacion, cafe, encargado o estado"
+              value={saleCodeSearch}
+              onChange={(event) => setSaleCodeSearch(event.target.value)}
+            />
           </div>
           {filteredSales.length === 0 ? (
             <div className="p-4">

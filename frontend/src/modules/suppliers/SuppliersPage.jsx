@@ -18,6 +18,7 @@ const SuppliersPage = () => {
   const [form, setForm] = useState(initialSupplier);
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -34,10 +35,13 @@ const SuppliersPage = () => {
 
   const filteredSuppliers = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return suppliers;
 
-    return suppliers.filter((supplier) =>
-      [
+    return suppliers.filter((supplier) => {
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && supplier.is_active) ||
+        (statusFilter === "inactive" && !supplier.is_active);
+      const matchesSearch = !term || [
         supplier.name,
         supplier.phone,
         supplier.address,
@@ -48,9 +52,11 @@ const SuppliersPage = () => {
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(term)
-    );
-  }, [suppliers, search]);
+        .includes(term);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [suppliers, search, statusFilter]);
 
   const startEdit = (supplier) => {
     setEditingSupplier(supplier);
@@ -125,12 +131,24 @@ const SuppliersPage = () => {
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Listado de proveedores</h2>
-            <input
-              className="mt-3 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Buscar por nombre, telefono, direccion o zona"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Buscar por nombre, telefono, direccion o zona"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <select
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </select>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">{filteredSuppliers.length} proveedor(es) encontrados</p>
           </div>
 
           {filteredSuppliers.length === 0 ? (
@@ -144,6 +162,7 @@ const SuppliersPage = () => {
                   <tr>
                     <th className="px-3 py-2">Proveedor</th>
                     <th className="px-3 py-2">Telefono</th>
+                    <th className="px-3 py-2">Direccion</th>
                     <th className="px-3 py-2">Zona</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Accion</th>
@@ -154,9 +173,10 @@ const SuppliersPage = () => {
                     <tr key={supplier.id}>
                       <td className="px-3 py-2">
                         <p className="font-semibold text-ink">{supplier.name}</p>
-                        <p className="text-xs text-slate-500">{supplier.address}</p>
+                        <p className="text-xs text-slate-500">{supplier.notes || "-"}</p>
                       </td>
                       <td className="px-3 py-2">{supplier.phone}</td>
+                      <td className="px-3 py-2">{supplier.address || "-"}</td>
                       <td className="px-3 py-2">{supplier.origin_zone || "-"}</td>
                       <td className="px-3 py-2">
                         <StatusBadge tone={supplier.is_active ? "success" : "neutral"}>
