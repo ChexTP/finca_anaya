@@ -46,6 +46,24 @@ const taskFilters = [
   { key: "dispatch", label: "Despachar" },
 ];
 
+const itemAccentClasses = [
+  "border-l-4 border-l-emerald-400 bg-emerald-50/30",
+  "border-l-4 border-l-sky-400 bg-sky-50/30",
+  "border-l-4 border-l-amber-400 bg-amber-50/30",
+  "border-l-4 border-l-violet-400 bg-violet-50/30",
+  "border-l-4 border-l-rose-400 bg-rose-50/30",
+  "border-l-4 border-l-teal-400 bg-teal-50/30",
+];
+
+const itemNumberClasses = [
+  "bg-emerald-100 text-emerald-800",
+  "bg-sky-100 text-sky-800",
+  "bg-amber-100 text-amber-800",
+  "bg-violet-100 text-violet-800",
+  "bg-rose-100 text-rose-800",
+  "bg-teal-100 text-teal-800",
+];
+
 const WarehousePendingPage = () => {
   const [sales, setSales] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
@@ -1165,14 +1183,17 @@ const WarehousePendingPage = () => {
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase text-slate-500">Productos</p>
                 {selectedSale.items?.map((item, itemIndex) => (
-                  <div key={item.id} className="overflow-hidden rounded border border-slate-200 bg-white text-sm shadow-sm">
+                  <div
+                    key={item.id}
+                    className={`overflow-hidden rounded border border-slate-200 text-sm shadow-sm ${itemAccentClasses[itemIndex % itemAccentClasses.length]}`}
+                  >
                     {(() => {
                       const suggested = getSuggestedQuantities(item);
 
                       return (
                         <div className="space-y-4 p-3">
                           <div className="flex items-start gap-3 border-b border-slate-100 pb-3">
-                            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-bold text-leaf">
+                            <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${itemNumberClasses[itemIndex % itemNumberClasses.length]}`}>
                               {itemIndex + 1}
                             </span>
                             <div>

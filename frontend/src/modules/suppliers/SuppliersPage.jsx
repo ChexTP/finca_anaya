@@ -6,9 +6,16 @@ import { apiRequest } from "../../utils/api";
 
 const initialSupplier = {
   name: "",
+  documentType: "",
+  documentNumber: "",
   phone: "",
+  email: "",
   address: "",
+  city: "",
+  country: "",
   originZone: "",
+  shippingNotes: "",
+  billingNotes: "",
   notes: "",
   isActive: true,
 };
@@ -43,9 +50,16 @@ const SuppliersPage = () => {
         (statusFilter === "inactive" && !supplier.is_active);
       const matchesSearch = !term || [
         supplier.name,
+        supplier.document_type,
+        supplier.document_number,
         supplier.phone,
+        supplier.email,
         supplier.address,
+        supplier.city,
+        supplier.country,
         supplier.origin_zone,
+        supplier.shipping_notes,
+        supplier.billing_notes,
         supplier.notes,
         supplier.is_active ? "activo" : "inactivo",
       ]
@@ -62,9 +76,16 @@ const SuppliersPage = () => {
     setEditingSupplier(supplier);
     setForm({
       name: supplier.name || "",
+      documentType: supplier.document_type || "",
+      documentNumber: supplier.document_number || "",
       phone: supplier.phone || "",
+      email: supplier.email || "",
       address: supplier.address || "",
+      city: supplier.city || "",
+      country: supplier.country || "",
       originZone: supplier.origin_zone || "",
+      shippingNotes: supplier.shipping_notes || "",
+      billingNotes: supplier.billing_notes || "",
       notes: supplier.notes || "",
       isActive: supplier.is_active !== false,
     });
@@ -134,7 +155,7 @@ const SuppliersPage = () => {
             <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Buscar por nombre, telefono, direccion o zona"
+                placeholder="Buscar por nombre, documento, telefono, correo, direccion o zona"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -161,7 +182,9 @@ const SuppliersPage = () => {
                 <thead className="bg-slate-100 text-slate-600">
                   <tr>
                     <th className="px-3 py-2">Proveedor</th>
+                    <th className="px-3 py-2">Documento</th>
                     <th className="px-3 py-2">Telefono</th>
+                    <th className="px-3 py-2">Correo</th>
                     <th className="px-3 py-2">Direccion</th>
                     <th className="px-3 py-2">Zona</th>
                     <th className="px-3 py-2">Estado</th>
@@ -175,9 +198,14 @@ const SuppliersPage = () => {
                         <p className="font-semibold text-ink">{supplier.name}</p>
                         <p className="text-xs text-slate-500">{supplier.notes || "-"}</p>
                       </td>
+                      <td className="px-3 py-2">{[supplier.document_type, supplier.document_number].filter(Boolean).join(" ") || "-"}</td>
                       <td className="px-3 py-2">{supplier.phone}</td>
+                      <td className="px-3 py-2">{supplier.email || "-"}</td>
                       <td className="px-3 py-2">{supplier.address || "-"}</td>
-                      <td className="px-3 py-2">{supplier.origin_zone || "-"}</td>
+                      <td className="px-3 py-2">
+                        <p>{supplier.origin_zone || "-"}</p>
+                        <p className="text-xs text-slate-500">{[supplier.city, supplier.country].filter(Boolean).join(", ") || "-"}</p>
+                      </td>
                       <td className="px-3 py-2">
                         <StatusBadge tone={supplier.is_active ? "success" : "neutral"}>
                           {supplier.is_active ? "activo" : "inactivo"}
@@ -224,6 +252,20 @@ const SuppliersPage = () => {
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Tipo documento opcional"
+                value={form.documentType}
+                onChange={(event) => setForm({ ...form, documentType: event.target.value })}
+              />
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Numero documento opcional"
+                value={form.documentNumber}
+                onChange={(event) => setForm({ ...form, documentNumber: event.target.value })}
+              />
+            </div>
             <input
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Telefono"
@@ -232,15 +274,47 @@ const SuppliersPage = () => {
             />
             <input
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Correo opcional"
+              value={form.email}
+              onChange={(event) => setForm({ ...form, email: event.target.value })}
+            />
+            <input
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Direccion"
               value={form.address}
               onChange={(event) => setForm({ ...form, address: event.target.value })}
             />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Ciudad opcional"
+                value={form.city}
+                onChange={(event) => setForm({ ...form, city: event.target.value })}
+              />
+              <input
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Pais opcional"
+                value={form.country}
+                onChange={(event) => setForm({ ...form, country: event.target.value })}
+              />
+            </div>
             <input
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Zona de procedencia"
               value={form.originZone}
               onChange={(event) => setForm({ ...form, originZone: event.target.value })}
+            />
+            <textarea
+              className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Notas de envio opcionales"
+              value={form.shippingNotes}
+              onChange={(event) => setForm({ ...form, shippingNotes: event.target.value })}
+            />
+            <textarea
+              className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Notas de facturacion opcionales"
+              value={form.billingNotes}
+              onChange={(event) => setForm({ ...form, billingNotes: event.target.value })}
             />
             <textarea
               className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"

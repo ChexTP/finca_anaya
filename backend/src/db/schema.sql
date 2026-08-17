@@ -111,14 +111,29 @@ CREATE TABLE IF NOT EXISTS code_counters (
 CREATE TABLE IF NOT EXISTS suppliers (
   id SERIAL PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
+  document_type VARCHAR(30),
+  document_number VARCHAR(60),
   phone VARCHAR(40) UNIQUE NOT NULL,
+  email VARCHAR(150),
   address TEXT NOT NULL,
+  city VARCHAR(100),
+  country VARCHAR(100),
   origin_zone TEXT,
+  shipping_notes TEXT,
+  billing_notes TEXT,
   notes TEXT,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS document_type VARCHAR(30);
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS document_number VARCHAR(60);
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS email VARCHAR(150);
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS shipping_notes TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS billing_notes TEXT;
 
 CREATE TABLE IF NOT EXISTS clients (
   id SERIAL PRIMARY KEY,

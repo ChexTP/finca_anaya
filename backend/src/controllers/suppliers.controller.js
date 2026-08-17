@@ -36,7 +36,20 @@ export const getSupplier = async (req, res) => {
 
 export const postSupplier = async (req, res) => {
   try {
-    const { name, phone, address, originZone, notes } = req.body;
+    const {
+      name,
+      documentType,
+      documentNumber,
+      phone,
+      email,
+      address,
+      city,
+      country,
+      originZone,
+      shippingNotes,
+      billingNotes,
+      notes,
+    } = req.body;
 
     if (!name || !phone || !address) {
       return res.status(400).json({
@@ -44,7 +57,20 @@ export const postSupplier = async (req, res) => {
       });
     }
 
-    const supplier = await createSupplier({ name, phone, address, originZone, notes });
+    const supplier = await createSupplier({
+      name,
+      documentType,
+      documentNumber,
+      phone,
+      email,
+      address,
+      city,
+      country,
+      originZone,
+      shippingNotes,
+      billingNotes,
+      notes,
+    });
 
     res.status(201).json({
       message: "Proveedor creado correctamente",
@@ -64,7 +90,21 @@ export const postSupplier = async (req, res) => {
 
 export const putSupplier = async (req, res) => {
   try {
-    const { name, phone, address, originZone, notes, isActive = true } = req.body;
+    const {
+      name,
+      documentType,
+      documentNumber,
+      phone,
+      email,
+      address,
+      city,
+      country,
+      originZone,
+      shippingNotes,
+      billingNotes,
+      notes,
+      isActive = true,
+    } = req.body;
 
     if (!name || !phone || !address) {
       return res.status(400).json({
@@ -74,9 +114,16 @@ export const putSupplier = async (req, res) => {
 
     const supplier = await updateSupplier(req.params.id, {
       name,
+      documentType,
+      documentNumber,
       phone,
+      email,
       address,
+      city,
+      country,
       originZone,
+      shippingNotes,
+      billingNotes,
       notes,
       isActive,
     });
@@ -100,4 +147,3 @@ export const putSupplier = async (req, res) => {
     });
   }
 };
-
