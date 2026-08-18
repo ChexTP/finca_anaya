@@ -139,6 +139,38 @@ const initialItem = {
   pricingSnapshot: {},
 };
 
+const quoteDraftStorageKey = "fincaAnaya.quoteDraft.v1";
+
+const hasQuoteDraftContent = ({ quoteForm = {}, itemForm = {}, quoteItems = [] } = {}) => {
+  const currentTerms = quoteForm.terms || {};
+  const termsChanged = Object.keys(defaultQuoteTerms).some((key) => String(currentTerms[key] ?? "") !== String(defaultQuoteTerms[key] ?? ""));
+
+  return Boolean(
+    quoteForm.clientId ||
+    quoteForm.currency !== initialQuote.currency ||
+    quoteForm.shippingCost ||
+    quoteForm.estimatedDeliveryDate ||
+    quoteForm.notes ||
+    termsChanged ||
+    quoteItems.length > 0 ||
+    itemForm.coffeeProfileId ||
+    itemForm.description ||
+    itemForm.variety ||
+    itemForm.quantityKg ||
+    itemForm.priceLoadCop ||
+    itemForm.unitPrice
+  );
+};
+
+const formatDraftSavedAt = (savedAt) => {
+  if (!savedAt) return "Guardado automaticamente";
+
+  return `Guardado ${new Date(savedAt).toLocaleString("es-CO", {
+    dateStyle: "short",
+    timeStyle: "short",
+  })}`;
+};
+
 const initialQuickClient = {
   name: "",
   documentType: "",
@@ -154,6 +186,7 @@ const initialQuickClient = {
 
 const quoteFilters = [
   { key: "all", label: "Todas" },
+  { key: "draft", label: "Borradores" },
   { key: "enviada", label: "Enviadas" },
   { key: "aceptada", label: "Aceptadas" },
   { key: "anulada", label: "Anuladas" },
@@ -287,6 +320,7 @@ const CommercialPage = () => {
   const [showQuickClient, setShowQuickClient] = useState(false);
   const [quoteFilter, setQuoteFilter] = useState("all");
   const [quoteSearch, setQuoteSearch] = useState("");
+  const [quoteDraft, setQuoteDraft] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -414,7 +448,7 @@ const CommercialPage = () => {
   }, [catalogs]);
 
   const quoteCounts = useMemo(() => {
-    return quotes.reduce(
+    const counts = quotes.reduce(
       (counts, quote) => ({
         ...counts,
         all: counts.all + 1,
@@ -422,9 +456,12 @@ const CommercialPage = () => {
       }),
       { all: 0 }
     );
-  }, [quotes]);
+    return { ...counts, draft: quoteDraft ? 1 : 0 };
+  }, [quotes, quoteDraft]);
 
   const filteredQuotes = useMemo(() => {
+    if (quoteFilter === "draft") return [];
+
     const term = quoteSearch.trim().toLowerCase();
 
     return quotes.filter((quote) => {
@@ -509,6 +546,39 @@ const CommercialPage = () => {
   }, []);
 
   useEffect(() => {
+    try {
+      const storedDraft = window.localStorage.getItem(quoteDraftStorageKey);
+      if (!storedDraft) return;
+
+      const parsedDraft = JSON.parse(storedDraft);
+      if (hasQuoteDraftContent(parsedDraft)) {
+        setQuoteDraft(parsedDraft);
+      }
+    } catch {
+      window.localStorage.removeItem(quoteDraftStorageKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (formMode !== "quote" || editingQuoteId) return undefined;
+    if (!hasQuoteDraftContent({ quoteForm, itemForm, quoteItems })) return undefined;
+
+    const draftSnapshot = {
+      quoteForm,
+      itemForm,
+      quoteItems,
+      savedAt: new Date().toISOString(),
+    };
+
+    const saveDraftTimeout = window.setTimeout(() => {
+      window.localStorage.setItem(quoteDraftStorageKey, JSON.stringify(draftSnapshot));
+      setQuoteDraft(draftSnapshot);
+    }, 400);
+
+    return () => window.clearTimeout(saveDraftTimeout);
+  }, [formMode, editingQuoteId, quoteForm, itemForm, quoteItems]);
+
+  useEffect(() => {
     if (itemForm.priceInputMode === "kg") return;
     if (!itemForm.priceLoadCop) return;
     const pricingCosts = getPricingCosts(quoteForm.terms);
@@ -529,9 +599,33 @@ const CommercialPage = () => {
     }));
   }, [itemPriceCalculation.unitPrice, itemForm.priceInputMode, itemForm.priceLoadCop, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
 
+  const clearQuoteDraft = () => {
+    window.localStorage.removeItem(quoteDraftStorageKey);
+    setQuoteDraft(null);
+  };
+
+  const continueQuoteDraft = () => {
+    if (!quoteDraft) return;
+
+    setEditingQuoteId(null);
+    setEditingPriceListId(null);
+    setFormMode("quote");
+    setQuoteForm({
+      ...createInitialQuote(),
+      ...(quoteDraft.quoteForm || {}),
+      terms: { ...defaultQuoteTerms, ...(quoteDraft.quoteForm?.terms || {}) },
+    });
+    setItemForm({ ...initialItem, ...(quoteDraft.itemForm || {}) });
+    setQuoteItems(Array.isArray(quoteDraft.quoteItems) ? quoteDraft.quoteItems : []);
+    setMessage("Borrador cargado. Puede continuar la cotizacion donde la dejo.");
+    setError("");
+    scrollToPanel(formPanelRef);
+  };
+
   const resetForm = (freshCounters = codeCounters) => {
     setEditingQuoteId(null);
     setEditingPriceListId(null);
+    clearQuoteDraft();
     setQuoteForm({ ...createInitialQuote(), ...getNextCodeParts("COT", freshCounters) });
     setItemForm(initialItem);
     setQuoteItems([]);
@@ -811,6 +905,7 @@ const CommercialPage = () => {
       });
 
       const wasEditing = Boolean(editingQuoteId);
+      clearQuoteDraft();
       const refreshedData = await loadData();
       if (wasEditing) {
         resetForm(refreshedData.countersData);
@@ -1235,6 +1330,23 @@ const CommercialPage = () => {
                 </button>
               )}
             </div>
+
+            {formMode === "quote" && !editingQuoteId && quoteDraft && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+                <div>
+                  <p className="font-semibold text-amber-900">Borrador de cotizacion guardado</p>
+                  <p className="text-xs text-amber-800">{formatDraftSavedAt(quoteDraft.savedAt)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button className="rounded border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100" type="button" onClick={continueQuoteDraft}>
+                    Continuar borrador
+                  </button>
+                  <button className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={clearQuoteDraft}>
+                    Descartar
+                  </button>
+                </div>
+              </div>
+            )}
 
             {formMode === "quote" ? (
               <>
@@ -2186,7 +2298,45 @@ const CommercialPage = () => {
                 onChange={(event) => setQuoteSearch(event.target.value)}
               />
             </div>
-            {filteredQuotes.length === 0 ? (
+            {quoteFilter === "draft" ? (
+              quoteDraft ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-100 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2">Codigo</th>
+                        <th className="px-3 py-2">Cliente</th>
+                        <th className="px-3 py-2">Estado</th>
+                        <th className="px-3 py-2">Total</th>
+                        <th className="px-3 py-2">Accion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="px-3 py-2 font-medium">{getQuoteCodeFromForm(quoteDraft.quoteForm) || "COT-borrador"}</td>
+                        <td className="px-3 py-2">
+                          {clients.find((client) => String(client.id) === String(quoteDraft.quoteForm?.clientId))?.name || "Sin cliente"}
+                        </td>
+                        <td className="px-3 py-2"><StatusBadge>Borrador local</StatusBadge></td>
+                        <td className="px-3 py-2">{formatMoney(quoteDraft.quoteForm?.currency, (quoteDraft.quoteItems || []).reduce((sum, item) => sum + Number(item.lineTotal || 0), 0) + Number(quoteDraft.quoteForm?.shippingCost || 0))}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-2">
+                            <button className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100" onClick={continueQuoteDraft} type="button">
+                              <Edit size={14} /> Continuar
+                            </button>
+                            <button className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50" onClick={clearQuoteDraft} type="button">
+                              <Trash2 size={14} /> Descartar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-4"><EmptyState title="Sin borradores" message="Los borradores automaticos apareceran aqui." /></div>
+              )
+            ) : filteredQuotes.length === 0 ? (
               <div className="p-4"><EmptyState title="Sin cotizaciones" message="Las cotizaciones apareceran aqui." /></div>
             ) : (
               <div className="overflow-x-auto">
