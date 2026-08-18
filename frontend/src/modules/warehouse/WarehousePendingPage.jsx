@@ -79,6 +79,7 @@ const WarehousePendingPage = () => {
   const [search, setSearch] = useState("");
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [itemAssignees, setItemAssignees] = useState({});
+  const [directProcessModeByItem, setDirectProcessModeByItem] = useState({});
   const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
   const [dispatchReceiptFile, setDispatchReceiptFile] = useState(null);
@@ -166,12 +167,25 @@ const WarehousePendingPage = () => {
 
   const getAvailableLotGroupsForRow = (row) => {
     const presentationFilter = row.presentationFilter || "Todas";
-    if (presentationFilter === "Todas") return availableLotGroups;
+    const item = selectedSale?.items?.find((saleItem) => String(saleItem.id) === String(row.saleItemId));
+    const needsDirectProfileProcess = row.assignmentType === "proceso-directo" && item?.coffee_profile_id;
+    const filterLots = (lots) => lots.filter((lot) => {
+      const matchesPresentation = presentationFilter === "Todas" || (lot.presentation || "Pergamino") === presentationFilter;
+      if (!matchesPresentation) return false;
+      if (!needsDirectProfileProcess) return true;
+
+      return lot.lot_kind === "PROC" && (
+        String(lot.coffee_profile_id || "") === String(item.coffee_profile_id) ||
+        String(lot.coffee_profile_name || "").toLowerCase() === String(item.coffee_profile_name || "").toLowerCase()
+      );
+    });
+
+    if (presentationFilter === "Todas" && !needsDirectProfileProcess) return availableLotGroups;
 
     return availableLotGroups
       .map((group) => ({
         ...group,
-        lots: group.lots.filter((lot) => (lot.presentation || "Pergamino") === presentationFilter),
+        lots: filterLots(group.lots),
       }))
       .filter((group) => group.lots.length > 0)
       .map((group) => ({
@@ -241,6 +255,7 @@ const WarehousePendingPage = () => {
     ));
 
   const normalizeAssignmentType = (assignmentType = "directo") => {
+    if (assignmentType === "proceso-directo") return "proceso";
     if (String(assignmentType).startsWith("proceso")) return "proceso";
     if (String(assignmentType).startsWith("base")) return "base";
     return "directo";
@@ -251,14 +266,35 @@ const WarehousePendingPage = () => {
     return parts.length > 1 ? parts.slice(1).join(":") : "";
   };
 
+  const getDirectProcessMissingKg = (item) => {
+    const suggested = getSuggestedQuantities(item);
+    if (!suggested || !shouldUseDirectProfileProcess(item)) return Number(suggested?.processInputKg || 0);
+
+    const assignedDirectKg = getItemAssignmentRowsByType(item, "proceso-directo")
+      .reduce((total, row) => total + Number(row.quantityKg || 0), 0);
+
+    return Math.max(Number(suggested.processInputKg || 0) - assignedDirectKg, 0);
+  };
+
   const getAssignmentBlockTargetKg = (item, assignmentType) => {
     const suggested = getSuggestedQuantities(item);
     const type = normalizeAssignmentType(assignmentType);
 
+    if (assignmentType === "proceso-directo") return Number(suggested?.processInputKg || 0);
+
     if (type === "proceso") {
       const key = getAssignmentTypeKey(assignmentType);
       const component = suggested?.processComponents?.find((part) => String(part.key) === String(key));
-      return Number(component?.quantityKg ?? suggested?.processInputKg ?? 0);
+      if (!component) return Number(suggested?.processInputKg || 0);
+
+      if (shouldUseDirectProfileProcess(item)) {
+        const missingKg = getDirectProcessMissingKg(item);
+        const processInputKg = Number(suggested?.processInputKg || 0);
+        const ratio = processInputKg > 0 ? Number(component.quantityKg || 0) / processInputKg : 0;
+        return Math.ceil((missingKg * ratio) - Number.EPSILON);
+      }
+
+      return Number(component.quantityKg ?? suggested?.processInputKg ?? 0);
     }
     if (type === "base") return Number(suggested?.baseKg || 0);
 
@@ -346,6 +382,7 @@ const WarehousePendingPage = () => {
   };
 
   const getAssignmentTypeFromNotes = (notes = "") => {
+    if (String(notes).startsWith("[Proceso directo]")) return "proceso-directo";
     const processMatch = String(notes).match(/^\[Proceso(?::([^\]]+))?\]/i);
     if (processMatch) return processMatch[1] ? `proceso:${processMatch[1]}` : "proceso";
     if (String(notes).startsWith("[Base]")) return "base";
@@ -353,11 +390,14 @@ const WarehousePendingPage = () => {
   };
 
   const cleanAssignmentNotes = (notes = "") =>
-    String(notes).replace(/^\[(Proceso(?::[^\]]+)?|Base|Directo)\]\s*/i, "");
+    String(notes).replace(/^\[(Proceso directo|Proceso(?::[^\]]+)?|Base|Directo)\]\s*/i, "");
 
   const buildAssignmentNotes = (row) => {
     const type = normalizeAssignmentType(row.assignmentType);
     const key = getAssignmentTypeKey(row.assignmentType);
+    if (row.assignmentType === "proceso-directo") {
+      return ["[Proceso directo]", row.notes].filter(Boolean).join(" ");
+    }
     const prefixes = {
       proceso: key ? `[Proceso:${key}]` : "[Proceso]",
       base: "[Base]",
@@ -452,6 +492,7 @@ const WarehousePendingPage = () => {
         saleItemId: Number(row.saleItemId),
         lotId: Number(row.lotId),
         quantityKg: Number(row.quantityKg),
+        assignmentType: row.assignmentType || "directo",
         notes: buildAssignmentNotes(row),
       }))
       .filter((row) => row.saleItemId && row.lotId && row.quantityKg > 0);
@@ -477,6 +518,38 @@ const WarehousePendingPage = () => {
     processType: item.process_type,
   });
 
+  const hasDirectProfileProcessAvailable = (item) => {
+    if (!item?.coffee_profile_id) return false;
+
+    return availableLots.some((lot) => (
+      lot.lot_kind === "PROC" &&
+      Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0) > 0 &&
+      (
+        String(lot.coffee_profile_id || "") === String(item.coffee_profile_id) ||
+        String(lot.coffee_profile_name || "").toLowerCase() === String(item.coffee_profile_name || "").toLowerCase()
+      )
+    ));
+  };
+
+  const getDirectProfileProcessAvailableKg = (item) => {
+    if (!item?.coffee_profile_id) return 0;
+
+    return availableLots
+      .filter((lot) => (
+        lot.lot_kind === "PROC" &&
+        (
+          String(lot.coffee_profile_id || "") === String(item.coffee_profile_id) ||
+          String(lot.coffee_profile_name || "").toLowerCase() === String(item.coffee_profile_name || "").toLowerCase()
+        )
+      ))
+      .reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
+  };
+
+  const shouldUseDirectProfileProcess = (item) => (
+    item?.coffee_profile_category === "Exotico" &&
+    Boolean(directProcessModeByItem[item.id] ?? hasDirectProfileProcessAvailable(item))
+  );
+
   const calculateSourceKgForItem = (item, quantityKg, presentation) => {
     const selectedPresentation = presentation === "Todas" ? item.product_form : presentation;
 
@@ -495,20 +568,20 @@ const WarehousePendingPage = () => {
     if (item.coffee_profile_category !== "Exotico") return null;
 
     const requestedKg = Math.ceil(Number(item.quantity_kg || 0) - Number.EPSILON);
-    const profileComponents = Array.isArray(item.profile_components) && item.profile_components.length > 0
+    const configuredProfileComponents = Array.isArray(item.profile_components) && item.profile_components.length > 0
       ? item.profile_components
       : [{ purchase_coffee_id: item.process_purchase_coffee_id || "principal", purchase_coffee_name: item.process_purchase_coffee_name || "Cafe para proceso" }];
-    const hasExplicitPercentages = profileComponents.some((component) => Number(component.percentage || 0) > 0);
-    const explicitComponentPercentageTotal = profileComponents.reduce((total, component) => total + Number(component.percentage || 0), 0);
+    const hasExplicitPercentages = configuredProfileComponents.some((component) => Number(component.percentage || 0) > 0);
+    const explicitComponentPercentageTotal = configuredProfileComponents.reduce((total, component) => total + Number(component.percentage || 0), 0);
     const basePercentage = Number(item.base_percentage || 0);
     const processTotalKg = hasExplicitPercentages
       ? Math.ceil((requestedKg * explicitComponentPercentageTotal / 100) - Number.EPSILON)
       : Math.ceil((requestedKg * 0.4) - Number.EPSILON);
-    const processComponents = profileComponents.map((component, index) => {
+    const processComponents = configuredProfileComponents.map((component, index) => {
       const percentage = Number(component.percentage || 0);
       const quantityKg = hasExplicitPercentages
         ? Math.ceil((requestedKg * percentage / 100) - Number.EPSILON)
-        : Math.ceil((processTotalKg / profileComponents.length) - Number.EPSILON);
+        : Math.ceil((processTotalKg / configuredProfileComponents.length) - Number.EPSILON);
 
       return {
         key: `${component.component_type || "purchase"}:${component.purchase_coffee_id || component.purchaseCoffeeId || component.component_profile_id || component.componentProfileId || index}`,
@@ -530,7 +603,26 @@ const WarehousePendingPage = () => {
       processInputKg,
       baseKg,
       processComponents,
+      directProcessName: item.coffee_profile_name || item.variety || "Proceso del perfil",
+      directProcessAvailableKg: getDirectProfileProcessAvailableKg(item),
     };
+  };
+
+  const getRecipeProcessAssignmentTypes = (item) => {
+    const suggested = getSuggestedQuantities(item);
+    return suggested?.processComponents?.map((component) => `proceso:${component.key}`) || [];
+  };
+
+  const getActiveAssignmentTypesForItem = (item) => {
+    const suggested = getSuggestedQuantities(item);
+    if (!suggested) return ["directo"];
+
+    if (!shouldUseDirectProfileProcess(item)) {
+      return [...getRecipeProcessAssignmentTypes(item), "base"];
+    }
+
+    const recipeTypes = getDirectProcessMissingKg(item) > 0 ? getRecipeProcessAssignmentTypes(item) : [];
+    return ["proceso-directo", ...recipeTypes, "base"];
   };
 
   const loadData = async () => {
@@ -569,6 +661,12 @@ const WarehousePendingPage = () => {
           [item.id]: item.item_assignee || "",
         }), {})
       );
+      setDirectProcessModeByItem(
+        (sale.items || []).reduce((modes, item) => ({
+          ...modes,
+          [item.id]: hasDirectProfileProcessAvailable(item),
+        }), {})
+      );
       setAssignmentRows(
         sale.items?.flatMap((item) => {
           const rows = (sale.deductedLots || []).filter((lot) => Number(lot.sale_item_id) === Number(item.id));
@@ -589,14 +687,23 @@ const WarehousePendingPage = () => {
 
           return suggested
             ? [
-                ...suggested.processComponents.map((component) => ({
+                ...(hasDirectProfileProcessAvailable(item)
+                  ? [{
+                      saleItemId: String(item.id),
+                      lotId: "",
+                      quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.processInputKg, item.product_form || "Todas")),
+                      presentationFilter: item.product_form || "Todas",
+                      assignmentType: "proceso-directo",
+                      notes: "",
+                    }]
+                  : suggested.processComponents.map((component) => ({
                   saleItemId: String(item.id),
                   lotId: "",
                   quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas")),
                   presentationFilter: item.product_form || "Todas",
                   assignmentType: `proceso:${component.key}`,
                   notes: "",
-                })),
+                    }))),
                 {
                   saleItemId: String(item.id),
                   lotId: "",
@@ -728,8 +835,15 @@ const WarehousePendingPage = () => {
     if (!selectedSale) return;
 
     const cleanAssignments = buildCleanAssignments();
+    const activeAssignmentTypes = item ? getActiveAssignmentTypesForItem(item) : [];
+    const assignmentsToSave = item
+      ? cleanAssignments.filter((assignment) => (
+          String(assignment.saleItemId) !== String(item.id) ||
+          activeAssignmentTypes.includes(assignment.assignmentType || "directo")
+        ))
+      : cleanAssignments;
     const itemAssignments = item
-      ? cleanAssignments.filter((assignment) => String(assignment.saleItemId) === String(item.id))
+      ? assignmentsToSave.filter((assignment) => String(assignment.saleItemId) === String(item.id))
       : cleanAssignments;
 
     if (itemAssignments.length === 0) {
@@ -754,7 +868,7 @@ const WarehousePendingPage = () => {
       const response = await apiRequest(`/sales/${selectedSale.id}/lot-assignments`, {
         method: "PUT",
         body: JSON.stringify({
-          items: cleanAssignments,
+          items: assignmentsToSave,
           itemAssignees: buildCleanItemAssignees(),
         }),
       });
@@ -1334,11 +1448,42 @@ const WarehousePendingPage = () => {
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
                             suggested ? (
                               <div className="space-y-3">
-                                {suggested.processComponents.map((component) => renderAssignmentBlock(item, {
+                                {hasDirectProfileProcessAvailable(item) && (
+                                  <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
+                                    <label className="grid gap-1 text-xs font-semibold uppercase text-emerald-900">
+                                      Forma de cubrir el proceso
+                                      <select
+                                        className="rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
+                                        value={shouldUseDirectProfileProcess(item) ? "directo" : "receta"}
+                                        onChange={(event) => setDirectProcessModeByItem((currentModes) => ({
+                                          ...currentModes,
+                                          [item.id]: event.target.value === "directo",
+                                        }))}
+                                      >
+                                        <option value="directo">Usar proceso disponible del perfil</option>
+                                        <option value="receta">Preparar con receta/componentes</option>
+                                      </select>
+                                    </label>
+                                    <p className="mt-2 text-xs text-emerald-800">
+                                      Disponible directo: {formatOperationalKg(suggested.directProcessAvailableKg)} de {suggested.directProcessName}.
+                                    </p>
+                                  </div>
+                                )}
+
+                                {shouldUseDirectProfileProcess(item) && renderAssignmentBlock(item, {
+                                  assignmentType: "proceso-directo",
+                                  title: `Asignar proceso disponible - ${suggested.directProcessName}`,
+                                  description: `Use procesos ya existentes de ${suggested.directProcessName}. Si no alcanza, debajo se muestra la receta para completar el faltante.`,
+                                  addLabel: "Agregar otro proceso disponible",
+                                })}
+
+                                {(!shouldUseDirectProfileProcess(item) || getDirectProcessMissingKg(item) > 0) && suggested.processComponents.map((component) => renderAssignmentBlock(item, {
                                   assignmentType: `proceso:${component.key}`,
-                                  title: `Asignar lote para proceso - ${component.name}`,
-                                  description: `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas"))} de ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""} para este componente.`,
-                                  addLabel: "Agregar otro lote para este proceso",
+                                  title: shouldUseDirectProfileProcess(item) ? `Completar faltante con receta - ${component.name}` : `Asignar lote para proceso - ${component.name}`,
+                                  description: shouldUseDirectProfileProcess(item)
+                                    ? `Complete el faltante del proceso con ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""}.`
+                                    : `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas"))} de ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""} para este componente.`,
+                                  addLabel: shouldUseDirectProfileProcess(item) ? "Agregar lote para faltante" : "Agregar otro lote para este proceso",
                                 }))}
                                 {renderAssignmentBlock(item, {
                                   assignmentType: "base",
