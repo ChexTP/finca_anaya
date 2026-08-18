@@ -135,6 +135,28 @@ const BackupsPage = () => {
       return;
     }
 
+    const popup = window.open("", "_blank");
+
+    if (!popup) {
+      setError("El navegador bloqueo la ventana del PDF. Permite ventanas emergentes para esta pagina.");
+      return;
+    }
+
+    popup.document.write(`
+      <html>
+        <head>
+          <title>Generando PDF</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 32px; color: #111827; }
+          </style>
+        </head>
+        <body>
+          <p>Generando PDF de ${escapeHtml(selectedLabel)}...</p>
+        </body>
+      </html>
+    `);
+    popup.document.close();
+
     setDownloading(true);
     setMessage("");
     setError("");
@@ -150,12 +172,8 @@ const BackupsPage = () => {
       }
 
       const headers = Object.keys(rows[0] || {});
-      const popup = window.open("", "_blank", "noopener,noreferrer");
 
-      if (!popup) {
-        throw new Error("El navegador bloqueo la ventana del PDF. Permite ventanas emergentes para descargarlo.");
-      }
-
+      popup.document.open();
       popup.document.write(`
         <html>
           <head>
