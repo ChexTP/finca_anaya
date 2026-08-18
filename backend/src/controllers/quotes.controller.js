@@ -6,6 +6,7 @@ import {
 } from "../models/lots.model.js";
 import {
   getNextQuoteCode,
+  getNextPriceListCode,
   listQuotes,
   findQuoteById,
   createQuote,
@@ -302,7 +303,9 @@ export const getQuote = async (req, res) => {
 export const postQuote = async (req, res) => {
   try {
     const quoteData = await buildCleanQuoteData(req.body);
-    const code = quoteData.code || await getNextQuoteCode();
+    const code = quoteData.code || (quoteData.quoteType === "lista_precios"
+      ? await getNextPriceListCode()
+      : await getNextQuoteCode());
 
     const quote = await createQuote({
       ...quoteData,

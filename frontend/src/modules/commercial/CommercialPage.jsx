@@ -257,7 +257,7 @@ const getQuoteCodeFromForm = (form) => {
 };
 
 const getPriceListCodeFromForm = (form) => {
-  return getCodeFromForm(form, "COT");
+  return getCodeFromForm(form, "LIST");
 };
 
 const getCodeParts = (code, prefix = "COT") => {
@@ -582,7 +582,7 @@ const CommercialPage = () => {
     setPriceListForm((currentForm) => (
       editingPriceListId || currentForm.clientId || priceListItems.length > 0
         ? currentForm
-        : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "COT")?.nextCode, "COT") }
+        : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "LIST")?.nextCode, "LIST") }
     ));
     return { countersData };
   };
@@ -684,7 +684,7 @@ const CommercialPage = () => {
     setQuoteItems([]);
     setSampleForm({ ...initialSample, ...getNextCodeParts("MUE", freshCounters) });
     setSampleItems([]);
-    setPriceListForm({ ...initialPriceList, ...getNextCodeParts("COT", freshCounters) });
+    setPriceListForm({ ...initialPriceList, ...getNextCodeParts("LIST", freshCounters) });
     setPriceListItems([]);
     setPriceListAutoLoaded(false);
     setEditingPriceListItemId("");
@@ -1025,7 +1025,7 @@ const CommercialPage = () => {
       setFormMode("priceList");
       setPriceListForm({
         ...initialPriceList,
-        ...getCodeParts(quote.code, "COT"),
+        ...getCodeParts(quote.code, "LIST"),
         clientId: String(quote.client_id || ""),
         language: quote.currency === "USD" ? "en" : "es",
         currency: quote.currency || "COP",
@@ -1299,7 +1299,7 @@ const CommercialPage = () => {
       const wasEditing = Boolean(editingPriceListId);
       const refreshedData = await loadData();
       setEditingPriceListId(null);
-      setPriceListForm({ ...initialPriceList, ...getNextCodeParts("COT", refreshedData.countersData) });
+      setPriceListForm({ ...initialPriceList, ...getNextCodeParts("LIST", refreshedData.countersData) });
       setPriceListItems([]);
       setPriceListAutoLoaded(false);
       setEditingPriceListItemId("");

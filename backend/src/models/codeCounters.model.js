@@ -6,6 +6,7 @@ export const codeCounterDefinitions = [
   { key: "processes", label: "Ordenes de proceso", prefix: "PRO", tableName: "coffee_processes" },
   { key: "samples", label: "Muestras", prefix: "MUE", tableName: "sample_requests" },
   { key: "quotes", label: "Cotizaciones", prefix: "COT", tableName: "quotes" },
+  { key: "priceLists", label: "Listas de precios", prefix: "LIST", tableName: "quotes" },
   { key: "sales", label: "Ventas", prefix: "VEN", tableName: "sales" },
   { key: "payables", label: "Cuentas por pagar", prefix: "CXP", tableName: "accounts_payable" },
   { key: "pasillas", label: "Pasillas", prefix: "PAS", tableName: "coffee_lots" },

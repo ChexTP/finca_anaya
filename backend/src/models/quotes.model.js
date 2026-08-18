@@ -5,6 +5,10 @@ export const getNextQuoteCode = async () => {
   return getNextCode({ prefix: "COT", tableName: "quotes" });
 };
 
+export const getNextPriceListCode = async () => {
+  return getNextCode({ prefix: "LIST", tableName: "quotes" });
+};
+
 export const listQuotes = async ({ status, sellerId, clientId }) => {
   const params = [];
   const conditions = [];
