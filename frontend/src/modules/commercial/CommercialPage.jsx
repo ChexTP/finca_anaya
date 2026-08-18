@@ -316,6 +316,8 @@ const CommercialPage = () => {
   const [sampleItems, setSampleItems] = useState([]);
   const [priceListForm, setPriceListForm] = useState(initialPriceList);
   const [priceListItems, setPriceListItems] = useState([]);
+  const [priceListAutoLoaded, setPriceListAutoLoaded] = useState(false);
+  const [editingPriceListItemId, setEditingPriceListItemId] = useState("");
   const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
   const [showQuickClient, setShowQuickClient] = useState(false);
   const [quoteFilter, setQuoteFilter] = useState("all");
@@ -447,6 +449,44 @@ const CommercialPage = () => {
     return [...profiles, ...purchases].sort((left, right) => String(left.label || "").localeCompare(String(right.label || ""), "es"));
   }, [catalogs]);
 
+  const priceListSaleProfiles = useMemo(() => (
+    priceListAvailableItems.filter((item) => item.source === "profile")
+  ), [priceListAvailableItems]);
+
+  const createPriceListItemFromOption = (option) => ({
+    id: crypto.randomUUID(),
+    catalogId: option?.id || "",
+    productForm: option?.productForm || "Excelso",
+    processType: option?.processType || "Lavado",
+    packaging: "Empaque tradicional",
+    priceLoadCop: option?.priceLoadCop || "",
+    priceInputMode: "load",
+    unitPrice: "",
+    exchangeRate: priceListForm.terms.exchangeRate || "",
+    pricingSnapshot: {},
+  });
+
+  const updatePriceListItem = (itemId, field, value) => {
+    setPriceListItems((items) => items.map((currentItem) => (
+      currentItem.id === itemId ? { ...currentItem, [field]: value } : currentItem
+    )));
+  };
+
+  const togglePriceListProfile = (option, checked) => {
+    setPriceListAutoLoaded(true);
+    if (checked) {
+      setPriceListItems((items) => (
+        items.some((item) => item.catalogId === option.id)
+          ? items
+          : [...items, createPriceListItemFromOption(option)]
+      ));
+      return;
+    }
+
+    setPriceListItems((items) => items.filter((item) => item.catalogId !== option.id));
+    setEditingPriceListItemId((currentId) => (currentId === option.id ? "" : currentId));
+  };
+
   const quoteCounts = useMemo(() => {
     const counts = quotes.reduce(
       (counts, quote) => ({
@@ -546,6 +586,13 @@ const CommercialPage = () => {
   }, []);
 
   useEffect(() => {
+    if (formMode !== "priceList" || editingPriceListId || priceListAutoLoaded || priceListItems.length > 0 || priceListSaleProfiles.length === 0) return;
+
+    setPriceListItems(priceListSaleProfiles.map((option) => createPriceListItemFromOption(option)));
+    setPriceListAutoLoaded(true);
+  }, [formMode, editingPriceListId, priceListAutoLoaded, priceListItems.length, priceListSaleProfiles]);
+
+  useEffect(() => {
     try {
       const storedDraft = window.localStorage.getItem(quoteDraftStorageKey);
       if (!storedDraft) return;
@@ -633,6 +680,8 @@ const CommercialPage = () => {
     setSampleItems([]);
     setPriceListForm({ ...initialPriceList, ...getNextCodeParts("COT", freshCounters) });
     setPriceListItems([]);
+    setPriceListAutoLoaded(false);
+    setEditingPriceListItemId("");
     setError("");
   };
 
@@ -998,6 +1047,8 @@ const CommercialPage = () => {
           pricingSnapshot: item.pricing_snapshot || {},
         };
       }));
+      setPriceListAutoLoaded(true);
+      setEditingPriceListItemId("");
       setMessage(`Editando lista de precios ${quote.code}.`);
       setError("");
       scrollToPanel(formPanelRef);
@@ -1244,6 +1295,8 @@ const CommercialPage = () => {
       setEditingPriceListId(null);
       setPriceListForm({ ...initialPriceList, ...getNextCodeParts("COT", refreshedData.countersData) });
       setPriceListItems([]);
+      setPriceListAutoLoaded(false);
+      setEditingPriceListItemId("");
       setSelectedQuote(response.data);
       openCommercialDocumentPrint(
         await apiRequest(`/documents/quotes/${response.data.id}`),
@@ -1966,33 +2019,45 @@ const CommercialPage = () => {
 
                 <div className="mt-4 rounded border border-slate-200 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-800">Cafes para lista de precios</p>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Cafes para lista de precios</p>
+                      <p className="text-xs text-slate-500">
+                        Seleccionados {priceListItems.length} de {priceListSaleProfiles.length}. Desmarque los cafes que no quiere incluir.
+                      </p>
+                    </div>
                     <button
                       className="inline-flex items-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
                       type="button"
-                      onClick={() => setPriceListItems((items) => [
-                        ...items,
-                        {
-                          id: crypto.randomUUID(),
-                          catalogId: "",
-                          productForm: "Excelso",
-                          processType: "Lavado",
-                          packaging: "Empaque tradicional",
-                          priceLoadCop: "",
-                          priceInputMode: "load",
-                          unitPrice: "",
-                          exchangeRate: priceListForm.terms.exchangeRate || "",
-                        },
-                      ])}
+                      onClick={() => {
+                        setPriceListItems(priceListSaleProfiles.map((option) => createPriceListItemFromOption(option)));
+                        setPriceListAutoLoaded(true);
+                      }}
                     >
-                      <Plus size={16} /> Agregar cafe
+                      <Plus size={16} /> Marcar todos
                     </button>
                   </div>
                   <div className="mt-3 space-y-3">
-                    {priceListItems.length === 0 ? (
-                      <EmptyState title="Sin cafes" message="Agregue los cafes que quiere mostrarle al cliente." />
-                    ) : priceListItems.map((item, index) => {
-                      const selectedOption = priceListAvailableItems.find((option) => option.id === item.catalogId);
+                    {priceListSaleProfiles.length === 0 ? (
+                      <EmptyState title="Sin cafes de venta" message="Los perfiles de venta activos apareceran aqui." />
+                    ) : priceListSaleProfiles.map((option) => {
+                      const item = priceListItems.find((priceItem) => priceItem.catalogId === option.id);
+                      if (!item) {
+                        return (
+                          <div key={option.id} className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-200 bg-white px-3 py-2">
+                            <label className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold text-slate-700">
+                              <input
+                                checked={false}
+                                className="h-4 w-4 shrink-0 accent-leaf"
+                                onChange={(event) => togglePriceListProfile(option, event.target.checked)}
+                                type="checkbox"
+                              />
+                              <span className="min-w-0 truncate">{option.label}</span>
+                            </label>
+                            <span className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-500">No incluido</span>
+                          </div>
+                        );
+                      }
+                      const selectedOption = option;
                       const priceInputMode = item.priceInputMode || "load";
                       const calculation = priceInputMode === "kg"
                         ? calculateManualKgPrice({
@@ -2011,39 +2076,39 @@ const CommercialPage = () => {
                           exportCostUsdLb: 0,
                           usdIncoterm: "EXW",
                         });
-                      const updatePriceItem = (field, value) => {
-                        setPriceListItems((items) => items.map((currentItem) => (
-                          currentItem.id === item.id ? { ...currentItem, [field]: value } : currentItem
-                        )));
-                      };
-                      const selectPriceListCatalog = (catalogId) => {
-                        const option = priceListAvailableItems.find((availableItem) => availableItem.id === catalogId);
-                        setPriceListItems((items) => items.map((currentItem) => (
-                          currentItem.id === item.id
-                            ? {
-                              ...currentItem,
-                              catalogId,
-                              productForm: option?.productForm || currentItem.productForm,
-                              processType: option?.processType || currentItem.processType,
-                              priceLoadCop: option?.priceLoadCop || currentItem.priceLoadCop,
-                            }
-                            : currentItem
-                        )));
-                      };
 
                       return (
-                        <div key={item.id} className="rounded border border-slate-200 bg-slate-50 p-3">
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                              Cafe / perfil
-                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.catalogId} onChange={(event) => selectPriceListCatalog(event.target.value)}>
-                                <option value="">Seleccione cafe</option>
-                                {priceListAvailableItems.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-                              </select>
+                        <div key={option.id} className="rounded border border-emerald-100 bg-emerald-50/40 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <label className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold text-ink">
+                              <input
+                                checked
+                                className="h-4 w-4 shrink-0 accent-leaf"
+                                onChange={(event) => togglePriceListProfile(option, event.target.checked)}
+                                type="checkbox"
+                              />
+                              <span className="min-w-0 truncate">{option.label}</span>
                             </label>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded bg-white px-2 py-1 text-xs font-semibold text-slate-700">
+                                {formatUnitPrice(priceListForm.currency, calculation.unitPrice, calculation.priceBasis)}
+                              </span>
+                              <button
+                                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                onClick={() => setEditingPriceListItemId((currentId) => (currentId === option.id ? "" : option.id))}
+                                type="button"
+                              >
+                                <Edit size={13} />
+                                Editar precio
+                              </button>
+                            </div>
+                          </div>
+
+                          {editingPriceListItemId === option.id && (
+                            <div className="mt-3 grid gap-3 rounded border border-slate-200 bg-white p-3 md:grid-cols-2">
                             <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                               Presentacion
-                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.productForm} onChange={(event) => updatePriceItem("productForm", event.target.value)}>
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.productForm} onChange={(event) => updatePriceListItem(item.id, "productForm", event.target.value)}>
                                 <option value="Excelso">Excelso</option>
                                 <option value="Pergamino">Pergamino</option>
                               </select>
@@ -2051,20 +2116,20 @@ const CommercialPage = () => {
                             {item.productForm === "Excelso" && (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                                 Empaque para calculo
-                                <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.packaging || "Empaque tradicional"} onChange={(event) => updatePriceItem("packaging", event.target.value)}>
-                                  {itemPackagingOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.packaging || "Empaque tradicional"} onChange={(event) => updatePriceListItem(item.id, "packaging", event.target.value)}>
+                                  {itemPackagingOptions.map((packagingOption) => <option key={packagingOption} value={packagingOption}>{packagingOption}</option>)}
                                 </select>
                               </label>
                             )}
                             <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                               Proceso
-                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.processType || selectedOption?.processType || "Lavado"} onChange={(event) => updatePriceItem("processType", event.target.value)}>
-                                {processTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.processType || selectedOption?.processType || "Lavado"} onChange={(event) => updatePriceListItem(item.id, "processType", event.target.value)}>
+                                {processTypeOptions.map((processOption) => <option key={processOption} value={processOption}>{processOption}</option>)}
                               </select>
                             </label>
                             <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                               Forma de precio
-                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={priceInputMode} onChange={(event) => updatePriceItem("priceInputMode", event.target.value)}>
+                              <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={priceInputMode} onChange={(event) => updatePriceListItem(item.id, "priceInputMode", event.target.value)}>
                                 <option value="load">Precio por carga</option>
                                 <option value="kg">Precio por kilo</option>
                               </select>
@@ -2072,21 +2137,21 @@ const CommercialPage = () => {
                             {priceInputMode === "kg" ? (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                                 Precio kilo COP
-                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.unitPrice || ""} onChange={(event) => updatePriceItem("unitPrice", event.target.value)} />
+                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.unitPrice || ""} onChange={(event) => updatePriceListItem(item.id, "unitPrice", event.target.value)} />
                               </label>
                             ) : (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                                 Precio carga COP
-                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.priceLoadCop} onChange={(event) => updatePriceItem("priceLoadCop", event.target.value)} />
+                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.priceLoadCop} onChange={(event) => updatePriceListItem(item.id, "priceLoadCop", event.target.value)} />
                               </label>
                             )}
                             {priceListForm.currency === "USD" && (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                                 Precio dolar / TRM
-                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="0.01" value={item.exchangeRate} onChange={(event) => updatePriceItem("exchangeRate", event.target.value)} />
+                                <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="0.01" value={item.exchangeRate} onChange={(event) => updatePriceListItem(item.id, "exchangeRate", event.target.value)} />
                               </label>
                             )}
-                            <div className="rounded bg-white px-3 py-2 text-sm text-slate-600">
+                            <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
                               <p>Precio final: <span className="font-semibold text-ink">{formatUnitPrice(priceListForm.currency, calculation.unitPrice, calculation.priceBasis)}</span></p>
                               {priceInputMode !== "kg" && (
                                 <>
@@ -2095,10 +2160,8 @@ const CommercialPage = () => {
                                 </>
                               )}
                             </div>
-                          </div>
-                          <button className="mt-3 rounded border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => setPriceListItems((items) => items.filter((_, itemIndex) => itemIndex !== index))}>
-                            Quitar cafe
-                          </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
