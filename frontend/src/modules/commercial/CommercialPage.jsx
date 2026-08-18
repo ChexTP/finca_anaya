@@ -43,7 +43,7 @@ const quoteTermOptions = {
   advance: ["20%", "30%", "40%", "50%"],
   deliveryTime: ["8 dias", "20 dias"],
   minimumOrder: ["12 Kg", "Descripcion libre"],
-  qualityNorms: ["3/20 UGQ", "3/20 EP", "0/5 UGQ", "0/5 EP", "0/10 UGQ", "0/10 EP", "8/35 UGQ", "8/35 EP", "12/60 UGQ", "12/60 EP", "Descripcion libre"],
+  qualityNorms: ["3/20 UGQ", "3/20 EP", "0/20 UGQ", "0/20 EP", "0/5 UGQ", "0/5 EP", "0/10 UGQ", "0/10 EP", "8/35 UGQ", "8/35 EP", "12/60 UGQ", "12/60 EP", "Descripcion libre"],
   qualityFactors: ["93 CPS", "140 CPS", "Descripcion libre"],
   packaging: [
     "Bolsa y tula tradicional",
