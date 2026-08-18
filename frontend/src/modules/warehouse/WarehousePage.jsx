@@ -178,9 +178,7 @@ export const buildWarehouseOrderHtml = (sale) => {
     )
     .join("");
 
-  const deductedLots = sale.deductedLots
-    ?.map((lot) => {
-      const relatedItem = (sale.items || []).find((item) => Number(item.id) === Number(lot.sale_item_id));
+  const renderReservedLot = (lot) => {
       const mixRows = lot.process_mix?.length
         ? `
           <table>
@@ -211,20 +209,47 @@ export const buildWarehouseOrderHtml = (sale) => {
         : `<p class="muted">Este lote no tiene mezcla de proceso registrada.</p>`;
 
       return `
-        <section class="lot-block">
+        <div class="reserved-lot">
           <div class="lot-head">
             <div>
               <h3>${printable(formatCoffeeLotCodeName(lot))}</h3>
               <p>${printable(lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind)}</p>
-              ${relatedItem?.item_assignee ? `<p><strong>Encargado item:</strong> ${printable(relatedItem.item_assignee)}</p>` : ""}
             </div>
             <strong>${formatOperationalKg(lot.quantity_kg)}</strong>
           </div>
           ${mixRows}
+        </div>
+      `;
+  };
+
+  const reservedLotsByItem = sale.items
+    ?.map((item, index) => {
+      const itemLots = (sale.deductedLots || []).filter((lot) => Number(lot.sale_item_id) === Number(item.id));
+      if (!itemLots.length) return "";
+
+      return `
+        <section class="lot-block item-lot-block">
+          <div class="item-title">
+            <div>
+              <p class="item-eyebrow">Item ${index + 1} de la venta</p>
+              <h3>${printable(getWarehouseItemLabel(item))}</h3>
+              <p><strong>${printable(item.product_form || "Presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
+              ${item.item_assignee ? `<p><strong>Encargado item:</strong> ${printable(item.item_assignee)}</p>` : ""}
+            </div>
+            <strong>${formatOperationalKg(itemLots.reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0))} reservado</strong>
+          </div>
+          ${itemLots.map((lot) => renderReservedLot(lot)).join("")}
         </section>
       `;
     })
     .join("");
+
+  const orphanReservedLots = (sale.deductedLots || [])
+    .filter((lot) => !(sale.items || []).some((item) => Number(item.id) === Number(lot.sale_item_id)))
+    .map((lot) => renderReservedLot(lot))
+    .join("");
+
+  const deductedLots = [reservedLotsByItem, orphanReservedLots].filter(Boolean).join("");
 
   return `
     <!doctype html>
@@ -248,7 +273,11 @@ export const buildWarehouseOrderHtml = (sale) => {
           .instructions { margin-top: 18px; }
           .instructions p { font-size: 12px; margin: 6px 0; }
           .lot-block { margin-top: 16px; page-break-inside: avoid; }
+          .item-lot-block { border: 1px solid #d6e4dc; padding: 12px; }
+          .item-title { align-items: flex-start; background: #f0fdf4; border: 1px solid #bbf7d0; display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; padding: 10px; }
+          .item-eyebrow { color: #166534; font-size: 11px; font-weight: 700; margin: 0 0 4px; text-transform: uppercase; }
           .lot-head { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; }
+          .reserved-lot { border-top: 1px solid #e5e7eb; margin-top: 10px; padding-top: 10px; }
           .muted { color: #667085; }
           .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 54px; }
           .line { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; text-align: center; }
