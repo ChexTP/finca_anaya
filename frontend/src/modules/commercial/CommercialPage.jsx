@@ -292,9 +292,12 @@ const itemFromQuoteItem = (item) => ({
   packaging: item.pricing_snapshot?.packaging || "Empaque tradicional",
   variety: item.variety || "",
   quantityKg: formatQuantityInputValue(item.quantity_kg),
-  priceLoadCop: item.pricing_snapshot?.priceLoadCop || "",
-  priceInputMode: item.pricing_snapshot?.priceInputMode || "load",
-  unitPrice: item.unit_price || "",
+  operationalWeightKg: Number(item.operational_weight_kg || 0),
+  priceLoadCop: formatPriceInputValue(item.pricing_snapshot?.priceLoadCop),
+  priceInputMode: item.pricing_snapshot?.priceInputMode || (item.pricing_snapshot?.manualPriceKgCop ? "kg" : "load"),
+  unitPrice: Number(item.unit_price || 0),
+  priceBasis: item.price_basis || item.pricing_snapshot?.priceBasis || "kg",
+  lineTotal: Number(item.line_total || 0),
   pricingSnapshot: item.pricing_snapshot || {},
 });
 

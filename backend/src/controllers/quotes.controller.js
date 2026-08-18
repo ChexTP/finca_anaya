@@ -17,6 +17,8 @@ import {
 } from "../models/quotes.model.js";
 import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 
+const POUNDS_PER_KG = 2.2046;
+
 const toNumber = (value) => {
   if (value === undefined || value === null || value === "") {
     return null;
@@ -59,6 +61,8 @@ const cleanPricingSnapshot = (snapshot = {}) => {
 
   return {
     priceLoadCop: snapshot.priceLoadCop !== undefined && snapshot.priceLoadCop !== "" ? Number(snapshot.priceLoadCop) : null,
+    priceInputMode: snapshot.priceInputMode ? String(snapshot.priceInputMode).trim() : null,
+    manualPriceKgCop: snapshot.manualPriceKgCop !== undefined && snapshot.manualPriceKgCop !== "" ? Number(snapshot.manualPriceKgCop) : null,
     packaging: snapshot.packaging ? String(snapshot.packaging).trim() : null,
     kgCpsPriceCop: snapshot.kgCpsPriceCop !== undefined ? Number(snapshot.kgCpsPriceCop) : null,
     kgExcelsoPriceCop: snapshot.kgExcelsoPriceCop !== undefined ? Number(snapshot.kgExcelsoPriceCop) : null,
@@ -72,7 +76,24 @@ const cleanPricingSnapshot = (snapshot = {}) => {
     exchangeRate: snapshot.exchangeRate !== undefined && snapshot.exchangeRate !== null && snapshot.exchangeRate !== "" ? Number(snapshot.exchangeRate) : null,
     usdIncoterm: snapshot.usdIncoterm ? String(snapshot.usdIncoterm).trim() : null,
     priceBasis: snapshot.priceBasis ? String(snapshot.priceBasis).trim() : null,
+    unitPrice: snapshot.unitPrice !== undefined && snapshot.unitPrice !== "" ? Number(snapshot.unitPrice) : null,
   };
+};
+
+const calculateQuoteLineTotal = ({ quantityKg, unitPrice, currency, priceBasis }) => {
+  const kg = Number(quantityKg || 0);
+  const price = Number(unitPrice || 0);
+  const basis = String(priceBasis || "kg").toLowerCase();
+
+  if (!Number.isFinite(kg) || !Number.isFinite(price)) {
+    return 0;
+  }
+
+  const amount = currency === "USD" && basis === "lb"
+    ? kg * POUNDS_PER_KG * price
+    : kg * price;
+
+  return Number(amount.toFixed(2));
 };
 
 const buildCleanQuoteData = async ({
@@ -181,6 +202,9 @@ const buildCleanQuoteData = async ({
       throw error;
     }
 
+    const pricingSnapshot = cleanPricingSnapshot(item.pricingSnapshot);
+    const priceBasis = item.priceBasis || pricingSnapshot.priceBasis || "kg";
+
     cleanItems.push({
       lotId: item.lotId || null,
       coffeeTypeId: item.coffeeTypeId || null,
@@ -196,11 +220,14 @@ const buildCleanQuoteData = async ({
         processType: item.processType,
       }),
       unitPrice,
-      priceBasis: item.priceBasis || item.pricingSnapshot?.priceBasis || "kg",
-      pricingSnapshot: cleanPricingSnapshot(item.pricingSnapshot),
-      lineTotal: item.lineTotal !== undefined && Number.isFinite(toNumber(item.lineTotal))
-        ? Number(toNumber(item.lineTotal).toFixed(2))
-        : Number((quantityKg * unitPrice).toFixed(2)),
+      priceBasis,
+      pricingSnapshot,
+      lineTotal: calculateQuoteLineTotal({
+        quantityKg,
+        unitPrice,
+        currency,
+        priceBasis,
+      }),
     });
   }
 
