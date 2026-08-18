@@ -589,22 +589,6 @@ const CommercialPage = () => {
   }, []);
 
   useEffect(() => {
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") {
-        loadData().catch((requestError) => setError(requestError.message));
-      }
-    };
-
-    window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-
-    return () => {
-      window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  }, []);
-
-  useEffect(() => {
     if (formMode !== "priceList" || editingPriceListId || priceListAutoLoaded || priceListItems.length > 0 || priceListSaleProfiles.length === 0) return;
 
     setPriceListItems(priceListSaleProfiles.map((option) => createPriceListItemFromOption(option)));
