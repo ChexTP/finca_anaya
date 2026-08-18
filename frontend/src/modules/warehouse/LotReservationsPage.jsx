@@ -84,11 +84,12 @@ const buildProcessDeficitComponents = ({ item, targetKg, reservedKg = 0, useOper
   if (components.length === 0 || targetKg <= 0) return [];
 
   const explicitPercentages = components.some((component) => Number(component.percentage || 0) > 0);
+  const totalPercentage = components.reduce((total, component) => total + Number(component.percentage || 0), 0);
 
   return components
     .map((component) => {
       const ratio = explicitPercentages
-        ? Number(component.percentage || 0) / 100
+        ? Number(component.percentage || 0) / Math.max(totalPercentage, 1)
         : 1 / components.length;
       const targetPartKg = roundRequirementKg(targetKg * ratio);
       const reservedPartKg = roundRequirementKg(Number(reservedKg || 0) * ratio);
@@ -126,8 +127,14 @@ const getEstimatedDeficitParts = (item) => {
   }
 
   if (hasSeparatedReservations && requiredKg > 0) {
-    const processTargetKg = roundRequirementKg(requiredKg * 0.4);
-    const baseTargetKg = roundRequirementKg(requiredKg * 0.6);
+    const componentPercentageTotal = getProfileComponents(item).reduce((total, component) => total + Number(component.percentage || 0), 0);
+    const hasExplicitRecipe = componentPercentageTotal > 0 || Number(item.base_percentage || 0) > 0;
+    const processTargetKg = hasExplicitRecipe
+      ? roundRequirementKg(requiredKg * componentPercentageTotal / 100)
+      : roundRequirementKg(requiredKg * 0.4);
+    const baseTargetKg = hasExplicitRecipe && Number(item.base_percentage || 0) > 0
+      ? roundRequirementKg(requiredKg * Number(item.base_percentage || 0) / 100)
+      : roundRequirementKg(requiredKg * 0.6);
     const processComponents = shortageKind === "base"
       ? []
       : buildProcessDeficitComponents({
@@ -154,8 +161,14 @@ const getEstimatedDeficitParts = (item) => {
   const missingFinalKg = requiredKg > 0
     ? requestedKg * (missingKg / requiredKg)
     : requestedKg;
-  const processFinalKg = roundRequirementKg(missingFinalKg * 0.4);
-  const baseFinalKg = roundRequirementKg(missingFinalKg * 0.6);
+  const componentPercentageTotal = getProfileComponents(item).reduce((total, component) => total + Number(component.percentage || 0), 0);
+  const hasExplicitRecipe = componentPercentageTotal > 0 || Number(item.base_percentage || 0) > 0;
+  const processFinalKg = hasExplicitRecipe
+    ? roundRequirementKg(missingFinalKg * componentPercentageTotal / 100)
+    : roundRequirementKg(missingFinalKg * 0.4);
+  const baseFinalKg = hasExplicitRecipe && Number(item.base_percentage || 0) > 0
+    ? roundRequirementKg(missingFinalKg * Number(item.base_percentage || 0) / 100)
+    : roundRequirementKg(missingFinalKg * 0.6);
   const processBeforeYieldKg = roundRequirementKg(processFinalKg / 0.95);
   const processComponents = shortageKind === "base"
     ? []

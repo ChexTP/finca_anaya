@@ -498,21 +498,29 @@ const WarehousePendingPage = () => {
     const profileComponents = Array.isArray(item.profile_components) && item.profile_components.length > 0
       ? item.profile_components
       : [{ purchase_coffee_id: item.process_purchase_coffee_id || "principal", purchase_coffee_name: item.process_purchase_coffee_name || "Cafe para proceso" }];
-    const processTotalKg = Math.ceil((requestedKg * 0.4) - Number.EPSILON);
+    const hasExplicitPercentages = profileComponents.some((component) => Number(component.percentage || 0) > 0);
+    const explicitComponentPercentageTotal = profileComponents.reduce((total, component) => total + Number(component.percentage || 0), 0);
+    const basePercentage = Number(item.base_percentage || 0);
+    const processTotalKg = hasExplicitPercentages
+      ? Math.ceil((requestedKg * explicitComponentPercentageTotal / 100) - Number.EPSILON)
+      : Math.ceil((requestedKg * 0.4) - Number.EPSILON);
     const processComponents = profileComponents.map((component, index) => {
       const percentage = Number(component.percentage || 0);
-      const quantityKg = percentage > 0
-        ? Math.ceil((processTotalKg * percentage / 100) - Number.EPSILON)
+      const quantityKg = hasExplicitPercentages
+        ? Math.ceil((requestedKg * percentage / 100) - Number.EPSILON)
         : Math.ceil((processTotalKg / profileComponents.length) - Number.EPSILON);
 
       return {
-        key: String(component.purchase_coffee_id || component.purchaseCoffeeId || index),
+        key: `${component.component_type || "purchase"}:${component.purchase_coffee_id || component.purchaseCoffeeId || component.component_profile_id || component.componentProfileId || index}`,
         name: component.purchase_coffee_name || item.process_purchase_coffee_name || "Cafe para proceso",
+        percentage: hasExplicitPercentages ? percentage : null,
         quantityKg,
       };
     });
     const processInputKg = processComponents.reduce((total, component) => total + Number(component.quantityKg || 0), 0);
-    const baseKg = Math.ceil((requestedKg * 0.6) - Number.EPSILON);
+    const baseKg = hasExplicitPercentages && basePercentage > 0
+      ? Math.ceil((requestedKg * basePercentage / 100) - Number.EPSILON)
+      : Math.ceil((requestedKg * 0.6) - Number.EPSILON);
     const processName = processComponents.map((component) => component.name).join(" / ") || "Cafe para proceso";
     const baseName = item.base_purchase_coffee_name || "Cafe base";
 
@@ -1329,7 +1337,7 @@ const WarehousePendingPage = () => {
                                 {suggested.processComponents.map((component) => renderAssignmentBlock(item, {
                                   assignmentType: `proceso:${component.key}`,
                                   title: `Asignar lote para proceso - ${component.name}`,
-                                  description: `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas"))} de ${component.name} para este componente.`,
+                                  description: `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas"))} de ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""} para este componente.`,
                                   addLabel: "Agregar otro lote para este proceso",
                                 }))}
                                 {renderAssignmentBlock(item, {

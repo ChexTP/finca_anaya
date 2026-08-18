@@ -137,17 +137,23 @@ export const listCoffeeProfilesForAdmin = async () => {
           SELECT json_agg(
             json_build_object(
               'id', coffee_profile_components.id,
+              'component_type', coffee_profile_components.component_type,
               'purchase_coffee_id', coffee_profile_components.purchase_coffee_id,
-              'purchase_coffee_name', purchase_coffees.name,
-              'purchase_coffee_family', purchase_coffees.family,
-              'purchase_coffee_process_type', purchase_coffees.process_type,
+              'component_profile_id', coffee_profile_components.component_profile_id,
+              'purchase_coffee_name', COALESCE(purchase_coffees.name, component_profiles.name),
+              'purchase_coffee_family', COALESCE(purchase_coffees.family, component_profiles.category),
+              'purchase_coffee_process_type', COALESCE(purchase_coffees.process_type, component_profiles.process_type),
+              'component_profile_name', component_profiles.name,
+              'component_profile_category', component_profiles.category,
+              'component_profile_process_type', component_profiles.process_type,
               'percentage', coffee_profile_components.percentage,
               'sort_order', coffee_profile_components.sort_order
             )
             ORDER BY coffee_profile_components.sort_order ASC, coffee_profile_components.id ASC
           )
           FROM coffee_profile_components
-          INNER JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN coffee_profiles component_profiles ON component_profiles.id = coffee_profile_components.component_profile_id
           WHERE coffee_profile_components.coffee_profile_id = coffee_profiles.id
         ),
         '[]'::json
@@ -362,13 +368,22 @@ const replaceCoffeeProfileComponents = async (client, profileId, components) => 
       `
       INSERT INTO coffee_profile_components (
         coffee_profile_id,
+        component_type,
         purchase_coffee_id,
+        component_profile_id,
         percentage,
         sort_order
       )
-      VALUES ($1, $2, $3, $4)
+      VALUES ($1, $2, $3, $4, $5, $6)
       `,
-      [profileId, component.purchaseCoffeeId, component.percentage ?? null, index + 1]
+      [
+        profileId,
+        component.componentType || "purchase",
+        component.purchaseCoffeeId || null,
+        component.componentProfileId || null,
+        component.percentage ?? null,
+        index + 1,
+      ]
     );
   }
 };

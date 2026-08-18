@@ -9,14 +9,15 @@ const initialProfile = {
   code: "",
   category: "",
   processType: "",
-  components: [{ purchaseCoffeeId: "" }],
+  components: [{ componentType: "purchase", purchaseCoffeeId: "", componentProfileId: "", percentage: "" }],
   basePurchaseCoffeeId: "",
+  basePercentage: "",
   basePriceCop: "",
   basePriceUsd: "",
   isActive: true,
 };
 
-const emptyComponent = { purchaseCoffeeId: "" };
+const emptyComponent = { componentType: "purchase", purchaseCoffeeId: "", componentProfileId: "", percentage: "" };
 const processTypeOptions = ["Lavado", "Natural", "Semilavado", "Honey"];
 
 const buildLegacyComponents = (profile) => {
@@ -24,13 +25,19 @@ const buildLegacyComponents = (profile) => {
 
   if (profile.process_purchase_coffee_id || profile.process_percentage) {
     components.push({
+      componentType: "purchase",
       purchaseCoffeeId: profile.process_purchase_coffee_id || "",
+      componentProfileId: "",
+      percentage: profile.process_percentage || "",
     });
   }
 
   if (profile.base_purchase_coffee_id || profile.base_percentage) {
     components.push({
+      componentType: "purchase",
       purchaseCoffeeId: profile.base_purchase_coffee_id || "",
+      componentProfileId: "",
+      percentage: profile.base_percentage || "",
     });
   }
 
@@ -44,7 +51,10 @@ const getBasePurchaseCoffeeId = (profile) => {
 const buildProfileComponents = (profile) => {
   if (Array.isArray(profile.components) && profile.components.length > 0) {
     return profile.components.map((component) => ({
+      componentType: component.component_type || component.componentType || (component.component_profile_id ? "profile" : "purchase"),
       purchaseCoffeeId: component.purchase_coffee_id || component.purchaseCoffeeId || "",
+      componentProfileId: component.component_profile_id || component.componentProfileId || "",
+      percentage: component.percentage || "",
     }));
   }
 
@@ -58,7 +68,10 @@ const formatComponentSummary = (profile) => {
 
   if (components.length > 0) {
     return components
-      .map((component) => component.purchase_coffee_name || "Cafe")
+      .map((component) => {
+        const name = component.purchase_coffee_name || component.component_profile_name || "Cafe";
+        return component.percentage ? `${name} ${Number(component.percentage)}%` : name;
+      })
       .join(" / ");
   }
 
@@ -74,6 +87,11 @@ const formatComponentSummary = (profile) => {
 
 const formatBaseSummary = (profile) => {
   return profile.base_purchase_coffee_name || "-";
+};
+
+const formatBaseWithPercentage = (profile) => {
+  if (!profile.base_purchase_coffee_name) return "-";
+  return profile.base_percentage ? `${profile.base_purchase_coffee_name} ${Number(profile.base_percentage)}%` : profile.base_purchase_coffee_name;
 };
 
 const CoffeeProfilesPage = () => {
@@ -136,6 +154,7 @@ const CoffeeProfilesPage = () => {
       processType: profile.process_type || "",
       components: buildProfileComponents(profile),
       basePurchaseCoffeeId: getBasePurchaseCoffeeId(profile),
+      basePercentage: profile.base_percentage || "",
       basePriceCop: Number(profile.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : "",
       basePriceUsd: Number(profile.base_price_usd || 0) > 0 ? String(profile.base_price_usd) : "",
       isActive: profile.is_active,
@@ -161,11 +180,15 @@ const CoffeeProfilesPage = () => {
       const payload = {
         ...form,
         components: form.components
-          .filter((component) => component.purchaseCoffeeId)
+          .filter((component) => component.purchaseCoffeeId || component.componentProfileId)
           .map((component) => ({
-            purchaseCoffeeId: Number(component.purchaseCoffeeId),
+            componentType: component.componentType || "purchase",
+            purchaseCoffeeId: component.componentType === "profile" ? null : Number(component.purchaseCoffeeId),
+            componentProfileId: component.componentType === "profile" ? Number(component.componentProfileId) : null,
+            percentage: component.percentage === "" ? null : Number(component.percentage),
           })),
         basePurchaseCoffeeId: form.basePurchaseCoffeeId ? Number(form.basePurchaseCoffeeId) : null,
+        basePercentage: form.basePercentage === "" ? null : Number(form.basePercentage),
         basePriceCop: form.basePriceCop === "" ? 0 : Number(form.basePriceCop),
         basePriceUsd: 0,
       };
@@ -207,6 +230,14 @@ const CoffeeProfilesPage = () => {
       components: [...form.components, { ...emptyComponent }],
     });
   };
+
+  const componentPercentageTotal = useMemo(() => {
+    return form.components.reduce((total, component) => total + Number(component.percentage || 0), 0) + Number(form.basePercentage || 0);
+  }, [form.components, form.basePercentage]);
+
+  const componentProfileOptions = useMemo(() => {
+    return profiles.filter((profile) => !selectedProfile || profile.id !== selectedProfile.id);
+  }, [profiles, selectedProfile]);
 
   const removeComponent = (index) => {
     setForm({
@@ -300,7 +331,7 @@ const CoffeeProfilesPage = () => {
                       <td className="px-4 py-3 text-slate-600">
                         {formatComponentSummary(profile)}
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{formatBaseSummary(profile)}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatBaseWithPercentage(profile)}</td>
                       <td className="px-4 py-3 text-slate-600">
                         {Number(profile.base_price_cop || 0) > 0 ? `COP ${Number(profile.base_price_cop).toLocaleString("es-CO")}` : "-"}
                       </td>
@@ -390,23 +421,76 @@ const CoffeeProfilesPage = () => {
               </label>
             </div>
             <div className="min-w-0 overflow-hidden rounded border border-amber-200 bg-amber-50 p-3">
-              <p className="text-xs font-semibold uppercase text-amber-900">Componente principal</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-amber-900">Componentes de proceso</p>
+                  <p className="mt-1 text-xs text-amber-800">Pueden ser cafes de compra o perfiles/procesos ya creados.</p>
+                </div>
+                <span className={`rounded px-2 py-1 text-xs font-semibold ${Math.abs(componentPercentageTotal - 100) <= 0.01 ? "bg-emerald-100 text-emerald-800" : "bg-white text-amber-900"}`}>
+                  Total receta: {Number(componentPercentageTotal.toFixed(2))}%
+                </span>
+              </div>
               <div className="mt-3 grid gap-3">
                 {form.components.map((component, index) => (
                   <div key={`component-${index}`} className="min-w-0 rounded border border-amber-200 bg-white p-2">
-                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_38px]">
+                    <div className="grid gap-2">
                       <select
                         className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                        value={component.purchaseCoffeeId}
-                        onChange={(event) => updateComponent(index, "purchaseCoffeeId", event.target.value)}
+                        value={component.componentType || "purchase"}
+                        onChange={(event) => {
+                          const componentType = event.target.value;
+                          setForm({
+                            ...form,
+                            components: form.components.map((currentComponent, componentIndex) => (
+                              componentIndex === index
+                                ? {
+                                    ...currentComponent,
+                                    componentType,
+                                    purchaseCoffeeId: "",
+                                    componentProfileId: "",
+                                  }
+                                : currentComponent
+                            )),
+                          });
+                        }}
                       >
-                        <option value="">Cafe comprado</option>
-                        {catalogs?.purchaseCoffees?.map((coffee) => (
-                          <option key={coffee.id} value={coffee.id}>
-                            {coffee.name} - {coffee.family} {coffee.process_type}
-                          </option>
-                        ))}
+                        <option value="purchase">Compra</option>
+                        <option value="profile">Proceso</option>
                       </select>
+                      <select
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={(component.componentType || "purchase") === "profile" ? component.componentProfileId : component.purchaseCoffeeId}
+                        onChange={(event) => {
+                          if ((component.componentType || "purchase") === "profile") {
+                            updateComponent(index, "componentProfileId", event.target.value);
+                          } else {
+                            updateComponent(index, "purchaseCoffeeId", event.target.value);
+                          }
+                        }}
+                      >
+                        <option value="">{(component.componentType || "purchase") === "profile" ? "Perfil/proceso" : "Cafe comprado"}</option>
+                        {(component.componentType || "purchase") === "profile"
+                          ? componentProfileOptions.map((profile) => (
+                              <option key={profile.id} value={profile.id}>
+                                {profile.internal_code ? `${profile.internal_code} - ` : ""}{profile.name} - {profile.category} {profile.process_type || ""}
+                              </option>
+                            ))
+                          : catalogs?.purchaseCoffees?.map((coffee) => (
+                              <option key={coffee.id} value={coffee.id}>
+                                {coffee.name} - {coffee.family} {coffee.process_type}
+                              </option>
+                            ))}
+                      </select>
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="%"
+                        type="number"
+                        min="0.01"
+                        max="100"
+                        step="0.01"
+                        value={component.percentage}
+                        onChange={(event) => updateComponent(index, "percentage", event.target.value)}
+                      />
                       <button
                         className="inline-flex items-center justify-center rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
                         type="button"
@@ -430,18 +514,30 @@ const CoffeeProfilesPage = () => {
             </div>
             <div className="min-w-0 rounded border border-emerald-200 bg-emerald-50 p-3">
               <p className="text-xs font-semibold uppercase text-emerald-900">Base principal para deficit</p>
-              <select
-                className="mt-3 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                value={form.basePurchaseCoffeeId}
-                onChange={(event) => setForm({ ...form, basePurchaseCoffeeId: event.target.value })}
-              >
-                <option value="">Sin base principal</option>
-                {catalogs?.purchaseCoffees?.map((coffee) => (
-                  <option key={coffee.id} value={coffee.id}>
-                    {coffee.name} - {coffee.family} {coffee.process_type}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_100px]">
+                <select
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  value={form.basePurchaseCoffeeId}
+                  onChange={(event) => setForm({ ...form, basePurchaseCoffeeId: event.target.value })}
+                >
+                  <option value="">Sin base principal</option>
+                  {catalogs?.purchaseCoffees?.map((coffee) => (
+                    <option key={coffee.id} value={coffee.id}>
+                      {coffee.name} - {coffee.family} {coffee.process_type}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder="% base"
+                  type="number"
+                  min="0.01"
+                  max="100"
+                  step="0.01"
+                  value={form.basePercentage}
+                  onChange={(event) => setForm({ ...form, basePercentage: event.target.value })}
+                />
+              </div>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input

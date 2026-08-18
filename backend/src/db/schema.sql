@@ -64,11 +64,18 @@ CREATE TABLE IF NOT EXISTS coffee_profiles (
 CREATE TABLE IF NOT EXISTS coffee_profile_components (
   id SERIAL PRIMARY KEY,
   coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id) ON DELETE CASCADE,
-  purchase_coffee_id INTEGER NOT NULL REFERENCES purchase_coffees(id),
+  component_type VARCHAR(20) NOT NULL DEFAULT 'purchase',
+  purchase_coffee_id INTEGER REFERENCES purchase_coffees(id),
+  component_profile_id INTEGER REFERENCES coffee_profiles(id),
   percentage NUMERIC(5, 2),
   sort_order INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT coffee_profile_components_type_check CHECK (component_type IN ('purchase', 'profile')),
+  CONSTRAINT coffee_profile_components_source_check CHECK (
+    (component_type = 'purchase' AND purchase_coffee_id IS NOT NULL AND component_profile_id IS NULL) OR
+    (component_type = 'profile' AND component_profile_id IS NOT NULL AND purchase_coffee_id IS NULL)
+  ),
   CONSTRAINT coffee_profile_components_percentage_check CHECK (percentage IS NULL OR (percentage > 0 AND percentage <= 100))
 );
 
@@ -271,13 +278,34 @@ ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_percentage NUMERIC(5, 
 CREATE TABLE IF NOT EXISTS coffee_profile_components (
   id SERIAL PRIMARY KEY,
   coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id) ON DELETE CASCADE,
-  purchase_coffee_id INTEGER NOT NULL REFERENCES purchase_coffees(id),
+  component_type VARCHAR(20) NOT NULL DEFAULT 'purchase',
+  purchase_coffee_id INTEGER REFERENCES purchase_coffees(id),
+  component_profile_id INTEGER REFERENCES coffee_profiles(id),
   percentage NUMERIC(5, 2),
   sort_order INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT coffee_profile_components_type_check CHECK (component_type IN ('purchase', 'profile')),
+  CONSTRAINT coffee_profile_components_source_check CHECK (
+    (component_type = 'purchase' AND purchase_coffee_id IS NOT NULL AND component_profile_id IS NULL) OR
+    (component_type = 'profile' AND component_profile_id IS NOT NULL AND purchase_coffee_id IS NULL)
+  ),
   CONSTRAINT coffee_profile_components_percentage_check CHECK (percentage IS NULL OR (percentage > 0 AND percentage <= 100))
 );
+ALTER TABLE coffee_profile_components ADD COLUMN IF NOT EXISTS component_type VARCHAR(20) NOT NULL DEFAULT 'purchase';
+ALTER TABLE coffee_profile_components ADD COLUMN IF NOT EXISTS component_profile_id INTEGER REFERENCES coffee_profiles(id);
+ALTER TABLE coffee_profile_components ALTER COLUMN purchase_coffee_id DROP NOT NULL;
+ALTER TABLE coffee_profile_components DROP CONSTRAINT IF EXISTS coffee_profile_components_type_check;
+ALTER TABLE coffee_profile_components
+  ADD CONSTRAINT coffee_profile_components_type_check
+  CHECK (component_type IN ('purchase', 'profile'));
+ALTER TABLE coffee_profile_components DROP CONSTRAINT IF EXISTS coffee_profile_components_source_check;
+ALTER TABLE coffee_profile_components
+  ADD CONSTRAINT coffee_profile_components_source_check
+  CHECK (
+    (component_type = 'purchase' AND purchase_coffee_id IS NOT NULL AND component_profile_id IS NULL) OR
+    (component_type = 'profile' AND component_profile_id IS NOT NULL AND purchase_coffee_id IS NULL)
+  );
 ALTER TABLE coffee_profile_components ALTER COLUMN percentage DROP NOT NULL;
 ALTER TABLE coffee_profile_components DROP CONSTRAINT IF EXISTS coffee_profile_components_percentage_check;
 ALTER TABLE coffee_profile_components

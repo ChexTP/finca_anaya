@@ -281,25 +281,49 @@ const toNumber = (value) => {
   return Number(value);
 };
 
-const normalizeProfileComponents = (components = []) => {
+const normalizeProfileComponents = (components = [], basePercentage = null) => {
   if (!Array.isArray(components)) {
     return { error: "Los componentes deben enviarse como una lista" };
   }
 
   const cleanComponents = components
-    .map((component) => ({
-      purchaseCoffeeId: Number(component.purchaseCoffeeId || component.purchase_coffee_id),
-      percentage: null,
-    }))
-    .filter((component) => component.purchaseCoffeeId);
+    .map((component) => {
+      const componentType = component.componentType || component.component_type || (component.componentProfileId || component.component_profile_id ? "profile" : "purchase");
+
+      return {
+        componentType,
+        purchaseCoffeeId: componentType === "purchase" ? Number(component.purchaseCoffeeId || component.purchase_coffee_id) : null,
+        componentProfileId: componentType === "profile" ? Number(component.componentProfileId || component.component_profile_id) : null,
+        percentage: toNumber(component.percentage),
+      };
+    })
+    .filter((component) => component.purchaseCoffeeId || component.componentProfileId);
 
   if (
     cleanComponents.some((component) => (
-      !Number.isInteger(component.purchaseCoffeeId) ||
-      component.purchaseCoffeeId <= 0
+      !["purchase", "profile"].includes(component.componentType) ||
+      (component.componentType === "purchase" && (!Number.isInteger(component.purchaseCoffeeId) || component.purchaseCoffeeId <= 0)) ||
+      (component.componentType === "profile" && (!Number.isInteger(component.componentProfileId) || component.componentProfileId <= 0))
     ))
   ) {
     return { error: "Cada componente debe tener un cafe valido" };
+  }
+
+  if (
+    cleanComponents.some((component) => (
+      !Number.isFinite(component.percentage) ||
+      component.percentage <= 0 ||
+      component.percentage > 100
+    ))
+  ) {
+    return { error: "Cada componente debe tener un porcentaje mayor a 0 y menor o igual a 100" };
+  }
+
+  const normalizedBasePercentage = Number(basePercentage || 0);
+  const totalPercentage = cleanComponents.reduce((total, component) => total + Number(component.percentage || 0), 0) + normalizedBasePercentage;
+
+  if (cleanComponents.length > 0 && Math.abs(totalPercentage - 100) > 0.01) {
+    return { error: `Los porcentajes de componentes y base deben sumar 100%. Actualmente suman ${totalPercentage.toFixed(2)}%` };
   }
 
   return { components: cleanComponents };
@@ -334,7 +358,7 @@ export const putCoffeeProfile = async (req, res) => {
     const priceUsd = toNumber(basePriceUsd);
     const processPct = toNumber(processPercentage);
     const basePct = toNumber(basePercentage);
-    const normalizedComponents = normalizeProfileComponents(components);
+    const normalizedComponents = normalizeProfileComponents(components, basePct);
 
     if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
@@ -346,13 +370,25 @@ export const putCoffeeProfile = async (req, res) => {
       return res.status(400).json({ message: normalizedComponents.error });
     }
 
+    if (basePct !== null && (!Number.isFinite(basePct) || basePct <= 0 || basePct > 100)) {
+      return res.status(400).json({ message: "El porcentaje de base debe ser mayor a 0 y menor o igual a 100" });
+    }
+
+    if (basePct !== null && !basePurchaseCoffeeId) {
+      return res.status(400).json({ message: "Seleccione una base principal para usar porcentaje de base" });
+    }
+
+    if (basePurchaseCoffeeId && basePct === null) {
+      return res.status(400).json({ message: "Indique el porcentaje de la base principal" });
+    }
+
     const profile = await findCoffeeProfileById(req.params.id);
 
     if (!profile) {
       return res.status(404).json({ message: "Perfil comercial no encontrado" });
     }
 
-    const firstComponent = normalizedComponents.components[0];
+    const firstComponent = normalizedComponents.components.find((component) => component.componentType === "purchase");
 
     const updatedProfile = await updateCoffeeProfile(req.params.id, {
       name,
@@ -413,7 +449,7 @@ export const postCoffeeProfile = async (req, res) => {
     const priceUsd = toNumber(basePriceUsd);
     const processPct = toNumber(processPercentage);
     const basePct = toNumber(basePercentage);
-    const normalizedComponents = normalizeProfileComponents(components);
+    const normalizedComponents = normalizeProfileComponents(components, basePct);
 
     if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
@@ -425,7 +461,19 @@ export const postCoffeeProfile = async (req, res) => {
       return res.status(400).json({ message: normalizedComponents.error });
     }
 
-    const firstComponent = normalizedComponents.components[0];
+    if (basePct !== null && (!Number.isFinite(basePct) || basePct <= 0 || basePct > 100)) {
+      return res.status(400).json({ message: "El porcentaje de base debe ser mayor a 0 y menor o igual a 100" });
+    }
+
+    if (basePct !== null && !basePurchaseCoffeeId) {
+      return res.status(400).json({ message: "Seleccione una base principal para usar porcentaje de base" });
+    }
+
+    if (basePurchaseCoffeeId && basePct === null) {
+      return res.status(400).json({ message: "Indique el porcentaje de la base principal" });
+    }
+
+    const firstComponent = normalizedComponents.components.find((component) => component.componentType === "purchase");
 
     const profile = await createCoffeeProfile({
       name,

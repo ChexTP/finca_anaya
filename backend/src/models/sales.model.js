@@ -116,16 +116,22 @@ export const findSaleById = async (id) => {
         (
           SELECT json_agg(
             json_build_object(
+              'component_type', coffee_profile_components.component_type,
               'purchase_coffee_id', coffee_profile_components.purchase_coffee_id,
-              'purchase_coffee_name', purchase_coffees.name,
-              'purchase_coffee_family', purchase_coffees.family,
-              'purchase_coffee_process_type', purchase_coffees.process_type,
+              'component_profile_id', coffee_profile_components.component_profile_id,
+              'purchase_coffee_name', COALESCE(purchase_coffees.name, component_profiles.name),
+              'purchase_coffee_family', COALESCE(purchase_coffees.family, component_profiles.category),
+              'purchase_coffee_process_type', COALESCE(purchase_coffees.process_type, component_profiles.process_type),
+              'component_profile_name', component_profiles.name,
+              'component_profile_category', component_profiles.category,
+              'component_profile_process_type', component_profiles.process_type,
               'percentage', coffee_profile_components.percentage
             )
             ORDER BY coffee_profile_components.sort_order ASC, coffee_profile_components.id ASC
           )
           FROM coffee_profile_components
-          INNER JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN coffee_profiles component_profiles ON component_profiles.id = coffee_profile_components.component_profile_id
           WHERE coffee_profile_components.coffee_profile_id = coffee_profiles.id
         ),
         '[]'::json
@@ -1116,16 +1122,22 @@ export const getOperationalLotReservations = async () => {
         (
           SELECT json_agg(
             json_build_object(
+              'component_type', coffee_profile_components.component_type,
               'purchase_coffee_id', coffee_profile_components.purchase_coffee_id,
-              'purchase_coffee_name', purchase_coffees.name,
-              'purchase_coffee_family', purchase_coffees.family,
-              'purchase_coffee_process_type', purchase_coffees.process_type,
+              'component_profile_id', coffee_profile_components.component_profile_id,
+              'purchase_coffee_name', COALESCE(purchase_coffees.name, component_profiles.name),
+              'purchase_coffee_family', COALESCE(purchase_coffees.family, component_profiles.category),
+              'purchase_coffee_process_type', COALESCE(purchase_coffees.process_type, component_profiles.process_type),
+              'component_profile_name', component_profiles.name,
+              'component_profile_category', component_profiles.category,
+              'component_profile_process_type', component_profiles.process_type,
               'percentage', coffee_profile_components.percentage
             )
             ORDER BY coffee_profile_components.sort_order ASC, coffee_profile_components.id ASC
           )
           FROM coffee_profile_components
-          INNER JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN coffee_profiles component_profiles ON component_profiles.id = coffee_profile_components.component_profile_id
           WHERE coffee_profile_components.coffee_profile_id = coffee_profiles.id
         ),
         '[]'::json
@@ -1169,8 +1181,17 @@ export const getOperationalLotReservations = async () => {
       const reservedProcessKg = Number(item.reserved_process_kg || 0);
       const reservedBaseKg = Number(item.reserved_base_kg || 0);
       const isExoticProfile = item.coffee_profile_category === "Exotico";
-      const processTargetKg = isExoticProfile ? Math.ceil((requiredKg * 0.4) - Number.EPSILON) : 0;
-      const baseTargetKg = isExoticProfile ? Math.ceil((requiredKg * 0.6) - Number.EPSILON) : 0;
+      const profileComponents = Array.isArray(item.profile_components)
+        ? item.profile_components.filter((component) => component.purchase_coffee_name)
+        : [];
+      const componentPercentageTotal = profileComponents.reduce((total, component) => total + Number(component.percentage || 0), 0);
+      const hasExplicitRecipe = componentPercentageTotal > 0 || Number(item.base_percentage || 0) > 0;
+      const processTargetKg = isExoticProfile
+        ? Math.ceil((requiredKg * (hasExplicitRecipe ? componentPercentageTotal : 40) / 100) - Number.EPSILON)
+        : 0;
+      const baseTargetKg = isExoticProfile
+        ? Math.ceil((requiredKg * (hasExplicitRecipe && Number(item.base_percentage || 0) > 0 ? Number(item.base_percentage) : 60) / 100) - Number.EPSILON)
+        : 0;
       const processMissingKg = Math.ceil(Math.max(processTargetKg - reservedProcessKg, 0) - Number.EPSILON);
       const baseMissingKg = Math.ceil(Math.max(baseTargetKg - reservedBaseKg, 0) - Number.EPSILON);
       const missingKg = isExoticProfile

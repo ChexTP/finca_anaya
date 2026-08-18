@@ -109,16 +109,22 @@ const getActiveSaleItems = async () => {
         (
           SELECT json_agg(
             json_build_object(
+              'component_type', coffee_profile_components.component_type,
               'purchase_coffee_id', coffee_profile_components.purchase_coffee_id,
-              'purchase_coffee_name', purchase_coffees.name,
-              'purchase_coffee_family', purchase_coffees.family,
-              'purchase_coffee_process_type', purchase_coffees.process_type,
+              'component_profile_id', coffee_profile_components.component_profile_id,
+              'purchase_coffee_name', COALESCE(purchase_coffees.name, component_profiles.name),
+              'purchase_coffee_family', COALESCE(purchase_coffees.family, component_profiles.category),
+              'purchase_coffee_process_type', COALESCE(purchase_coffees.process_type, component_profiles.process_type),
+              'component_profile_name', component_profiles.name,
+              'component_profile_category', component_profiles.category,
+              'component_profile_process_type', component_profiles.process_type,
               'percentage', coffee_profile_components.percentage
             )
             ORDER BY coffee_profile_components.sort_order ASC, coffee_profile_components.id ASC
           )
           FROM coffee_profile_components
-          INNER JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN purchase_coffees ON purchase_coffees.id = coffee_profile_components.purchase_coffee_id
+          LEFT JOIN coffee_profiles component_profiles ON component_profiles.id = coffee_profile_components.component_profile_id
           WHERE coffee_profile_components.coffee_profile_id = coffee_profiles.id
         ),
         '[]'::json
@@ -480,7 +486,7 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
       profileComponents.forEach((component) => {
         const percentage = hasExplicitPercentages
           ? Number(component.percentage || 0)
-          : 100 / profileComponents.length;
+          : (item.base_purchase_coffee_name ? 40 : 100) / profileComponents.length;
 
         if (percentage <= 0 || !component.purchase_coffee_name) {
           return;
@@ -498,6 +504,25 @@ const buildDeficitReport = ({ sales, saleItems, blendItems, availableLots, pendi
           shortageNotes: item.shortage_notes,
         });
       });
+
+      if (item.base_purchase_coffee_name) {
+        const percentage = Number(item.base_percentage || 0);
+        const effectivePercentage = percentage > 0 && hasExplicitPercentages ? percentage : 60;
+
+        if (effectivePercentage > 0) {
+          addDeficit(groups, {
+            sale,
+            productForm,
+            benefit: itemBenefit,
+            name: item.base_purchase_coffee_name,
+            componentType: "Base principal",
+            requestedKg: round3(requestedKg * effectivePercentage / 100),
+            requiredKg: round3(operationalKg * effectivePercentage / 100),
+            shortageMarked: item.shortage_marked,
+            shortageNotes: item.shortage_notes,
+          });
+        }
+      }
 
       continue;
     }
