@@ -1448,27 +1448,25 @@ const WarehousePendingPage = () => {
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
                             suggested ? (
                               <div className="space-y-3">
-                                {hasDirectProfileProcessAvailable(item) && (
-                                  <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
-                                    <label className="grid gap-1 text-xs font-semibold uppercase text-emerald-900">
-                                      Forma de cubrir el proceso
-                                      <select
-                                        className="rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
-                                        value={shouldUseDirectProfileProcess(item) ? "directo" : "receta"}
-                                        onChange={(event) => setDirectProcessModeByItem((currentModes) => ({
-                                          ...currentModes,
-                                          [item.id]: event.target.value === "directo",
-                                        }))}
-                                      >
-                                        <option value="directo">Usar proceso disponible del perfil</option>
-                                        <option value="receta">Preparar con receta/componentes</option>
-                                      </select>
-                                    </label>
-                                    <p className="mt-2 text-xs text-emerald-800">
-                                      Disponible directo: {formatOperationalKg(suggested.directProcessAvailableKg)} de {suggested.directProcessName}.
-                                    </p>
-                                  </div>
-                                )}
+                                <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
+                                  <label className="grid gap-1 text-xs font-semibold uppercase text-emerald-900">
+                                    Forma de cubrir este cafe
+                                    <select
+                                      className="rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
+                                      value={shouldUseDirectProfileProcess(item) ? "directo" : "receta"}
+                                      onChange={(event) => setDirectProcessModeByItem((currentModes) => ({
+                                        ...currentModes,
+                                        [item.id]: event.target.value === "directo",
+                                      }))}
+                                    >
+                                      <option value="directo">Usar proceso disponible del perfil</option>
+                                      <option value="receta">Preparar con receta/componentes</option>
+                                    </select>
+                                  </label>
+                                  <p className="mt-2 text-xs text-emerald-800">
+                                    Disponible directo: {formatOperationalKg(suggested.directProcessAvailableKg)} de {suggested.directProcessName}. Si no alcanza, el faltante se completa con receta/componentes.
+                                  </p>
+                                </div>
 
                                 {shouldUseDirectProfileProcess(item) && renderAssignmentBlock(item, {
                                   assignmentType: "proceso-directo",

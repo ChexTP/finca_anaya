@@ -180,6 +180,7 @@ export const buildWarehouseOrderHtml = (sale) => {
 
   const deductedLots = sale.deductedLots
     ?.map((lot) => {
+      const relatedItem = (sale.items || []).find((item) => Number(item.id) === Number(lot.sale_item_id));
       const mixRows = lot.process_mix?.length
         ? `
           <table>
@@ -215,6 +216,7 @@ export const buildWarehouseOrderHtml = (sale) => {
             <div>
               <h3>${printable(formatCoffeeLotCodeName(lot))}</h3>
               <p>${printable(lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind)}</p>
+              ${relatedItem?.item_assignee ? `<p><strong>Encargado item:</strong> ${printable(relatedItem.item_assignee)}</p>` : ""}
             </div>
             <strong>${formatOperationalKg(lot.quantity_kg)}</strong>
           </div>
@@ -282,11 +284,10 @@ export const buildWarehouseOrderHtml = (sale) => {
         </table>
 
         <h2>Lotes y porcentajes de mezcla</h2>
-        ${
-          finalBlendOrder ||
-          deductedLots ||
-          '<p class="muted">No hay orden de mezcla ni lotes descontados registrados.</p>'
-        }
+        ${finalBlendOrder || '<p class="muted">Laboratorio aun no ha definido una orden final de mezcla.</p>'}
+
+        <h2>Lotes reservados / origen operativo</h2>
+        ${deductedLots || '<p class="muted">No hay lotes reservados registrados para esta orden.</p>'}
 
         <section class="instructions">
           <p>- Hacer registro fotografico.</p>
