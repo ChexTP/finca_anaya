@@ -9,6 +9,19 @@ const companyInfo = {
   address: "",
 };
 
+const POUNDS_PER_KG = 2.2046;
+
+const calculateDocumentLineTotal = ({ item, currency }) => {
+  const quantityKg = Number(item.quantity_kg || 0);
+  const unitPrice = Number(item.unit_price || 0);
+  const priceBasis = String(item.price_basis || item.pricing_snapshot?.priceBasis || "kg").toLowerCase();
+  const amount = currency === "USD" && priceBasis === "lb"
+    ? quantityKg * POUNDS_PER_KG * unitPrice
+    : quantityKg * unitPrice;
+
+  return Number(amount.toFixed(2));
+};
+
 export const buildQuoteDocument = async (id) => {
   const quote = await findQuoteById(id);
 
@@ -17,6 +30,22 @@ export const buildQuoteDocument = async (id) => {
   }
 
   const isPriceList = quote.quote_type === "lista_precios";
+  const documentItems = quote.items.map((item) => ({
+    lotCode: item.lot_code,
+    coffeeType: item.coffee_type_name,
+    coffeeProfile: item.coffee_profile_name,
+    description: item.description,
+    productForm: item.product_form,
+    processType: item.process_type,
+    variety: item.variety,
+    quantityKg: item.quantity_kg,
+    unitPrice: item.unit_price,
+    lineTotal: calculateDocumentLineTotal({ item, currency: quote.currency }),
+    priceBasis: item.price_basis,
+    pricingSnapshot: item.pricing_snapshot || {},
+  }));
+  const documentSubtotal = documentItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+  const documentTotal = Number((documentSubtotal + Number(quote.shipping_cost || 0)).toFixed(2));
 
   return {
     documentType: isPriceList ? "ListaPrecios" : quote.quote_type === "preventa" ? "Preventa" : "Cotizacion",
@@ -46,25 +75,12 @@ export const buildQuoteDocument = async (id) => {
       deliveryTerms: quote.delivery_terms,
       ...(quote.quote_terms || {}),
     },
-    items: quote.items.map((item) => ({
-      lotCode: item.lot_code,
-      coffeeType: item.coffee_type_name,
-      coffeeProfile: item.coffee_profile_name,
-      description: item.description,
-      productForm: item.product_form,
-      processType: item.process_type,
-      variety: item.variety,
-      quantityKg: item.quantity_kg,
-      unitPrice: item.unit_price,
-      lineTotal: item.line_total,
-      priceBasis: item.price_basis,
-      pricingSnapshot: item.pricing_snapshot || {},
-    })),
+    items: documentItems,
     totals: {
       currency: quote.currency,
-      subtotal: quote.subtotal,
+      subtotal: documentSubtotal,
       shippingCost: quote.shipping_cost,
-      total: quote.total,
+      total: documentTotal,
     },
     notes: quote.notes,
   };
