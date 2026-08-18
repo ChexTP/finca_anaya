@@ -453,6 +453,9 @@ const CommercialPage = () => {
     priceListAvailableItems.filter((item) => item.source === "profile")
   ), [priceListAvailableItems]);
 
+  const allPriceListProfilesSelected = priceListSaleProfiles.length > 0
+    && priceListSaleProfiles.every((option) => priceListItems.some((item) => item.catalogId === option.id));
+
   const createPriceListItemFromOption = (option) => ({
     id: crypto.randomUUID(),
     catalogId: option?.id || "",
@@ -2029,11 +2032,12 @@ const CommercialPage = () => {
                       className="inline-flex items-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
                       type="button"
                       onClick={() => {
-                        setPriceListItems(priceListSaleProfiles.map((option) => createPriceListItemFromOption(option)));
+                        setPriceListItems(allPriceListProfilesSelected ? [] : priceListSaleProfiles.map((option) => createPriceListItemFromOption(option)));
                         setPriceListAutoLoaded(true);
+                        setEditingPriceListItemId("");
                       }}
                     >
-                      <Plus size={16} /> Marcar todos
+                      <Plus size={16} /> {allPriceListProfilesSelected ? "Desmarcar todos" : "Marcar todos"}
                     </button>
                   </div>
                   <div className="mt-3 space-y-3">
