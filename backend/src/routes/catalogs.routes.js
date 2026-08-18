@@ -1,5 +1,7 @@
 import { Router } from "express";
 import {
+  deleteCoffeeProfileById,
+  deletePurchaseCoffeeById,
   getCatalogs,
   getCoffeeProfilesAdmin,
   getEditableCatalogItems,
@@ -24,11 +26,13 @@ router.post("/coffee-profiles", requireAuth, requireRoles("admin", "accounting",
 router.get("/purchase-coffees", requireAuth, requireRoles("admin", "accounting", "warehouse"), getPurchaseCoffeesAdmin);
 router.post("/purchase-coffees", requireAuth, requireRoles("admin", "accounting", "warehouse"), postPurchaseCoffee);
 router.put("/purchase-coffees/:id", requireAuth, requireRoles("admin", "accounting", "warehouse"), putPurchaseCoffee);
+router.delete("/purchase-coffees/:id", requireAuth, requireRoles("admin"), deletePurchaseCoffeeById);
 router.put(
   "/coffee-profiles/:id",
   requireAuth,
   requireRoles("admin", "accounting", "warehouse"),
   putCoffeeProfile
 );
+router.delete("/coffee-profiles/:id", requireAuth, requireRoles("admin"), deleteCoffeeProfileById);
 
 export default router;

@@ -1,7 +1,8 @@
-import { DatabaseBackup, Download, RefreshCw } from "lucide-react";
+import { DatabaseBackup, Download, FileText, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import { apiRequest, getToken } from "../../utils/api";
+import { companyBrand, getPrintableLogo } from "../../utils/brand";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
@@ -20,6 +21,8 @@ const moduleLabels = {
   processes: "Procesos de cafe",
   process_inputs: "Cafe usado en procesos",
   sample_requests: "Solicitudes de muestras",
+  purchase_coffees: "Perfiles de compra",
+  coffee_profiles: "Perfiles de venta",
 };
 
 const formatDateTime = (value) => {
@@ -29,6 +32,29 @@ const formatDateTime = (value) => {
     dateStyle: "short",
     timeStyle: "short",
   });
+};
+
+const formatCell = (value) => {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? "Si" : "No";
+  if (value instanceof Date) return formatDateTime(value);
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+};
+
+const formatHeader = (value) => {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const escapeHtml = (value) => {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 };
 
 const BackupsPage = () => {
@@ -103,6 +129,91 @@ const BackupsPage = () => {
     }
   };
 
+  const downloadPdfBackup = async () => {
+    if (!selectedModule) {
+      setError("Selecciona un modulo para generar el PDF.");
+      return;
+    }
+
+    setDownloading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const data = await apiRequest(
+        `/backups/export-data?module=${encodeURIComponent(selectedModule)}&format=pdf`
+      );
+      const rows = data.rows || [];
+
+      if (rows.length === 0) {
+        throw new Error("No hay datos para exportar en PDF.");
+      }
+
+      const headers = Object.keys(rows[0] || {});
+      const popup = window.open("", "_blank", "noopener,noreferrer");
+
+      if (!popup) {
+        throw new Error("El navegador bloqueo la ventana del PDF. Permite ventanas emergentes para descargarlo.");
+      }
+
+      popup.document.write(`
+        <html>
+          <head>
+            <title>Backup ${selectedLabel}</title>
+            <style>
+              * { box-sizing: border-box; }
+              body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
+              .header { display: flex; align-items: center; gap: 18px; border-bottom: 2px solid #1f7a4d; padding-bottom: 14px; margin-bottom: 18px; }
+              .logo { width: 130px; height: auto; }
+              h1 { margin: 0; font-size: 22px; }
+              p { margin: 4px 0; color: #475569; }
+              table { width: 100%; border-collapse: collapse; font-size: 11px; }
+              th, td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; }
+              th { background: #eef2f7; text-align: left; }
+              td { word-break: break-word; }
+              @media print { body { margin: 18px; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <img class="logo" src="${getPrintableLogo()}" />
+              <div>
+                <h1>Backup ${selectedLabel}</h1>
+                <p>${companyBrand.legalName}</p>
+                <p>Generado: ${formatDateTime(new Date())}</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>${headers.map((header) => `<th>${escapeHtml(formatHeader(header))}</th>`).join("")}</tr>
+              </thead>
+              <tbody>
+                ${rows.map((row) => `
+                  <tr>
+                    ${headers.map((header) => `<td>${escapeHtml(formatCell(row[header]))}</td>`).join("")}
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+            <script>
+              window.onload = () => {
+                window.print();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      popup.document.close();
+
+      await loadData();
+      setMessage(`PDF de ${selectedLabel} generado correctamente.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -152,6 +263,16 @@ const BackupsPage = () => {
           >
             <Download size={16} />
             {downloading ? "Generando..." : "Descargar CSV"}
+          </button>
+
+          <button
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded border border-leaf bg-white px-4 py-2 text-sm font-semibold text-leaf disabled:opacity-60"
+            type="button"
+            onClick={downloadPdfBackup}
+            disabled={downloading || modules.length === 0}
+          >
+            <FileText size={16} />
+            Descargar PDF
           </button>
 
           <p className="mt-3 text-xs text-slate-500">

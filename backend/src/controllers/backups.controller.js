@@ -34,6 +34,7 @@ export const exportBackup = async (req, res) => {
     const rows = await exportBackupModule({
       moduleName: module,
       exportedBy: req.user.id,
+      format: "csv",
     });
 
     if (!rows) {
@@ -44,6 +45,33 @@ export const exportBackup = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al generar backup manual",
+      error: error.message,
+    });
+  }
+};
+
+export const exportBackupData = async (req, res) => {
+  try {
+    const { module, format = "pdf" } = req.query;
+
+    if (!module) {
+      return res.status(400).json({ message: "Debe indicar el modulo a exportar" });
+    }
+
+    const rows = await exportBackupModule({
+      moduleName: module,
+      exportedBy: req.user.id,
+      format,
+    });
+
+    if (!rows) {
+      return res.status(404).json({ message: "Modulo de backup no encontrado" });
+    }
+
+    res.json({ module, rows });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al generar datos de backup",
       error: error.message,
     });
   }

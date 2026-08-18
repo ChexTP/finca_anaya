@@ -225,6 +225,19 @@ export const updatePurchaseCoffee = async (
   return result.rows[0];
 };
 
+export const deletePurchaseCoffee = async (id) => {
+  const result = await pool.query(
+    `
+    DELETE FROM purchase_coffees
+    WHERE id = $1
+    RETURNING *
+    `,
+    [id]
+  );
+
+  return result.rows[0];
+};
+
 export const createCoffeeProfile = async ({
   name,
   code,
@@ -386,4 +399,17 @@ const replaceCoffeeProfileComponents = async (client, profileId, components) => 
       ]
     );
   }
+};
+
+export const deleteCoffeeProfile = async (id) => {
+  const result = await pool.query(
+    `
+    DELETE FROM coffee_profiles
+    WHERE id = $1
+    RETURNING *
+    `,
+    [id]
+  );
+
+  return result.rows[0];
 };

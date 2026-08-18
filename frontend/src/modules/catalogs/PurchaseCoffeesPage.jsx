@@ -1,7 +1,8 @@
-import { RefreshCw, Save, SlidersHorizontal } from "lucide-react";
+import { RefreshCw, Save, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 
 const initialForm = {
@@ -12,6 +13,7 @@ const initialForm = {
 };
 
 const PurchaseCoffeesPage = () => {
+  const { user } = useAuth();
   const [coffees, setCoffees] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedCoffee, setSelectedCoffee] = useState(null);
@@ -88,6 +90,30 @@ const PurchaseCoffeesPage = () => {
     }
   };
 
+  const deleteCoffee = async (coffee) => {
+    const confirmed = window.confirm(
+      `Vas a eliminar de raiz el perfil de compra "${coffee.name}". Si ya esta usado, el sistema lo bloqueara.`
+    );
+
+    if (!confirmed) return;
+
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/catalogs/purchase-coffees/${coffee.id}`, { method: "DELETE" });
+
+      if (selectedCoffee?.id === coffee.id) {
+        resetForm();
+      }
+
+      await loadCoffees();
+      setMessage("Perfil de compra eliminado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -141,13 +167,25 @@ const PurchaseCoffeesPage = () => {
                         </StatusBadge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
-                          onClick={() => selectCoffee(coffee)}
-                          type="button"
-                        >
-                          Editar
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                            onClick={() => selectCoffee(coffee)}
+                            type="button"
+                          >
+                            Editar
+                          </button>
+                          {user?.role === "admin" && (
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                              onClick={() => deleteCoffee(coffee)}
+                              type="button"
+                            >
+                              <Trash2 size={14} />
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

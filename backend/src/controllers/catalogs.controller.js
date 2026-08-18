@@ -2,6 +2,8 @@ import {
   createSimpleCatalogItem,
   createPurchaseCoffee,
   createCoffeeProfile,
+  deleteCoffeeProfile,
+  deletePurchaseCoffee,
   ensureRequiredCatalogs,
   listCatalog,
   listCoffeeProfilesForAdmin,
@@ -273,6 +275,32 @@ export const putPurchaseCoffee = async (req, res) => {
   }
 };
 
+export const deletePurchaseCoffeeById = async (req, res) => {
+  try {
+    const coffee = await deletePurchaseCoffee(req.params.id);
+
+    if (!coffee) {
+      return res.status(404).json({ message: "Perfil de compra no encontrado" });
+    }
+
+    res.json({
+      message: "Perfil de compra eliminado correctamente",
+      data: coffee,
+    });
+  } catch (error) {
+    if (error.code === "23503") {
+      return res.status(409).json({
+        message: "No se puede eliminar este perfil de compra porque ya esta usado en lotes, procesos o perfiles de venta. Puede marcarlo como inactivo.",
+      });
+    }
+
+    res.status(500).json({
+      message: "Error al eliminar perfil de compra",
+      error: error.message,
+    });
+  }
+};
+
 const toNumber = (value) => {
   if (value === undefined || value === null || value === "") {
     return null;
@@ -500,6 +528,32 @@ export const postCoffeeProfile = async (req, res) => {
 
     res.status(500).json({
       message: "Error al crear perfil comercial",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteCoffeeProfileById = async (req, res) => {
+  try {
+    const profile = await deleteCoffeeProfile(req.params.id);
+
+    if (!profile) {
+      return res.status(404).json({ message: "Perfil de venta no encontrado" });
+    }
+
+    res.json({
+      message: "Perfil de venta eliminado correctamente",
+      data: profile,
+    });
+  } catch (error) {
+    if (error.code === "23503") {
+      return res.status(409).json({
+        message: "No se puede eliminar este perfil de venta porque ya esta usado en lotes, cotizaciones, ventas, muestras o procesos. Puede marcarlo como inactivo.",
+      });
+    }
+
+    res.status(500).json({
+      message: "Error al eliminar perfil de venta",
       error: error.message,
     });
   }
