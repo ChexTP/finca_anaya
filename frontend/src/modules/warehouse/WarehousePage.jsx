@@ -101,6 +101,10 @@ export const getWarehouseItemLabel = (item) => {
   return item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code || "Producto";
 };
 
+const getWarehouseFinalItemLabel = (item) => {
+  return item.description || item.coffee_profile_name || item.coffee_type_name || item.variety || item.lot_code || "Producto";
+};
+
 export const getWarehouseItemComponentSummary = (item) => {
   const primaryComponent = getProfilePrimaryComponent(item);
   const parts = [];
@@ -120,14 +124,14 @@ export const buildWarehouseOrderHtml = (sale) => {
   const productRows = sale.items
     ?.map(
       (item) => {
-        const itemLabel = getWarehouseItemLabel(item);
+        const itemLabel = getWarehouseFinalItemLabel(item);
         const componentSummary = getWarehouseItemComponentSummary(item);
         const processSummary = [item.process_type, item.variety].filter(Boolean).join(" - ");
 
         return `
         <tr>
           <td>${printable(itemLabel)}</td>
-          <td>${[item.product_form ? `<strong>${printable(item.product_form)}</strong>` : "", printable(processSummary, ""), componentSummary, item.item_assignee ? `<strong>Encargado:</strong> ${printable(item.item_assignee)}` : ""].filter(Boolean).join("<br>") || "-"}</td>
+          <td>${[item.product_form ? `<strong>Entrega en ${printable(item.product_form)}</strong>` : "", printable(processSummary, ""), componentSummary, item.item_assignee ? `<strong>Encargado:</strong> ${printable(item.item_assignee)}` : ""].filter(Boolean).join("<br>") || "-"}</td>
           <td>${formatOperationalKg(item.quantity_kg)}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${formatOperationalKg(item.operational_weight_kg)}</span>` : ""}</td>
           <td></td>
         </tr>
@@ -143,8 +147,9 @@ export const buildWarehouseOrderHtml = (sale) => {
         <section class="lot-block">
           <div class="lot-head">
             <div>
-              <h3>${printable(getWarehouseItemLabel(item))}</h3>
-              <p><strong>${printable(item.product_form || "Presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
+              <p class="item-eyebrow">Producto final</p>
+              <h3>${printable(getWarehouseFinalItemLabel(item))}</h3>
+              <p><strong>Entrega en ${printable(item.product_form || "presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
               ${item.item_assignee ? `<p><strong>Encargado:</strong> ${printable(item.item_assignee)}</p>` : ""}
             </div>
             <strong>Mezcla final</strong>
@@ -232,8 +237,9 @@ export const buildWarehouseOrderHtml = (sale) => {
           <div class="item-title">
             <div>
               <p class="item-eyebrow">Item ${index + 1} de la venta</p>
-              <h3>${printable(getWarehouseItemLabel(item))}</h3>
-              <p><strong>${printable(item.product_form || "Presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
+              <h3>Pedido: ${printable(getWarehouseFinalItemLabel(item))}</h3>
+              <p><strong>Entrega en ${printable(item.product_form || "presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
+              ${getWarehouseItemComponentSummary(item) ? `<p class="muted">${getWarehouseItemComponentSummary(item)}</p>` : ""}
               ${item.item_assignee ? `<p><strong>Encargado item:</strong> ${printable(item.item_assignee)}</p>` : ""}
             </div>
             <strong>${formatOperationalKg(itemLots.reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0))} reservado</strong>
