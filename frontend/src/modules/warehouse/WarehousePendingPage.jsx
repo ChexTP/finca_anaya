@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Truck } from "lucide-react";
+import { AlertTriangle, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Truck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -1234,7 +1234,7 @@ const WarehousePendingPage = () => {
         </label>
       </div>
 
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(440px,560px)]">
+      <div className="grid min-w-0 gap-5">
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Ordenes por hacer</h2>
@@ -1299,8 +1299,31 @@ const WarehousePendingPage = () => {
           )}
         </div>
 
-        <aside className="min-w-0 rounded border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-slate-800">Detalle operativo</h2>
+        {(selectedSale || loadingDetail) && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-3 sm:p-6">
+            <aside className="my-4 w-full max-w-7xl overflow-hidden rounded border border-slate-200 bg-white shadow-2xl">
+              <div className="sticky top-0 z-10 flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-800">Detalle operativo</h2>
+                  {selectedSale && (
+                    <p className="text-sm text-slate-500">
+                      {selectedSale.code} · {selectedSale.client_name}
+                    </p>
+                  )}
+                </div>
+                <button
+                  className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={() => {
+                    setSelectedSale(null);
+                    setLoadingDetail(false);
+                  }}
+                >
+                  <X size={16} />
+                  Cerrar
+                </button>
+              </div>
+              <div className="max-h-[calc(100vh-9rem)] overflow-y-auto p-4 sm:p-5">
           {loadingDetail ? (
             <p className="mt-3 text-sm text-slate-500">Cargando orden...</p>
           ) : !selectedSale ? (
@@ -1676,7 +1699,10 @@ const WarehousePendingPage = () => {
               </div>
             </div>
           )}
-        </aside>
+              </div>
+            </aside>
+          </div>
+        )}
       </div>
     </section>
   );
