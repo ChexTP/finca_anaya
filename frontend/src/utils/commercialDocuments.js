@@ -175,6 +175,35 @@ const formatTermValue = (value, fallback, language) => {
   return englishTermTranslations[term] || term;
 };
 
+const englishCommercialTranslations = {
+  Excelso: "Green bean",
+  Pergamino: "Parchment coffee",
+  "Al vacio": "Vacuum",
+  "Empaque tradicional": "Traditional packaging",
+  "Pergamino tradicional": "Traditional parchment coffee",
+  Lavado: "Washed",
+  Natural: "Natural",
+  Semilavado: "Semi-washed",
+  Honey: "Honey",
+};
+
+const formatCommercialValue = (value, language) => {
+  if (language !== "en") return printable(value);
+
+  return printable(englishCommercialTranslations[value] || value);
+};
+
+const formatPresentation = ({ productForm, packaging }, language) => {
+  if (language !== "en") {
+    return printable([productForm, packaging].filter(Boolean).join(" - "));
+  }
+
+  const translatedProductForm = englishCommercialTranslations[productForm] || productForm;
+  const translatedPackaging = englishCommercialTranslations[packaging] || packaging;
+
+  return printable([translatedProductForm, translatedPackaging].filter(Boolean).join(" - "));
+};
+
 const formatItemUnitPrice = (currency, item) => {
   const basis = item.priceBasis || item.pricingSnapshot?.priceBasis || item.pricing_snapshot?.priceBasis || "kg";
   const suffix = currency === "USD" && basis === "lb" ? "/LB" : "/KG";
@@ -214,13 +243,16 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
     ?.map((item) => {
       const description = item.description || item.coffeeProfile || item.coffeeType || item.lotCode || "-";
       const itemPackaging = item.pricingSnapshot?.packaging || item.pricing_snapshot?.packaging || item.packaging;
-      const presentation = [item.productForm, itemPackaging].filter(Boolean).join(" - ");
+      const presentation = formatPresentation({
+        productForm: item.productForm,
+        packaging: itemPackaging,
+      }, language);
       return `
         <tr>
           <td>Anaya</td>
-          <td><strong>${escapeHtml(printable(presentation))}</strong></td>
+          <td><strong>${escapeHtml(presentation)}</strong></td>
           <td>${escapeHtml(printable(description))}</td>
-          <td>${escapeHtml(printable(item.processType))}</td>
+          <td>${escapeHtml(formatCommercialValue(item.processType, language))}</td>
           ${showUnitPrice ? `<td>${formatItemUnitPrice(currency, item)}</td>` : ""}
           ${showQuantityAndTotal ? `<td>${escapeHtml(formatRequestedKg(item.quantityKg, {
             locale: language === "en" ? "en-US" : "es-CO",
@@ -423,10 +455,10 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
   const priceHeader = currency === "USD" ? "PRECIO LB USD" : "PRECIO KG COP";
   const rows = items.map((item) => `
     <tr>
-      <td>${escapeHtml(printable(item.productForm))}</td>
+      <td>${escapeHtml(formatCommercialValue(item.productForm, language))}</td>
       <td>${escapeHtml(printable(item.name))}</td>
-      <td>${escapeHtml(printable(item.processType))}</td>
-      <td>${escapeHtml(printable(item.packaging || ""))}</td>
+      <td>${escapeHtml(formatCommercialValue(item.processType, language))}</td>
+      <td>${escapeHtml(formatCommercialValue(item.packaging || "", language))}</td>
       <td>${currency === "USD" ? `USD ${Number(item.usdLbExw || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : formatDocumentMoney("COP", item.kgVacuumPriceCop)}</td>
     </tr>
   `).join("");
