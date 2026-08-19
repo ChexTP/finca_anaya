@@ -1087,16 +1087,16 @@ ON CONFLICT (name) DO NOTHING;
 
   UPDATE quote_items
 SET operational_weight_kg = CASE
-  WHEN product_form = 'Pergamino' AND process_type = 'Natural' THEN CEIL(quantity_kg * 140 / 70)
-  WHEN product_form = 'Pergamino' AND process_type = 'Lavado' THEN CEIL(quantity_kg * 95 / 70)
+  WHEN product_form = 'Excelso' AND process_type = 'Natural' THEN CEIL(quantity_kg * 140 / 70)
+  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN CEIL(quantity_kg * 95 / 70)
   ELSE CEIL(quantity_kg)
 END
 WHERE operational_weight_kg IS NULL;
 
 UPDATE sale_items
 SET operational_weight_kg = CASE
-  WHEN product_form = 'Pergamino' AND process_type = 'Natural' THEN CEIL(quantity_kg * 140 / 70)
-  WHEN product_form = 'Pergamino' AND process_type = 'Lavado' THEN CEIL(quantity_kg * 95 / 70)
+  WHEN product_form = 'Excelso' AND process_type = 'Natural' THEN CEIL(quantity_kg * 140 / 70)
+  WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN CEIL(quantity_kg * 95 / 70)
   ELSE CEIL(quantity_kg)
 END
 WHERE operational_weight_kg IS NULL;

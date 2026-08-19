@@ -5,8 +5,8 @@ import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 
 const requiredSaleItemKgSql = `
   CASE
-    WHEN sale_items.product_form = 'Pergamino' AND sale_items.process_type = 'Natural' THEN CEIL(sale_items.quantity_kg * 140 / 70)
-    WHEN sale_items.product_form = 'Pergamino' AND sale_items.process_type = 'Lavado' THEN CEIL(sale_items.quantity_kg * 95 / 70)
+    WHEN sale_items.product_form = 'Excelso' AND sale_items.process_type = 'Natural' THEN CEIL(sale_items.quantity_kg * 140 / 70)
+    WHEN sale_items.product_form = 'Excelso' AND sale_items.process_type = 'Lavado' THEN CEIL(sale_items.quantity_kg * 95 / 70)
     ELSE CEIL(sale_items.quantity_kg)
   END
 `;

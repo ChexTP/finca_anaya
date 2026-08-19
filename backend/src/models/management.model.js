@@ -33,13 +33,13 @@ const parseBenefitFromName = (value) => {
 };
 
 // Replica la regla operativa acordada para compras/procesos.
-// Excelso se separa igual al pedido; Pergamino se estima con conversion y se redondea hacia arriba.
+// Pergamino se separa igual al pedido; Excelso se estima desde pergamino y se redondea hacia arriba.
 const calculateExcelsoRequiredKg = ({ requestedKg, benefit, productForm }) => {
   const kg = Number(requestedKg || 0);
   const form = normalizeUpper(productForm);
   const normalizedBenefit = normalizeUpper(benefit);
 
-  if (!form.includes("PERGAMINO")) return Math.ceil(kg - Number.EPSILON);
+  if (!form.includes("EXCELSO")) return Math.ceil(kg - Number.EPSILON);
 
   if (normalizedBenefit.includes("NATURAL")) {
     return Math.ceil((kg * 140 / 70) - Number.EPSILON);

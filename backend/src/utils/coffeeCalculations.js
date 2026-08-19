@@ -9,7 +9,7 @@ export const calculateOperationalKg = ({ quantityKg, productForm, processType })
     return 0;
   }
 
-  if (form !== "PERGAMINO") {
+  if (form !== "EXCELSO") {
     return Math.ceil(kg - Number.EPSILON);
   }
 
