@@ -1,4 +1,5 @@
 import { companyBrand, getPrintableLogo } from "./brand";
+import { printHtmlDocument } from "./printHtml";
 import { printable } from "./printFormatting";
 
 const escapeHtml = (value) => String(value ?? "")
@@ -427,14 +428,7 @@ export const buildPurchaseOrderHtml = (payable) => {
 };
 
 export const openPurchaseOrderPrint = (payable) => {
-  const printWindow = window.open("", "_blank");
-
-  if (!printWindow) {
-    throw new Error("El navegador bloqueo la ventana de impresion.");
-  }
-
-  printWindow.document.write(buildPurchaseOrderHtml(payable));
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  printHtmlDocument(buildPurchaseOrderHtml(payable), {
+    title: payable?.code || "Orden de compra",
+  });
 };

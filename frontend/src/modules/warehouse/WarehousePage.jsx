@@ -9,6 +9,7 @@ import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { readImageFileAsDataUrl } from "../../utils/files";
+import { printHtmlDocument } from "../../utils/printHtml";
 import { printable } from "../../utils/printFormatting";
 
 const initialSupplier = {
@@ -979,17 +980,7 @@ const WarehousePage = () => {
       return;
     }
 
-    const printWindow = window.open("", "_blank");
-
-    if (!printWindow) {
-      setError("El navegador bloqueo la ventana de impresion.");
-      return;
-    }
-
-    printWindow.document.write(buildWarehouseOrderHtml(selectedSale));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    printHtmlDocument(buildWarehouseOrderHtml(selectedSale), { title: `Orden ${selectedSale.code}` });
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 

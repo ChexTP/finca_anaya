@@ -7,6 +7,7 @@ import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { readImageFileAsDataUrl } from "../../utils/files";
+import { printHtmlDocument } from "../../utils/printHtml";
 import { printable } from "../../utils/printFormatting";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
@@ -610,17 +611,7 @@ const SalesPage = () => {
       return;
     }
 
-    const printWindow = window.open("", "_blank");
-
-    if (!printWindow) {
-      setError("El navegador bloqueo la ventana de impresion.");
-      return;
-    }
-
-    printWindow.document.write(buildWarehouseOrderDocumentHtml(selectedSale));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    printHtmlDocument(buildWarehouseOrderDocumentHtml(selectedSale), { title: `Orden ${selectedSale.code}` });
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 

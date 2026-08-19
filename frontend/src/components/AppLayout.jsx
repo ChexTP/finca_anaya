@@ -45,7 +45,7 @@ const navigation = [
 
   { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Historico ordenes", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting"] },
+  { label: "Historico ordenes", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
 
   // Modulo contable desactivado: la empresa manejara pagos en su software contable externo.

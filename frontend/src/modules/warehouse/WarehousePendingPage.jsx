@@ -7,6 +7,7 @@ import { apiRequest } from "../../utils/api";
 import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import { readImageFileAsDataUrl } from "../../utils/files";
+import { printHtmlDocument } from "../../utils/printHtml";
 import {
   getSaleNextAction,
   getSaleStatusTone,
@@ -1163,16 +1164,7 @@ const WarehousePendingPage = () => {
       return;
     }
 
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      setError("El navegador bloqueo la ventana de impresion.");
-      return;
-    }
-
-    printWindow.document.write(buildWarehouseOrderHtml(selectedSale));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    printHtmlDocument(buildWarehouseOrderHtml(selectedSale), { title: `Orden ${selectedSale.code}` });
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 

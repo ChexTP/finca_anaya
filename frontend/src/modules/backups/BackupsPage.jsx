@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import { apiRequest, getToken } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { printHtmlDocument } from "../../utils/printHtml";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
@@ -135,28 +136,6 @@ const BackupsPage = () => {
       return;
     }
 
-    const popup = window.open("", "_blank");
-
-    if (!popup) {
-      setError("El navegador bloqueo la ventana del PDF. Permite ventanas emergentes para esta pagina.");
-      return;
-    }
-
-    popup.document.write(`
-      <html>
-        <head>
-          <title>Generando PDF</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 32px; color: #111827; }
-          </style>
-        </head>
-        <body>
-          <p>Generando PDF de ${escapeHtml(selectedLabel)}...</p>
-        </body>
-      </html>
-    `);
-    popup.document.close();
-
     setDownloading(true);
     setMessage("");
     setError("");
@@ -173,8 +152,7 @@ const BackupsPage = () => {
 
       const headers = Object.keys(rows[0] || {});
 
-      popup.document.open();
-      popup.document.write(`
+      printHtmlDocument(`
         <html>
           <head>
             <title>Backup ${selectedLabel}</title>
@@ -213,15 +191,9 @@ const BackupsPage = () => {
                 `).join("")}
               </tbody>
             </table>
-            <script>
-              window.onload = () => {
-                window.print();
-              };
-            </script>
           </body>
         </html>
-      `);
-      popup.document.close();
+      `, { title: `Backup ${selectedLabel}` });
 
       await loadData();
       setMessage(`PDF de ${selectedLabel} generado correctamente.`);

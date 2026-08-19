@@ -1,5 +1,6 @@
 import { companyBrand, getPrintableLogo } from "./brand";
 import { formatRequestedKg } from "./coffeeCalculations";
+import { printHtmlDocument } from "./printHtml";
 import { printable } from "./printFormatting";
 
 export const formatDocumentMoney = (currency, value) => {
@@ -434,16 +435,9 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
 };
 
 export const openCommercialDocumentPrint = (document, options = {}) => {
-  const printWindow = window.open("", "_blank");
-
-  if (!printWindow) {
-    throw new Error("El navegador bloqueo la ventana de impresion.");
-  }
-
-  printWindow.document.write(buildCommercialDocumentHtml(document, options));
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  printHtmlDocument(buildCommercialDocumentHtml(document, options), {
+    title: document.code || "Documento comercial",
+  });
 };
 
 export const buildPriceListDocumentHtml = ({ client, currency = "COP", language = "es", terms = {}, items = [] }) => {
@@ -526,14 +520,7 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
 };
 
 export const openPriceListDocumentPrint = (document) => {
-  const printWindow = window.open("", "_blank");
-
-  if (!printWindow) {
-    throw new Error("El navegador bloqueo la ventana de impresion.");
-  }
-
-  printWindow.document.write(buildPriceListDocumentHtml(document));
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  printHtmlDocument(buildPriceListDocumentHtml(document), {
+    title: document.code || "Lista de precios",
+  });
 };

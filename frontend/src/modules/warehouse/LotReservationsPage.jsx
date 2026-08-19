@@ -7,6 +7,7 @@ import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption } from "../../utils/coffeeLots";
+import { printHtmlDocument } from "../../utils/printHtml";
 import { formatDate } from "./WarehousePage";
 import { saleStatusLabels, getSaleStatusTone } from "../../utils/workflow";
 import { useEffect, useMemo, useState } from "react";
@@ -230,9 +231,6 @@ const getEstimatedProcessParts = (estimatedParts) => {
 };
 
 const printRows = ({ title, headers, rows, summary }) => {
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) return false;
-
   const tableRows = rows
     .map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ""}</td>`).join("")}</tr>`)
     .join("");
@@ -242,7 +240,7 @@ const printRows = ({ title, headers, rows, summary }) => {
     .join("");
   const summaryHeaders = summary?.headers?.map((header) => `<th>${header}</th>`).join("");
 
-  printWindow.document.write(`
+  printHtmlDocument(`
     <html>
       <head>
         <title>${title}</title>
@@ -285,10 +283,7 @@ const printRows = ({ title, headers, rows, summary }) => {
         ` : ""}
       </body>
     </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  `, { title });
   return true;
 };
 

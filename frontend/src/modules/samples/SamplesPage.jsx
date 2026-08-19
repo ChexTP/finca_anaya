@@ -1,10 +1,11 @@
-import { Edit, Eye, FlaskConical, ImagePlus, Plus, Printer, RefreshCw, Save, Trash2, XCircle } from "lucide-react";
+import { Edit, Eye, FlaskConical, ImagePlus, Plus, Printer, RefreshCw, Save, Trash2, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { printHtmlDocument } from "../../utils/printHtml";
 import { printable } from "../../utils/printFormatting";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -364,6 +365,7 @@ const SamplesPage = () => {
   const [sampleFilter, setSampleFilter] = useState("all");
   const [saving, setSaving] = useState(false);
   const [uploadingGuideId, setUploadingGuideId] = useState(null);
+  const [guidePreview, setGuidePreview] = useState(null);
   const [blendSampleId, setBlendSampleId] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
 
@@ -645,28 +647,7 @@ const SamplesPage = () => {
 
   const viewShippingGuide = (sample) => {
     if (!sample.shipping_guide_image) return;
-
-    const win = window.open("", "_blank", "noopener,noreferrer");
-    if (!win) {
-      setError("El navegador bloqueo la ventana para ver la guia.");
-      return;
-    }
-
-    win.document.write(`
-      <html>
-        <head>
-          <title>Guia de envio ${sample.code}</title>
-          <style>
-            body { margin: 0; background: #111827; display: grid; place-items: center; min-height: 100vh; }
-            img { max-width: 100%; max-height: 100vh; object-fit: contain; background: white; }
-          </style>
-        </head>
-        <body>
-          <img src="${sample.shipping_guide_image}" alt="Guia de envio ${sample.code}" />
-        </body>
-      </html>
-    `);
-    win.document.close();
+    setGuidePreview(sample);
   };
 
   const openBlendEditor = (sample) => {
@@ -744,16 +725,7 @@ const SamplesPage = () => {
   };
 
   const printSampleOrder = (sample) => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      setError("El navegador bloqueo la ventana de impresion.");
-      return;
-    }
-
-    printWindow.document.write(buildSampleOrderHtml(sample));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    printHtmlDocument(buildSampleOrderHtml(sample), { title: `Orden ${sample.code}` });
     setMessage("Orden de muestra abierta para imprimir o guardar como PDF.");
   };
 
@@ -1324,6 +1296,34 @@ const SamplesPage = () => {
           )}
         </div>
       </div>
+
+      {guidePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="font-semibold text-ink">Guia de envio {guidePreview.code}</p>
+                <p className="text-xs text-slate-500">{guidePreview.shipping_guide_file_name || "Imagen asociada"}</p>
+              </div>
+              <button
+                className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => setGuidePreview(null)}
+                type="button"
+              >
+                <X size={16} />
+                Cerrar
+              </button>
+            </div>
+            <div className="min-h-0 overflow-auto bg-slate-950 p-3">
+              <img
+                className="mx-auto max-h-[78vh] max-w-full object-contain"
+                src={guidePreview.shipping_guide_image}
+                alt={`Guia de envio ${guidePreview.code}`}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

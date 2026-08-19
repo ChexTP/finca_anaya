@@ -1,4 +1,4 @@
-import { Download, Eye, Printer, RefreshCw } from "lucide-react";
+import { Download, Eye, Printer, RefreshCw, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -38,6 +38,7 @@ const SalesHistoryPage = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState(null);
   const canEditCodes = ["admin", "accounting"].includes(user?.role);
 
   const loadSales = async () => {
@@ -137,30 +138,7 @@ const SalesHistoryPage = () => {
 
   const viewDispatchReceipt = (sale) => {
     if (!sale.dispatch_receipt_image) return;
-
-    const win = window.open("", "_blank", "noopener,noreferrer");
-    if (!win) {
-      setError("El navegador bloqueo la ventana para ver el recibo.");
-      return;
-    }
-
-    win.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Recibo de despacho ${sale.code}</title>
-          <style>
-            body { margin: 0; background: #111827; display: grid; place-items: center; min-height: 100vh; }
-            img { max-width: 100%; max-height: 100vh; object-fit: contain; background: white; }
-          </style>
-        </head>
-        <body>
-          <img src="${sale.dispatch_receipt_image}" alt="Recibo de despacho ${sale.code}" />
-        </body>
-      </html>
-    `);
-    win.document.close();
+    setReceiptPreview(sale);
   };
 
   return (
@@ -352,6 +330,34 @@ const SalesHistoryPage = () => {
           )}
         </div>
       </div>
+
+      {receiptPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="font-semibold text-ink">Recibo de despacho {receiptPreview.code}</p>
+                <p className="text-xs text-slate-500">{receiptPreview.dispatch_receipt_file_name || "Imagen asociada"}</p>
+              </div>
+              <button
+                className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => setReceiptPreview(null)}
+                type="button"
+              >
+                <X size={16} />
+                Cerrar
+              </button>
+            </div>
+            <div className="min-h-0 overflow-auto bg-slate-950 p-3">
+              <img
+                className="mx-auto max-h-[78vh] max-w-full object-contain"
+                src={receiptPreview.dispatch_receipt_image}
+                alt={`Recibo de despacho ${receiptPreview.code}`}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

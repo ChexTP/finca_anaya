@@ -284,6 +284,7 @@ export const findSaleById = async (id) => {
 
       return {
         ...item,
+        operational_weight_kg: requiredKg,
         blend_items: blendItemsBySaleItem[item.id] || [],
         assigned_lots: assignedLots,
         reserved_kg: Number(reservedKg.toFixed(3)),
@@ -1404,7 +1405,11 @@ export const convertQuoteToSale = async ({
           item.process_type,
           item.variety,
           item.quantity_kg,
-          item.operational_weight_kg,
+          calculateOperationalKg({
+            quantityKg: item.quantity_kg,
+            productForm: item.product_form,
+            processType: item.process_type,
+          }),
           item.unit_price,
           item.line_total,
         ]

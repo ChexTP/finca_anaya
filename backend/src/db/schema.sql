@@ -1091,7 +1091,7 @@ SET operational_weight_kg = CASE
   WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN CEIL(quantity_kg * 95 / 70)
   ELSE CEIL(quantity_kg)
 END
-WHERE operational_weight_kg IS NULL;
+;
 
 UPDATE sale_items
 SET operational_weight_kg = CASE
@@ -1099,7 +1099,7 @@ SET operational_weight_kg = CASE
   WHEN product_form = 'Excelso' AND process_type = 'Lavado' THEN CEIL(quantity_kg * 95 / 70)
   ELSE CEIL(quantity_kg)
 END
-WHERE operational_weight_kg IS NULL;
+;
 
 CREATE TABLE IF NOT EXISTS backup_exports (
   id SERIAL PRIMARY KEY,

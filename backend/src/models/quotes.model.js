@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 import { advanceCounterFromCode, getNextCode } from "./codeCounters.model.js";
 
 export const getNextQuoteCode = async () => {
@@ -328,7 +329,11 @@ const syncSaleFromQuote = async (client, quote, quoteItems) => {
         item.process_type,
         item.variety,
         item.quantity_kg,
-        item.operational_weight_kg,
+        calculateOperationalKg({
+          quantityKg: item.quantity_kg,
+          productForm: item.product_form,
+          processType: item.process_type,
+        }),
         item.unit_price,
         item.line_total,
       ]
