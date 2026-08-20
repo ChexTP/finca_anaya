@@ -27,15 +27,24 @@ import codeCountersRoutes from "./routes/codeCounters.routes.js";
 
 const app = express();
 
+const corsOptions = {
+  origin(origin, callback) {
+    // Las peticiones internas, health checks y herramientas sin Origin deben pasar.
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`Origen no permitido por CORS: ${origin}`));
+  },
+  credentials: true,
+};
+
 app.use(morgan("dev"));
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(requestDebugLogger);
 app.use(express.json({ limit: "6mb" }));
-app.use(
-  cors({
-    origin: ALLOWED_ORIGINS,
-    credentials: true,
-  })
-);
 
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
