@@ -3,6 +3,11 @@ import { getNextCode, reserveNextCodes } from "./codeCounters.model.js";
 
 const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
 
+const getOutputPresentationForProcess = (processType, presentation) => {
+  if (processType === "Trilladora") return "Excelso";
+  return presentation || "Excelso";
+};
+
 export const getNextProcessCode = async () => {
   return getNextCode({ prefix: "PRO", tableName: "coffee_processes" });
 };
@@ -660,7 +665,7 @@ export const completeProcessPhysicalReview = async ({
           [
             code,
             output.coffee_profile_id,
-            output.presentation || "Excelso",
+            getOutputPresentationForProcess(process.process_type, output.presentation),
             output.output_weight_kg,
             [
               `Lote generado por ${process.process_type} ${process.code}`,

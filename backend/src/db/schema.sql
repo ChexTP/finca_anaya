@@ -386,6 +386,37 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS farm_shipments (
+  id SERIAL PRIMARY KEY,
+  lot_id INTEGER REFERENCES coffee_lots(id),
+  lot_code VARCHAR(30) NOT NULL,
+  supplier_name VARCHAR(150),
+  presentation VARCHAR(80),
+  lot_kind VARCHAR(20),
+  commercial_classification VARCHAR(30),
+  coffee_type_name VARCHAR(120),
+  coffee_profile_name VARCHAR(120),
+  coffee_variety VARCHAR(120),
+  quantity_kg NUMERIC(12, 3) NOT NULL,
+  humidity_percent NUMERIC(5, 2),
+  performance_factor NUMERIC(8, 2),
+  lab_aroma TEXT,
+  lab_flavor TEXT,
+  lab_sweetness TEXT,
+  lab_body TEXT,
+  lab_residual TEXT,
+  lab_clean_cup TEXT,
+  lab_score NUMERIC(8, 2),
+  lab_notes TEXT,
+  shipped_by INTEGER REFERENCES users(id),
+  shipped_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT farm_shipments_quantity_check CHECK (quantity_kg > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_farm_shipments_lot_id ON farm_shipments(lot_id);
+CREATE INDEX IF NOT EXISTS idx_farm_shipments_shipped_at ON farm_shipments(shipped_at);
+
 CREATE TABLE IF NOT EXISTS coffee_processes (
   id SERIAL PRIMARY KEY,
   code VARCHAR(30) UNIQUE NOT NULL,

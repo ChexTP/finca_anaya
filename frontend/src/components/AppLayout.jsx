@@ -30,11 +30,13 @@ const navigation = [
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Liquidaciones", path: "/liquidaciones", icon: ReceiptText, roles: ["admin", "accounting"] },
   { label: "Salidas a muestras", path: "/inventario/muestras", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Lotes en finca", path: "/inventario/finca", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "warehouse"] },
 
-  { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse", "laboratory"] },
+  // Flujo anterior de procesos oculto del menu; se conserva la ruta/codigo por si se reactiva mas adelante.
+  // { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse", "laboratory"] },
   { label: "Trilladora", path: "/trilladora", icon: Coffee, roles: ["admin", "warehouse"] },
   { label: "Seleccionadora", path: "/seleccionadora", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },

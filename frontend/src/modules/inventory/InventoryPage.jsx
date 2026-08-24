@@ -1,4 +1,4 @@
-import { Edit3, FileText, RefreshCw, Save, X } from "lucide-react";
+import { Edit3, FileText, RefreshCw, Save, Send, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -9,6 +9,7 @@ import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
+import { printHtmlDocument } from "../../utils/printHtml";
 
 const initialLiquidation = {
   orderCode: "",
@@ -79,6 +80,58 @@ const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 });
+
+const formatDateTime = (value) => (value ? new Date(value).toLocaleString("es-CO") : "-");
+
+const getShipmentCoffeeName = (shipment) => [
+  shipment.lot_code,
+  shipment.presentation,
+  shipment.coffee_profile_name || shipment.coffee_variety || shipment.commercial_classification,
+  shipment.coffee_type_name,
+  shipment.supplier_name,
+].filter(Boolean).join(" - ");
+
+const buildFarmShipmentHtml = (shipment) => `
+  <!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Envio a finca ${shipment.lot_code || ""}</title>
+      <style>
+        body { font-family: Arial, sans-serif; color: #0f172a; margin: 28px; }
+        h1 { font-size: 22px; margin: 0 0 6px; }
+        h2 { font-size: 15px; margin: 22px 0 8px; }
+        p { margin: 4px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #f1f5f9; }
+        .muted { color: #475569; }
+        .box { border: 1px solid #cbd5e1; padding: 12px; margin-top: 12px; }
+      </style>
+    </head>
+    <body>
+      <h1>Orden de envio a finca</h1>
+      <p class="muted">Fecha de envio: ${formatDateTime(shipment.shipped_at)}</p>
+      <div class="box">
+        <p><strong>Lote:</strong> ${shipment.lot_code || "-"}</p>
+        <p><strong>Cafe:</strong> ${getShipmentCoffeeName(shipment)}</p>
+        <p><strong>Proveedor:</strong> ${shipment.supplier_name || "-"}</p>
+        <p><strong>Cantidad enviada:</strong> ${formatKg(shipment.quantity_kg)}</p>
+        <p><strong>Enviado por:</strong> ${shipment.shipped_by_name || "-"}</p>
+      </div>
+      <h2>Datos de calidad del lote enviado</h2>
+      <table>
+        <tbody>
+          <tr><th>Humedad</th><td>${shipment.humidity_percent ?? "-"}%</td><th>Factor</th><td>${shipment.performance_factor ?? "-"}</td></tr>
+          <tr><th>Aroma</th><td>${shipment.lab_aroma || "-"}</td><th>Sabor</th><td>${shipment.lab_flavor || "-"}</td></tr>
+          <tr><th>Dulzor</th><td>${shipment.lab_sweetness || "-"}</td><th>Cuerpo</th><td>${shipment.lab_body || "-"}</td></tr>
+          <tr><th>Residual</th><td>${shipment.lab_residual || "-"}</td><th>Taza limpia</th><td>${shipment.lab_clean_cup || "-"}</td></tr>
+          <tr><th>Score</th><td>${shipment.lab_score ?? "-"}</td><th>Notas</th><td>${shipment.lab_notes || "-"}</td></tr>
+        </tbody>
+      </table>
+    </body>
+  </html>
+`;
 const formatMoney = (value) => `COP ${formatMoneyValue(value)}`;
 const toInputNumber = (value) => (value === null || value === undefined ? "" : value);
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
@@ -386,6 +439,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [lots, setLots] = useState([]);
   const [allLots, setAllLots] = useState([]);
   const [sampleOutputs, setSampleOutputs] = useState([]);
+  const [farmShipments, setFarmShipments] = useState([]);
   const [inProcessInventory, setInProcessInventory] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [pendingLiquidationLots, setPendingLiquidationLots] = useState([]);
@@ -418,6 +472,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [processCodeSearch, setProcessCodeSearch] = useState("");
   const [showInventoryEditModal, setShowInventoryEditModal] = useState(false);
   const [showLiquidationReviewModal, setShowLiquidationReviewModal] = useState(false);
+  const [farmShipmentLot, setFarmShipmentLot] = useState(null);
+  const [farmShipmentQuantity, setFarmShipmentQuantity] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -428,6 +484,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const canWithdrawInventory = user?.role === "admin";
   const isEditMode = mode === "edit";
   const isSampleOutputsMode = mode === "samples";
+  const isFarmShipmentsMode = mode === "farm";
   const isLiquidationsMode = mode === "liquidations";
 
   const loadData = async () => {
@@ -436,6 +493,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       apiRequest("/lots"),
       apiRequest("/inventory/in-process"),
       canAdjustInventory ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
+      canAdjustInventory ? apiRequest("/inventory/farm-shipments") : Promise.resolve([]),
     ];
 
     if (canRegisterPurchase || canEditCodes) {
@@ -462,11 +520,22 @@ const InventoryPage = ({ mode = "inventory" }) => {
       requests.push(Promise.resolve([]));
     }
 
-    const [availableData, allLots, inProcessData, sampleOutputData, catalogData, supplierData, processData, payableData] = await Promise.all(requests);
+    const [
+      availableData,
+      allLots,
+      inProcessData,
+      sampleOutputData,
+      farmShipmentData,
+      catalogData,
+      supplierData,
+      processData,
+      payableData,
+    ] = await Promise.all(requests);
     setLots((availableData || []).filter((lot) => lot.status !== "retirado"));
     setAllLots(allLots);
     setInProcessInventory(inProcessData || []);
     setSampleOutputs(sampleOutputData || []);
+    setFarmShipments(farmShipmentData || []);
     setPendingLiquidationLots(
       allLots.filter((lot) => lot.status === "pendiente_liquidacion")
     );
@@ -896,6 +965,63 @@ const InventoryPage = ({ mode = "inventory" }) => {
     }
   };
 
+  const openFarmShipmentModal = (lot) => {
+    setFarmShipmentLot(lot);
+    setFarmShipmentQuantity(lot.operational_available_kg ?? lot.available_weight_kg ?? "");
+    setMessage("");
+    setError("");
+  };
+
+  const closeFarmShipmentModal = () => {
+    setFarmShipmentLot(null);
+    setFarmShipmentQuantity("");
+  };
+
+  const registerFarmShipment = async (event) => {
+    event.preventDefault();
+
+    if (!farmShipmentLot) return;
+
+    const quantity = Number(farmShipmentQuantity);
+    const available = Number(farmShipmentLot.available_weight_kg || 0);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError("La cantidad para enviar a finca debe ser mayor a cero.");
+      return;
+    }
+
+    if (quantity > available) {
+      setError("La cantidad enviada a finca no puede superar el disponible fisico del lote.");
+      return;
+    }
+
+    if (!window.confirm(`Confirma enviar ${formatKg(quantity)} de ${formatCoffeeLotCodeName(farmShipmentLot)} a finca?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/inventory/lots/${farmShipmentLot.id}/farm-shipment`, {
+        method: "POST",
+        body: JSON.stringify({ quantityKg: quantity }),
+      });
+      closeFarmShipmentModal();
+      await loadData();
+      setMessage("Envio a finca registrado. El cafe salio del inventario y queda en el historico de finca.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const printFarmShipment = (shipment) => {
+    printHtmlDocument(buildFarmShipmentHtml(shipment), {
+      title: `Envio a finca ${shipment.lot_code || ""}`,
+    });
+  };
+
   const editLotCode = async (lot) => {
     const newCode = window.prompt(`Nuevo codigo para ${formatCoffeeLotCodeName(lot)}`, lot.code || "");
     if (newCode === null) return;
@@ -1248,6 +1374,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const totalSampleOutputsKg = sampleOutputs.reduce((total, movement) => total + Number(movement.quantity_kg || 0), 0);
+  const totalFarmShipmentsKg = farmShipments.reduce((total, shipment) => total + Number(shipment.quantity_kg || 0), 0);
   const getLotOriginLabel = (lot) => {
     if (!lot.origin_process_type) return null;
 
@@ -1305,11 +1432,13 @@ const InventoryPage = ({ mode = "inventory" }) => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">
-            {isSampleOutputsMode ? "Salidas a muestras" : isEditMode ? "Editar inventario" : isLiquidationsMode ? "Liquidaciones" : "Inventario"}
+            {isSampleOutputsMode ? "Salidas a muestras" : isFarmShipmentsMode ? "Lotes en finca" : isEditMode ? "Editar inventario" : isLiquidationsMode ? "Liquidaciones" : "Inventario"}
           </h1>
           <p className="text-sm text-slate-500">
             {isSampleOutputsMode
               ? "Cafe descontado del inventario para preparar muestras."
+              : isFarmShipmentsMode
+              ? "Cafe enviado a finca para regresar como proceso."
               : isEditMode
               ? "Busqueda y correccion de lotes, procesos, codigos, pesos y datos de laboratorio."
               : isLiquidationsMode
@@ -1367,6 +1496,72 @@ const InventoryPage = ({ mode = "inventory" }) => {
                         <td className="px-3 py-2">{formatKg(movement.quantity_kg)}</td>
                         <td className="px-3 py-2">{movement.notes || "-"}</td>
                         <td className="px-3 py-2">{movement.created_by_name || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isFarmShipmentsMode && (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase text-emerald-800">Total enviado a finca</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-900">{formatKg(totalFarmShipmentsKg)}</p>
+              <p className="mt-1 text-xs text-emerald-800">{farmShipments.length} envios registrados</p>
+            </div>
+          </div>
+          <div className="rounded border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <h2 className="text-sm font-semibold text-slate-800">Historico de lotes enviados a finca</h2>
+              <p className="mt-1 text-xs text-slate-500">Cafe que salio de inventario y debe regresar como proceso.</p>
+            </div>
+            {farmShipments.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="Sin envios a finca" message="Cuando bodega envie cafe a finca, el registro aparecera aqui." />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-100 text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Lote origen</th>
+                      <th className="px-3 py-2">Proveedor</th>
+                      <th className="px-3 py-2">Cafe enviado</th>
+                      <th className="px-3 py-2">Cantidad</th>
+                      <th className="px-3 py-2">Calidad</th>
+                      <th className="px-3 py-2">Accion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {farmShipments.map((shipment) => (
+                      <tr key={shipment.id}>
+                        <td className="px-3 py-2">{formatDateTime(shipment.shipped_at)}</td>
+                        <td className="px-3 py-2 font-semibold">{shipment.lot_code}</td>
+                        <td className="px-3 py-2">{shipment.supplier_name || "-"}</td>
+                        <td className="px-3 py-2">
+                          <p className="font-medium">{getShipmentCoffeeName(shipment)}</p>
+                          <p className="text-xs text-slate-500">Registrado por {shipment.shipped_by_name || "-"}</p>
+                        </td>
+                        <td className="px-3 py-2 font-semibold">{formatKg(shipment.quantity_kg)}</td>
+                        <td className="px-3 py-2">
+                          H {shipment.humidity_percent ?? "-"}% · Factor {shipment.performance_factor ?? "-"} · Score {shipment.lab_score ?? "-"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            className="inline-flex items-center gap-2 rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                            type="button"
+                            onClick={() => printFarmShipment(shipment)}
+                          >
+                            <FileText size={14} />
+                            PDF
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2149,7 +2344,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
         </>
       )}
 
-      {!isEditMode && !isSampleOutputsMode && !isLiquidationsMode && (
+      {!isEditMode && !isSampleOutputsMode && !isFarmShipmentsMode && !isLiquidationsMode && (
         <>
       {lots.length > 0 && (
         <div className="rounded border border-slate-200 bg-white p-4">
@@ -2394,6 +2589,15 @@ const InventoryPage = ({ mode = "inventory" }) => {
                         disabled={saving}
                       >
                         Sacar muestra
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1 rounded border border-emerald-300 px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                        type="button"
+                        onClick={() => openFarmShipmentModal(lot)}
+                        disabled={saving}
+                      >
+                        <Send size={14} />
+                        Enviar a finca
                       </button>
                     </div>
                   )}
@@ -3155,6 +3359,98 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
               <div className="rounded bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 Total pactado: <span className="font-bold text-ink">COP {liquidationTotal}</span>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {farmShipmentLot && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+          <form
+            className="my-6 w-full max-w-3xl rounded border border-emerald-200 bg-white shadow-xl"
+            onSubmit={registerFarmShipment}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-emerald-200 px-4 py-3">
+              <div>
+                <h2 className="text-base font-bold text-ink">Enviar lote a finca</h2>
+                <p className="text-sm text-slate-500">{formatCoffeeLotCodeName(farmShipmentLot)}</p>
+              </div>
+              <button
+                className="rounded border border-slate-300 p-2 text-slate-600 hover:bg-slate-50"
+                type="button"
+                onClick={closeFarmShipmentModal}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Disponible fisico</p>
+                  <p className="mt-1 text-lg font-bold text-ink">{formatKg(farmShipmentLot.available_weight_kg)}</p>
+                </div>
+                <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Libre operativo</p>
+                  <p className="mt-1 text-lg font-bold text-leaf">{formatKg(farmShipmentLot.operational_available_kg ?? farmShipmentLot.available_weight_kg)}</p>
+                </div>
+                <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Proveedor</p>
+                  <p className="mt-1 font-semibold text-ink">{farmShipmentLot.supplier_name || "-"}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded border border-slate-200 bg-white p-3 text-sm sm:grid-cols-2">
+                <p><span className="font-semibold">Presentacion:</span> {farmShipmentLot.presentation || "-"}</p>
+                <p><span className="font-semibold">Tipo:</span> {farmShipmentLot.coffee_type_name || "-"}</p>
+                <p><span className="font-semibold">Categoria:</span> {farmShipmentLot.commercial_classification || "-"}</p>
+                <p><span className="font-semibold">Cafe:</span> {farmShipmentLot.coffee_profile_name || farmShipmentLot.coffee_variety || "-"}</p>
+                <p><span className="font-semibold">Humedad:</span> {farmShipmentLot.humidity_percent ?? "-"}%</p>
+                <p><span className="font-semibold">Factor:</span> {farmShipmentLot.performance_factor ?? "-"}</p>
+                <p><span className="font-semibold">Score:</span> {farmShipmentLot.lab_score ?? "-"}</p>
+                <p><span className="font-semibold">Llegada:</span> {farmShipmentLot.received_at ? new Date(farmShipmentLot.received_at).toLocaleDateString("es-CO") : "-"}</p>
+              </div>
+
+              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-bold">Analisis de laboratorio</p>
+                <p className="mt-1">
+                  Aroma {farmShipmentLot.lab_aroma || "-"} · Sabor {farmShipmentLot.lab_flavor || "-"} · Dulzor {farmShipmentLot.lab_sweetness || "-"} · Cuerpo {farmShipmentLot.lab_body || "-"}
+                </p>
+                <p>
+                  Residual {farmShipmentLot.lab_residual || "-"} · Taza limpia {farmShipmentLot.lab_clean_cup || "-"}
+                </p>
+                {farmShipmentLot.lab_notes && <p className="mt-1">Notas: {farmShipmentLot.lab_notes}</p>}
+              </div>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Peso que se envia a finca kg</span>
+                <input
+                  className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  min="0"
+                  step="0.001"
+                  type="number"
+                  value={farmShipmentQuantity}
+                  onChange={(event) => setFarmShipmentQuantity(event.target.value)}
+                  required
+                />
+              </label>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={closeFarmShipmentModal}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving}
+                >
+                  <Send size={16} />
+                  Confirmar envio
+                </button>
               </div>
             </div>
           </form>

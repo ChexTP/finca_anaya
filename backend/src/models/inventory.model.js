@@ -209,6 +209,148 @@ export const listSampleInventoryOutputs = async () => {
   return result.rows;
 };
 
+export const listFarmShipments = async () => {
+  const result = await pool.query(
+    `
+    SELECT
+      farm_shipments.*,
+      users.name AS shipped_by_name
+    FROM farm_shipments
+    LEFT JOIN users ON users.id = farm_shipments.shipped_by
+    ORDER BY farm_shipments.shipped_at DESC, farm_shipments.id DESC
+    `
+  );
+
+  return result.rows;
+};
+
+export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const lotResult = await client.query(
+      `
+      SELECT
+        coffee_lots.*,
+        suppliers.name AS supplier_name,
+        coffee_types.name AS coffee_type_name,
+        coffee_profiles.name AS coffee_profile_name
+      FROM coffee_lots
+      LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
+      LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+      LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+      WHERE coffee_lots.id = $1
+      FOR UPDATE
+      `,
+      [lotId]
+    );
+    const lot = lotResult.rows[0];
+
+    if (!lot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (!["disponible", "vendido_parcial"].includes(lot.status)) {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot };
+    }
+
+    const currentAvailable = Number(lot.available_weight_kg || 0);
+
+    if (quantityKg > currentAvailable) {
+      await client.query("ROLLBACK");
+      return { negativeInventory: true, lot };
+    }
+
+    const newAvailable = Number((currentAvailable - quantityKg).toFixed(3));
+    const newStatus = newAvailable === 0 ? "agotado" : lot.status === "vendido_parcial" ? "vendido_parcial" : "disponible";
+
+    const shipmentResult = await client.query(
+      `
+      INSERT INTO farm_shipments (
+        lot_id,
+        lot_code,
+        supplier_name,
+        presentation,
+        lot_kind,
+        commercial_classification,
+        coffee_type_name,
+        coffee_profile_name,
+        coffee_variety,
+        quantity_kg,
+        humidity_percent,
+        performance_factor,
+        lab_aroma,
+        lab_flavor,
+        lab_sweetness,
+        lab_body,
+        lab_residual,
+        lab_clean_cup,
+        lab_score,
+        lab_notes,
+        shipped_by
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+      )
+      RETURNING *
+      `,
+      [
+        lot.id,
+        lot.code || `LOT-${lot.id}`,
+        lot.supplier_name,
+        lot.presentation,
+        lot.lot_kind,
+        lot.commercial_classification,
+        lot.coffee_type_name,
+        lot.coffee_profile_name,
+        lot.coffee_variety,
+        quantityKg,
+        lot.humidity_percent,
+        lot.performance_factor,
+        lot.lab_aroma,
+        lot.lab_flavor,
+        lot.lab_sweetness,
+        lot.lab_body,
+        lot.lab_residual,
+        lot.lab_clean_cup,
+        lot.lab_score,
+        lot.lab_notes,
+        userId,
+      ]
+    );
+
+    await client.query(
+      `
+      UPDATE coffee_lots
+      SET available_weight_kg = $1, status = $2, updated_at = NOW()
+      WHERE id = $3
+      `,
+      [newAvailable, newStatus, lot.id]
+    );
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'envio_finca', $2, $3, $4)
+      `,
+      [lot.id, quantityKg, `Cafe enviado a finca para regresar como proceso`, userId]
+    );
+
+    await client.query("COMMIT");
+    return shipmentResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const adjustLotInventory = async ({ lotId, adjustmentType, quantityKg, reason, userId }) => {
   return updateLotInventoryByMovement({
     lotId,

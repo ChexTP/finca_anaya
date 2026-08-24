@@ -4,8 +4,10 @@ import {
   listLotMovements,
   listInventoryInProcess,
   listSampleInventoryOutputs,
+  listFarmShipments,
   adjustLotInventory,
   registerSampleInventoryOutput,
+  sendLotToFarm,
 } from "../models/inventory.model.js";
 import { findLotById } from "../models/lots.model.js";
 
@@ -79,6 +81,18 @@ export const getSampleInventoryOutputs = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener salidas de cafe a muestras",
+      error: error.message,
+    });
+  }
+};
+
+export const getFarmShipments = async (req, res) => {
+  try {
+    const shipments = await listFarmShipments();
+    res.json(shipments);
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al obtener lotes enviados a finca",
       error: error.message,
     });
   }
@@ -198,6 +212,53 @@ export const postSampleInventoryOutput = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al registrar salida a muestras",
+      error: error.message,
+    });
+  }
+};
+
+export const postFarmShipment = async (req, res) => {
+  try {
+    const { quantityKg } = req.body;
+    const quantity = toNumber(quantityKg);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return res.status(400).json({
+        message: "La cantidad para enviar a finca debe ser mayor a cero",
+      });
+    }
+
+    const shipment = await sendLotToFarm({
+      lotId: req.params.lotId,
+      quantityKg: quantity,
+      userId: req.user.id,
+    });
+
+    if (!shipment) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (shipment.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se puede enviar a finca cafe disponible o vendido parcialmente",
+        data: shipment.lot,
+      });
+    }
+
+    if (shipment.negativeInventory) {
+      return res.status(409).json({
+        message: "La cantidad enviada a finca no puede superar el disponible del lote",
+        data: shipment.lot,
+      });
+    }
+
+    res.status(201).json({
+      message: "Envio a finca registrado correctamente",
+      data: shipment,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al registrar envio a finca",
       error: error.message,
     });
   }
