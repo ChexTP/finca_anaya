@@ -228,6 +228,30 @@ export const createQuote = async (quoteData) => {
   }
 };
 
+const ensureEditableSaleFromQuote = (sale) => {
+  if (sale && ["alistada", "despachada", "anulada"].includes(sale.status)) {
+    const error = new Error("La cotizacion ya tiene una venta alistada, despachada o anulada y no se puede sincronizar automaticamente");
+    error.statusCode = 409;
+    throw error;
+  }
+};
+
+const clearSaleItemsForQuoteSync = async (client, saleId) => {
+  // Antes de recrear items de cotizacion se eliminan las referencias de venta.
+  await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [saleId]);
+  await client.query(
+    `
+    DELETE FROM sale_item_lots
+    WHERE sale_item_id IN (
+      SELECT id FROM sale_items WHERE sale_id = $1
+    )
+    AND deducted_at IS NULL
+    `,
+    [saleId]
+  );
+  await client.query("DELETE FROM sale_items WHERE sale_id = $1", [saleId]);
+};
+
 const syncSaleFromQuote = async (client, quote, quoteItems) => {
   const saleResult = await client.query(
     "SELECT * FROM sales WHERE quote_id = $1 FOR UPDATE",
@@ -237,26 +261,11 @@ const syncSaleFromQuote = async (client, quote, quoteItems) => {
 
   if (!sale) return null;
 
-  if (["alistada", "despachada", "anulada"].includes(sale.status)) {
-    const error = new Error("La cotizacion ya tiene una venta alistada, despachada o anulada y no se puede sincronizar automaticamente");
-    error.statusCode = 409;
-    throw error;
-  }
+  ensureEditableSaleFromQuote(sale);
 
   // Al cambiar la cotizacion, las reservas y ensambles pendientes dejan de ser confiables.
   // Se limpian para que bodega trabaje otra vez con la orden actualizada.
-  await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [sale.id]);
-  await client.query(
-    `
-    DELETE FROM sale_item_lots
-    WHERE sale_item_id IN (
-      SELECT id FROM sale_items WHERE sale_id = $1
-    )
-    AND deducted_at IS NULL
-    `,
-    [sale.id]
-  );
-  await client.query("DELETE FROM sale_items WHERE sale_id = $1", [sale.id]);
+  await clearSaleItemsForQuoteSync(client, sale.id);
 
   const balanceDue = Number((Number(quote.total || 0) - Number(sale.amount_paid || 0)).toFixed(2));
   const paymentStatus = balanceDue <= 0
@@ -394,6 +403,17 @@ export const updateQuote = async (id, quoteData) => {
       return null;
     }
     await advanceCounterFromCode({ code: quote.code, client });
+
+    const saleResult = await client.query(
+      "SELECT * FROM sales WHERE quote_id = $1 FOR UPDATE",
+      [id]
+    );
+    const sale = saleResult.rows[0];
+    ensureEditableSaleFromQuote(sale);
+
+    if (sale) {
+      await clearSaleItemsForQuoteSync(client, sale.id);
+    }
 
     await client.query("DELETE FROM quote_items WHERE quote_id = $1", [id]);
 
