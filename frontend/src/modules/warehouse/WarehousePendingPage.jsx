@@ -53,6 +53,34 @@ const taskFilters = [
   { key: "dispatch", label: "Despachar" },
 ];
 
+const getAssignedLotSearchText = (sale) =>
+  (sale.assigned_lots_summary || [])
+    .flatMap((lot) => [
+      lot.lot_code,
+      lot.supplier_name,
+      lot.presentation,
+      lot.commercial_classification,
+      lot.coffee_type_name,
+      lot.coffee_profile_name,
+      lot.sale_item_description,
+      lot.sale_item_variety,
+      lot.notes,
+    ])
+    .filter(Boolean)
+    .join(" ");
+
+const getAssignedLotSummary = (sale) => {
+  const lots = sale.assigned_lots_summary || [];
+  if (lots.length === 0) return "Sin lotes";
+
+  const labels = lots.slice(0, 2).map((lot) => (
+    `${formatCoffeeLotCodeName(lot)} (${formatOperationalKg(lot.quantity_kg)})`
+  ));
+  const remaining = lots.length - labels.length;
+
+  return remaining > 0 ? `${labels.join(" / ")} / +${remaining} mas` : labels.join(" / ");
+};
+
 const itemAccentClasses = [
   "border-l-4 border-l-emerald-400 bg-emerald-50/30",
   "border-l-4 border-l-sky-400 bg-sky-50/30",
@@ -123,6 +151,7 @@ const WarehousePendingPage = () => {
           sale.warehouse_priority,
           sale.status,
           getSaleNextAction(sale),
+          getAssignedLotSearchText(sale),
           ...(sale.items || []).map((item) => getWarehouseItemLabel(item)),
         ]
           .filter(Boolean)
@@ -1205,7 +1234,7 @@ const WarehousePendingPage = () => {
       <div className="grid gap-3 rounded border border-slate-200 bg-white p-3 md:grid-cols-[minmax(0,1fr)_220px]">
         <input
           className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
-          placeholder="Buscar por venta, cliente, cafe, encargado o estado"
+          placeholder="Buscar por venta, cliente, cafe, lote asignado, proveedor, encargado o estado"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -1245,6 +1274,7 @@ const WarehousePendingPage = () => {
                     <th className="px-3 py-2">Entrega</th>
                     <th className="px-3 py-2">Prioridad</th>
                     <th className="px-3 py-2">Encargado</th>
+                    <th className="px-3 py-2">Lotes asignados</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Siguiente accion</th>
                     <th className="px-3 py-2">Accion</th>
@@ -1269,6 +1299,9 @@ const WarehousePendingPage = () => {
                         </StatusBadge>
                       </td>
                       <td className="px-3 py-2 text-slate-600">{sale.order_assignee || "-"}</td>
+                      <td className="max-w-xs px-3 py-2 text-xs text-slate-600">
+                        {getAssignedLotSummary(sale)}
+                      </td>
                       <td className="px-3 py-2">
                         <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
                       </td>

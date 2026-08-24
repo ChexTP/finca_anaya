@@ -47,11 +47,42 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
       sales.*,
       clients.name AS client_name,
       users.name AS seller_name,
-      quotes.code AS quote_code
+      quotes.code AS quote_code,
+      COALESCE(assigned_lots.lots, '[]'::json) AS assigned_lots_summary
     FROM sales
     INNER JOIN clients ON clients.id = sales.client_id
     INNER JOIN users ON users.id = sales.seller_id
     LEFT JOIN quotes ON quotes.id = sales.quote_id
+    LEFT JOIN LATERAL (
+      SELECT json_agg(
+        json_build_object(
+          'id', sale_item_lots.id,
+          'sale_item_id', sale_item_lots.sale_item_id,
+          'lot_id', sale_item_lots.lot_id,
+          'quantity_kg', sale_item_lots.quantity_kg,
+          'deducted_at', sale_item_lots.deducted_at,
+          'notes', sale_item_lots.notes,
+          'lot_code', coffee_lots.code,
+          'lot_kind', coffee_lots.lot_kind,
+          'presentation', coffee_lots.presentation,
+          'commercial_classification', coffee_lots.commercial_classification,
+          'supplier_name', suppliers.name,
+          'coffee_type_name', coffee_types.name,
+          'coffee_profile_name', coffee_profiles.name,
+          'sale_item_description', sale_items.description,
+          'sale_item_variety', sale_items.variety
+        )
+        ORDER BY sale_item_lots.id ASC
+      ) AS lots
+      FROM sale_item_lots
+      INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+      INNER JOIN coffee_lots ON coffee_lots.id = sale_item_lots.lot_id
+      LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
+      LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+      LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+      WHERE sale_items.sale_id = sales.id
+        AND sale_item_lots.deducted_at IS NULL
+    ) assigned_lots ON TRUE
     ${where}
     ORDER BY
       CASE sales.warehouse_priority
