@@ -531,6 +531,11 @@ export const updateLotAdminData = async (id, lotData) => {
         supplier_id = $1,
         coffee_type_id = $2,
         coffee_profile_id = $3,
+        status = CASE
+          WHEN $10 = 0 AND status IN ('disponible', 'vendido_parcial') THEN 'agotado'
+          WHEN $10 > 0 AND status = 'agotado' THEN 'disponible'
+          ELSE status
+        END,
         presentation = $4,
         lot_kind = $5,
         commercial_classification = $6,

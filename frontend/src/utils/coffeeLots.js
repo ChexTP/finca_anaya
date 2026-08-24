@@ -4,8 +4,12 @@ export const getCoffeeLotGroup = (lot) => {
   const presentation = lot.presentation || "Pergamino";
 
   if (lot.lot_kind === "PROC") return `${presentation} - Proceso - ${lot.coffee_profile_name || lot.coffee_variety || "Sin perfil"}`;
-  if (lot.lot_kind === "PASILLA") return `${presentation} - Pasillas`;
-  if (lot.lot_kind === "RECUPERACION") return `${presentation} - Recuperacion ${lot.coffee_type_name || ""}`.trim();
+  if (lot.lot_kind === "PASILLA") {
+    return `${presentation} - Pasillas ${lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name || ""}`.trim();
+  }
+  if (lot.lot_kind === "RECUPERACION") {
+    return `${presentation} - Recuperacion ${lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name || ""}`.trim();
+  }
 
   const category = lot.commercial_classification || "Sin categoria";
   const process = lot.coffee_type_name || "Sin proceso";
@@ -48,9 +52,9 @@ export const getCoffeeLotDescription = (lot) => {
   const descriptors = lot.lot_kind === "PROC"
     ? [presentation, lot.coffee_profile_name || "Cafe procesado", lot.commercial_classification !== "Procesado" ? lot.commercial_classification : "Procesado"]
     : lot.lot_kind === "PASILLA"
-      ? [presentation, "Pasilla", lot.coffee_type_name]
+      ? [presentation, "Pasilla", lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name]
       : lot.lot_kind === "RECUPERACION"
-        ? [presentation, "Recuperacion", lot.coffee_variety, lot.commercial_classification, lot.coffee_type_name]
+        ? [presentation, "Recuperacion", lot.coffee_profile_name || lot.coffee_variety, lot.commercial_classification, lot.coffee_type_name]
         : [presentation, lot.coffee_variety || lot.coffee_profile_name || lot.commercial_classification, lot.commercial_classification, lot.coffee_type_name];
 
   const uniqueDescriptors = [...new Set(descriptors.filter(Boolean))];

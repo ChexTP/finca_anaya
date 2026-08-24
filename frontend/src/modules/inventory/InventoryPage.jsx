@@ -3663,37 +3663,44 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     ["residual", "Residual"],
                     ["cleanCup", "Taza limpia"],
                   ].map(([field, label]) => (
-                    <input
-                      key={field}
-                      className="rounded border border-slate-300 px-3 py-2 text-sm"
-                      placeholder={label}
-                      value={adminLotForm[field]}
-                      onChange={(event) => setAdminLotForm({ ...adminLotForm, [field]: event.target.value })}
-                    />
+                    <label key={field} className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                      {label}
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                        value={adminLotForm[field]}
+                        onChange={(event) => setAdminLotForm({ ...adminLotForm, [field]: event.target.value })}
+                      />
+                    </label>
                   ))}
                 </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
-                <textarea
-                  className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Notas de laboratorio"
-                  value={adminLotForm.labNotes}
-                  onChange={(event) => setAdminLotForm({ ...adminLotForm, labNotes: event.target.value })}
-                />
-                <textarea
-                  className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Comentario interno del lote"
-                  value={adminLotForm.initialComment}
-                  onChange={(event) => setAdminLotForm({ ...adminLotForm, initialComment: event.target.value })}
-                />
-                <textarea
-                  className="min-h-20 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm"
-                  placeholder="Nota obligatoria de correccion"
-                  value={adminLotForm.changeNote}
-                  onChange={(event) => setAdminLotForm({ ...adminLotForm, changeNote: event.target.value })}
-                  required
-                />
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Notas de laboratorio
+                  <textarea
+                    className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.labNotes}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, labNotes: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                  Comentario interno del lote
+                  <textarea
+                    className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                    value={adminLotForm.initialComment}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, initialComment: event.target.value })}
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase text-amber-700">
+                  Nota obligatoria de correccion
+                  <textarea
+                    className="min-h-20 w-full rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm normal-case text-amber-900"
+                    value={adminLotForm.changeNote}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, changeNote: event.target.value })}
+                    required
+                  />
+                </label>
               </div>
             </div>
           </form>

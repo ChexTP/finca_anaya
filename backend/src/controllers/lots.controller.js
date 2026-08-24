@@ -1112,6 +1112,7 @@ export const postStockEntry = async (req, res) => {
   try {
     const {
       lotKind,
+      profileSource = "purchase",
       coffeeTypeId,
       coffeeProfileId,
       commercialClassification,
@@ -1134,11 +1135,13 @@ export const postStockEntry = async (req, res) => {
       return res.status(400).json({ message: "La presentacion del cafe es obligatoria" });
     }
 
-    const isPasillaExcelso = lotKind === "PASILLA" && presentation === "Excelso";
+    const usesCommercialProfile =
+      lotKind === "PROC" ||
+      (["PASILLA", "RECUPERACION"].includes(lotKind) && profileSource === "sale");
     const weight = toNumber(weightKg);
     const humidity = toNumber(humidityPercent);
 
-    if (lotKind !== "PROC" && !isPasillaExcelso && !coffeeTypeId) {
+    if (!usesCommercialProfile && !coffeeTypeId) {
       return res.status(400).json({ message: "Tipo de cafe es obligatorio" });
     }
 
@@ -1163,16 +1166,18 @@ export const postStockEntry = async (req, res) => {
       }
     }
 
-    if (lotKind === "PASILLA" && !isPasillaExcelso && !["Lavado", "Natural"].includes(coffeeType?.name)) {
+    if (lotKind === "PASILLA" && !usesCommercialProfile && !["Lavado", "Natural"].includes(coffeeType?.name)) {
       return res.status(400).json({ message: "Las pasillas solo se registran como Lavado o Natural" });
     }
 
     let coffeeProfile = null;
-    if (lotKind === "PROC" || isPasillaExcelso) {
+    if (usesCommercialProfile) {
       if (!coffeeProfileId) {
         return res.status(400).json({
-          message: isPasillaExcelso
-            ? "La pasilla en excelso necesita el perfil comercial al que pertenece"
+          message: lotKind === "PASILLA"
+            ? "La pasilla necesita el perfil comercial al que pertenece"
+            : lotKind === "RECUPERACION"
+            ? "La recuperacion necesita el perfil comercial al que pertenece"
             : "El proceso listo necesita un perfil comercial",
         });
       }
@@ -1184,7 +1189,7 @@ export const postStockEntry = async (req, res) => {
       }
     }
 
-    if (["LOT", "RECUPERACION"].includes(lotKind)) {
+    if (lotKind === "LOT" || (lotKind === "RECUPERACION" && !usesCommercialProfile)) {
       if (!regularCategoriesThatNeedExactName.includes(commercialClassification)) {
         return res.status(400).json({ message: "El cafe debe ser Regional, Varietal o Exotico" });
       }
@@ -1211,17 +1216,23 @@ export const postStockEntry = async (req, res) => {
       code,
       lotKind,
       supplierId: null,
-      coffeeTypeId: coffeeTypeId || null,
-      coffeeProfileId: coffeeProfileId || null,
+      coffeeTypeId: usesCommercialProfile && lotKind !== "PROC" ? null : coffeeTypeId || null,
+      coffeeProfileId: usesCommercialProfile ? coffeeProfileId || null : null,
       weightKg: weight,
       humidityPercent: humidity,
       score: null,
       receivedAt: receivedAt || new Date(),
-      coffeeVariety: coffeeProfile?.name || coffeeVariety || null,
+      coffeeVariety: usesCommercialProfile ? coffeeProfile?.name || null : coffeeVariety || null,
       originZone,
       initialComment,
       commercialClassification:
-        lotKind === "PROC" ? "Procesado" : lotKind === "PASILLA" ? "Pasilla" : commercialClassification,
+        lotKind === "PROC"
+          ? "Procesado"
+          : lotKind === "PASILLA"
+            ? "Pasilla"
+            : lotKind === "RECUPERACION" && usesCommercialProfile
+              ? "Recuperacion"
+              : commercialClassification,
       purchasePricePerKg: null,
       purchaseTotal: null,
       purchasePaid: false,
