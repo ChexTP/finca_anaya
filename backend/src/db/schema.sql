@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS purchase_coffees (
   name VARCHAR(100) UNIQUE NOT NULL,
   family VARCHAR(40) NOT NULL,
   process_type VARCHAR(80) NOT NULL,
+  base_price_factor90_cop NUMERIC(14, 2) NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -322,6 +323,7 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS presentation VARCHAR(80) NOT NU
 ALTER TABLE coffee_lots ALTER COLUMN presentation TYPE VARCHAR(80);
 ALTER TABLE purchase_coffees ALTER COLUMN process_type TYPE VARCHAR(80);
 ALTER TABLE purchase_coffees DROP CONSTRAINT IF EXISTS purchase_coffees_process_type_check;
+ALTER TABLE purchase_coffees ADD COLUMN IF NOT EXISTS base_price_factor90_cop NUMERIC(14, 2) NOT NULL DEFAULT 0;
 
 DO $$
 BEGIN

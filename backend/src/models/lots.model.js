@@ -295,11 +295,18 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
       suppliers.origin_zone AS supplier_origin_zone,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
+      purchase_coffees.id AS purchase_coffee_id,
+      purchase_coffees.name AS purchase_coffee_name,
+      purchase_coffees.base_price_factor90_cop AS purchase_base_price_factor90_cop,
       packaging_types.name AS packaging_type_name
     FROM coffee_lots
     LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN purchase_coffees
+      ON purchase_coffees.name = coffee_lots.coffee_variety
+      AND purchase_coffees.family = coffee_lots.commercial_classification
+      AND purchase_coffees.process_type = coffee_types.name
     LEFT JOIN packaging_types ON packaging_types.id = coffee_lots.packaging_type_id
     ${where}
     ORDER BY coffee_lots.created_at ASC
@@ -322,11 +329,18 @@ export const findLotById = async (id) => {
       suppliers.origin_zone AS supplier_origin_zone,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
+      purchase_coffees.id AS purchase_coffee_id,
+      purchase_coffees.name AS purchase_coffee_name,
+      purchase_coffees.base_price_factor90_cop AS purchase_base_price_factor90_cop,
       packaging_types.name AS packaging_type_name
     FROM coffee_lots
     LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN purchase_coffees
+      ON purchase_coffees.name = coffee_lots.coffee_variety
+      AND purchase_coffees.family = coffee_lots.commercial_classification
+      AND purchase_coffees.process_type = coffee_types.name
     LEFT JOIN packaging_types ON packaging_types.id = coffee_lots.packaging_type_id
     WHERE coffee_lots.id = $1
     LIMIT 1

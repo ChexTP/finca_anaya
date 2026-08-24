@@ -17,6 +17,7 @@ const backupQueries = {
       name AS cafe_compra,
       family AS familia,
       process_type AS proceso,
+      base_price_factor90_cop AS precio_base_carga_factor_90_cop,
       CASE WHEN is_active THEN 'activo' ELSE 'inactivo' END AS estado,
       created_at,
       updated_at

@@ -184,15 +184,16 @@ export const createPurchaseCoffee = async ({
   name,
   family,
   processType,
+  basePriceFactor90Cop = 0,
   isActive = true,
 }) => {
   const result = await pool.query(
     `
-    INSERT INTO purchase_coffees (name, family, process_type, is_active)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO purchase_coffees (name, family, process_type, base_price_factor90_cop, is_active)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING *
     `,
-    [name, family, processType, isActive]
+    [name, family, processType, basePriceFactor90Cop, isActive]
   );
 
   return result.rows[0];
@@ -204,6 +205,7 @@ export const updatePurchaseCoffee = async (
     name,
     family,
     processType,
+    basePriceFactor90Cop = 0,
     isActive = true,
   }
 ) => {
@@ -214,12 +216,13 @@ export const updatePurchaseCoffee = async (
       name = $1,
       family = $2,
       process_type = $3,
-      is_active = $4,
+      base_price_factor90_cop = $4,
+      is_active = $5,
       updated_at = NOW()
-    WHERE id = $5
+    WHERE id = $6
     RETURNING *
     `,
-    [name, family, processType, isActive, id]
+    [name, family, processType, basePriceFactor90Cop, isActive, id]
   );
 
   return result.rows[0];

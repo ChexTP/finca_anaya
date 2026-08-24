@@ -81,6 +81,15 @@ const validatePurchaseCoffeePayload = ({ name, family, processType }) => {
   return null;
 };
 
+const normalizeNonNegativeNumber = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : NaN;
+};
+
 const editableCatalogs = {
   "coffee-types": {
     tableName: "coffee_types",
@@ -203,6 +212,7 @@ export const postPurchaseCoffee = async (req, res) => {
       name,
       family,
       processType,
+      basePriceFactor90Cop = 0,
       isActive = true,
     } = req.body;
     const validationError = validatePurchaseCoffeePayload({ name, family, processType });
@@ -211,10 +221,17 @@ export const postPurchaseCoffee = async (req, res) => {
       return res.status(400).json({ message: validationError });
     }
 
+    const normalizedBasePrice = normalizeNonNegativeNumber(basePriceFactor90Cop, 0);
+
+    if (!Number.isFinite(normalizedBasePrice) || normalizedBasePrice < 0) {
+      return res.status(400).json({ message: "El precio base por carga debe ser mayor o igual a cero" });
+    }
+
     const coffee = await createPurchaseCoffee({
       name: name.trim(),
       family,
       processType,
+      basePriceFactor90Cop: normalizedBasePrice,
       isActive,
     });
 
@@ -240,6 +257,7 @@ export const putPurchaseCoffee = async (req, res) => {
       name,
       family,
       processType,
+      basePriceFactor90Cop = 0,
       isActive = true,
     } = req.body;
     const validationError = validatePurchaseCoffeePayload({ name, family, processType });
@@ -248,10 +266,17 @@ export const putPurchaseCoffee = async (req, res) => {
       return res.status(400).json({ message: validationError });
     }
 
+    const normalizedBasePrice = normalizeNonNegativeNumber(basePriceFactor90Cop, 0);
+
+    if (!Number.isFinite(normalizedBasePrice) || normalizedBasePrice < 0) {
+      return res.status(400).json({ message: "El precio base por carga debe ser mayor o igual a cero" });
+    }
+
     const coffee = await updatePurchaseCoffee(req.params.id, {
       name: name.trim(),
       family,
       processType,
+      basePriceFactor90Cop: normalizedBasePrice,
       isActive,
     });
 

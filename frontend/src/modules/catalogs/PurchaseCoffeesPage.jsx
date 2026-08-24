@@ -9,6 +9,7 @@ const initialForm = {
   name: "",
   family: "",
   processType: "",
+  basePriceFactor90Cop: "",
   isActive: true,
 };
 
@@ -41,6 +42,7 @@ const PurchaseCoffeesPage = () => {
       name: coffee.name || "",
       family: coffee.family || "",
       processType: coffee.process_type || "",
+      basePriceFactor90Cop: Number(coffee.base_price_factor90_cop || 0) > 0 ? String(coffee.base_price_factor90_cop) : "",
       isActive: coffee.is_active,
     });
     setMessage("");
@@ -65,6 +67,7 @@ const PurchaseCoffeesPage = () => {
         name: form.name.trim(),
         family: form.family,
         processType: form.processType,
+        basePriceFactor90Cop: form.basePriceFactor90Cop === "" ? 0 : Number(form.basePriceFactor90Cop),
         isActive: form.isActive,
       };
 
@@ -151,6 +154,7 @@ const PurchaseCoffeesPage = () => {
                     <th className="px-4 py-3">Cafe</th>
                     <th className="px-4 py-3">Familia</th>
                     <th className="px-4 py-3">Proceso</th>
+                    <th className="px-4 py-3">Precio carga</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3 text-right">Accion</th>
                   </tr>
@@ -161,6 +165,11 @@ const PurchaseCoffeesPage = () => {
                       <td className="px-4 py-3 font-medium text-ink">{coffee.name}</td>
                       <td className="px-4 py-3 text-slate-600">{coffee.family}</td>
                       <td className="px-4 py-3 text-slate-600">{coffee.process_type}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {Number(coffee.base_price_factor90_cop || 0) > 0
+                          ? `COP ${Number(coffee.base_price_factor90_cop).toLocaleString("es-CO")}`
+                          : "COP 0"}
+                      </td>
                       <td className="px-4 py-3">
                         <StatusBadge tone={coffee.is_active ? "success" : "danger"}>
                           {coffee.is_active ? "activo" : "inactivo"}
@@ -241,6 +250,18 @@ const PurchaseCoffeesPage = () => {
                 </option>
               ))}
             </select>
+            <label className="block space-y-1 text-xs font-semibold uppercase text-slate-500">
+              Precio base por carga factor 90
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                min="0"
+                placeholder="0"
+                step="0.01"
+                type="number"
+                value={form.basePriceFactor90Cop}
+                onChange={(event) => setForm({ ...form, basePriceFactor90Cop: event.target.value })}
+              />
+            </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"

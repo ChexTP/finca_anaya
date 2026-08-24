@@ -336,18 +336,24 @@ const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor
   };
 };
 
-const buildLiquidationItem = (lot) => ({
-  id: lot.id,
-  lotCode: lot.code || "",
-  lotPresentation: lot.presentation || "Pergamino",
-  grossWeightKg: toInputNumber(lot.gross_weight_kg),
-  netWeightKg: toInputNumber(lot.net_weight_kg),
-  performanceFactor: toInputNumber(lot.performance_factor),
-  coffeeDetail: formatCoffeeLotCodeName(lot),
-  purchaseBaseFactor: "90",
-  purchasePriceFactor90: "",
-  purchasePricePerKg: "",
-});
+const buildLiquidationItem = (lot) => {
+  const basePrice = Number(lot.purchase_base_price_factor90_cop || 0);
+  const basePriceValue = basePrice > 0 ? String(basePrice) : "0";
+  const priceData = calculateLiquidationPrices(basePriceValue, lot.performance_factor, "90");
+
+  return {
+    id: lot.id,
+    lotCode: lot.code || "",
+    lotPresentation: lot.presentation || "Pergamino",
+    grossWeightKg: toInputNumber(lot.gross_weight_kg),
+    netWeightKg: toInputNumber(lot.net_weight_kg),
+    performanceFactor: toInputNumber(lot.performance_factor),
+    coffeeDetail: formatCoffeeLotCodeName(lot),
+    purchaseBaseFactor: "90",
+    purchasePriceFactor90: basePriceValue,
+    purchasePricePerKg: priceData.purchasePricePerKg || "",
+  };
+};
 
 const buildLiquidationForm = (lots, user) => {
   const selectedLots = Array.isArray(lots) ? lots : [lots];
