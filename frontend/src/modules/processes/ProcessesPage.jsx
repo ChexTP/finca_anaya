@@ -1,5 +1,5 @@
 import { Plus, RefreshCw, Save } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -101,7 +101,6 @@ const ProcessesPage = ({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const processListRef = useRef(null);
 
   const canCreateProcess = ["admin", "accounting", "warehouse", "laboratory"].includes(user?.role);
   const actionLabel = fixedProcessType === "Trilladora"
@@ -296,9 +295,6 @@ const ProcessesPage = ({
 
   const selectProcessStatusFilter = (status) => {
     setProcessStatusFilter(status);
-    window.setTimeout(() => {
-      processListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
   };
 
   useEffect(() => {
@@ -530,7 +526,7 @@ const ProcessesPage = ({
   };
 
   return (
-    <section className="space-y-5">
+    <section className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">{title}</h1>
@@ -595,7 +591,10 @@ const ProcessesPage = ({
       )}
 
       {canCreateProcess && (
-        <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createProcess}>
+        <form
+          className={`rounded border border-slate-200 bg-white p-4 ${fixedProcessType ? "order-7" : ""}`}
+          onSubmit={createProcess}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">{actionLabel}</h2>
@@ -782,17 +781,16 @@ const ProcessesPage = ({
         </form>
       )}
 
-      <div ref={processListRef} className="scroll-mt-4" />
-
-      {filteredProcesses.length === 0 ? (
-        <EmptyState
-          title={fixedProcessType ? "Sin envios" : "Sin procesos"}
-          message={fixedProcessType ? "Los envios creados desde bodega apareceran aqui." : "Los procesos creados desde bodega apareceran aqui."}
-        />
-      ) : (
-        <div className="grid gap-3">
-          {filteredProcesses.map((process) => (
-            <div key={process.id} className="rounded border border-slate-200 bg-white p-4">
+      <div className={fixedProcessType ? "order-6" : ""}>
+        {filteredProcesses.length === 0 ? (
+          <EmptyState
+            title={fixedProcessType ? "Sin envios" : "Sin procesos"}
+            message={fixedProcessType ? "Los envios creados desde bodega apareceran aqui." : "Los procesos creados desde bodega apareceran aqui."}
+          />
+        ) : (
+          <div className="grid gap-3">
+            {filteredProcesses.map((process) => (
+              <div key={process.id} className="rounded border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-ink">{process.code}</p>
@@ -1038,10 +1036,11 @@ const ProcessesPage = ({
                   </div>
                 </div>
               )}
-            </div>
-          ))}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 };
