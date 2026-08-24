@@ -60,6 +60,8 @@ const initialStockEntry = {
   manualCodeYear: new Date().getFullYear(),
 };
 
+const getDefaultStockPresentation = (lotKind) => (lotKind === "RECUPERACION" ? "Excelso" : "Pergamino");
+
 export const activeWarehouseStatuses = [
   "pendiente_alistamiento",
   "pendiente_bodega",
@@ -1157,6 +1159,7 @@ const WarehousePage = () => {
                   ...initialStockEntry,
                   lotKind: event.target.value,
                   profileSource: event.target.value === "PROC" ? "sale" : "purchase",
+                  presentation: getDefaultStockPresentation(event.target.value),
                 })}
               >
                 <option value="LOT">Cafe disponible</option>
