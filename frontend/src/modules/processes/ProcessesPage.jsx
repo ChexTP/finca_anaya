@@ -28,8 +28,7 @@ const HIGH_HUMIDITY_GROUP = "__humidity_gt_10";
 const processStatusFilterOptions = [
   { value: "all", label: "Todos" },
   { value: "pendiente", label: "Por enviar" },
-  { value: "en_proceso", label: "Esperando recibir" },
-  { value: "pendiente_revision_fisica", label: "Registrar regreso" },
+  { value: "receiving", label: "Esperando recibir" },
   { value: "finalizado", label: "Finalizados" },
 ];
 
@@ -75,6 +74,15 @@ const formatDate = (value) => {
 };
 
 const formatKg = formatOperationalKg;
+
+const matchesProcessStatusFilter = (process, filter) => {
+  if (filter === "all") return true;
+  if (filter === "receiving") {
+    return ["en_proceso", "pendiente_revision_fisica"].includes(process.status);
+  }
+
+  return process.status === filter;
+};
 
 const ProcessesPage = ({
   fixedProcessType = null,
@@ -148,8 +156,7 @@ const ProcessesPage = ({
   const filteredProcesses = useMemo(() => {
     const search = processSearch.trim().toLowerCase();
     return processes.filter((process) => {
-      const matchesStatus = processStatusFilter === "all" || process.status === processStatusFilter;
-      if (!matchesStatus) return false;
+      if (!matchesProcessStatusFilter(process, processStatusFilter)) return false;
       if (!search) return true;
 
       const text = [
@@ -179,7 +186,7 @@ const ProcessesPage = ({
     return processStatusFilterOptions.reduce((counts, option) => {
       counts[option.value] = option.value === "all"
         ? processes.length
-        : processes.filter((process) => process.status === option.value).length;
+        : processes.filter((process) => matchesProcessStatusFilter(process, option.value)).length;
       return counts;
     }, {});
   }, [processes]);
@@ -460,9 +467,15 @@ const ProcessesPage = ({
     try {
       await apiRequest(`/processes/${process.id}/pending-laboratory`, { method: "PUT", body: JSON.stringify({}) });
       await loadData();
-      setMessage(directInventory
-        ? "Cafe recibido. Registre el peso de regreso para llevarlo a inventario."
-        : "Cafe recibido. Bodega debe completar la revision fisica.");
+      if (directInventory) {
+        setPhysicalReviewProcessId(process.id);
+        setPhysicalReviewForm({ outputs: [{ ...emptyProcessOutput }] });
+        setStartProcessId(null);
+        setProcessStatusFilter("receiving");
+        setMessage("Cafe recibido. Registre el peso de regreso para llevarlo a inventario.");
+      } else {
+        setMessage("Cafe recibido. Bodega debe completar la revision fisica.");
+      }
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -565,7 +578,7 @@ const ProcessesPage = ({
             <button
               className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
               type="button"
-              onClick={() => selectProcessStatusFilter("en_proceso")}
+              onClick={() => selectProcessStatusFilter("receiving")}
             >
               Ver pendientes por recibir
             </button>
