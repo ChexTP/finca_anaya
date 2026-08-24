@@ -1,5 +1,5 @@
 import { Plus, RefreshCw, Save } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -25,6 +25,13 @@ const initialStartForm = {
 const processTypeOptions = ["Proceso", "Trilladora", "Seleccion electronica", "Otro proceso"];
 const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
 const HIGH_HUMIDITY_GROUP = "__humidity_gt_10";
+const processStatusFilterOptions = [
+  { value: "all", label: "Todos" },
+  { value: "pendiente", label: "Por enviar" },
+  { value: "en_proceso", label: "Esperando recibir" },
+  { value: "pendiente_revision_fisica", label: "Registrar regreso" },
+  { value: "finalizado", label: "Finalizados" },
+];
 
 const initialPhysicalReviewForm = {
   outputs: [
@@ -88,11 +95,13 @@ const ProcessesPage = ({
   const [physicalReviewProcessId, setPhysicalReviewProcessId] = useState(null);
   const [physicalReviewForm, setPhysicalReviewForm] = useState(initialPhysicalReviewForm);
   const [processSearch, setProcessSearch] = useState("");
+  const [processStatusFilter, setProcessStatusFilter] = useState("all");
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const processListRef = useRef(null);
 
   const canCreateProcess = ["admin", "accounting", "warehouse", "laboratory"].includes(user?.role);
   const actionLabel = fixedProcessType === "Trilladora"
@@ -139,9 +148,11 @@ const ProcessesPage = ({
 
   const filteredProcesses = useMemo(() => {
     const search = processSearch.trim().toLowerCase();
-    if (!search) return processes;
-
     return processes.filter((process) => {
+      const matchesStatus = processStatusFilter === "all" || process.status === processStatusFilter;
+      if (!matchesStatus) return false;
+      if (!search) return true;
+
       const text = [
         process.code,
         process.sale_code,
@@ -163,7 +174,16 @@ const ProcessesPage = ({
 
       return text.includes(search);
     });
-  }, [processes, processSearch]);
+  }, [processes, processSearch, processStatusFilter]);
+
+  const processStatusCounts = useMemo(() => {
+    return processStatusFilterOptions.reduce((counts, option) => {
+      counts[option.value] = option.value === "all"
+        ? processes.length
+        : processes.filter((process) => process.status === option.value).length;
+      return counts;
+    }, {});
+  }, [processes]);
 
   const presentationNames = useMemo(() => {
     return [
@@ -272,6 +292,13 @@ const ProcessesPage = ({
     setAvailableLots(lotData);
     setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
     setCatalogs(catalogData);
+  };
+
+  const selectProcessStatusFilter = (status) => {
+    setProcessStatusFilter(status);
+    window.setTimeout(() => {
+      processListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   useEffect(() => {
@@ -530,6 +557,43 @@ const ProcessesPage = ({
         />
       </div>
 
+      {fixedProcessType && (
+        <div className="rounded border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-ink">Acceso rapido por estado</p>
+              <p className="text-xs text-slate-500">
+                Use estos botones para ver de una los cafes que estan esperando recibir.
+              </p>
+            </div>
+            <button
+              className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
+              type="button"
+              onClick={() => selectProcessStatusFilter("en_proceso")}
+            >
+              Ver pendientes por recibir
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {processStatusFilterOptions.map((option) => (
+              <button
+                key={option.value}
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  processStatusFilter === option.value
+                    ? "border-leaf bg-emerald-50 text-leaf"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => selectProcessStatusFilter(option.value)}
+              >
+                <span className="block font-semibold">{option.label}</span>
+                <span className="text-xs">{processStatusCounts[option.value] || 0} registros</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {canCreateProcess && (
         <form className="rounded border border-slate-200 bg-white p-4" onSubmit={createProcess}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -717,6 +781,8 @@ const ProcessesPage = ({
           </button>
         </form>
       )}
+
+      <div ref={processListRef} className="scroll-mt-4" />
 
       {filteredProcesses.length === 0 ? (
         <EmptyState
