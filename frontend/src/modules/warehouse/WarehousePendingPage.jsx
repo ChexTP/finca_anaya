@@ -343,7 +343,9 @@ const WarehousePendingPage = () => {
     }
     if (type === "base") return Number(suggested?.baseKg || 0);
 
-    return getItemOperationalKg(item);
+    // En salidas directas el selector de presentacion decide si se usa el peso solicitado
+    // en excelso o la conversion operativa a pergamino. Evita convertir dos veces.
+    return Number(item.quantity_kg || 0);
   };
 
   const getAssignmentRowTargetKg = (row) => {
