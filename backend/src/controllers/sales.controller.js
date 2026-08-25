@@ -430,7 +430,7 @@ export const putSaleLotAssignments = async (req, res) => {
     const { items, itemAssignees = [] } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: "Debe agregar al menos un lote asignado" });
+      return res.status(400).json({ message: "Debe agregar al menos un lote para registrar la salida" });
     }
 
     const cleanItems = items.map((item) => ({
@@ -456,7 +456,7 @@ export const putSaleLotAssignments = async (req, res) => {
 
     if (invalidItem) {
       return res.status(400).json({
-        message: "Cada asignacion debe tener producto, lote y cantidad mayor a cero",
+        message: "Cada salida debe tener producto, lote y cantidad mayor a cero",
       });
     }
 
@@ -483,7 +483,7 @@ export const putSaleLotAssignments = async (req, res) => {
 
     if (sale.invalidStatus) {
       return res.status(409).json({
-        message: "No se puede cambiar la asignacion de una venta alistada, despachada o anulada",
+        message: "No se puede registrar salida de una venta alistada, despachada o anulada",
         data: sale.sale,
       });
     }
@@ -491,12 +491,12 @@ export const putSaleLotAssignments = async (req, res) => {
     const fullSale = await findSaleById(req.params.id);
 
     res.json({
-      message: "Lotes asignados correctamente",
+      message: "Salida registrada y descontada del inventario",
       data: fullSale,
     });
   } catch (error) {
     res.status(500).json({
-      message: "Error al asignar lotes",
+      message: "Error al registrar salida de cafe",
       error: error.message,
     });
   }

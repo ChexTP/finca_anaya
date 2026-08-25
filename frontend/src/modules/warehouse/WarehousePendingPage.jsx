@@ -226,11 +226,7 @@ const WarehousePendingPage = () => {
   };
 
   const getSavedSaleLotQuantity = (lotId) => {
-    if (!selectedSale?.deductedLots?.length) return 0;
-
-    return selectedSale.deductedLots
-      .filter((lot) => String(lot.lot_id) === String(lotId))
-      .reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0);
+    return 0;
   };
 
   const getCatalogLotAvailableKg = (lotId) => {
@@ -283,6 +279,16 @@ const WarehousePendingPage = () => {
       String(row.saleItemId) === String(item.id) &&
       (row.assignmentType || "directo") === assignmentType
     ));
+
+  const getTakenLotsForItem = (item) =>
+    (selectedSale?.deductedLots || []).filter((lot) => String(lot.sale_item_id) === String(item.id));
+
+  const getTakenLotsByType = (item, assignmentType) =>
+    getTakenLotsForItem(item).filter((lot) => getAssignmentTypeFromNotes(lot.notes) === assignmentType);
+
+  const getTakenKgByType = (item, assignmentType) =>
+    getTakenLotsByType(item, assignmentType)
+      .reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0);
 
   const normalizeAssignmentType = (assignmentType = "directo") => {
     if (assignmentType === "proceso-directo") return "proceso";
@@ -341,10 +347,12 @@ const WarehousePendingPage = () => {
 
   const getAssignmentBlockTotals = (item, assignmentType) => {
     const rows = getItemAssignmentRowsByType(item, assignmentType);
-    const assignedKg = rows.reduce((total, row) => total + Number(row.quantityKg || 0), 0);
-    const targetKg = rows.length > 0
-      ? Math.max(...rows.map((row) => getAssignmentRowTargetKg(row)))
-      : getAssignmentBlockTargetKg(item, assignmentType);
+    const takenKg = getTakenKgByType(item, assignmentType);
+    const assignedKg = rows.reduce((total, row) => total + Number(row.quantityKg || 0), takenKg);
+    const targetKg = Math.max(
+      getAssignmentBlockTargetKg(item, assignmentType),
+      ...(rows.length > 0 ? rows.map((row) => getAssignmentRowTargetKg(row)) : [0])
+    );
 
     return {
       assignedKg: Number(assignedKg.toFixed(3)),
@@ -366,7 +374,7 @@ const WarehousePendingPage = () => {
       if (String(currentRow.saleItemId) !== String(row.saleItemId)) return total;
       if ((currentRow.assignmentType || "directo") !== assignmentType) return total;
       return total + Number(currentRow.quantityKg || 0);
-    }, 0);
+    }, getTakenKgByType(item, assignmentType));
     const missingKg = Math.max(targetKg - assignedByOtherRows, 0);
     const availableKg = getLotAvailableForAssignmentRowFromRows(lotId, rowIndex, rows);
     const suggestedKg = Math.min(missingKg || availableKg, availableKg);
@@ -384,7 +392,7 @@ const WarehousePendingPage = () => {
     if (assignedLot) {
       return {
         value: row.lotId,
-        label: `Asignado a este pedido: ${formatCoffeeLotCodeName(assignedLot)} - ${formatOperationalKg(assignedLot.quantity_kg)}`,
+        label: `Salida registrada: ${formatCoffeeLotCodeName(assignedLot)} - ${formatOperationalKg(assignedLot.quantity_kg)}`,
       };
     }
 
@@ -526,21 +534,6 @@ const WarehousePendingPage = () => {
         notes: buildAssignmentNotes(row),
       }))
       .filter((row) => row.saleItemId && row.lotId && row.quantityKg > 0);
-
-  const persistValidAssignments = async ({ exclude } = {}) => {
-    if (!selectedSale) return null;
-
-    const cleanAssignments = buildCleanAssignments({ exclude });
-    if (cleanAssignments.length === 0) return null;
-
-    return apiRequest(`/sales/${selectedSale.id}/lot-assignments`, {
-      method: "PUT",
-      body: JSON.stringify({
-        items: cleanAssignments,
-        itemAssignees: buildCleanItemAssignees(),
-      }),
-    });
-  };
 
   const getItemOperationalKg = (item) => calculateOperationalKg({
     quantityKg: item.quantity_kg,
@@ -699,20 +692,6 @@ const WarehousePendingPage = () => {
       );
       setAssignmentRows(
         sale.items?.flatMap((item) => {
-          const rows = (sale.deductedLots || []).filter((lot) => Number(lot.sale_item_id) === Number(item.id));
-
-          if (rows.length) {
-            return rows.map((lot) => ({
-              saleItemId: String(lot.sale_item_id),
-              lotId: String(lot.lot_id),
-              lotLabel: `${formatCoffeeLotCodeName(lot)} - ${formatOperationalKg(lot.quantity_kg)} asignados`,
-              quantityKg: formatAssignmentKgInput(lot.quantity_kg),
-              presentationFilter: lot.presentation || "Todas",
-              assignmentType: getAssignmentTypeFromNotes(lot.notes),
-              notes: cleanAssignmentNotes(lot.notes),
-            }));
-          }
-
           const suggested = getSuggestedQuantities(item);
 
           return suggested
@@ -865,12 +844,8 @@ const WarehousePendingPage = () => {
     if (!selectedSale) return;
 
     const cleanAssignments = buildCleanAssignments();
-    const activeAssignmentTypes = item ? getActiveAssignmentTypesForItem(item) : [];
     const assignmentsToSave = item
-      ? cleanAssignments.filter((assignment) => (
-          String(assignment.saleItemId) !== String(item.id) ||
-          activeAssignmentTypes.includes(assignment.assignmentType || "directo")
-        ))
+      ? cleanAssignments.filter((assignment) => String(assignment.saleItemId) === String(item.id))
       : cleanAssignments;
     const itemAssignments = item
       ? assignmentsToSave.filter((assignment) => String(assignment.saleItemId) === String(item.id))
@@ -878,15 +853,15 @@ const WarehousePendingPage = () => {
 
     if (itemAssignments.length === 0) {
       setError(item
-        ? "Agregue al menos un lote y una cantidad para confirmar este cafe."
-        : "Agregue al menos un lote y una cantidad para guardar la asignacion."
+        ? "Agregue al menos un lote y una cantidad para registrar la salida de este cafe."
+        : "Agregue al menos un lote y una cantidad para registrar la salida."
       );
       return;
     }
 
     const confirmed = window.confirm(item
-      ? `Confirmas guardar la asignacion de ${getWarehouseItemLabel(item)}?`
-      : "Confirmas guardar los lotes asignados a esta venta?"
+      ? `Confirmas registrar la salida de ${getWarehouseItemLabel(item)} y descontarla del inventario?`
+      : "Confirmas registrar estas salidas y descontarlas del inventario?"
     );
     if (!confirmed) return;
 
@@ -905,7 +880,7 @@ const WarehousePendingPage = () => {
       setSelectedSale(response.data);
       await loadData();
       await loadSaleDetail(selectedSale.id, false);
-      setMessage(item ? "Asignacion de cafe confirmada correctamente." : "Lotes asignados correctamente.");
+      setMessage(item ? "Salida de cafe registrada y descontada del inventario." : "Salidas registradas y descontadas del inventario.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -955,19 +930,6 @@ const WarehousePendingPage = () => {
     setError("");
 
     try {
-      if (nextMarked) {
-        try {
-          await persistValidAssignments();
-        } catch {
-          await persistValidAssignments({
-            exclude: {
-              saleItemId: item.id,
-              assignmentType,
-            },
-          });
-        }
-      }
-
       const response = await apiRequest(`/sales/${selectedSale.id}/items/${item.id}/shortage`, {
         method: "PUT",
         body: JSON.stringify({
@@ -980,7 +942,7 @@ const WarehousePendingPage = () => {
       setSelectedSale(response.data);
       await loadData();
       await loadSaleDetail(selectedSale.id, false);
-      setMessage(nextMarked ? "Faltante marcado sin borrar asignaciones validas." : "Marca de faltante retirada.");
+      setMessage(nextMarked ? "Faltante marcado para seguimiento." : "Marca de faltante retirada.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1002,7 +964,7 @@ const WarehousePendingPage = () => {
             <p className="mt-1 text-xs text-slate-600">
               Sugerido: <span className="font-semibold">{formatOperationalKg(totals.targetKg)}</span>
               {" · "}
-              Asignado: <span className="font-semibold text-amber-700">{formatOperationalKg(totals.assignedKg)}</span>
+              Sacado: <span className="font-semibold text-amber-700">{formatOperationalKg(totals.assignedKg)}</span>
               {" · "}
               Faltante: <span className={totals.missingKg > 0 ? "font-semibold text-rose-700" : "font-semibold text-leaf"}>
                 {formatOperationalKg(totals.missingKg)}
@@ -1372,7 +1334,7 @@ const WarehousePendingPage = () => {
                 {selectedSale.items?.some((item) => item.shortage_marked) && (
                   <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
                     <p className="font-semibold">Alerta de deficit</p>
-                    <p>Hay cafe marcado como faltante. Revise el modulo Lotes asignados para ver cuanto comprar con la estimacion 40/60.</p>
+                    <p>Hay cafe marcado como faltante. Revise el modulo Lotes asignados para ver cuanto comprar segun la receta del perfil.</p>
                   </div>
                 )}
                 {selectedSale.status === "ensamble_definido" && selectedSale.notes && (
@@ -1458,7 +1420,7 @@ const WarehousePendingPage = () => {
                                 )}
                               </p>
                               <p className="mt-1 text-xs">
-                                <span className="text-amber-700">Reservado: {formatOperationalKg(item.reserved_kg)}</span>
+                                <span className="text-amber-700">Sacado: {formatOperationalKg(item.reserved_kg)}</span>
                                 {" · "}
                                 <span className={item.shortage_marked ? "font-semibold text-rose-700" : "font-semibold text-slate-500"}>
                                   Marcado faltante: {getShortageStatusLabel(item)}
@@ -1493,6 +1455,20 @@ const WarehousePendingPage = () => {
                             </p>
                           )}
 
+                          {getTakenLotsForItem(item).length > 0 && (
+                            <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                              <p className="font-semibold uppercase">Salidas ya registradas</p>
+                              <div className="mt-2 space-y-1">
+                                {getTakenLotsForItem(item).map((lot) => (
+                                  <p key={lot.id}>
+                                    {formatCoffeeLotCodeName(lot)} - {formatOperationalKg(lot.quantity_kg)}
+                                    {cleanAssignmentNotes(lot.notes) ? ` - ${cleanAssignmentNotes(lot.notes)}` : ""}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
                             suggested ? (
                               <div className="space-y-3">
@@ -1525,7 +1501,7 @@ const WarehousePendingPage = () => {
 
                                 {(!shouldUseDirectProfileProcess(item) || getDirectProcessMissingKg(item) > 0) && suggested.processComponents.map((component) => renderAssignmentBlock(item, {
                                   assignmentType: `proceso:${component.key}`,
-                                  title: shouldUseDirectProfileProcess(item) ? `Completar faltante con receta - ${component.name}` : `Asignar lote para proceso - ${component.name}`,
+                                  title: shouldUseDirectProfileProcess(item) ? `Registrar salida para receta - ${component.name}` : `Registrar salida para proceso - ${component.name}`,
                                   description: shouldUseDirectProfileProcess(item)
                                     ? `Complete el faltante del proceso con ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""}.`
                                     : `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas"))} de ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""} para este componente.`,
@@ -1533,7 +1509,7 @@ const WarehousePendingPage = () => {
                                 }))}
                                 {renderAssignmentBlock(item, {
                                   assignmentType: "base",
-                                  title: "Asignar lote para base",
+                                  title: "Registrar salida para base",
                                   description: `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, suggested.baseKg, item.product_form || "Todas"))} de ${suggested.baseName} como base.`,
                                   addLabel: "Agregar otro lote para base",
                                 })}
@@ -1541,7 +1517,7 @@ const WarehousePendingPage = () => {
                             ) : (
                               renderAssignmentBlock(item, {
                                 assignmentType: "directo",
-                                title: "Asignar lote a este cafe",
+                                title: "Registrar salida de este cafe",
                                 description: "Use uno o varios lotes hasta completar la cantidad solicitada.",
                                 addLabel: "Agregar otro lote a este cafe",
                               })
@@ -1555,7 +1531,7 @@ const WarehousePendingPage = () => {
                               onClick={() => saveAssignments(item)}
                               disabled={saving || ["alistada", "despachada"].includes(selectedSale.status)}
                             >
-                              Confirmar asignacion de este cafe
+                              Confirmar salida de este cafe
                             </button>
                           )}
                         </div>
@@ -1612,7 +1588,7 @@ const WarehousePendingPage = () => {
                     onClick={() => saveAssignments()}
                     disabled={saving || ["alistada", "despachada"].includes(selectedSale.status)}
                   >
-                    Guardar todas las asignaciones
+                    Registrar todas las salidas
                   </button>
                 </div>
               )}

@@ -81,7 +81,7 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
       LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
       LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
       WHERE sale_items.sale_id = sales.id
-        AND sale_item_lots.deducted_at IS NULL
+        AND sale_item_lots.deducted_at IS NOT NULL
     ) assigned_lots ON TRUE
     ${where}
     ORDER BY
@@ -876,6 +876,8 @@ export const replaceSaleLotAssignments = async ({ saleId, items, itemAssignees =
       return { invalidStatus: true, sale };
     }
 
+    // Las reservas antiguas no descontaban inventario. En el flujo actual se registra la salida real
+    // por item, asi que limpiamos esos pendientes para evitar bloqueos falsos de cafe disponible.
     await client.query(
       `
       DELETE FROM sale_item_lots
@@ -888,8 +890,6 @@ export const replaceSaleLotAssignments = async ({ saleId, items, itemAssignees =
       `,
       [saleId]
     );
-
-    const quantityByLot = new Map();
 
     for (const item of items) {
       const saleItemResult = await client.query(
@@ -907,45 +907,52 @@ export const replaceSaleLotAssignments = async ({ saleId, items, itemAssignees =
           coffee_lots.id,
           coffee_lots.code,
           coffee_lots.status,
-          coffee_lots.available_weight_kg,
-          COALESCE(SUM(other_assignments.quantity_kg) FILTER (WHERE other_sales.id IS NOT NULL), 0) AS reserved_other_sales_kg
+          coffee_lots.available_weight_kg
         FROM coffee_lots
-        LEFT JOIN sale_item_lots other_assignments
-          ON other_assignments.lot_id = coffee_lots.id
-          AND other_assignments.deducted_at IS NULL
-        LEFT JOIN sale_items other_items
-          ON other_items.id = other_assignments.sale_item_id
-        LEFT JOIN sales other_sales
-          ON other_sales.id = other_items.sale_id
-          AND other_sales.id <> $2
-          AND other_sales.status NOT IN ('despachada', 'anulada')
         WHERE coffee_lots.id = $1
-        GROUP BY coffee_lots.id
         LIMIT 1
+        FOR UPDATE
         `,
-        [item.lotId, saleId]
+        [item.lotId]
       );
       const lot = lotResult.rows[0];
 
       if (!lot || !["disponible", "vendido_parcial"].includes(lot.status)) {
-        throw new Error("El lote seleccionado no esta disponible para asignar");
+        throw new Error("El lote seleccionado no esta disponible para sacar cafe");
       }
 
-      const reservedInThisSave = quantityByLot.get(item.lotId) || 0;
-      const freeOperationalKg = Number(lot.available_weight_kg) - Number(lot.reserved_other_sales_kg || 0) - reservedInThisSave;
+      const freeOperationalKg = Number(lot.available_weight_kg || 0);
 
       if (freeOperationalKg < item.quantityKg) {
         throw new Error(`El lote ${lot.code || lot.id} no tiene cantidad operativa suficiente. Libre operativo: ${Math.max(freeOperationalKg, 0).toFixed(3)} kg`);
       }
 
-      quantityByLot.set(item.lotId, reservedInThisSave + item.quantityKg);
+      const newAvailable = Number((freeOperationalKg - item.quantityKg).toFixed(3));
+      const newStatus = newAvailable === 0 ? "agotado" : "vendido_parcial";
 
       await client.query(
         `
-        INSERT INTO sale_item_lots (sale_item_id, lot_id, quantity_kg, notes, created_by)
-        VALUES ($1, $2, $3, $4, $5)
+        UPDATE coffee_lots
+        SET available_weight_kg = $1, status = $2, updated_at = NOW()
+        WHERE id = $3
+        `,
+        [newAvailable, newStatus, item.lotId]
+      );
+
+      await client.query(
+        `
+        INSERT INTO sale_item_lots (sale_item_id, lot_id, quantity_kg, notes, created_by, deducted_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
         `,
         [item.saleItemId, item.lotId, item.quantityKg, item.notes || null, createdBy]
+      );
+
+      await client.query(
+        `
+        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+        VALUES ($1, 'venta_salida', $2, $3, $4)
+        `,
+        [item.lotId, item.quantityKg, `Cafe sacado para venta ${sale.code}`, createdBy]
       );
     }
 
@@ -1120,7 +1127,7 @@ export const getOperationalLotReservations = async () => {
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sale_items.coffee_profile_id
     WHERE sales.status NOT IN ('despachada', 'anulada')
-      AND sale_item_lots.deducted_at IS NULL
+      AND sale_item_lots.deducted_at IS NOT NULL
     ORDER BY sales.estimated_delivery_date ASC NULLS LAST, sales.created_at ASC, sale_item_lots.id ASC
     `
   );
@@ -1144,9 +1151,15 @@ export const getOperationalLotReservations = async () => {
       ${requiredSaleItemKgSql} AS required_kg,
       sale_items.shortage_marked,
       sale_items.shortage_notes,
-      COALESCE(SUM(sale_item_lots.quantity_kg), 0) AS reserved_kg,
-      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.notes ILIKE '[Proceso%'), 0) AS reserved_process_kg,
-      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.notes ILIKE '[Base]%'), 0) AS reserved_base_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (WHERE sale_item_lots.deducted_at IS NOT NULL), 0) AS reserved_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+        WHERE sale_item_lots.deducted_at IS NOT NULL
+          AND sale_item_lots.notes ILIKE '[Proceso%'
+      ), 0) AS reserved_process_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+        WHERE sale_item_lots.deducted_at IS NOT NULL
+          AND sale_item_lots.notes ILIKE '[Base]%'
+      ), 0) AS reserved_base_kg,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.id AS coffee_profile_id,
       coffee_profiles.name AS coffee_profile_name,
@@ -1634,69 +1647,30 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
         return { missingLabReview: true, sale };
       }
 
-      const pendingAssignments = await client.query(
+      const outputCheck = await client.query(
         `
         SELECT
-          sale_item_lots.*,
-          coffee_lots.code AS lot_code,
-          coffee_lots.available_weight_kg,
-          coffee_lots.status AS lot_status
-        FROM sale_item_lots
-        INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
-        INNER JOIN coffee_lots ON coffee_lots.id = sale_item_lots.lot_id
+          sale_items.id,
+          ${requiredSaleItemKgSql} AS required_kg,
+          COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+            WHERE sale_item_lots.deducted_at IS NOT NULL
+          ), 0) AS deducted_kg
+        FROM sale_items
+        LEFT JOIN sale_item_lots ON sale_item_lots.sale_item_id = sale_items.id
         WHERE sale_items.sale_id = $1
-          AND sale_item_lots.deducted_at IS NULL
-        ORDER BY sale_item_lots.id ASC
-        FOR UPDATE
+        GROUP BY sale_items.id
+        ORDER BY sale_items.id ASC
         `,
         [saleId]
       );
 
-      if (pendingAssignments.rows.length === 0) {
+      const incompleteItem = outputCheck.rows.find((item) =>
+        Number(item.deducted_kg || 0) + 0.001 < Number(item.required_kg || 0)
+      );
+
+      if (outputCheck.rows.length === 0 || incompleteItem) {
         await client.query("ROLLBACK");
         return { missingAssignments: true, sale };
-      }
-
-      for (const assignment of pendingAssignments.rows) {
-        if (!["disponible", "vendido_parcial"].includes(assignment.lot_status)) {
-          throw new Error(`El lote ${assignment.lot_code || assignment.lot_id} no esta disponible para alistar`);
-        }
-
-        const available = Number(assignment.available_weight_kg);
-        const quantity = Number(assignment.quantity_kg);
-
-        if (available < quantity) {
-          throw new Error(`El lote ${assignment.lot_code || assignment.lot_id} no tiene cantidad suficiente`);
-        }
-
-        const newAvailable = Number((available - quantity).toFixed(3));
-        const newStatus = newAvailable === 0 ? "agotado" : "vendido_parcial";
-
-        await client.query(
-          `
-          UPDATE coffee_lots
-          SET available_weight_kg = $1, status = $2, updated_at = NOW()
-          WHERE id = $3
-          `,
-          [newAvailable, newStatus, assignment.lot_id]
-        );
-
-        await client.query(
-          `
-          UPDATE sale_item_lots
-          SET deducted_at = NOW()
-          WHERE id = $1
-          `,
-          [assignment.id]
-        );
-
-        await client.query(
-          `
-          INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
-          VALUES ($1, 'venta_salida', $2, $3, $4)
-          `,
-          [assignment.lot_id, quantity, `Cafe alistado para venta ${sale.code}`, userId]
-        );
       }
     }
 
