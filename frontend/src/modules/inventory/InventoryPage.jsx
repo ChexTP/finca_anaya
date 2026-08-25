@@ -1289,26 +1289,27 @@ const InventoryPage = ({ mode = "inventory" }) => {
     paid: paidPurchaseOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
   };
 
+  const regularLots = lots.filter((lot) => lot.lot_kind !== "PROC");
+  const processLots = lots.filter((lot) => lot.lot_kind === "PROC");
   const presentationNames = [
     ...new Set([
       ...(catalogs?.coffeePresentations || []).map((presentation) => presentation.name),
-      ...lots.map((lot) => lot.presentation || "Pergamino"),
+      ...regularLots.map((lot) => lot.presentation || "Pergamino"),
     ].filter(Boolean)),
   ];
   const presentationOptions = presentationNames.map((presentation) => {
-    const presentationLots = lots.filter((lot) => (lot.presentation || "Pergamino") === presentation);
+    const presentationLots = regularLots.filter((lot) => (lot.presentation || "Pergamino") === presentation);
     return {
       presentation,
       count: presentationLots.length,
       kg: presentationLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
     };
   });
-  const processLots = lots.filter((lot) => lot.lot_kind === "PROC");
   const presentationFilteredLots = selectedPresentation === "all"
     ? lots
     : selectedPresentation === "processes"
       ? processLots
-      : lots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
+      : regularLots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
   const inventoryGroups = groupCoffeeLots(
     presentationFilteredLots.map((lot) => ({
       ...lot,
