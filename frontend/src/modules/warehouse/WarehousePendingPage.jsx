@@ -572,11 +572,13 @@ const WarehousePendingPage = () => {
 
   const calculateSourceKgForItem = (item, quantityKg, presentation) => {
     const selectedPresentation = presentation === "Todas" ? item.product_form : presentation;
+    const requestedPresentation = String(item.product_form || "").trim().toLowerCase();
+    const sourcePresentation = String(selectedPresentation || "").trim().toLowerCase();
 
-    if (selectedPresentation === "Pergamino") {
+    if (requestedPresentation === "excelso" && sourcePresentation === "pergamino") {
       return calculateOperationalKg({
         quantityKg,
-        productForm: "Pergamino",
+        productForm: "Excelso",
         processType: item.process_type,
       });
     }
