@@ -1,5 +1,5 @@
 import { Download, Eye, Printer, RefreshCw, X } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -354,12 +354,8 @@ const SalesHistoryPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredSales.map((sale) => {
-                    const isExpanded = selectedSale?.id === sale.id;
-
-                    return (
-                      <Fragment key={sale.id}>
-                        <tr>
+                  {filteredSales.map((sale) => (
+                        <tr key={sale.id}>
                           <td className="px-3 py-2 font-medium">{sale.code}</td>
                           <td className="px-3 py-2">{sale.client_name}</td>
                           <td className="px-3 py-2">{formatDate(sale.created_at)}</td>
@@ -376,11 +372,11 @@ const SalesHistoryPage = () => {
                             <div className="flex flex-wrap gap-2">
                               <button
                                 className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                                onClick={() => (isExpanded ? setSelectedSale(null) : loadSaleDetail(sale.id))}
+                                onClick={() => loadSaleDetail(sale.id)}
                                 type="button"
                               >
                                 <Eye size={14} />
-                                {isExpanded ? "Ocultar" : "Ver mas"}
+                                Ver mas
                               </button>
                               <button
                                 className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100"
@@ -403,186 +399,211 @@ const SalesHistoryPage = () => {
                             </div>
                           </td>
                         </tr>
-                        {isExpanded && (
-                          <tr>
-                            <td colSpan={7} className="bg-slate-50 px-4 py-4">
-                              {loading ? (
-                                <p className="text-sm text-slate-500">Cargando detalle...</p>
-                              ) : (
-                                <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,260px)]">
-                                  <div>
-                                    <p className="text-xs font-semibold uppercase text-slate-500">Productos y analisis</p>
-                                    <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                      {(selectedSale.items || []).map((item) => (
-                                        <div key={item.id} className="rounded border border-slate-200 bg-white p-3 text-sm">
-                                          <p className="font-medium text-ink">{formatSaleItemName(item)}</p>
-                                          <p className="text-slate-500">{item.quantity_kg} kg</p>
-                                          <div className="mt-2 rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                                            <p>Humedad: {item.sale_humidity_percent || "-"}</p>
-                                            <p>Aroma: {item.sale_lab_aroma || "-"} · Sabor: {item.sale_lab_flavor || "-"} · Dulzor: {item.sale_lab_sweetness || "-"}</p>
-                                            <p>Cuerpo: {item.sale_lab_body || "-"} · Residual: {item.sale_lab_residual || "-"} · Taza limpia: {item.sale_lab_clean_cup || "-"}</p>
-                                            <p>Score: {item.sale_lab_score || "-"}</p>
-                                            {item.sale_lab_notes && <p>Notas: {item.sale_lab_notes}</p>}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  <div className="rounded border border-slate-200 bg-white p-3 text-sm">
-                                    <p className="font-semibold text-ink">{selectedSale.code}</p>
-                                    <p className="text-slate-500">{selectedSale.client_name}</p>
-                                    <p className="text-slate-500">{formatDate(selectedSale.created_at)}</p>
-                                    {canManagePayments && (
-                                      <div className="mt-3 rounded bg-slate-50 p-3">
-                                        <p className="text-xs font-semibold uppercase text-slate-500">Estado de pago</p>
-                                        <StatusBadge tone={paymentStatusTone(selectedSale.payment_status)}>
-                                          {paymentStatusLabels[selectedSale.payment_status] || selectedSale.payment_status}
-                                        </StatusBadge>
-                                        <div className="mt-2 space-y-1 text-sm">
-                                          <p>Total: {formatMoney(selectedSale.currency, selectedSale.total)}</p>
-                                          <p className="text-emerald-700">Pagado: {formatMoney(selectedSale.currency, selectedSale.amount_paid)}</p>
-                                          <p className="font-semibold text-rose-700">Pendiente: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</p>
-                                        </div>
-                                      </div>
-                                    )}
-                                    <div className={`mt-3 rounded border p-3 ${
-                                      selectedSale.dispatch_receipt_image
-                                        ? "border-emerald-200 bg-emerald-50"
-                                        : "border-slate-200 bg-slate-50"
-                                    }`}>
-                                      <p className={`text-xs font-semibold uppercase ${
-                                        selectedSale.dispatch_receipt_image ? "text-emerald-800" : "text-slate-500"
-                                      }`}>
-                                        Recibo de despacho
-                                      </p>
-                                      <p className="mt-1 text-xs text-slate-600">
-                                        {selectedSale.dispatch_receipt_image
-                                          ? `Recibo cargado${selectedSale.dispatch_receipt_file_name ? `: ${selectedSale.dispatch_receipt_file_name}` : ""}`
-                                          : "Esta venta aun no tiene recibo de despacho."}
-                                      </p>
-                                      {selectedSale.dispatch_receipt_uploaded_at && (
-                                        <p className="text-xs text-slate-500">
-                                          Subido: {formatDate(selectedSale.dispatch_receipt_uploaded_at)}
-                                        </p>
-                                      )}
-                                      {selectedSale.dispatch_receipt_image && (
-                                        <button
-                                          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
-                                          onClick={() => viewDispatchReceipt(selectedSale)}
-                                          type="button"
-                                        >
-                                          <Eye size={14} />
-                                          Ver recibo
-                                        </button>
-                                      )}
-                                    </div>
-                                    <button
-                                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
-                                      onClick={() => printSaleDocument(selectedSale.id)}
-                                      type="button"
-                                    >
-                                      <Printer size={16} />
-                                      Imprimir / guardar PDF
-                                    </button>
-                                    {canManagePayments && (
-                                      <div className="mt-3 rounded border border-slate-200 bg-white p-3">
-                                        <p className="text-xs font-semibold uppercase text-slate-500">Pagos registrados</p>
-                                        {selectedSale.payments?.length ? (
-                                          <div className="mt-2 space-y-2">
-                                            {selectedSale.payments.map((payment) => (
-                                              <div key={payment.id} className="rounded bg-slate-50 px-3 py-2">
-                                                <p className="font-semibold text-ink">
-                                                  {formatMoney(selectedSale.currency, payment.amount)}
-                                                </p>
-                                                <p className="text-xs text-slate-600">
-                                                  {payment.payment_method_name || "-"} · {payment.payment_reference || "-"} · {formatDate(payment.paid_at)}
-                                                </p>
-                                                {payment.notes && <p className="text-xs text-slate-500">{payment.notes}</p>}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <p className="mt-2 text-sm text-slate-500">Sin pagos registrados.</p>
-                                        )}
-
-                                        {selectedSale.payment_status !== "pagada" && (
-                                          <form className="mt-3 space-y-2" onSubmit={registerPayment}>
-                                            <div className="flex items-center justify-between gap-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                                              <span>Saldo por cobrar: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</span>
-                                              <button
-                                                className="rounded border border-amber-300 bg-white px-2 py-1 font-semibold text-amber-800"
-                                                type="button"
-                                                onClick={fillFullPayment}
-                                              >
-                                                Pago total
-                                              </button>
-                                            </div>
-                                            <input
-                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                                              placeholder="Valor recibido"
-                                              type="number"
-                                              min="0.01"
-                                              max={selectedSale.balance_due || undefined}
-                                              step="0.01"
-                                              value={paymentForm.amount}
-                                              onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })}
-                                            />
-                                            <select
-                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                                              value={paymentForm.paymentMethodId}
-                                              onChange={(event) => setPaymentForm({ ...paymentForm, paymentMethodId: event.target.value })}
-                                            >
-                                              <option value="">Metodo de pago</option>
-                                              {catalogs?.paymentMethods?.map((method) => (
-                                                <option key={method.id} value={method.id}>
-                                                  {method.name}
-                                                </option>
-                                              ))}
-                                            </select>
-                                            <input
-                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                                              placeholder="Referencia o recibo"
-                                              value={paymentForm.paymentReference}
-                                              onChange={(event) => setPaymentForm({ ...paymentForm, paymentReference: event.target.value })}
-                                            />
-                                            <input
-                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                                              type="date"
-                                              value={paymentForm.paidAt}
-                                              onChange={(event) => setPaymentForm({ ...paymentForm, paidAt: event.target.value })}
-                                            />
-                                            <textarea
-                                              className="min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                                              placeholder="Nota opcional"
-                                              value={paymentForm.notes}
-                                              onChange={(event) => setPaymentForm({ ...paymentForm, notes: event.target.value })}
-                                            />
-                                            <button
-                                              className="w-full rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                                              type="submit"
-                                              disabled={loading}
-                                            >
-                                              Registrar pago
-                                            </button>
-                                          </form>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
         </div>
       </div>
+
+      {selectedSale && (
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4">
+          <div className="my-6 w-full max-w-6xl overflow-hidden rounded border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-ink">{selectedSale.code}</h2>
+                <p className="text-sm text-slate-500">
+                  {selectedSale.client_name} · {formatDate(selectedSale.created_at)}
+                </p>
+              </div>
+              <button
+                className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => setSelectedSale(null)}
+                type="button"
+              >
+                <X size={16} />
+                Cerrar
+              </button>
+            </div>
+
+            <div className="max-h-[82vh] overflow-y-auto p-5">
+              {loading ? (
+                <p className="text-sm text-slate-500">Cargando detalle...</p>
+              ) : (
+                <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Productos y analisis</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {(selectedSale.items || []).map((item) => (
+                        <div key={item.id} className="rounded border border-slate-200 bg-white p-3 text-sm">
+                          <p className="font-medium text-ink">{formatSaleItemName(item)}</p>
+                          <p className="text-slate-500">{item.quantity_kg} kg</p>
+                          <div className="mt-2 rounded bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                            <p>Humedad: {item.sale_humidity_percent || "-"}</p>
+                            <p>Aroma: {item.sale_lab_aroma || "-"} · Sabor: {item.sale_lab_flavor || "-"} · Dulzor: {item.sale_lab_sweetness || "-"}</p>
+                            <p>Cuerpo: {item.sale_lab_body || "-"} · Residual: {item.sale_lab_residual || "-"} · Taza limpia: {item.sale_lab_clean_cup || "-"}</p>
+                            <p>Score: {item.sale_lab_score || "-"}</p>
+                            {item.sale_lab_notes && <p>Notas: {item.sale_lab_notes}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded border border-slate-200 bg-white p-3 text-sm">
+                    <div>
+                      <p className="font-semibold text-ink">{selectedSale.code}</p>
+                      <p className="text-slate-500">{selectedSale.client_name}</p>
+                      <p className="text-slate-500">{formatDate(selectedSale.created_at)}</p>
+                    </div>
+
+                    {canManagePayments && (
+                      <div className="rounded bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase text-slate-500">Estado de pago</p>
+                        <StatusBadge tone={paymentStatusTone(selectedSale.payment_status)}>
+                          {paymentStatusLabels[selectedSale.payment_status] || selectedSale.payment_status}
+                        </StatusBadge>
+                        <div className="mt-2 space-y-1 text-sm">
+                          <p>Total: {formatMoney(selectedSale.currency, selectedSale.total)}</p>
+                          <p className="text-emerald-700">Pagado: {formatMoney(selectedSale.currency, selectedSale.amount_paid)}</p>
+                          <p className="font-semibold text-rose-700">Pendiente: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={`rounded border p-3 ${
+                      selectedSale.dispatch_receipt_image
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-slate-200 bg-slate-50"
+                    }`}>
+                      <p className={`text-xs font-semibold uppercase ${
+                        selectedSale.dispatch_receipt_image ? "text-emerald-800" : "text-slate-500"
+                      }`}>
+                        Recibo de despacho
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {selectedSale.dispatch_receipt_image
+                          ? `Recibo cargado${selectedSale.dispatch_receipt_file_name ? `: ${selectedSale.dispatch_receipt_file_name}` : ""}`
+                          : "Esta venta aun no tiene recibo de despacho."}
+                      </p>
+                      {selectedSale.dispatch_receipt_uploaded_at && (
+                        <p className="text-xs text-slate-500">
+                          Subido: {formatDate(selectedSale.dispatch_receipt_uploaded_at)}
+                        </p>
+                      )}
+                      {selectedSale.dispatch_receipt_image && (
+                        <button
+                          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                          onClick={() => viewDispatchReceipt(selectedSale)}
+                          type="button"
+                        >
+                          <Eye size={14} />
+                          Ver recibo
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white"
+                      onClick={() => printSaleDocument(selectedSale.id)}
+                      type="button"
+                    >
+                      <Printer size={16} />
+                      Imprimir / guardar PDF
+                    </button>
+
+                    {canManagePayments && (
+                      <div className="rounded border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-semibold uppercase text-slate-500">Pagos registrados</p>
+                        {selectedSale.payments?.length ? (
+                          <div className="mt-2 space-y-2">
+                            {selectedSale.payments.map((payment) => (
+                              <div key={payment.id} className="rounded bg-slate-50 px-3 py-2">
+                                <p className="font-semibold text-ink">
+                                  {formatMoney(selectedSale.currency, payment.amount)}
+                                </p>
+                                <p className="text-xs text-slate-600">
+                                  {payment.payment_method_name || "-"} · {payment.payment_reference || "-"} · {formatDate(payment.paid_at)}
+                                </p>
+                                {payment.notes && <p className="text-xs text-slate-500">{payment.notes}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-500">Sin pagos registrados.</p>
+                        )}
+
+                        {selectedSale.payment_status !== "pagada" && (
+                          <form className="mt-3 space-y-2" onSubmit={registerPayment}>
+                            <div className="flex items-center justify-between gap-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                              <span>Saldo por cobrar: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</span>
+                              <button
+                                className="rounded border border-amber-300 bg-white px-2 py-1 font-semibold text-amber-800"
+                                type="button"
+                                onClick={fillFullPayment}
+                              >
+                                Pago total
+                              </button>
+                            </div>
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Valor recibido"
+                              type="number"
+                              min="0.01"
+                              max={selectedSale.balance_due || undefined}
+                              step="0.01"
+                              value={paymentForm.amount}
+                              onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })}
+                            />
+                            <select
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                              value={paymentForm.paymentMethodId}
+                              onChange={(event) => setPaymentForm({ ...paymentForm, paymentMethodId: event.target.value })}
+                            >
+                              <option value="">Metodo de pago</option>
+                              {catalogs?.paymentMethods?.map((method) => (
+                                <option key={method.id} value={method.id}>
+                                  {method.name}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Referencia o recibo"
+                              value={paymentForm.paymentReference}
+                              onChange={(event) => setPaymentForm({ ...paymentForm, paymentReference: event.target.value })}
+                            />
+                            <input
+                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                              type="date"
+                              value={paymentForm.paidAt}
+                              onChange={(event) => setPaymentForm({ ...paymentForm, paidAt: event.target.value })}
+                            />
+                            <textarea
+                              className="min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                              placeholder="Nota opcional"
+                              value={paymentForm.notes}
+                              onChange={(event) => setPaymentForm({ ...paymentForm, notes: event.target.value })}
+                            />
+                            <button
+                              className="w-full rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                              type="submit"
+                              disabled={loading}
+                            >
+                              Registrar pago
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {receiptPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
