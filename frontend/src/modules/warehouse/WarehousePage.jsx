@@ -156,7 +156,13 @@ export const buildWarehouseOrderHtml = (sale) => {
               ${item.item_assignee ? `<p><strong>Encargado:</strong> ${printable(item.item_assignee)}</p>` : ""}
             </div>
           </div>
-          <table>
+          <table class="manual-mix-table">
+            <colgroup>
+              <col class="manual-col-lot" />
+              <col class="manual-col-percent" />
+              <col class="manual-col-kg" />
+              <col class="manual-col-notes" />
+            </colgroup>
             <thead>
               <tr>
                 <th>CAFE / LOTE USADO</th>
@@ -279,6 +285,10 @@ export const buildWarehouseOrderHtml = (sale) => {
           .reserved-lot { border-top: 1px solid #e5e7eb; margin-top: 10px; padding-top: 10px; }
           .manual-blend-block { border: 1px solid #fde68a; margin-top: 12px; padding: 12px; page-break-inside: avoid; }
           .manual-blend-block table td { height: 30px; }
+          .manual-mix-table .manual-col-lot { width: 26%; }
+          .manual-mix-table .manual-col-percent { width: 8%; }
+          .manual-mix-table .manual-col-kg { width: 10%; }
+          .manual-mix-table .manual-col-notes { width: 56%; }
           .muted { color: #667085; }
           .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 54px; }
           .line { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; text-align: center; }
