@@ -395,7 +395,17 @@ const SalesPage = () => {
     setError("");
 
     try {
+      const adminOverrideStatus =
+        user?.role === "admin" && action === "prepare"
+          ? "alistada"
+          : user?.role === "admin" && action === "dispatch"
+            ? "despachada"
+            : null;
       const payload = { notes };
+
+      if (adminOverrideStatus) {
+        payload.status = adminOverrideStatus;
+      }
 
       if (action === "dispatch") {
         const image = await readImageFileAsDataUrl(
@@ -409,7 +419,7 @@ const SalesPage = () => {
         };
       }
 
-      await apiRequest(`/sales/${sale.id}/${action}`, {
+      await apiRequest(adminOverrideStatus ? `/sales/${sale.id}/admin-status` : `/sales/${sale.id}/${action}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       });
@@ -864,7 +874,8 @@ const SalesPage = () => {
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                   />
-                  {selectedSale.status === "alistada" && (
+                  {(selectedSale.status === "alistada" ||
+                    (user?.role === "admin" && selectedSale.status !== "despachada" && selectedSale.status !== "anulada")) && (
                     <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -908,7 +919,7 @@ const SalesPage = () => {
                       className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                       disabled={
                         saving ||
-                        selectedSale.status !== "aprobada_laboratorio"
+                        (user?.role !== "admin" && selectedSale.status !== "aprobada_laboratorio")
                       }
                       onClick={() => updateStatus(selectedSale, "prepare")}
                       type="button"
@@ -918,7 +929,7 @@ const SalesPage = () => {
                     </button>
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                      disabled={saving || selectedSale.status !== "alistada" || !dispatchReceiptFile}
+                      disabled={saving || !dispatchReceiptFile || (user?.role !== "admin" && selectedSale.status !== "alistada")}
                       onClick={() => updateStatus(selectedSale, "dispatch")}
                       type="button"
                     >

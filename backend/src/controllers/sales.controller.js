@@ -1052,6 +1052,26 @@ export const putSalePrepared = async (req, res) => {
       return res.status(404).json({ message: "Venta no encontrada" });
     }
 
+    if (req.user.role === "admin") {
+      const updatedSale = await updateSaleAdminStatusOverride({
+        saleId: req.params.id,
+        status: "alistada",
+        notes: req.body.notes,
+        userId: req.user.id,
+      });
+
+      if (updatedSale.invalidStatus) {
+        return res.status(400).json({ message: "Estado manual no permitido" });
+      }
+
+      const fullSale = await findSaleById(req.params.id);
+
+      return res.json({
+        message: "Venta marcada como alistada por administracion",
+        data: fullSale,
+      });
+    }
+
     if (sale.status !== "aprobada_laboratorio") {
       return res.status(409).json({
         message: "La venta debe estar aprobada por laboratorio antes de alistarse",
@@ -1104,6 +1124,27 @@ export const putSaleDispatched = async (req, res) => {
 
     if (!sale) {
       return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (req.user.role === "admin") {
+      const updatedSale = await updateSaleAdminStatusOverride({
+        saleId: req.params.id,
+        status: "despachada",
+        notes: req.body.notes,
+        userId: req.user.id,
+        dispatchReceipt: parsedReceipt.receipt,
+      });
+
+      if (updatedSale.invalidStatus) {
+        return res.status(400).json({ message: "Estado manual no permitido" });
+      }
+
+      const fullSale = await findSaleById(req.params.id);
+
+      return res.json({
+        message: "Venta marcada como despachada por administracion",
+        data: fullSale,
+      });
     }
 
     if (sale.status !== "alistada") {
