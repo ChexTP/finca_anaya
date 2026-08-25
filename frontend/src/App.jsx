@@ -148,7 +148,7 @@ const App = () => {
         <Route
           path="/bodega/pendientes"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <WarehousePendingPage />
             </ProtectedRoute>
           }
