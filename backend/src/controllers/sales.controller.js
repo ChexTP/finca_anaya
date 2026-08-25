@@ -926,7 +926,7 @@ export const putSalePendingLaboratory = async (req, res) => {
 
     if (!["lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(sale.status)) {
       return res.status(409).json({
-        message: "Solo se pueden enviar a laboratorio ventas con salidas registradas o ensamble listo/definido",
+        message: "Solo se pueden enviar a laboratorio ventas con salidas registradas",
         data: sale,
       });
     }
@@ -935,7 +935,7 @@ export const putSalePendingLaboratory = async (req, res) => {
 
     if (!hasAssignments) {
       return res.status(409).json({
-        message: "Antes de enviar a laboratorio se debe registrar la salida del cafe o definir el ensamble",
+        message: "Antes de enviar a laboratorio se debe registrar la salida del cafe",
         data: sale,
       });
     }

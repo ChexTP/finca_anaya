@@ -38,8 +38,8 @@ const saleStatusLabels = {
   lote_asignado: "Con lote asignado",
   proceso_solicitado: "Proceso solicitado",
   en_proceso: "En proceso",
-  listo_para_ensamble: "Listo para ensamble",
-  ensamble_definido: "Ensamble definido",
+  listo_para_ensamble: "Pendiente de laboratorio",
+  ensamble_definido: "Devuelta a bodega",
   pendiente_laboratorio: "Pendiente laboratorio",
   aprobada_laboratorio: "Aprobada laboratorio",
   alistada: "Alistada",
@@ -229,7 +229,7 @@ const ManagementPage = () => {
         <div>
           <h1 className="text-xl font-bold text-ink">Panel de produccion</h1>
           <p className="text-sm text-slate-500">
-            Informe gerencial basado en pedidos, muestras, ensambles y cafe necesario.
+            Informe gerencial basado en pedidos, muestras, salidas de cafe y cafe necesario.
           </p>
           <p className="mt-1 text-xs text-slate-400">Actualizado: {generatedAt}</p>
         </div>

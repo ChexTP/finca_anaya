@@ -4,8 +4,8 @@ export const saleStatusLabels = {
   lote_asignado: "Con salidas registradas",
   proceso_solicitado: "Proceso solicitado",
   en_proceso: "En proceso",
-  listo_para_ensamble: "Listo para ensamble",
-  ensamble_definido: "Ensamble definido / reajuste",
+  listo_para_ensamble: "Pendiente de laboratorio",
+  ensamble_definido: "Devuelta a bodega",
   pendiente_laboratorio: "Pendiente laboratorio",
   aprobada_laboratorio: "Aprobada laboratorio",
   alistada: "Alistada",
@@ -70,8 +70,8 @@ export const getSaleNextAction = (sale) => {
     lote_asignado: "Bodega debe enviar a laboratorio si requiere aprobacion",
     proceso_solicitado: "Administracion debe confirmar el inicio del proceso",
     en_proceso: "Esperando finalizacion para enviar a examen de laboratorio",
-    listo_para_ensamble: "Laboratorio debe definir el ensamble final",
-    ensamble_definido: "Bodega debe mezclar o reajustar y enviar muestra a laboratorio",
+    listo_para_ensamble: "Bodega debe enviar la muestra final a laboratorio",
+    ensamble_definido: "Bodega debe corregir salidas y reenviar a laboratorio",
     pendiente_laboratorio: "Laboratorio debe aprobar las caracteristicas de cada producto",
     aprobada_laboratorio: "Bodega puede alistar si todos los cafes ya salieron de inventario",
     alistada: "Bodega puede despachar",
@@ -87,7 +87,7 @@ export const getSaleTaskKey = (sale) => {
   if (["pendiente_alistamiento", "pendiente_bodega"].includes(sale.status)) return "decision";
   if (sale.status === "lote_asignado") return "prepare";
   if (["proceso_solicitado", "en_proceso"].includes(sale.status)) return "process";
-  if (["listo_para_ensamble", "ensamble_definido"].includes(sale.status)) return "blend";
+  if (["listo_para_ensamble", "ensamble_definido"].includes(sale.status)) return "prepare";
   if (sale.status === "pendiente_laboratorio") return "lab";
   if (sale.status === "aprobada_laboratorio") return "prepare";
   if (sale.status === "alistada") return "dispatch";

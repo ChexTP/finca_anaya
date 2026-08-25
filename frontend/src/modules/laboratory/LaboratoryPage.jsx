@@ -197,7 +197,7 @@ const formatDate = (value) => {
 
 const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const { user } = useAuth();
-  const [activePanel, setActivePanel] = useState(initialPanel);
+  const [activePanel, setActivePanel] = useState(initialPanel === "blends" ? "sales" : initialPanel);
   const [processFilter, setProcessFilter] = useState("pendiente_laboratorio");
   const [lots, setLots] = useState([]);
   const [inventoryLots, setInventoryLots] = useState([]);
@@ -1110,7 +1110,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     const confirmed = window.confirm(
       saleReview.decision === "aprobada_laboratorio"
         ? `Confirma aprobar el analisis de ${selectedSaleReview.code}?`
-        : `Confirma rechazar ${selectedSaleReview.code} y devolverla a ensamble?`
+        : `Confirma rechazar ${selectedSaleReview.code} y devolverla a bodega?`
     );
 
     if (!confirmed) return;
@@ -1155,7 +1155,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       setMessage(
         saleReview.decision === "aprobada_laboratorio"
           ? "Analisis de venta aprobado. Bodega ya puede alistar."
-          : "Venta rechazada y devuelta a ensamble."
+          : "Venta rechazada y devuelta a bodega para corregir salidas."
       );
     } catch (requestError) {
       setError(requestError.message);
@@ -1231,7 +1231,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">Laboratorio</h1>
-          <p className="text-sm text-slate-500">Lotes, procesos y mezclas separados por trabajo pendiente.</p>
+          <p className="text-sm text-slate-500">Lotes, procesos, muestras y ventas separados por trabajo pendiente.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -1306,18 +1306,6 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
               Historico
             </span>
             <span className="text-xs">{(history.lots?.length || 0) + (history.processes?.length || 0)}</span>
-          </button>
-          <button
-            className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
-              activePanel === "blends" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
-            }`}
-            onClick={() => setActivePanel("blends")}
-          >
-            <span className="inline-flex items-center gap-2 font-semibold">
-              <FlaskConical size={16} />
-              Ensambles de venta
-            </span>
-            <span className="text-xs">{sales.length}</span>
           </button>
         </aside>
 
@@ -2121,7 +2109,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     onChange={(event) => updateSaleReviewForm("decision", event.target.value)}
                   >
                     <option value="aprobada_laboratorio">Aprobar venta</option>
-                    <option value="ensamble_definido">Rechazar y devolver a ensamble</option>
+                    <option value="ensamble_definido">Rechazar y devolver a bodega</option>
                   </select>
 
                   {saleReview.decision === "aprobada_laboratorio" && (
@@ -2177,7 +2165,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
 
                   <textarea
                     className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder={saleReview.decision === "ensamble_definido" ? "Motivo del rechazo para ajustar el ensamble" : "Notas de laboratorio"}
+                    placeholder={saleReview.decision === "ensamble_definido" ? "Motivo del rechazo para corregir en bodega" : "Notas de laboratorio"}
                     value={saleReview.notes}
                     onChange={(event) => updateSaleReviewForm("notes", event.target.value)}
                     required={saleReview.decision === "ensamble_definido"}
@@ -2326,225 +2314,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
               )}
             </div>
           </div>
-        ) : (
-          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
-            <div className="rounded border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-4 py-3">
-                <h2 className="text-sm font-semibold text-slate-800">Ventas para ensamble</h2>
-              </div>
-              {sales.length === 0 ? (
-                <div className="p-4">
-                  <EmptyState title="Sin ventas pendientes" message="Las ventas enviadas por bodega para ensamble apareceran aqui." />
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {sales.map((sale) => (
-                    <button
-                      key={sale.id}
-                      className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
-                        selectedSale?.id === sale.id ? "bg-emerald-50" : "bg-white"
-                      }`}
-                      onClick={() => selectSaleForBlend(sale.id)}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-ink">{sale.code}</p>
-                          <p className="text-sm text-slate-500">
-                            {sale.quote_code ? `${sale.quote_code} - ${sale.client_name}` : sale.client_name}
-                          </p>
-                        </div>
-                        <StatusBadge tone={getSaleStatusTone(sale)}>{saleStatusLabels[sale.status] || sale.status}</StatusBadge>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={saveBlendOrder}>
-              <h2 className="text-sm font-semibold text-slate-800">Orden final de ensamble</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {selectedSale ? `Venta seleccionada: ${selectedSale.code}` : "Seleccione una venta pendiente."}
-              </p>
-
-              {selectedSale && (
-                <div className="mt-4 space-y-4">
-                  {saleHasItemsWithoutAssignedLots(selectedSale) && (
-                    <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                      <p className="font-semibold">Esta venta tiene productos sin lotes asignados.</p>
-                      <p className="mt-1">
-                        Use el boton de devolucion para enviarla a bodega y corregir la asignacion antes de definir el ensamble.
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="rounded bg-slate-50 p-3 text-sm">
-                    <p className="font-medium text-ink">Productos pedidos</p>
-                    <div className="mt-2 space-y-1">
-                      {selectedSale.items?.map((item) => (
-                        <p key={item.id} className="text-slate-600">
-                          {item.description || item.coffee_profile_name || item.coffee_type_name || "Producto"} - {item.quantity_kg} kg
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-5">
-                    {selectedSale.items?.map((saleItem, productIndex) => {
-                      const productRows = blendRows
-                        .map((row, index) => ({ row, index }))
-                        .filter(({ row }) => String(row.saleItemId) === String(saleItem.id));
-                      const assignedLots = getAssignedLotsForSaleItem(selectedSale, saleItem.id);
-                      const productLabel =
-                        saleItem.description || saleItem.coffee_profile_name || saleItem.coffee_type_name || "Producto";
-                      const totalPercentage = productRows.reduce((total, { row }) => total + Number(row.percentage || 0), 0);
-
-                      return (
-                        <section
-                          key={`blend-product-${saleItem.id}`}
-                          className="overflow-hidden rounded border-2 border-emerald-200 bg-white shadow-sm"
-                        >
-                          <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3">
-                            <p className="text-xs font-semibold uppercase text-emerald-800">
-                              Producto {productIndex + 1} para definir ensamble
-                            </p>
-                            <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                              <h3 className="text-base font-bold text-ink">
-                                {productLabel} - {formatKg(saleItem.quantity_kg)}
-                              </h3>
-                              <StatusBadge tone={totalPercentage === 100 ? "success" : "warning"}>
-                                Total mezcla: {totalPercentage}%
-                              </StatusBadge>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3 p-4">
-                            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                              <p className="font-semibold">Reservas operativas enviadas por bodega</p>
-                              {assignedLots.length ? (
-                                <div className="mt-1 space-y-1">
-                                  {assignedLots.map((lot) => (
-                                    <p key={lot.id || `${lot.lot_id}-${lot.quantity_kg}`}>
-                                      {formatAssignedLotOption(lot)}
-                                    </p>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="mt-1">
-                                  Bodega aun no ha asignado lotes a este producto. Primero debe quedar la asignacion operativa.
-                                </p>
-                              )}
-                            </div>
-
-                            {productRows.length === 0 && (
-                              <div className="rounded border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
-                                Sin componentes agregados para este producto.
-                              </div>
-                            )}
-
-                            {productRows.map(({ row, index }, rowIndex) => {
-                              const selectedAssignedLot = assignedLots.find((lot) => String(lot.lot_id) === String(row.lotId));
-
-                              return (
-                                <div key={`blend-${index}`} className="rounded border border-slate-200 bg-slate-50 p-3">
-                                  <p className="mb-2 text-xs font-semibold uppercase text-slate-500">
-                                    Componente {rowIndex + 1} de {productLabel}
-                                  </p>
-                                  <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                                    <select
-                                      className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm sm:col-span-2"
-                                      value={row.lotId}
-                                      onChange={(event) => updateBlendRow(index, "lotId", event.target.value)}
-                                      required
-                                    >
-                                      <option value="">Lote asignado por bodega</option>
-                                      {assignedLots.map((lot) => (
-                                        <option key={lot.id || `${lot.lot_id}-${lot.quantity_kg}`} value={lot.lot_id}>
-                                          {formatAssignedLotOption(lot)}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <input
-                                      className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                                      placeholder="Porcentaje %"
-                                      type="text"
-                                      inputMode="numeric"
-                                      min="1"
-                                      max="100"
-                                      step="1"
-                                      value={row.percentage}
-                                      onChange={(event) => updateBlendRow(index, "percentage", normalizePercentageInput(event.target.value))}
-                                      required
-                                    />
-                                    {selectedAssignedLot && (
-                                      <div className="rounded bg-white px-3 py-2 text-xs text-slate-600">
-                                        Reserva actual: {formatKg(selectedAssignedLot.quantity_kg)}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <textarea
-                                    className="mt-3 min-h-16 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-                                    placeholder="Observacion opcional"
-                                    value={row.notes}
-                                    onChange={(event) => updateBlendRow(index, "notes", event.target.value)}
-                                  />
-                                  <button
-                                    className="mt-2 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                                    type="button"
-                                    onClick={() => removeBlendRow(index)}
-                                    disabled={blendRows.length === 1}
-                                  >
-                                    Quitar componente
-                                  </button>
-                                </div>
-                              );
-                            })}
-
-                            <button
-                              className="rounded border border-emerald-300 px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
-                              type="button"
-                              onClick={() => addBlendRow(saleItem.id)}
-                            >
-                              Agregar componente a este cafe
-                            </button>
-                          </div>
-                        </section>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className="rounded border border-amber-500 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-60"
-                      type="button"
-                      disabled={saving}
-                      onClick={returnSaleToWarehouse}
-                    >
-                      Devolver a bodega
-                    </button>
-                    {selectedSale.status === "listo_para_ensamble" && (
-                    <button
-                      className="rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
-                      type="button"
-                      disabled={saving}
-                      onClick={releaseWithoutBlend}
-                    >
-                      No requiere mezcla
-                    </button>
-                    )}
-                    <button
-                      className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                      disabled={saving || saleHasItemsWithoutAssignedLots(selectedSale)}
-                    >
-                      <Save size={16} />
-                      Guardar ensamble
-                    </button>
-                  </div>
-                </div>
-              )}
-            </form>
-          </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

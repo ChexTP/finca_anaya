@@ -144,42 +144,31 @@ export const buildWarehouseOrderHtml = (sale) => {
     )
     .join("");
 
-  const finalBlendOrder = sale.items
-    ?.filter((item) => item.blend_items?.length > 0)
+  const manualBlendNotes = sale.items
     .map(
-      (item) => `
-        <section class="lot-block">
-          <div class="lot-head">
+      (item, index) => `
+        <section class="manual-blend-block">
+          <div class="item-title">
             <div>
-              <p class="item-eyebrow">Producto final</p>
+              <p class="item-eyebrow">Item ${index + 1} de la venta</p>
               <h3>${printable(getWarehouseFinalItemLabel(item))}</h3>
               <p><strong>Entrega en ${printable(item.product_form || "presentacion no definida")}</strong> · ${formatOperationalKg(item.quantity_kg)} solicitados${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? ` / ${formatOperationalKg(item.operational_weight_kg)} operativos` : ""}</p>
               ${item.item_assignee ? `<p><strong>Encargado:</strong> ${printable(item.item_assignee)}</p>` : ""}
             </div>
-            <strong>Mezcla final</strong>
           </div>
           <table>
             <thead>
               <tr>
-                <th>DESCRIPCION</th>
-                <th>PROCESO</th>
-                <th>Kg estimados</th>
-                <th>CHECK</th>
+                <th>CAFE / LOTE USADO</th>
+                <th>PORCENTAJE</th>
+                <th>KG</th>
+                <th>OBSERVACION</th>
               </tr>
             </thead>
             <tbody>
-              ${item.blend_items
-                .map(
-                  (blend) => `
-                    <tr>
-                      <td>${printable(formatCoffeeLotCodeName(blend))} (${blend.percentage}%)</td>
-                      <td>${printable(blend.coffee_type_name || blend.coffee_profile_name)}</td>
-                      <td>${formatOperationalKg(blend.calculated_operational_kg || blend.calculated_quantity_kg)}</td>
-                      <td></td>
-                    </tr>
-                  `
-                )
-                .join("")}
+              <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+              <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+              <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
             </tbody>
           </table>
         </section>
@@ -288,6 +277,8 @@ export const buildWarehouseOrderHtml = (sale) => {
           .item-eyebrow { color: #166534; font-size: 11px; font-weight: 700; margin: 0 0 4px; text-transform: uppercase; }
           .lot-head { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; }
           .reserved-lot { border-top: 1px solid #e5e7eb; margin-top: 10px; padding-top: 10px; }
+          .manual-blend-block { border: 1px solid #fde68a; margin-top: 12px; padding: 12px; page-break-inside: avoid; }
+          .manual-blend-block table td { height: 30px; }
           .muted { color: #667085; }
           .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 54px; }
           .line { border-top: 1px solid #111827; font-weight: 700; padding-top: 6px; text-align: center; }
@@ -322,8 +313,9 @@ export const buildWarehouseOrderHtml = (sale) => {
           <tbody>${productRows || ""}</tbody>
         </table>
 
-        <h2>Lotes y porcentajes de mezcla</h2>
-        ${finalBlendOrder || '<p class="muted">Laboratorio aun no ha definido una orden final de mezcla.</p>'}
+        <h2>Porcentajes de mezcla para anotar</h2>
+        <p class="muted">Espacio para registrar manualmente como quedo la mezcla final de cada item.</p>
+        ${manualBlendNotes || '<p class="muted">No hay productos en esta orden.</p>'}
 
         <h2>Lotes reservados / origen operativo</h2>
         ${deductedLots || '<p class="muted">No hay lotes reservados registrados para esta orden.</p>'}

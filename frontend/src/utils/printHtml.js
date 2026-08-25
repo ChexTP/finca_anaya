@@ -82,50 +82,19 @@ const showPrintPreview = ({ html, title }) => {
   });
 };
 
-export const printHtmlDocument = (html, { title = "Documento", showPreviewAfterPrint = true } = {}) => {
-  const iframe = document.createElement("iframe");
-  const originalTitle = document.title;
-  iframe.title = title;
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  iframe.style.visibility = "hidden";
-  document.body.appendChild(iframe);
+export const printHtmlDocument = (html, { title = "Documento" } = {}) => {
+  const fullHtml = html.includes("<title>")
+    ? html
+    : html.replace("<head>", `<head><title>${title}</title>`);
+  const blob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const tab = window.open(url, "_blank", "noopener,noreferrer");
 
-  const printDocument = iframe.contentWindow?.document;
-
-  if (!printDocument) {
-    iframe.remove();
-    throw new Error("No se pudo preparar el documento para imprimir.");
+  if (!tab) {
+    URL.revokeObjectURL(url);
+    showPrintPreview({ html: fullHtml, title });
+    return;
   }
 
-  printDocument.open();
-  printDocument.write(html);
-  printDocument.close();
-
-  const removeFrame = () => {
-    setTimeout(() => {
-      iframe.remove();
-      document.title = originalTitle;
-      if (showPreviewAfterPrint) {
-        showPrintPreview({ html, title });
-      }
-    }, 1000);
-  };
-
-  let printed = false;
-  const triggerPrint = () => {
-    if (printed) return;
-    printed = true;
-    document.title = title;
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-    removeFrame();
-  };
-
-  iframe.onload = triggerPrint;
-  setTimeout(triggerPrint, 250);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 };

@@ -8,7 +8,6 @@ import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { readImageFileAsDataUrl } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
-import { printable } from "../../utils/printFormatting";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
 
@@ -49,179 +48,6 @@ const buildSaleItemLabSummary = (item) => {
   return `Humedad ${formatLabValue(item.sale_humidity_percent)} · Aroma ${formatLabValue(item.sale_lab_aroma)} · Sabor ${formatLabValue(item.sale_lab_flavor)} · Dulzor ${formatLabValue(item.sale_lab_sweetness)} · Cuerpo ${formatLabValue(item.sale_lab_body)} · Residual ${formatLabValue(item.sale_lab_residual)} · Taza limpia ${formatLabValue(item.sale_lab_clean_cup)} · Score ${formatLabValue(item.sale_lab_score)}`;
 };
 
-const buildWarehouseOrderHtml = (sale) => {
-  const productRows = sale.items
-    ?.map(
-      (item) => `
-        <tr>
-          <td>${printable(item.description || item.coffee_profile_name || item.coffee_type_name || item.lot_code)}</td>
-          <td>${item.quantity_kg} kg</td>
-        </tr>
-      `
-    )
-    .join("");
-
-  const finalBlendOrder = sale.items
-    ?.filter((item) => item.blend_items?.length > 0)
-    .map((item) => {
-      return `
-        <section class="lot-block">
-          <div class="lot-head">
-            <div>
-              <h3>${printable(item.description || item.coffee_profile_name || item.coffee_type_name || "Producto")}</h3>
-              <p>${item.quantity_kg} kg solicitados</p>
-            </div>
-            <strong>Mezcla final</strong>
-          </div>
-          <table class="mix-table">
-            <thead>
-              <tr>
-                <th>Categoria</th>
-                <th>Lote</th>
-                <th>Porcentaje</th>
-                <th>Kg estimados</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${item.blend_items
-                .map(
-                  (blend) => `
-                    <tr>
-                      <td>${printable(blend.commercial_classification)}</td>
-                      <td>${printable(formatCoffeeLotCodeName(blend))}</td>
-                      <td>${blend.percentage}%</td>
-                      <td>${blend.calculated_operational_kg || blend.calculated_quantity_kg} kg</td>
-                    </tr>
-                  `
-                )
-                .join("")}
-            </tbody>
-          </table>
-        </section>
-      `;
-    })
-    .join("");
-
-  const deductedLots = sale.deductedLots
-    ?.map((lot) => {
-      const mixRows = lot.process_mix?.length
-        ? `
-          <table class="mix-table">
-            <thead>
-              <tr>
-                <th>Lote origen</th>
-                <th>Tipo / perfil</th>
-                <th>Porcentaje</th>
-                <th>Kg usados</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${lot.process_mix
-                .map(
-                  (input) => `
-                    <tr>
-                      <td>${printable(formatCoffeeLotCodeName(input))}</td>
-                      <td>${printable(formatInputLabel(input))}</td>
-                      <td>${input.input_percentage}%</td>
-                      <td>${input.quantity_kg} kg</td>
-                    </tr>
-                  `
-                )
-                .join("")}
-            </tbody>
-          </table>
-        `
-        : `<p class="muted">Este lote no tiene mezcla de proceso registrada.</p>`;
-
-      return `
-        <section class="lot-block">
-          <div class="lot-head">
-            <div>
-              <h3>${printable(formatCoffeeLotCodeName(lot))}</h3>
-              <p>${printable(lot.coffee_profile_name || lot.coffee_type_name || lot.commercial_classification || lot.lot_kind)}</p>
-            </div>
-            <strong>${lot.quantity_kg} kg a sacar</strong>
-          </div>
-          ${mixRows}
-        </section>
-      `;
-    })
-    .join("");
-
-  return `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Orden ${sale.code}</title>
-        <style>
-          body { color: #17201a; font-family: Arial, sans-serif; margin: 28px; }
-          header { align-items: flex-start; border-bottom: 1px solid #d8ded8; display: flex; justify-content: space-between; gap: 24px; padding-bottom: 14px; }
-          h1 { font-size: 22px; margin: 0 0 6px; }
-          h2 { font-size: 15px; margin: 22px 0 8px; }
-          h3 { font-size: 14px; margin: 0 0 3px; }
-          p { font-size: 12px; margin: 3px 0; }
-          table { border-collapse: collapse; margin-top: 10px; width: 100%; }
-          th, td { border: 1px solid #d8ded8; font-size: 12px; padding: 8px; text-align: center; vertical-align: middle; }
-          th { background: #f3f6f3; }
-          .meta { display: grid; gap: 4px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
-          .lot-block { border: 1px solid #d8ded8; margin-top: 12px; padding: 12px; page-break-inside: avoid; }
-          .lot-head { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; }
-          .mix-table th { background: #fff7d6; }
-          .muted { color: #667085; }
-          .signature { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
-          .line { border-top: 1px solid #17201a; padding-top: 6px; text-align: center; }
-          @media print { body { margin: 18px; } }
-        </style>
-      </head>
-      <body>
-        <header>
-          <div>
-            <h1>Orden de alistamiento y mezcla</h1>
-            <p><strong>Venta:</strong> ${sale.code}</p>
-            ${sale.quote_code ? `<p><strong>Preventa:</strong> ${sale.quote_code}</p>` : ""}
-            <p><strong>Fecha:</strong> ${formatDate(new Date())}</p>
-          </div>
-          <div>
-            <p><strong>Finca Anaya</strong></p>
-            <p>Documento operativo para bodega</p>
-          </div>
-        </header>
-
-        <section class="meta">
-          <p><strong>Cliente:</strong> ${printable(sale.client_name)}</p>
-          <p><strong>Telefono:</strong> ${sale.client_phone || "-"}</p>
-          <p><strong>Direccion:</strong> ${printable(sale.client_address)}</p>
-          <p><strong>Estado:</strong> ${sale.status || "-"}</p>
-        </section>
-
-        <h2>Pedido</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Producto solicitado</th>
-              <th>Cantidad</th>
-            </tr>
-          </thead>
-          <tbody>${productRows || ""}</tbody>
-        </table>
-
-        <h2>Lotes y porcentajes de mezcla</h2>
-        ${
-          finalBlendOrder ||
-          deductedLots ||
-          '<p class="muted">No hay orden de mezcla ni lotes descontados registrados.</p>'
-        }
-
-        <section class="signature">
-          <p class="line">Entrega bodega</p>
-          <p class="line">Recibe / realiza mezcla</p>
-        </section>
-      </body>
-    </html>
-  `;
-};
-
 const initialPayment = {
   amount: "",
   paymentMethodId: "",
@@ -234,10 +60,8 @@ const operationalFilters = [
   { key: "all", label: "Todas" },
   { key: "pending", label: "Pendientes" },
   { key: "process", label: "En proceso" },
-  { key: "blend", label: "Por ensamble" },
   { key: "lab", label: "Laboratorio" },
   { key: "prepare", label: "Aprobadas lab" },
-  { key: "blend_ready", label: "Ensamble listo" },
   { key: "alistada", label: "Alistadas" },
   { key: "despachada", label: "Despachadas" },
 ];
@@ -258,7 +82,7 @@ const roleCopy = {
   },
   warehouse: {
     title: "Despachos",
-    subtitle: "Ordenes que requieren alistamiento, orden de mezcla o despacho.",
+    subtitle: "Ordenes que requieren salidas de inventario, laboratorio o despacho.",
     detailTitle: "Detalle para bodega",
     empty: "Seleccione una venta para ver lotes, cantidades y orden de alistamiento.",
   },
@@ -273,8 +97,7 @@ const roleCopy = {
 const getOperationalFilterKey = (status) => {
   if (["pendiente_alistamiento", "pendiente_bodega", "lote_asignado"].includes(status)) return "pending";
   if (["proceso_solicitado", "en_proceso"].includes(status)) return "process";
-  if (status === "listo_para_ensamble") return "blend";
-  if (status === "ensamble_definido") return "blend_ready";
+  if (["listo_para_ensamble", "ensamble_definido"].includes(status)) return "pending";
   if (status === "pendiente_laboratorio") return "lab";
   if (status === "aprobada_laboratorio") return "prepare";
   return status;
@@ -901,7 +724,7 @@ const SalesPage = () => {
 
               {selectedSale.items?.some((item) => item.blend_items?.length > 0) && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase text-slate-500">Orden final de mezcla</p>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Registro de mezcla guardado</p>
                   {selectedSale.items
                     .filter((item) => item.blend_items?.length > 0)
                     .map((item) => (
@@ -949,7 +772,7 @@ const SalesPage = () => {
                       </div>
                       {lot.process_mix?.length > 0 && (
                         <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3">
-                          <p className="text-xs font-semibold uppercase text-amber-800">Orden de mezcla</p>
+                          <p className="text-xs font-semibold uppercase text-amber-800">Mezcla de proceso registrada</p>
                           <div className="mt-2 space-y-2">
                             {lot.process_mix.map((input) => (
                               <div key={`${lot.id}-${input.lot_id}`} className="flex items-start justify-between gap-3">

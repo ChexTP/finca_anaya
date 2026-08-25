@@ -53,7 +53,8 @@ const taskFilters = [
 
 const getSimpleWarehouseTaskKey = (sale) => {
   if (sale.items?.some((item) => item.shortage_marked)) return "shortage";
-  if (["pendiente_laboratorio", "proceso_solicitado", "en_proceso", "listo_para_ensamble", "ensamble_definido"].includes(sale.status)) return "lab";
+  if (["pendiente_laboratorio", "proceso_solicitado", "en_proceso"].includes(sale.status)) return "lab";
+  if (["listo_para_ensamble", "ensamble_definido"].includes(sale.status)) return "decision";
   if (sale.status === "aprobada_laboratorio") return "ready";
   if (sale.status === "alistada") return "dispatch";
   return "decision";
@@ -873,29 +874,6 @@ const WarehousePendingPage = () => {
     }
   };
 
-  const requestLaboratoryBlend = async () => {
-    if (!selectedSale) return;
-    if (!window.confirm("Confirma enviar esta venta a laboratorio para definir ensamble?")) return;
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const response = await apiRequest(`/sales/${selectedSale.id}/request-blend`, {
-        method: "PUT",
-        body: JSON.stringify({ notes }),
-      });
-      setSelectedSale(response.data);
-      await loadData();
-      setMessage("Venta enviada a laboratorio para definir ensamble.");
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const toggleItemShortage = async (item, assignmentType = "directo") => {
     if (!selectedSale) return;
 
@@ -1366,7 +1344,7 @@ const WarehousePendingPage = () => {
                 )}
                 {selectedSale.status === "ensamble_definido" && selectedSale.notes && (
                   <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    <p className="font-semibold">Reajuste de ensamble solicitado por laboratorio</p>
+                    <p className="font-semibold">Correccion solicitada por laboratorio</p>
                     <p>{selectedSale.notes}</p>
                   </div>
                 )}
@@ -1571,45 +1549,6 @@ const WarehousePendingPage = () => {
                 ))}
               </div>
 
-              {selectedSale.blend_required !== null && selectedSale.blend_required !== undefined && (
-                <p className={`rounded px-3 py-2 text-sm font-semibold ${
-                  selectedSale.blend_required ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"
-                }`}>
-                  Laboratorio: {selectedSale.blend_required ? "requiere mezcla" : "no requiere mezcla"}.
-                </p>
-              )}
-
-              {selectedSale.items?.some((item) => item.blend_items?.length > 0) && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase text-slate-500">Mezcla indicada por laboratorio</p>
-                  {selectedSale.items
-                    .filter((item) => item.blend_items?.length > 0)
-                    .map((item) => (
-                      <div key={`blend-${item.id}`} className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
-                        <p className="font-semibold text-ink">
-                          {getWarehouseItemLabel(item)}
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {item.blend_items.map((blend) => (
-                            <div key={blend.id} className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="font-medium text-ink">{formatCoffeeLotCodeName(blend)}</p>
-                                <p className="text-xs text-slate-600">{blend.commercial_classification || formatInputLabel(blend)}</p>
-                              </div>
-                              <p className="text-right text-slate-700">
-                                {blend.percentage}%<br />
-                                <span className="text-xs text-slate-500">
-                                  {formatOperationalKg(blend.calculated_operational_kg || blend.calculated_quantity_kg)} estimados
-                                </span>
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-
               {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -1623,29 +1562,14 @@ const WarehousePendingPage = () => {
                 </div>
               )}
 
-              {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "proceso_solicitado", "en_proceso"].includes(selectedSale.status) && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {["pendiente_alistamiento", "pendiente_bodega"].includes(selectedSale.status) ? (
-                    <Link
-                      className="inline-flex w-full items-center justify-center rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
-                      to={`/procesos?saleId=${selectedSale.id}`}
-                    >
-                      Solicitar proceso para este pedido
-                    </Link>
-                  ) : (
-                    <span className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm text-slate-500">
-                      Proceso o lote ya gestionado
-                    </span>
-                  )}
-                  <button
-                    className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
-                    type="button"
-                    onClick={requestLaboratoryBlend}
-                    disabled={saving}
+              {["pendiente_alistamiento", "pendiente_bodega"].includes(selectedSale.status) && (
+                <div className="grid gap-2">
+                  <Link
+                    className="inline-flex w-full items-center justify-center rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
+                    to={`/procesos?saleId=${selectedSale.id}`}
                   >
-                    <FlaskConical size={16} />
-                    Enviar a ensamble de laboratorio
-                  </button>
+                    Solicitar proceso para este pedido
+                  </Link>
                 </div>
               )}
 
