@@ -257,6 +257,27 @@ const SalesHistoryPage = () => {
     }
   };
 
+  const printQuoteDocument = async (quoteId) => {
+    if (!quoteId) {
+      setError("Esta venta no tiene cotizacion asociada.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const document = await apiRequest(`/documents/quotes/${quoteId}`);
+      openCommercialDocumentPrint(document);
+      setMessage("Cotizacion abierta para imprimir o guardar como PDF.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const viewDispatchReceipt = (sale) => {
     if (!sale.dispatch_receipt_image) return;
     setReceiptPreview(sale);
@@ -384,8 +405,18 @@ const SalesHistoryPage = () => {
                                 type="button"
                               >
                                 <Download size={14} />
-                                PDF
+                                PDF venta
                               </button>
+                              {sale.quote_id && (
+                                <button
+                                  className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                                  onClick={() => printQuoteDocument(sale.quote_id)}
+                                  type="button"
+                                >
+                                  <Download size={14} />
+                                  PDF cotizacion
+                                </button>
+                              )}
                               {canEditCodes && (
                                 <button
                                   className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
@@ -510,8 +541,18 @@ const SalesHistoryPage = () => {
                       type="button"
                     >
                       <Printer size={16} />
-                      Imprimir / guardar PDF
+                      Imprimir / guardar PDF de venta
                     </button>
+                    {selectedSale.quote_id && (
+                      <button
+                        className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                        onClick={() => printQuoteDocument(selectedSale.quote_id)}
+                        type="button"
+                      >
+                        <Download size={16} />
+                        Ver PDF de cotizacion
+                      </button>
+                    )}
 
                     {canManagePayments && (
                       <div className="rounded border border-slate-200 bg-white p-3">
