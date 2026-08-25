@@ -630,6 +630,8 @@ const WarehousePendingPage = () => {
     };
   };
 
+  const getDefaultAssignmentPresentation = () => "Pergamino";
+
   const loadData = async () => {
     const [saleData, reservationData] = await Promise.all([
       apiRequest("/sales"),
@@ -675,6 +677,7 @@ const WarehousePendingPage = () => {
       setAssignmentRows(
         sale.items?.flatMap((item) => {
           const suggested = getSuggestedQuantities(item);
+          const defaultPresentation = getDefaultAssignmentPresentation(item);
 
           return suggested
             ? [
@@ -682,24 +685,24 @@ const WarehousePendingPage = () => {
                   ? [{
                       saleItemId: String(item.id),
                       lotId: "",
-                      quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.processInputKg, item.product_form || "Todas")),
-                      presentationFilter: item.product_form || "Todas",
+                      quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.processInputKg, defaultPresentation)),
+                      presentationFilter: defaultPresentation,
                       assignmentType: "proceso-directo",
                       notes: "",
                     }]
                   : suggested.processComponents.map((component) => ({
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas")),
-                  presentationFilter: item.product_form || "Todas",
+                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, component.quantityKg, defaultPresentation)),
+                  presentationFilter: defaultPresentation,
                   assignmentType: `proceso:${component.key}`,
                   notes: "",
                     }))),
                 {
                   saleItemId: String(item.id),
                   lotId: "",
-                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.baseKg, item.product_form || "Todas")),
-                  presentationFilter: item.product_form || "Todas",
+                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.baseKg, defaultPresentation)),
+                  presentationFilter: defaultPresentation,
                   assignmentType: "base",
                   notes: "",
                 },
@@ -707,8 +710,8 @@ const WarehousePendingPage = () => {
             : [{
               saleItemId: String(item.id),
               lotId: "",
-              quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, item.quantity_kg, item.product_form || "Todas")),
-              presentationFilter: item.product_form || "Todas",
+              quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, item.quantity_kg, defaultPresentation)),
+              presentationFilter: defaultPresentation,
               assignmentType: "directo",
               notes: "",
             }];
@@ -811,7 +814,7 @@ const WarehousePendingPage = () => {
         saleItemId: String(item.id),
         lotId: "",
         quantityKg: formatSuggestedAssignmentKgInput(getAssignmentBlockTotals(item, assignmentType).missingKg),
-        presentationFilter: item.product_form || "Todas",
+        presentationFilter: getDefaultAssignmentPresentation(item),
         assignmentType,
         notes: "",
       },
