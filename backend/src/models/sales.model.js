@@ -1749,6 +1749,26 @@ export const updateSaleAdminStatusOverride = async ({ saleId, status, notes, use
       return { invalidStatus: true, sale };
     }
 
+    if (["aprobada_laboratorio", "alistada", "despachada"].includes(status)) {
+      await client.query(
+        `
+        UPDATE sale_items
+        SET
+          sale_humidity_percent = COALESCE(NULLIF(TRIM(sale_humidity_percent), ''), '10'),
+          sale_lab_aroma = COALESCE(NULLIF(TRIM(sale_lab_aroma), ''), 'aprobado'),
+          sale_lab_flavor = COALESCE(NULLIF(TRIM(sale_lab_flavor), ''), 'aprobado'),
+          sale_lab_sweetness = COALESCE(NULLIF(TRIM(sale_lab_sweetness), ''), 'aprobado'),
+          sale_lab_body = COALESCE(NULLIF(TRIM(sale_lab_body), ''), 'aprobado'),
+          sale_lab_residual = COALESCE(NULLIF(TRIM(sale_lab_residual), ''), 'aprobado'),
+          sale_lab_clean_cup = COALESCE(NULLIF(TRIM(sale_lab_clean_cup), ''), 'aprobado'),
+          sale_lab_score = COALESCE(NULLIF(TRIM(sale_lab_score), ''), '10'),
+          sale_lab_notes = COALESCE(NULLIF(TRIM(sale_lab_notes), ''), 'Correccion manual administrativa para desbloquear pedido heredado')
+        WHERE sale_id = $1
+        `,
+        [saleId]
+      );
+    }
+
     const updateResult = await client.query(
       `
       UPDATE sales
