@@ -111,6 +111,8 @@ const SalesPage = () => {
   const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
   const [dispatchReceiptFile, setDispatchReceiptFile] = useState(null);
+  const [adminManualStatus, setAdminManualStatus] = useState("aprobada_laboratorio");
+  const [adminManualReceiptFile, setAdminManualReceiptFile] = useState(null);
   const [paymentForm, setPaymentForm] = useState(initialPayment);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -123,6 +125,8 @@ const SalesPage = () => {
 
   useEffect(() => {
     setDispatchReceiptFile(null);
+    setAdminManualReceiptFile(null);
+    setAdminManualStatus("aprobada_laboratorio");
   }, [selectedSale?.id]);
 
   const canManageDispatch = ["admin", "accounting", "warehouse"].includes(user?.role);
@@ -421,6 +425,54 @@ const SalesPage = () => {
             ? "Venta marcada como alistada."
             : "Venta marcada como despachada."
       );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateAdminManualStatus = async () => {
+    if (!selectedSale || user?.role !== "admin") return;
+
+    if (adminManualStatus === "despachada" && !adminManualReceiptFile) {
+      setError("Para marcar como despachada debe cargar la foto de la guia o recibo.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Confirma cambiar manualmente ${selectedSale.code} a ${saleStatusLabels[adminManualStatus] || adminManualStatus}?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const payload = { status: adminManualStatus, notes };
+
+      if (adminManualStatus === "despachada") {
+        const image = await readImageFileAsDataUrl(
+          adminManualReceiptFile,
+          "No se pudo leer la foto de la guia"
+        );
+        payload.dispatchReceipt = {
+          image,
+          fileName: adminManualReceiptFile.name,
+          mimeType: adminManualReceiptFile.type,
+        };
+      }
+
+      await apiRequest(`/sales/${selectedSale.id}/admin-status`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      await loadSales();
+      await loadSaleDetail(selectedSale.id, false);
+      setAdminManualReceiptFile(null);
+      setMessage(`Venta ${selectedSale.code} actualizada manualmente.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -874,6 +926,65 @@ const SalesPage = () => {
                       Despachada
                     </button>
                   </div>
+                </div>
+              )}
+
+              {user?.role === "admin" && selectedSale.status !== "despachada" && selectedSale.status !== "anulada" && (
+                <div className="space-y-3 rounded border border-amber-300 bg-amber-50 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-950">Correccion manual administrativa</p>
+                    <p className="text-xs text-amber-800">
+                      Use esta opcion solo para cerrar pedidos que quedaron bloqueados por cambios del flujo anterior.
+                    </p>
+                  </div>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-amber-900">
+                    Estado a dejar
+                    <select
+                      className="rounded border border-amber-300 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={adminManualStatus}
+                      onChange={(event) => setAdminManualStatus(event.target.value)}
+                      disabled={saving}
+                    >
+                      <option value="aprobada_laboratorio">Aprobada laboratorio</option>
+                      <option value="alistada">Alistada</option>
+                      <option value="despachada">Despachada</option>
+                    </select>
+                  </label>
+                  {adminManualStatus === "despachada" && (
+                    <div className="rounded border border-amber-300 bg-white p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-amber-900">Foto de guia obligatoria</p>
+                          <p className="text-xs text-slate-600">
+                            Esta imagen quedara guardada en el historico de la venta despachada.
+                          </p>
+                          {adminManualReceiptFile && (
+                            <p className="mt-1 text-xs font-semibold text-emerald-700">
+                              Archivo seleccionado: {adminManualReceiptFile.name}
+                            </p>
+                          )}
+                        </div>
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">
+                          <ImagePlus size={15} />
+                          {adminManualReceiptFile ? "Cambiar guia" : "Subir guia"}
+                          <input
+                            className="hidden"
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => setAdminManualReceiptFile(event.target.files?.[0] || null)}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded bg-amber-700 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-60"
+                    type="button"
+                    onClick={updateAdminManualStatus}
+                    disabled={saving || (adminManualStatus === "despachada" && !adminManualReceiptFile)}
+                  >
+                    Aplicar correccion manual
+                  </button>
                 </div>
               )}
 

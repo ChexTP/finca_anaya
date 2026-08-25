@@ -22,6 +22,7 @@ import {
   getSaleLotReservations,
   putSalePendingLaboratory,
   putSaleLabReview,
+  putSaleAdminStatusOverride,
 } from "../controllers/sales.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
@@ -78,6 +79,12 @@ router.put(
   requireAuth,
   requireRoles("admin", "accounting", "warehouse"),
   putSaleDispatched
+);
+router.put(
+  "/:id/admin-status",
+  requireAuth,
+  requireRoles("admin"),
+  putSaleAdminStatusOverride
 );
 router.put(
   "/:id/cancel",

@@ -21,6 +21,7 @@ import {
   getOperationalLotReservations,
   markSalePendingLaboratory,
   updateSaleItemReviews,
+  updateSaleAdminStatusOverride,
 } from "../models/sales.model.js";
 import { logControllerError } from "../utils/logger.js";
 import { findQuoteById } from "../models/quotes.model.js";
@@ -1134,6 +1135,57 @@ export const putSaleDispatched = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al marcar venta como despachada",
+      error: error.message,
+    });
+  }
+};
+
+export const putSaleAdminStatusOverride = async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+
+    if (!["aprobada_laboratorio", "alistada", "despachada"].includes(status)) {
+      return res.status(400).json({
+        message: "El estado manual de la venta no es valido",
+      });
+    }
+
+    const parsedReceipt = status === "despachada"
+      ? parseDispatchReceipt(req.body)
+      : { receipt: null };
+
+    if (parsedReceipt.error) {
+      return res.status(400).json({ message: parsedReceipt.error });
+    }
+
+    const updatedSale = await updateSaleAdminStatusOverride({
+      saleId: Number(req.params.id),
+      status,
+      notes,
+      userId: req.user.id,
+      dispatchReceipt: parsedReceipt.receipt,
+    });
+
+    if (!updatedSale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (updatedSale.invalidStatus) {
+      return res.status(409).json({
+        message: "No se puede cambiar manualmente una venta anulada",
+        data: updatedSale.sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Estado de venta actualizado manualmente por administracion",
+      data: fullSale,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al actualizar manualmente la venta",
       error: error.message,
     });
   }

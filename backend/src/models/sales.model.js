@@ -1722,6 +1722,72 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
   }
 };
 
+export const updateSaleAdminStatusOverride = async ({ saleId, status, notes, userId, dispatchReceipt = null }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query(
+      `
+      SELECT *
+      FROM sales
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [saleId]
+    );
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (sale.status === "anulada") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, sale };
+    }
+
+    const updateResult = await client.query(
+      `
+      UPDATE sales
+      SET
+        status = $1,
+        notes = COALESCE($2, notes),
+        dispatch_receipt_image = COALESCE($4::text, dispatch_receipt_image),
+        dispatch_receipt_file_name = COALESCE($5::text, dispatch_receipt_file_name),
+        dispatch_receipt_mime_type = COALESCE($6::text, dispatch_receipt_mime_type),
+        dispatch_receipt_uploaded_by = COALESCE($7::integer, dispatch_receipt_uploaded_by),
+        dispatch_receipt_uploaded_at = CASE
+          WHEN $4::text IS NULL THEN dispatch_receipt_uploaded_at
+          ELSE NOW()
+        END,
+        updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+      `,
+      [
+        status,
+        notes || null,
+        saleId,
+        dispatchReceipt?.image || null,
+        dispatchReceipt?.fileName || null,
+        dispatchReceipt?.mimeType || null,
+        dispatchReceipt ? userId : null,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return updateResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const cancelSale = async ({ saleId, notes, cancelledBy }) => {
   const client = await pool.connect();
 
