@@ -1,7 +1,7 @@
 export const saleStatusLabels = {
   pendiente_alistamiento: "Pendiente de decision",
   pendiente_bodega: "Pendiente de bodega",
-  lote_asignado: "Con lote asignado",
+  lote_asignado: "Con salidas registradas",
   proceso_solicitado: "Proceso solicitado",
   en_proceso: "En proceso",
   listo_para_ensamble: "Listo para ensamble",
@@ -61,19 +61,19 @@ export const getQuoteNextAction = (quote) => {
 
 export const getSaleNextAction = (sale) => {
   if (sale?.status === "pendiente_bodega" && sale?.blend_required === false) {
-    return "Bodega debe asignar el lote procesado y alistar";
+    return "Bodega debe registrar la salida del cafe y alistar";
   }
 
   const actions = {
-    pendiente_alistamiento: "Bodega debe asignar cafe, solicitar proceso o marcar deficit",
-    pendiente_bodega: "Bodega debe asignar cafe, solicitar proceso o marcar deficit",
-    lote_asignado: "Bodega debe enviar a laboratorio para aprobar los lotes",
+    pendiente_alistamiento: "Bodega debe registrar salidas, solicitar proceso o marcar deficit",
+    pendiente_bodega: "Bodega debe registrar salidas, solicitar proceso o marcar deficit",
+    lote_asignado: "Bodega debe enviar a laboratorio si requiere aprobacion",
     proceso_solicitado: "Administracion debe confirmar el inicio del proceso",
     en_proceso: "Esperando finalizacion para enviar a examen de laboratorio",
     listo_para_ensamble: "Laboratorio debe definir el ensamble final",
     ensamble_definido: "Bodega debe mezclar o reajustar y enviar muestra a laboratorio",
     pendiente_laboratorio: "Laboratorio debe aprobar las caracteristicas de cada producto",
-    aprobada_laboratorio: "Bodega puede alistar y descontar inventario",
+    aprobada_laboratorio: "Bodega puede alistar si todos los cafes ya salieron de inventario",
     alistada: "Bodega puede despachar",
     despachada: "Contabilidad debe revisar pago si queda saldo",
     anulada: "Sin accion operativa",

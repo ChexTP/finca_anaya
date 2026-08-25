@@ -1634,19 +1634,7 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
       return null;
     }
 
-    if (status === "alistada") {
-      if (sale.status !== "aprobada_laboratorio") {
-        await client.query("ROLLBACK");
-        return { missingLabReview: true, sale };
-      }
-
-      const hasLabReview = await haveCompleteSaleItemReviews(saleId);
-
-      if (!hasLabReview) {
-        await client.query("ROLLBACK");
-        return { missingLabReview: true, sale };
-      }
-
+    const checkOutputsComplete = async () => {
       const outputCheck = await client.query(
         `
         SELECT
@@ -1668,10 +1656,31 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
         Number(item.deducted_kg || 0) + 0.001 < Number(item.required_kg || 0)
       );
 
-      if (outputCheck.rows.length === 0 || incompleteItem) {
+      return outputCheck.rows.length > 0 && !incompleteItem;
+    };
+
+    if (status === "alistada") {
+      if (sale.status !== "aprobada_laboratorio") {
+        await client.query("ROLLBACK");
+        return { missingLabReview: true, sale };
+      }
+
+      const hasLabReview = await haveCompleteSaleItemReviews(saleId);
+
+      if (!hasLabReview) {
+        await client.query("ROLLBACK");
+        return { missingLabReview: true, sale };
+      }
+
+      if (!(await checkOutputsComplete())) {
         await client.query("ROLLBACK");
         return { missingAssignments: true, sale };
       }
+    }
+
+    if (status === "despachada" && !(await checkOutputsComplete())) {
+      await client.query("ROLLBACK");
+      return { missingAssignments: true, sale };
     }
 
     const updateResult = await client.query(

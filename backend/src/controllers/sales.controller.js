@@ -926,7 +926,7 @@ export const putSalePendingLaboratory = async (req, res) => {
 
     if (!["lote_asignado", "listo_para_ensamble", "ensamble_definido"].includes(sale.status)) {
       return res.status(409).json({
-        message: "Solo se pueden enviar a laboratorio ventas con lotes asignados o ensamble listo/definido",
+        message: "Solo se pueden enviar a laboratorio ventas con salidas registradas o ensamble listo/definido",
         data: sale,
       });
     }
@@ -935,7 +935,7 @@ export const putSalePendingLaboratory = async (req, res) => {
 
     if (!hasAssignments) {
       return res.status(409).json({
-        message: "Antes de enviar a laboratorio se debe asignar el cafe o definir el ensamble",
+        message: "Antes de enviar a laboratorio se debe registrar la salida del cafe o definir el ensamble",
         data: sale,
       });
     }
@@ -1067,7 +1067,7 @@ export const putSalePrepared = async (req, res) => {
 
     if (updatedSale.missingAssignments) {
       return res.status(409).json({
-        message: "Antes de alistar se debe asignar al menos un lote a la venta",
+        message: "Antes de alistar se deben registrar las salidas de todos los productos de la venta",
         data: updatedSale.sale,
       });
     }
@@ -1119,6 +1119,13 @@ export const putSaleDispatched = async (req, res) => {
       userId: req.user.id,
       dispatchReceipt: parsedReceipt.receipt,
     });
+
+    if (updatedSale.missingAssignments) {
+      return res.status(409).json({
+        message: "Antes de despachar se deben registrar las salidas de todos los productos de la venta",
+        data: updatedSale.sale,
+      });
+    }
 
     res.json({
       message: "Venta marcada como despachada",

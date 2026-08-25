@@ -230,9 +230,29 @@ const getEstimatedProcessParts = (estimatedParts) => {
   return [];
 };
 
+const getDeficitGuideLines = ({ item, estimatedParts, missingKg }) => {
+  if (!estimatedParts) {
+    return [`Cafe directo faltante: ${formatKg(missingKg)}`];
+  }
+
+  const lines = [
+    `${getItemName(item)}: ${formatKg(missingKg)} faltantes de producto final`,
+  ];
+
+  getEstimatedProcessParts(estimatedParts).forEach((component) => {
+    lines.push(`Cafe para proceso: ${component.name}: ${formatKg(component.kg)}`);
+  });
+
+  if (Number(estimatedParts.baseKg || 0) > 0) {
+    lines.push(`Base para proceso: ${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)}`);
+  }
+
+  return lines;
+};
+
 const printRows = ({ title, headers, rows, summary }) => {
   const tableRows = rows
-    .map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ""}</td>`).join("")}</tr>`)
+    .map((row) => `<tr>${row.map((cell) => `<td>${String(cell ?? "").replace(/\n/g, "<br />")}</td>`).join("")}</tr>`)
     .join("");
   const tableHeaders = headers.map((header) => `<th>${header}</th>`).join("");
   const summaryRows = summary?.rows
@@ -373,12 +393,12 @@ const LotReservationsPage = () => {
           ? [
               ...getEstimatedProcessParts(estimatedParts).map((component) => ({
                 coffee: component.name,
-                category: "Proceso faltante",
+                category: "Cafe para proceso",
                 kg: component.kg,
               })),
               {
                 coffee: estimatedParts.baseComponentName,
-                category: "Base faltante",
+                category: "Base para proceso",
                 kg: estimatedParts.baseKg,
               },
             ].filter((part) => Number(part.kg || 0) > 0)
@@ -485,17 +505,7 @@ const LotReservationsPage = () => {
         requested: formatKg(requiredKg),
         reserved: formatKg(item.reserved_kg),
         missing: formatKg(missingKg),
-        estimate: estimatedParts
-          ? [
-              ...getEstimatedProcessParts(estimatedParts).map((component) =>
-                `Proceso faltante - ${component.name}: ${formatKg(component.kg)}`
-              ),
-              Number(estimatedParts.baseKg || 0) > 0
-                ? `Base faltante - ${estimatedParts.baseComponentName}: ${formatKg(estimatedParts.baseKg)}`
-                : null,
-              `Final faltante: ${formatKg(estimatedParts.finalMissingKg)}`,
-            ].filter(Boolean).join(" / ")
-          : formatKg(missingKg),
+        estimate: getDeficitGuideLines({ item, estimatedParts, missingKg }).join("\n"),
         delivery: formatDate(item.estimated_delivery_date),
         assignee: item.order_assignee || "-",
       };
@@ -555,13 +565,13 @@ const LotReservationsPage = () => {
       deficit: {
         title: "Detalle de deficit de cafe",
         filename: "detalle-deficit-cafe.csv",
-        headers: ["Venta", "Cliente", "Cafe", "Pedido", "Reservado", "Faltante", "Estimacion compra/proceso", "Entrega", "Encargado"],
+        headers: ["Venta", "Cliente", "Cafe", "Pedido", "Reservado", "Faltante", "Guia estimada por perfil", "Entrega", "Encargado"],
         rows: deficitRows,
       },
       deficitSummary: {
         title: "Resumen de cafe necesario",
         filename: "resumen-cafe-necesario.csv",
-        headers: ["Cafe necesario", "Tipo", "Kg totales", "Ventas", "Clientes"],
+        headers: ["Cafe necesario", "Tipo de necesidad", "Kg totales", "Ventas", "Clientes"],
         rows: deficitSummary.map((item) => ({
           coffee: item.coffee,
           category: item.category,
@@ -938,17 +948,14 @@ const LotReservationsPage = () => {
                       <td className="px-3 py-2">
                         {estimatedParts ? (
                           <div className="space-y-1 text-xs">
-                            {getEstimatedProcessParts(estimatedParts).map((component) => (
-                              <p key={component.name} className="font-semibold text-rose-700">
-                                Proceso faltante - {component.name}: {formatKg(component.kg)}
+                            {getDeficitGuideLines({ item, estimatedParts, missingKg }).map((line, index) => (
+                              <p
+                                key={`${item.sale_item_id}-guide-${index}`}
+                                className={index === 0 ? "font-semibold text-slate-700" : "font-semibold text-rose-700"}
+                              >
+                                {line}
                               </p>
                             ))}
-                            {Number(estimatedParts.baseKg || 0) > 0 && (
-                              <p className="font-semibold text-amber-700">
-                                Base faltante - {estimatedParts.baseComponentName}: {formatKg(estimatedParts.baseKg)}
-                              </p>
-                            )}
-                            <p className="text-slate-500">Faltante perfil final: {formatKg(estimatedParts.finalMissingKg)}</p>
                           </div>
                         ) : (
                           <span className="font-semibold text-rose-700">{formatKg(missingKg)}</span>
@@ -972,14 +979,14 @@ const LotReservationsPage = () => {
 
       <div className="rounded border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-800">Lotes asignados</h2>
+          <h2 className="text-sm font-semibold text-slate-800">Salidas registradas</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Reservas activas por venta. Desde aqui se puede liberar una reserva antes de alistar o despachar.
+            Cafe ya descontado del inventario para cada venta. Desde aqui se puede liberar una salida antes de alistar o despachar.
           </p>
         </div>
         {activeAssignments.length === 0 ? (
           <div className="p-4">
-            <EmptyState title="Sin lotes asignados" message="No hay reservas activas con los filtros actuales." />
+            <EmptyState title="Sin salidas registradas" message="No hay cafe descontado con los filtros actuales." />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -990,7 +997,7 @@ const LotReservationsPage = () => {
                   <th className="px-3 py-2">Venta</th>
                   <th className="px-3 py-2">Cliente</th>
                   <th className="px-3 py-2">Cafe</th>
-                  <th className="px-3 py-2">Kg asignados</th>
+                  <th className="px-3 py-2">Kg descontados</th>
                   <th className="px-3 py-2">Entrega</th>
                   <th className="px-3 py-2">Accion</th>
                 </tr>
@@ -1044,7 +1051,7 @@ const LotReservationsPage = () => {
                     <p className="text-xs text-slate-500">{lot.status}</p>
                   </div>
                   <p><span className="text-slate-500">Fisico:</span> {formatKg(lot.available_weight_kg)}</p>
-                  <p><span className="text-slate-500">Reservado:</span> {formatKg(lot.reserved_kg)}</p>
+                  <p><span className="text-slate-500">Descontado:</span> {formatKg(lot.reserved_kg)}</p>
                   <p className={Number(lot.operational_available_kg) > 0 ? "text-emerald-700" : "text-rose-700"}>
                     <span className="text-slate-500">Libre:</span> {formatKg(lot.operational_available_kg)}
                   </p>
@@ -1058,7 +1065,7 @@ const LotReservationsPage = () => {
                             <th className="px-3 py-2">Venta</th>
                             <th className="px-3 py-2">Cliente</th>
                             <th className="px-3 py-2">Cafe</th>
-                            <th className="px-3 py-2">Kg reservados</th>
+                            <th className="px-3 py-2">Kg descontados</th>
                             <th className="px-3 py-2">Estado</th>
                             <th className="px-3 py-2">Encargado</th>
                             <th className="px-3 py-2">Entrega</th>
@@ -1084,7 +1091,7 @@ const LotReservationsPage = () => {
                       </table>
                     </div>
                   ) : (
-                    <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-500">Este lote no tiene reservas activas.</p>
+                    <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-500">Este lote no tiene salidas registradas.</p>
                   )}
                 </div>
               </details>

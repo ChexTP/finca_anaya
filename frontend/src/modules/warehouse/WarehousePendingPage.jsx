@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Truck, X } from "lucide-react";
+import { AlertTriangle, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Search, Truck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -11,7 +11,6 @@ import { printHtmlDocument } from "../../utils/printHtml";
 import {
   getSaleNextAction,
   getSaleStatusTone,
-  getSaleTaskKey,
   isDeliveryDueSoon,
   saleStatusLabels,
 } from "../../utils/workflow";
@@ -44,14 +43,21 @@ const formatSuggestedAssignmentKgInput = (value) => {
 };
 
 const taskFilters = [
-  { key: "all", label: "Todo" },
-  { key: "decision", label: "Por decidir" },
-  { key: "process", label: "Procesos" },
-  { key: "blend", label: "Ensamble" },
+  { key: "all", label: "Todos" },
+  { key: "decision", label: "Por alistar" },
+  { key: "shortage", label: "Con faltante" },
   { key: "lab", label: "Laboratorio" },
-  { key: "prepare", label: "Alistar" },
+  { key: "ready", label: "Listos" },
   { key: "dispatch", label: "Despachar" },
 ];
+
+const getSimpleWarehouseTaskKey = (sale) => {
+  if (sale.items?.some((item) => item.shortage_marked)) return "shortage";
+  if (["pendiente_laboratorio", "proceso_solicitado", "en_proceso", "listo_para_ensamble", "ensamble_definido"].includes(sale.status)) return "lab";
+  if (sale.status === "aprobada_laboratorio") return "ready";
+  if (sale.status === "alistada") return "dispatch";
+  return "decision";
+};
 
 const getAssignedLotSearchText = (sale) =>
   (sale.assigned_lots_summary || [])
@@ -109,6 +115,8 @@ const WarehousePendingPage = () => {
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [itemAssignees, setItemAssignees] = useState({});
   const [directProcessModeByItem, setDirectProcessModeByItem] = useState({});
+  const [lotPicker, setLotPicker] = useState(null);
+  const [lotPickerSearch, setLotPickerSearch] = useState("");
   const [orderAssignee, setOrderAssignee] = useState("");
   const [notes, setNotes] = useState("");
   const [dispatchReceiptFile, setDispatchReceiptFile] = useState(null);
@@ -124,7 +132,7 @@ const WarehousePendingPage = () => {
   const taskCounts = useMemo(() => {
     return sales.reduce(
       (counts, sale) => {
-        const key = getSaleTaskKey(sale);
+        const key = getSimpleWarehouseTaskKey(sale);
         return {
           ...counts,
           all: counts.all + 1,
@@ -139,7 +147,7 @@ const WarehousePendingPage = () => {
     const searchTerm = search.trim().toLowerCase();
 
     return sales
-      .filter((sale) => taskFilter === "all" || getSaleTaskKey(sale) === taskFilter)
+      .filter((sale) => taskFilter === "all" || getSimpleWarehouseTaskKey(sale) === taskFilter)
       .filter((sale) => assigneeFilter === "all" || (sale.order_assignee || "Sin encargado") === assigneeFilter)
       .filter((sale) => {
         if (!searchTerm) return true;
@@ -385,17 +393,6 @@ const WarehousePendingPage = () => {
   const getSelectedLotOption = (row) => {
     if (!row?.lotId) return null;
 
-    const assignedLot = (selectedSale?.deductedLots || []).find((lot) => (
-      String(lot.lot_id) === String(row.lotId) &&
-      String(lot.sale_item_id) === String(row.saleItemId)
-    ));
-    if (assignedLot) {
-      return {
-        value: row.lotId,
-        label: `Salida registrada: ${formatCoffeeLotCodeName(assignedLot)} - ${formatOperationalKg(assignedLot.quantity_kg)}`,
-      };
-    }
-
     const catalogLot = availableLots.find((lot) => String(lot.id) === String(row.lotId));
     const availableInSelector = availableLotGroups.some((group) => group.lots.some((lot) => String(lot.id) === String(row.lotId)));
 
@@ -629,23 +626,6 @@ const WarehousePendingPage = () => {
       directProcessName: item.coffee_profile_name || item.variety || "Proceso del perfil",
       directProcessAvailableKg: getDirectProfileProcessAvailableKg(item),
     };
-  };
-
-  const getRecipeProcessAssignmentTypes = (item) => {
-    const suggested = getSuggestedQuantities(item);
-    return suggested?.processComponents?.map((component) => `proceso:${component.key}`) || [];
-  };
-
-  const getActiveAssignmentTypesForItem = (item) => {
-    const suggested = getSuggestedQuantities(item);
-    if (!suggested) return ["directo"];
-
-    if (!shouldUseDirectProfileProcess(item)) {
-      return [...getRecipeProcessAssignmentTypes(item), "base"];
-    }
-
-    const recipeTypes = getDirectProcessMissingKg(item) > 0 ? getRecipeProcessAssignmentTypes(item) : [];
-    return ["proceso-directo", ...recipeTypes, "base"];
   };
 
   const loadData = async () => {
@@ -950,6 +930,55 @@ const WarehousePendingPage = () => {
     }
   };
 
+  const openLotPicker = (rowIndex) => {
+    setLotPicker({ rowIndex });
+    setLotPickerSearch("");
+  };
+
+  const closeLotPicker = () => {
+    setLotPicker(null);
+    setLotPickerSearch("");
+  };
+
+  const selectLotForPicker = (lotId) => {
+    if (!lotPicker) return;
+    updateAssignmentRow(lotPicker.rowIndex, "lotId", String(lotId));
+    closeLotPicker();
+  };
+
+  const getLotPickerGroups = () => {
+    if (!lotPicker) return [];
+
+    const row = assignmentRows[lotPicker.rowIndex];
+    if (!row) return [];
+
+    const searchTerm = lotPickerSearch.trim().toLowerCase();
+
+    return getAvailableLotGroupsForRow(row)
+      .map((group) => ({
+        ...group,
+        lots: group.lots.filter((lot) => {
+          if (getLotAvailableForAssignmentRow(lot.id, lotPicker.rowIndex) <= 0) return false;
+          if (!searchTerm) return true;
+
+          return [
+            lot.code,
+            lot.supplier_name,
+            lot.presentation,
+            lot.commercial_classification,
+            lot.coffee_type_name,
+            lot.coffee_profile_name,
+            lot.coffee_variety,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(searchTerm);
+        }),
+      }))
+      .filter((group) => group.lots.length > 0);
+  };
+
   const renderAssignmentBlock = (item, { assignmentType, title, description, addLabel }) => {
     const rows = getItemAssignmentRowsByType(item, assignmentType);
     const shortageActive = isShortageActiveForType(item, assignmentType);
@@ -959,14 +988,14 @@ const WarehousePendingPage = () => {
       <div className={`space-y-3 rounded border p-3 ${shortageActive ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50"}`}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase text-slate-600">{title}</p>
-            {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
-            <p className="mt-1 text-xs text-slate-600">
-              Sugerido: <span className="font-semibold">{formatOperationalKg(totals.targetKg)}</span>
+            <p className="text-sm font-semibold uppercase text-slate-700">{title}</p>
+            <p className="mt-1 text-base text-slate-700">
+              <span className="font-semibold">Sugerido:</span> {formatOperationalKg(totals.targetKg)}
               {" · "}
-              Sacado: <span className="font-semibold text-amber-700">{formatOperationalKg(totals.assignedKg)}</span>
+              <span className="font-semibold text-amber-700">Sacado:</span> {formatOperationalKg(totals.assignedKg)}
               {" · "}
-              Faltante: <span className={totals.missingKg > 0 ? "font-semibold text-rose-700" : "font-semibold text-leaf"}>
+              <span className={totals.missingKg > 0 ? "font-semibold text-rose-700" : "font-semibold text-leaf"}>
+                Faltante:{" "}
                 {formatOperationalKg(totals.missingKg)}
               </span>
             </p>
@@ -990,7 +1019,6 @@ const WarehousePendingPage = () => {
           const selectedLotOption = getSelectedLotOption(row);
           const selectedAvailableKg = row.lotId ? getLotAvailableForAssignmentRow(row.lotId, rowIndex) : 0;
           const quantityExceedsAvailable = row.lotId && Number(row.quantityKg || 0) > selectedAvailableKg;
-          const rowAvailableLotGroups = getAvailableLotGroupsForRow(row);
 
           return (
             <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-3 rounded border border-slate-200 bg-white p-3">
@@ -1010,31 +1038,14 @@ const WarehousePendingPage = () => {
                   </select>
                 </label>
                 <label className="grid min-w-0 gap-1 text-xs font-semibold uppercase text-slate-500">
-                  Lote a separar
-                  <select
-                    className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
-                    value={row.lotId}
-                    onChange={(event) => updateAssignmentRow(rowIndex, "lotId", event.target.value)}
+                  Lote del que se saco
+                  <button
+                    className="min-w-0 max-w-full truncate rounded border border-slate-300 bg-white px-3 py-2 text-left text-sm font-normal normal-case text-ink hover:bg-slate-50"
+                    type="button"
+                    onClick={() => openLotPicker(rowIndex)}
                   >
-                    <option value="">Lote disponible</option>
-                    {selectedLotOption && (
-                      <option value={selectedLotOption.value}>{selectedLotOption.label}</option>
-                    )}
-                    {rowAvailableLotGroups.map((group) => (
-                      <optgroup key={group.name} label={`${group.name} (${formatOperationalKg(group.kg)})`}>
-                        {group.lots
-                          .filter((lot) => {
-                            if (selectedLotOption && String(lot.id) === String(row.lotId)) return false;
-                            return getLotAvailableForAssignmentRow(lot.id, rowIndex) > 0;
-                          })
-                          .map((lot) => (
-                            <option key={lot.id} value={lot.id}>
-                              {formatCoffeeLotOption(getLotOptionForRow(lot, rowIndex))}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                    {selectedLotOption?.label || "Buscar lote disponible"}
+                  </button>
                 </label>
               </div>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -1067,15 +1078,6 @@ const WarehousePendingPage = () => {
                   {quantityExceedsAvailable ? " · La cantidad supera lo disponible para este lote." : ""}
                 </p>
               )}
-              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                Observacion
-                <input
-                  className="min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
-                  placeholder="Opcional"
-                  value={row.notes}
-                  onChange={(event) => updateAssignmentRow(rowIndex, "notes", event.target.value)}
-                />
-              </label>
             </div>
           );
         })}
@@ -1102,6 +1104,15 @@ const WarehousePendingPage = () => {
 
     if (action === "dispatch" && !dispatchReceiptFile) {
       setError("Antes de despachar debe cargar la foto del recibo.");
+      return;
+    }
+
+    if (["prepare", "dispatch"].includes(action) && !hasCompleteOutputsForSale()) {
+      const validationMessage = action === "prepare"
+        ? "Antes de marcar como alistada debe registrar las salidas completas de todos los productos."
+        : "Antes de despachar debe registrar las salidas completas de todos los productos.";
+      setError(validationMessage);
+      alert(validationMessage);
       return;
     }
 
@@ -1158,6 +1169,17 @@ const WarehousePendingPage = () => {
     printHtmlDocument(buildWarehouseOrderHtml(selectedSale), { title: `Orden ${selectedSale.code}` });
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
+
+  const hasCompleteOutputsForSale = () => {
+    if (!selectedSale?.items?.length) return false;
+
+    return selectedSale.items.every((item) =>
+      Number(item.reserved_kg || 0) + 0.001 >= getItemOperationalKg(item)
+    );
+  };
+
+  const pickerRow = lotPicker ? assignmentRows[lotPicker.rowIndex] : null;
+  const pickerGroups = getLotPickerGroups();
 
   return (
     <section className="space-y-5">
@@ -1236,7 +1258,7 @@ const WarehousePendingPage = () => {
                     <th className="px-3 py-2">Entrega</th>
                     <th className="px-3 py-2">Prioridad</th>
                     <th className="px-3 py-2">Encargado</th>
-                    <th className="px-3 py-2">Lotes asignados</th>
+                    <th className="px-3 py-2">Salidas registradas</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Siguiente accion</th>
                     <th className="px-3 py-2">Accion</th>
@@ -1472,9 +1494,12 @@ const WarehousePendingPage = () => {
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
                             suggested ? (
                               <div className="space-y-3">
-                                <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
-                                  <label className="grid gap-1 text-xs font-semibold uppercase text-emerald-900">
-                                    Forma de cubrir este cafe
+                                <details className="rounded border border-emerald-200 bg-emerald-50 p-3">
+                                  <summary className="cursor-pointer text-sm font-semibold text-emerald-900">
+                                    Sugerencia: {formatOperationalKg(getItemOperationalKg(item))}
+                                  </summary>
+                                  <label className="mt-3 grid gap-1 text-xs font-semibold uppercase text-emerald-900">
+                                    Forma de cubrir
                                     <select
                                       className="rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
                                       value={shouldUseDirectProfileProcess(item) ? "directo" : "receta"}
@@ -1487,14 +1512,14 @@ const WarehousePendingPage = () => {
                                       <option value="receta">Preparar con receta/componentes</option>
                                     </select>
                                   </label>
-                                  <p className="mt-2 text-xs text-emerald-800">
-                                    Disponible directo: {formatOperationalKg(suggested.directProcessAvailableKg)} de {suggested.directProcessName}. Si no alcanza, el faltante se completa con receta/componentes.
+                                  <p className="mt-2 text-sm text-emerald-800">
+                                    Disponible directo: {formatOperationalKg(suggested.directProcessAvailableKg)} de {suggested.directProcessName}.
                                   </p>
-                                </div>
+                                </details>
 
                                 {shouldUseDirectProfileProcess(item) && renderAssignmentBlock(item, {
                                   assignmentType: "proceso-directo",
-                                  title: `Asignar proceso disponible - ${suggested.directProcessName}`,
+                                  title: `Registrar salida de proceso disponible - ${suggested.directProcessName}`,
                                   description: `Use procesos ya existentes de ${suggested.directProcessName}. Si no alcanza, debajo se muestra la receta para completar el faltante.`,
                                   addLabel: "Agregar otro proceso disponible",
                                 })}
@@ -1705,6 +1730,76 @@ const WarehousePendingPage = () => {
           </div>
         )}
       </div>
+
+      {pickerRow && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-3 sm:p-6">
+          <div className="my-4 w-full max-w-4xl overflow-hidden rounded border border-slate-200 bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+              <div>
+                <h2 className="text-lg font-bold text-ink">Buscar lote</h2>
+                <p className="text-sm text-slate-500">
+                  Presentacion: {pickerRow.presentationFilter || "Todas"}
+                </p>
+              </div>
+              <button
+                className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                type="button"
+                onClick={closeLotPicker}
+              >
+                <X size={16} />
+                Cerrar
+              </button>
+            </div>
+            <div className="space-y-4 p-4">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-3 text-slate-400" size={18} />
+                <input
+                  className="w-full rounded border border-slate-300 py-3 pl-10 pr-3 text-base"
+                  placeholder="Buscar por codigo, proveedor, cafe, proceso o categoria"
+                  value={lotPickerSearch}
+                  onChange={(event) => setLotPickerSearch(event.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              {pickerGroups.length === 0 ? (
+                <EmptyState title="Sin lotes disponibles" message="Cambie la presentacion o revise si hay cafe disponible en inventario." />
+              ) : (
+                <div className="max-h-[65vh] space-y-4 overflow-y-auto pr-1">
+                  {pickerGroups.map((group) => (
+                    <div key={group.name} className="rounded border border-slate-200">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="font-semibold text-slate-800">{group.name}</p>
+                        <p className="text-sm font-semibold text-leaf">{formatOperationalKg(group.kg)}</p>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {group.lots.map((lot) => (
+                          <button
+                            key={lot.id}
+                            className="grid w-full gap-1 px-3 py-3 text-left hover:bg-emerald-50 sm:grid-cols-[minmax(0,1fr)_130px]"
+                            type="button"
+                            onClick={() => selectLotForPicker(lot.id)}
+                          >
+                            <span className="font-semibold text-ink">{formatCoffeeLotCodeName(lot)}</span>
+                            <span className="font-semibold text-leaf sm:text-right">
+                              {formatOperationalKg(getLotAvailableForAssignmentRow(lot.id, lotPicker.rowIndex))}
+                            </span>
+                            <span className="text-sm text-slate-500 sm:col-span-2">
+                              {[lot.presentation, lot.commercial_classification, lot.coffee_type_name, lot.coffee_profile_name, lot.supplier_name]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
