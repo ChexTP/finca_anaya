@@ -679,45 +679,16 @@ const WarehousePendingPage = () => {
       );
       setAssignmentRows(
         sale.items?.flatMap((item) => {
-          const suggested = getSuggestedQuantities(item);
           const defaultPresentation = getDefaultAssignmentPresentation(item);
 
-          return suggested
-            ? [
-                ...(hasDirectProfileProcessAvailable(item)
-                  ? [{
-                      saleItemId: String(item.id),
-                      lotId: "",
-                      quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.processInputKg, defaultPresentation)),
-                      presentationFilter: defaultPresentation,
-                      assignmentType: "proceso-directo",
-                      notes: "",
-                    }]
-                  : suggested.processComponents.map((component) => ({
-                  saleItemId: String(item.id),
-                  lotId: "",
-                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, component.quantityKg, defaultPresentation)),
-                  presentationFilter: defaultPresentation,
-                  assignmentType: `proceso:${component.key}`,
-                  notes: "",
-                    }))),
-                {
-                  saleItemId: String(item.id),
-                  lotId: "",
-                  quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, suggested.baseKg, defaultPresentation)),
-                  presentationFilter: defaultPresentation,
-                  assignmentType: "base",
-                  notes: "",
-                },
-              ]
-            : [{
-              saleItemId: String(item.id),
-              lotId: "",
-              quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, item.quantity_kg, defaultPresentation)),
-              presentationFilter: defaultPresentation,
-              assignmentType: "directo",
-              notes: "",
-            }];
+          return [{
+            saleItemId: String(item.id),
+            lotId: "",
+            quantityKg: formatSuggestedAssignmentKgInput(calculateSourceKgForItem(item, item.quantity_kg, defaultPresentation)),
+            presentationFilter: defaultPresentation,
+            assignmentType: "directo",
+            notes: "",
+          }];
         }) || []
       );
       setNotes("");
@@ -1477,61 +1448,18 @@ const WarehousePendingPage = () => {
                           )}
 
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
-                            suggested ? (
-                              <div className="space-y-3">
-                                <details className="rounded border border-emerald-200 bg-emerald-50 p-3">
-                                  <summary className="cursor-pointer text-sm font-semibold text-emerald-900">
-                                    Sugerencia: {formatOperationalKg(getItemOperationalKg(item))}
-                                  </summary>
-                                  <label className="mt-3 grid gap-1 text-xs font-semibold uppercase text-emerald-900">
-                                    Forma de cubrir
-                                    <select
-                                      className="rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink"
-                                      value={shouldUseDirectProfileProcess(item) ? "directo" : "receta"}
-                                      onChange={(event) => setDirectProcessModeByItem((currentModes) => ({
-                                        ...currentModes,
-                                        [item.id]: event.target.value === "directo",
-                                      }))}
-                                    >
-                                      <option value="directo">Usar proceso disponible del perfil</option>
-                                      <option value="receta">Preparar con receta/componentes</option>
-                                    </select>
-                                  </label>
-                                  <p className="mt-2 text-sm text-emerald-800">
-                                    Disponible directo: {formatOperationalKg(suggested.directProcessAvailableKg)} de {suggested.directProcessName}.
-                                  </p>
-                                </details>
-
-                                {shouldUseDirectProfileProcess(item) && renderAssignmentBlock(item, {
-                                  assignmentType: "proceso-directo",
-                                  title: `Registrar salida de proceso disponible - ${suggested.directProcessName}`,
-                                  description: `Use procesos ya existentes de ${suggested.directProcessName}. Si no alcanza, debajo se muestra la receta para completar el faltante.`,
-                                  addLabel: "Agregar otro proceso disponible",
-                                })}
-
-                                {(!shouldUseDirectProfileProcess(item) || getDirectProcessMissingKg(item) > 0) && suggested.processComponents.map((component) => renderAssignmentBlock(item, {
-                                  assignmentType: `proceso:${component.key}`,
-                                  title: shouldUseDirectProfileProcess(item) ? `Registrar salida para receta - ${component.name}` : `Registrar salida para proceso - ${component.name}`,
-                                  description: shouldUseDirectProfileProcess(item)
-                                    ? `Complete el faltante del proceso con ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""}.`
-                                    : `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, component.quantityKg, item.product_form || "Todas"))} de ${component.name}${component.percentage ? ` (${component.percentage}%)` : ""} para este componente.`,
-                                  addLabel: shouldUseDirectProfileProcess(item) ? "Agregar lote para faltante" : "Agregar otro lote para este proceso",
-                                }))}
-                                {renderAssignmentBlock(item, {
-                                  assignmentType: "base",
-                                  title: "Registrar salida para base",
-                                  description: `Separe hasta ${formatOperationalKg(calculateSourceKgForItem(item, suggested.baseKg, item.product_form || "Todas"))} de ${suggested.baseName} como base.`,
-                                  addLabel: "Agregar otro lote para base",
-                                })}
+                            <div className="space-y-3">
+                              <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-base text-emerald-900">
+                                <span className="font-semibold">Sugerencia en pergamino:</span>{" "}
+                                {formatOperationalKg(calculateSourceKgForItem(item, item.quantity_kg, "Pergamino"))}
                               </div>
-                            ) : (
-                              renderAssignmentBlock(item, {
+                              {renderAssignmentBlock(item, {
                                 assignmentType: "directo",
                                 title: "Registrar salida de este cafe",
-                                description: "Use uno o varios lotes hasta completar la cantidad solicitada.",
-                                addLabel: "Agregar otro lote a este cafe",
-                              })
-                            )
+                                description: "Seleccione el lote usado y la cantidad retirada. Si uso mas de un lote, agregue otra linea.",
+                                addLabel: "Agregar otro lote",
+                              })}
+                            </div>
                           )}
 
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
