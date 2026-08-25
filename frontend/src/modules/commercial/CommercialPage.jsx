@@ -206,9 +206,10 @@ const formatPriceInputValue = (value) => {
   return numericValue > 0 ? String(Math.round(numericValue)) : "";
 };
 
-const calculateManualKgPrice = ({ priceKgCop, currency, exchangeRate }) => {
+const calculateManualKgPrice = ({ priceKgCop, currency, exchangeRate, exportCostUsdLb = fixedCommercialCosts.exportCostUsdLb, usdIncoterm = "EXW" }) => {
   const kgPriceCop = Number(priceKgCop || 0);
   const rate = Number(exchangeRate || 0);
+  const exportCost = Number(exportCostUsdLb || 0);
 
   if (!Number.isFinite(kgPriceCop) || kgPriceCop <= 0) {
     return {
@@ -217,18 +218,22 @@ const calculateManualKgPrice = ({ priceKgCop, currency, exchangeRate }) => {
       priceInputMode: "kg",
       kgVacuumPriceCop: 0,
       usdLbExw: 0,
+      usdLbFob: 0,
     };
   }
 
   if (currency === "USD") {
-    const usdLb = rate > 0 ? kgPriceCop / POUNDS_PER_KG / rate : 0;
+    const usdLbExw = rate > 0 ? kgPriceCop / POUNDS_PER_KG / rate : 0;
+    const usdLbFob = usdLbExw + exportCost;
+    const selectedUsd = usdIncoterm === "FOB" ? usdLbFob : usdLbExw;
 
     return {
-      unitPrice: Number(usdLb.toFixed(4)),
+      unitPrice: Number(selectedUsd.toFixed(4)),
       priceBasis: "lb",
       priceInputMode: "kg",
       kgVacuumPriceCop: Number(kgPriceCop.toFixed(2)),
-      usdLbExw: Number(usdLb.toFixed(4)),
+      usdLbExw: Number(usdLbExw.toFixed(4)),
+      usdLbFob: Number(usdLbFob.toFixed(4)),
     };
   }
 
@@ -238,6 +243,7 @@ const calculateManualKgPrice = ({ priceKgCop, currency, exchangeRate }) => {
     priceInputMode: "kg",
     kgVacuumPriceCop: Number(kgPriceCop.toFixed(2)),
     usdLbExw: 0,
+    usdLbFob: 0,
   };
 };
 
@@ -411,9 +417,83 @@ const CommercialPage = () => {
         priceKgCop: itemForm.unitPrice,
         currency: quoteForm.currency,
         exchangeRate: quoteForm.terms?.exchangeRate,
+        exportCostUsdLb: getPricingCosts(quoteForm.terms).exportCostUsdLb,
+        usdIncoterm: quoteForm.terms?.usdIncoterm || "EXW",
       }),
     };
-  }, [itemForm.priceInputMode, itemForm.unitPrice, itemForm.pricingSnapshot, itemPriceCalculation, quoteForm.currency, quoteForm.terms?.exchangeRate]);
+  }, [itemForm.priceInputMode, itemForm.unitPrice, itemForm.pricingSnapshot, itemPriceCalculation, quoteForm.currency, quoteForm.terms]);
+
+  const recalculateQuoteItem = (item, form = quoteForm) => {
+    const terms = form.terms || defaultQuoteTerms;
+    const currency = form.currency || "COP";
+    const exchangeRate = Number(terms.exchangeRate || 0);
+
+    if (currency === "USD" && exchangeRate <= 0) return item;
+
+    const pricingCosts = getPricingCosts(terms);
+    const priceInputMode = item.priceInputMode || item.pricingSnapshot?.priceInputMode || "load";
+    const packaging = item.productForm === "Excelso"
+      ? (item.packaging || item.pricingSnapshot?.packaging || "Empaque tradicional")
+      : "Empaque tradicional";
+
+    let calculation;
+    let priceLoadCop = item.priceLoadCop ?? item.pricingSnapshot?.priceLoadCop ?? "";
+    let manualPriceKgCop = item.pricingSnapshot?.manualPriceKgCop ?? item.pricingSnapshot?.kgVacuumPriceCop ?? "";
+
+    if (priceInputMode === "kg") {
+      if (!manualPriceKgCop && currency === "COP") manualPriceKgCop = item.unitPrice;
+      if (!manualPriceKgCop || Number(manualPriceKgCop) <= 0) return item;
+      calculation = calculateManualKgPrice({
+        priceKgCop: manualPriceKgCop,
+        currency,
+        exchangeRate: terms.exchangeRate,
+        exportCostUsdLb: pricingCosts.exportCostUsdLb,
+        usdIncoterm: terms.usdIncoterm || "EXW",
+      });
+    } else {
+      if (!priceLoadCop || Number(priceLoadCop) <= 0) return item;
+      calculation = calculateCommercialItemPrice({
+        priceLoadCop,
+        productForm: item.productForm,
+        processType: item.processType,
+        packaging,
+        currency,
+        exchangeRate: terms.exchangeRate,
+        ...pricingCosts,
+        usdIncoterm: terms.usdIncoterm || "EXW",
+      });
+    }
+
+    const unitPrice = Number(calculation.unitPrice || 0);
+    const priceBasis = calculation.priceBasis || item.priceBasis || (currency === "USD" ? "lb" : "kg");
+    const pricingSnapshot = {
+      ...(item.pricingSnapshot || {}),
+      ...calculation,
+      priceLoadCop: priceInputMode === "load" ? Number(priceLoadCop || 0) : null,
+      manualPriceKgCop: priceInputMode === "kg" ? Number(manualPriceKgCop || 0) : null,
+      priceInputMode,
+      currency,
+      exchangeRate: terms.exchangeRate || null,
+      packaging,
+      ...pricingCosts,
+      usdIncoterm: terms.usdIncoterm || "EXW",
+    };
+
+    return {
+      ...item,
+      packaging,
+      priceInputMode,
+      unitPrice,
+      priceBasis,
+      pricingSnapshot,
+      lineTotal: calculateCommercialLineTotal({
+        quantityKg: item.quantityKg,
+        unitPrice,
+        currency,
+        priceBasis,
+      }),
+    };
+  };
 
   const subtotal = useMemo(() => {
     return quoteItems.reduce((total, item) => total + Number(item.lineTotal || 0), 0);
@@ -651,6 +731,40 @@ const CommercialPage = () => {
       },
     }));
   }, [itemPriceCalculation.unitPrice, itemForm.priceInputMode, itemForm.priceLoadCop, itemForm.packaging, quoteForm.currency, quoteForm.terms]);
+
+  useEffect(() => {
+    if (quoteItems.length === 0) return;
+    if (quoteForm.currency === "USD" && Number(quoteForm.terms?.exchangeRate || 0) <= 0) return;
+
+    setQuoteItems((currentItems) => {
+      let hasChanges = false;
+      const recalculatedItems = currentItems.map((item) => {
+        const updatedItem = recalculateQuoteItem(item, quoteForm);
+        const sameValues = (
+          Number(updatedItem.unitPrice || 0) === Number(item.unitPrice || 0) &&
+          Number(updatedItem.lineTotal || 0) === Number(item.lineTotal || 0) &&
+          updatedItem.priceBasis === item.priceBasis &&
+          updatedItem.pricingSnapshot?.currency === item.pricingSnapshot?.currency &&
+          String(updatedItem.pricingSnapshot?.usdIncoterm || "") === String(item.pricingSnapshot?.usdIncoterm || "") &&
+          Number(updatedItem.pricingSnapshot?.exportCostUsdLb || 0) === Number(item.pricingSnapshot?.exportCostUsdLb || 0)
+        );
+
+        if (!sameValues) hasChanges = true;
+        return updatedItem;
+      });
+
+      return hasChanges ? recalculatedItems : currentItems;
+    });
+  }, [
+    quoteForm.currency,
+    quoteForm.terms?.exchangeRate,
+    quoteForm.terms?.usdIncoterm,
+    quoteForm.terms?.millCostCop,
+    quoteForm.terms?.transportCostCop,
+    quoteForm.terms?.vacuumCostCop,
+    quoteForm.terms?.exportCostUsdLb,
+    quoteItems.length,
+  ]);
 
   const clearQuoteDraft = () => {
     window.localStorage.removeItem(quoteDraftStorageKey);
