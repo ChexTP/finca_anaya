@@ -1086,7 +1086,8 @@ VALUES
   ('accounting', 'Contabilidad'),
   ('seller', 'Vendedor'),
   ('samples', 'Muestras'),
-  ('management', 'Gerencia')
+  ('management', 'Gerencia'),
+  ('inventory_viewer', 'Consulta inventario')
 ON CONFLICT (name) DO UPDATE SET label = EXCLUDED.label;
 
 INSERT INTO users (name, username, password_hash, role_id)
@@ -1097,6 +1098,17 @@ SELECT
   roles.id
 FROM roles
 WHERE roles.name = 'management'
+ON CONFLICT (username) DO NOTHING;
+
+-- Usuario de consulta de inventario para Sergio.
+INSERT INTO users (name, username, password_hash, role_id)
+SELECT
+  'Sergio',
+  'sergio',
+  '$2a$10$jUMOhnBlhxvtog/pLqPi5eqReSO/HYcLZJABnNOvOsYJ3dM2UHjey',
+  roles.id
+FROM roles
+WHERE roles.name = 'inventory_viewer'
 ON CONFLICT (username) DO NOTHING;
 
 -- Catalogo comercial inicial. Los 17 perfiles actuales corresponden a cafes exoticos.

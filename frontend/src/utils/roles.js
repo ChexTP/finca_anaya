@@ -6,6 +6,7 @@ export const roleLabels = {
   seller: "Vendedor",
   samples: "Muestras",
   management: "Gerencia",
+  inventory_viewer: "Consulta inventario",
 };
 
 export const canSeeReports = (role) => ["admin", "accounting"].includes(role);

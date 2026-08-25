@@ -9,6 +9,7 @@ const roles = [
   ["seller", "Vendedor"],
   ["samples", "Muestras"],
   ["management", "Gerencia"],
+  ["inventory_viewer", "Consulta inventario"],
 ];
 
 const initialUsers = [
@@ -18,6 +19,7 @@ const initialUsers = [
   { name: "Contabilidad", username: "contabilidad", password: "contabilidad123", role: "accounting" },
   { name: "Muestras", username: "muestras", password: "muestras123", role: "samples" },
   { name: "Gerencia", username: "gerencia", password: "gerencia123", role: "management" },
+  { name: "Sergio", username: "sergio", password: "sergio123", role: "inventory_viewer" },
 ];
 
 const coffeeTypes = ["Lavado", "Natural", "Semilavado"];

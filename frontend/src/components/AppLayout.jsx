@@ -25,6 +25,7 @@ import { roleLabels } from "../utils/roles";
 const navigation = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin", "accounting", "warehouse", "laboratory", "seller", "management"] },
   { label: "Gerencia", path: "/gerencia", icon: BarChart3, roles: ["admin", "accounting", "management"] },
+  { label: "Resumen inventario", path: "/resumen-inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse", "management", "inventory_viewer"] },
 
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },

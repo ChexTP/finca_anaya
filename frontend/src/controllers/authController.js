@@ -15,6 +15,10 @@ export const getInitialRouteByRole = (role) => {
     return "/muestras";
   }
 
+  if (role === "inventory_viewer") {
+    return "/resumen-inventario";
+  }
+
   if (role === "management") {
     return "/gerencia";
   }

@@ -15,6 +15,7 @@ import DashboardPage from "./modules/dashboard/DashboardPage";
 // Modulo comercial desactivado visualmente: documentos con precios/facturas quedan fuera del flujo operativo.
 // import DocumentsPage from "./modules/documents/DocumentsPage";
 import InventoryPage from "./modules/inventory/InventoryPage";
+import InventorySummaryPage from "./modules/inventory/InventorySummaryPage";
 import LaboratoryPage from "./modules/laboratory/LaboratoryPage";
 import ManagementPage from "./modules/management/ManagementPage";
 import PayablesPage from "./modules/payables/PayablesPage";
@@ -70,6 +71,14 @@ const App = () => {
           element={
             <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
               <InventoryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/resumen-inventario"
+          element={
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "management", "inventory_viewer"]}>
+              <InventorySummaryPage />
             </ProtectedRoute>
           }
         />
