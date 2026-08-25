@@ -44,7 +44,7 @@ const labels = {
     customer: "Cliente",
     date: "Fecha cotizacion",
     estimatedDeliveryDate: "Entrega estimada",
-    quoteCode: "Cotizacion",
+    quoteCode: "Cotización",
     intro: "De acuerdo con su solicitud, tenemos el placer de presentarle la siguiente oferta:",
     farm: "FINCA",
     presentation: "PRESENTACION",
@@ -237,6 +237,9 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
   const currency = document.totals?.currency || "COP";
   const isPriceList = document.documentType === "ListaPrecios";
   const isQuote = document.documentType === "Cotizacion" || document.documentType === "Preventa" || isPriceList;
+  const documentTitle = isPriceList
+    ? (language === "en" ? "Price list" : "Lista de precios")
+    : (language === "en" ? "Quotation" : "Cotización");
   const showUnitPrice = isQuote;
   const showQuantityAndTotal = isQuote && !isPriceList;
   const terms = document.terms || {};
@@ -293,7 +296,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(document.code)}</title>
+        <title>${escapeHtml(`${documentTitle} ${document.code || ""}`.trim())}</title>
         <style>
           body { color: #111827; font-family: Arial, sans-serif; margin: 32px; }
           header { align-items: flex-start; display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
@@ -435,8 +438,14 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
 };
 
 export const openCommercialDocumentPrint = (document, options = {}) => {
+  const language = options.language || "es";
+  const isPriceList = document.documentType === "ListaPrecios";
+  const documentName = isPriceList
+    ? (language === "en" ? "Price list" : "Lista de precios")
+    : (language === "en" ? "Quotation" : "Cotización");
+
   printHtmlDocument(buildCommercialDocumentHtml(document, options), {
-    title: document.code || "Documento comercial",
+    title: `${documentName} ${document.code || ""}`.trim(),
   });
 };
 

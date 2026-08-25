@@ -1,5 +1,6 @@
 export const printHtmlDocument = (html, { title = "Documento" } = {}) => {
   const iframe = document.createElement("iframe");
+  const originalTitle = document.title;
   iframe.title = title;
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -22,13 +23,17 @@ export const printHtmlDocument = (html, { title = "Documento" } = {}) => {
   printDocument.close();
 
   const removeFrame = () => {
-    setTimeout(() => iframe.remove(), 1000);
+    setTimeout(() => {
+      iframe.remove();
+      document.title = originalTitle;
+    }, 1000);
   };
 
   let printed = false;
   const triggerPrint = () => {
     if (printed) return;
     printed = true;
+    document.title = title;
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
     removeFrame();
