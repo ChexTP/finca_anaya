@@ -174,7 +174,6 @@ export const buildWarehouseOrderHtml = (sale) => {
             <tbody>
               <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
               <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
-              <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
             </tbody>
           </table>
         </section>
@@ -266,11 +265,11 @@ export const buildWarehouseOrderHtml = (sale) => {
           body { color: #111827; font-family: Arial, sans-serif; margin: 26px; }
           header { align-items: flex-start; display: flex; justify-content: space-between; gap: 24px; }
           h1 { font-size: 16px; margin: 0 0 14px; text-transform: uppercase; }
-          h2 { font-size: 13px; margin: 22px 0 8px; text-transform: uppercase; }
+          h2 { font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; }
           h3 { font-size: 13px; margin: 0 0 3px; }
-          p { font-size: 12px; margin: 4px 0; }
-          table { border-collapse: collapse; margin-top: 10px; width: 100%; }
-          th, td { border: 1px solid #111827; font-size: 12px; padding: 8px; text-align: center; vertical-align: middle; }
+          p { font-size: 12px; margin: 3px 0; }
+          table { border-collapse: collapse; margin-top: 8px; width: 100%; }
+          th, td { border: 1px solid #111827; font-size: 11px; padding: 5px 6px; text-align: center; vertical-align: middle; }
           th { background: #f2f2f2; font-weight: 700; text-align: center; }
           td:nth-child(3), td:nth-child(4) { text-align: center; width: 90px; }
           .logo { height: 72px; object-fit: contain; width: 150px; }
@@ -279,12 +278,13 @@ export const buildWarehouseOrderHtml = (sale) => {
           .instructions p { font-size: 12px; margin: 6px 0; }
           .lot-block { margin-top: 16px; page-break-inside: avoid; }
           .item-lot-block { border: 1px solid #d6e4dc; padding: 12px; }
-          .item-title { align-items: flex-start; background: #f0fdf4; border: 1px solid #bbf7d0; display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; padding: 10px; }
+          .item-title { align-items: flex-start; background: #f0fdf4; border: 1px solid #bbf7d0; display: flex; justify-content: space-between; gap: 16px; margin-bottom: 6px; padding: 7px 8px; }
           .item-eyebrow { color: #166534; font-size: 11px; font-weight: 700; margin: 0 0 4px; text-transform: uppercase; }
           .lot-head { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; }
           .reserved-lot { border-top: 1px solid #e5e7eb; margin-top: 10px; padding-top: 10px; }
-          .manual-blend-block { border: 1px solid #fde68a; margin-top: 12px; padding: 12px; page-break-inside: avoid; }
-          .manual-blend-block table td { height: 30px; }
+          .manual-blend-block { border: 1px solid #fde68a; margin-top: 8px; padding: 8px; page-break-inside: avoid; }
+          .manual-blend-block table { margin-top: 6px; }
+          .manual-blend-block table td { height: 20px; }
           .manual-mix-table .manual-col-lot { width: 26%; }
           .manual-mix-table .manual-col-percent { width: 8%; }
           .manual-mix-table .manual-col-kg { width: 10%; }
