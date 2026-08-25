@@ -1303,9 +1303,12 @@ const InventoryPage = ({ mode = "inventory" }) => {
       kg: presentationLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
     };
   });
+  const processLots = lots.filter((lot) => lot.lot_kind === "PROC");
   const presentationFilteredLots = selectedPresentation === "all"
     ? lots
-    : lots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
+    : selectedPresentation === "processes"
+      ? processLots
+      : lots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
   const inventoryGroups = groupCoffeeLots(
     presentationFilteredLots.map((lot) => ({
       ...lot,
@@ -1379,6 +1382,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const totalInProcessKg = inProcessInventory.reduce((total, row) => total + Number(row.quantity_kg || 0), 0);
   const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
+  const totalProcessLotsKg = processLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const totalSampleOutputsKg = sampleOutputs.reduce((total, movement) => total + Number(movement.quantity_kg || 0), 0);
   const totalFarmShipmentsKg = farmShipments.reduce((total, shipment) => total + Number(shipment.quantity_kg || 0), 0);
   const getLotOriginLabel = (lot) => {
@@ -2384,6 +2388,19 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 <span className="text-xs">{option.count} lotes - {formatKg(option.kg)}</span>
               </button>
             ))}
+            <button
+              className={`rounded border px-3 py-2 text-left text-sm ${
+                selectedPresentation === "processes" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+              }`}
+              type="button"
+              onClick={() => {
+                setSelectedPresentation("processes");
+                setSelectedGroup("all");
+              }}
+            >
+              <span className="block font-semibold">Procesos</span>
+              <span className="text-xs">{processLots.length} lotes - {formatKg(totalProcessLotsKg)}</span>
+            </button>
             <button
               className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm text-amber-800 hover:bg-amber-100"
               type="button"
