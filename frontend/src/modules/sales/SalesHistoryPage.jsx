@@ -5,10 +5,9 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
-import { saleStatusLabels } from "../../utils/workflow";
+import { paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
-// Datos financieros desactivados: el historico conserva trazabilidad operativa sin pagos ni totales.
-// const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
+const formatMoney = (currency, value) => `${currency} ${Number(value || 0).toLocaleString("es-CO")}`;
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -26,25 +25,57 @@ const formatSaleItemName = (item) => {
     .join(" - ") || "Producto";
 };
 
+const initialPayment = {
+  amount: "",
+  paymentMethodId: "",
+  paymentReference: "",
+  paidAt: new Date().toISOString().slice(0, 10),
+  notes: "",
+};
+
+const paymentFilters = [
+  { key: "all", label: "Todas" },
+  { key: "pendiente_pago", label: "Pendientes" },
+  { key: "pago_parcial", label: "Pagos parciales" },
+  { key: "pagada", label: "Pagos totales" },
+];
+
+const paymentStatusTone = (status) => {
+  if (status === "pagada") return "success";
+  if (status === "pago_parcial") return "warning";
+  return "danger";
+};
+
 const SalesHistoryPage = () => {
   const { user } = useAuth();
   const [sales, setSales] = useState([]);
+  const [catalogs, setCatalogs] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
   const [filters, setFilters] = useState({
     client: "",
     from: "",
     to: "",
+    payment: "all",
   });
+  const [paymentForm, setPaymentForm] = useState(initialPayment);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const canEditCodes = ["admin", "accounting"].includes(user?.role);
+  const canManagePayments = ["admin", "accounting"].includes(user?.role);
 
   const loadSales = async () => {
     setError("");
-    const data = await apiRequest("/sales");
+    const requests = [apiRequest("/sales")];
+
+    if (canManagePayments) {
+      requests.push(apiRequest("/catalogs"));
+    }
+
+    const [data, catalogData] = await Promise.all(requests);
     setSales(data);
+    setCatalogs(catalogData || null);
   };
 
   useEffect(() => {
@@ -60,6 +91,7 @@ const SalesHistoryPage = () => {
         sale.code,
         sale.quote_code,
         sale.order_assignee,
+        sale.payment_status,
       ]
         .filter(Boolean)
         .join(" ")
@@ -67,10 +99,38 @@ const SalesHistoryPage = () => {
         .includes(searchTerm);
       const matchesFrom = !filters.from || saleDate >= filters.from;
       const matchesTo = !filters.to || saleDate <= filters.to;
+      const matchesPayment = filters.payment === "all" || sale.payment_status === filters.payment;
 
-      return matchesClient && matchesFrom && matchesTo;
+      return matchesClient && matchesFrom && matchesTo && matchesPayment;
     });
   }, [sales, filters]);
+
+  const paymentCounts = useMemo(() => {
+    return sales.reduce(
+      (counts, sale) => ({
+        ...counts,
+        all: counts.all + 1,
+        [sale.payment_status]: (counts[sale.payment_status] || 0) + 1,
+      }),
+      { all: 0 }
+    );
+  }, [sales]);
+
+  const paymentTotals = useMemo(() => {
+    return filteredSales.reduce(
+      (totals, sale) => {
+        const currency = sale.currency || "COP";
+        if (!totals[currency]) {
+          totals[currency] = { total: 0, paid: 0, balance: 0 };
+        }
+        totals[currency].total += Number(sale.total || 0);
+        totals[currency].paid += Number(sale.amount_paid || 0);
+        totals[currency].balance += Number(sale.balance_due || 0);
+        return totals;
+      },
+      {}
+    );
+  }, [filteredSales]);
 
   const editSaleCode = async (sale) => {
     const newCode = window.prompt(`Nuevo codigo para ${sale.code}`, sale.code || "");
@@ -113,11 +173,72 @@ const SalesHistoryPage = () => {
     try {
       const sale = await apiRequest(`/sales/${saleId}`);
       setSelectedSale(sale);
+      setPaymentForm({
+        ...initialPayment,
+        amount: "",
+      });
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const registerPayment = async (event) => {
+    event.preventDefault();
+
+    if (!selectedSale) {
+      setError("Seleccione una venta.");
+      return;
+    }
+
+    const paymentAmount = Number(paymentForm.amount);
+    const balanceDue = Number(selectedSale.balance_due || 0);
+
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      setError("Ingrese un valor de pago mayor a cero.");
+      return;
+    }
+
+    if (paymentAmount > balanceDue) {
+      setError("El pago no puede superar el saldo pendiente.");
+      return;
+    }
+
+    if (!paymentForm.paymentMethodId || !paymentForm.paymentReference.trim()) {
+      setError("Seleccione el metodo de pago y escriba una referencia.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...paymentForm,
+          amount: paymentAmount,
+          paymentMethodId: Number(paymentForm.paymentMethodId),
+        }),
+      });
+      await loadSales();
+      await loadSaleDetail(selectedSale.id);
+      setMessage("Pago de venta registrado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fillFullPayment = () => {
+    if (!selectedSale) return;
+    setPaymentForm((current) => ({
+      ...current,
+      amount: String(Number(selectedSale.balance_due || 0)),
+    }));
   };
 
   const printSaleDocument = async (saleId) => {
@@ -145,8 +266,8 @@ const SalesHistoryPage = () => {
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink">Historico de ordenes</h1>
-          <p className="text-sm text-slate-500">Consulta ordenes, clientes, productos y analisis de laboratorio.</p>
+          <h1 className="text-xl font-bold text-ink">Historico de ventas</h1>
+          <p className="text-sm text-slate-500">Consulta ventas despachadas, pagos, productos y analisis de laboratorio.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -163,7 +284,35 @@ const SalesHistoryPage = () => {
       <div className="grid gap-5">
         <div className="rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-800">Ordenes registradas</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Ventas registradas</h2>
+            {canManagePayments && (
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {paymentFilters.map((filter) => (
+                  <button
+                    key={filter.key}
+                    className={`shrink-0 rounded border px-3 py-1.5 text-xs font-semibold ${
+                      filters.payment === filter.key ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                    type="button"
+                    onClick={() => setFilters({ ...filters, payment: filter.key })}
+                  >
+                    {filter.label} ({paymentCounts[filter.key] || 0})
+                  </button>
+                ))}
+              </div>
+            )}
+            {canManagePayments && (
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {Object.entries(paymentTotals).map(([currency, totals]) => (
+                  <div key={currency} className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <p className="font-semibold text-ink">{currency}</p>
+                    <p className="text-slate-600">Total: {formatMoney(currency, totals.total)}</p>
+                    <p className="text-emerald-700">Pagado: {formatMoney(currency, totals.paid)}</p>
+                    <p className="font-semibold text-rose-700">Pendiente: {formatMoney(currency, totals.balance)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="mt-3 grid gap-2 md:grid-cols-3">
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
@@ -188,7 +337,7 @@ const SalesHistoryPage = () => {
 
           {filteredSales.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin ordenes" message="No hay ordenes para los filtros seleccionados." />
+              <EmptyState title="Sin ventas" message="No hay ventas para los filtros seleccionados." />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -199,7 +348,8 @@ const SalesHistoryPage = () => {
                     <th className="px-3 py-2">Cliente</th>
                     <th className="px-3 py-2">Fecha</th>
                     <th className="px-3 py-2">Estado</th>
-                    {/* Pago y total desactivados por integracion con software contable externo. */}
+                    {canManagePayments && <th className="px-3 py-2">Pago</th>}
+                    {canManagePayments && <th className="px-3 py-2">Saldo</th>}
                     <th className="px-3 py-2">Accion</th>
                   </tr>
                 </thead>
@@ -214,8 +364,14 @@ const SalesHistoryPage = () => {
                           <td className="px-3 py-2">{sale.client_name}</td>
                           <td className="px-3 py-2">{formatDate(sale.created_at)}</td>
                           <td className="px-3 py-2"><StatusBadge>{saleStatusLabels[sale.status] || sale.status}</StatusBadge></td>
-                          {/* <td className="px-3 py-2">{paymentStatusLabels[sale.payment_status] || sale.payment_status}</td>
-                          <td className="px-3 py-2">{formatMoney(sale.currency, sale.total)}</td> */}
+                          {canManagePayments && (
+                            <td className="px-3 py-2">
+                              <StatusBadge tone={paymentStatusTone(sale.payment_status)}>
+                                {paymentStatusLabels[sale.payment_status] || sale.payment_status}
+                              </StatusBadge>
+                            </td>
+                          )}
+                          {canManagePayments && <td className="px-3 py-2">{formatMoney(sale.currency, sale.balance_due)}</td>}
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-2">
                               <button
@@ -276,6 +432,19 @@ const SalesHistoryPage = () => {
                                     <p className="font-semibold text-ink">{selectedSale.code}</p>
                                     <p className="text-slate-500">{selectedSale.client_name}</p>
                                     <p className="text-slate-500">{formatDate(selectedSale.created_at)}</p>
+                                    {canManagePayments && (
+                                      <div className="mt-3 rounded bg-slate-50 p-3">
+                                        <p className="text-xs font-semibold uppercase text-slate-500">Estado de pago</p>
+                                        <StatusBadge tone={paymentStatusTone(selectedSale.payment_status)}>
+                                          {paymentStatusLabels[selectedSale.payment_status] || selectedSale.payment_status}
+                                        </StatusBadge>
+                                        <div className="mt-2 space-y-1 text-sm">
+                                          <p>Total: {formatMoney(selectedSale.currency, selectedSale.total)}</p>
+                                          <p className="text-emerald-700">Pagado: {formatMoney(selectedSale.currency, selectedSale.amount_paid)}</p>
+                                          <p className="font-semibold text-rose-700">Pendiente: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</p>
+                                        </div>
+                                      </div>
+                                    )}
                                     <div className={`mt-3 rounded border p-3 ${
                                       selectedSale.dispatch_receipt_image
                                         ? "border-emerald-200 bg-emerald-50"
@@ -315,6 +484,90 @@ const SalesHistoryPage = () => {
                                       <Printer size={16} />
                                       Imprimir / guardar PDF
                                     </button>
+                                    {canManagePayments && (
+                                      <div className="mt-3 rounded border border-slate-200 bg-white p-3">
+                                        <p className="text-xs font-semibold uppercase text-slate-500">Pagos registrados</p>
+                                        {selectedSale.payments?.length ? (
+                                          <div className="mt-2 space-y-2">
+                                            {selectedSale.payments.map((payment) => (
+                                              <div key={payment.id} className="rounded bg-slate-50 px-3 py-2">
+                                                <p className="font-semibold text-ink">
+                                                  {formatMoney(selectedSale.currency, payment.amount)}
+                                                </p>
+                                                <p className="text-xs text-slate-600">
+                                                  {payment.payment_method_name || "-"} · {payment.payment_reference || "-"} · {formatDate(payment.paid_at)}
+                                                </p>
+                                                {payment.notes && <p className="text-xs text-slate-500">{payment.notes}</p>}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="mt-2 text-sm text-slate-500">Sin pagos registrados.</p>
+                                        )}
+
+                                        {selectedSale.payment_status !== "pagada" && (
+                                          <form className="mt-3 space-y-2" onSubmit={registerPayment}>
+                                            <div className="flex items-center justify-between gap-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                              <span>Saldo por cobrar: {formatMoney(selectedSale.currency, selectedSale.balance_due)}</span>
+                                              <button
+                                                className="rounded border border-amber-300 bg-white px-2 py-1 font-semibold text-amber-800"
+                                                type="button"
+                                                onClick={fillFullPayment}
+                                              >
+                                                Pago total
+                                              </button>
+                                            </div>
+                                            <input
+                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                              placeholder="Valor recibido"
+                                              type="number"
+                                              min="0.01"
+                                              max={selectedSale.balance_due || undefined}
+                                              step="0.01"
+                                              value={paymentForm.amount}
+                                              onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })}
+                                            />
+                                            <select
+                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                              value={paymentForm.paymentMethodId}
+                                              onChange={(event) => setPaymentForm({ ...paymentForm, paymentMethodId: event.target.value })}
+                                            >
+                                              <option value="">Metodo de pago</option>
+                                              {catalogs?.paymentMethods?.map((method) => (
+                                                <option key={method.id} value={method.id}>
+                                                  {method.name}
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <input
+                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                              placeholder="Referencia o recibo"
+                                              value={paymentForm.paymentReference}
+                                              onChange={(event) => setPaymentForm({ ...paymentForm, paymentReference: event.target.value })}
+                                            />
+                                            <input
+                                              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                              type="date"
+                                              value={paymentForm.paidAt}
+                                              onChange={(event) => setPaymentForm({ ...paymentForm, paidAt: event.target.value })}
+                                            />
+                                            <textarea
+                                              className="min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                              placeholder="Nota opcional"
+                                              value={paymentForm.notes}
+                                              onChange={(event) => setPaymentForm({ ...paymentForm, notes: event.target.value })}
+                                            />
+                                            <button
+                                              className="w-full rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                                              type="submit"
+                                              disabled={loading}
+                                            >
+                                              Registrar pago
+                                            </button>
+                                          </form>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )}
