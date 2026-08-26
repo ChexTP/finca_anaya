@@ -43,6 +43,16 @@ const formatCell = (value) => {
   return String(value);
 };
 
+const formatMoneyCell = (value, currency = "COP") => {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue === 0) return "-";
+
+  return `${currency} ${numericValue.toLocaleString("es-CO", {
+    maximumFractionDigits: 0,
+  })}`;
+};
+
 const formatHeader = (value) => {
   return value
     .replaceAll("_", " ")
@@ -56,6 +66,29 @@ const escapeHtml = (value) => {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+};
+
+const pdfColumnConfig = {
+  coffee_profiles: [
+    { key: "perfil_venta", label: "Perfil de venta" },
+    { key: "codigo_interno", label: "Codigo" },
+    { key: "categoria", label: "Categoria" },
+    { key: "proceso", label: "Proceso" },
+    { key: "componentes", label: "Componentes principales" },
+    { key: "base_principal", label: "Base para deficit" },
+    { key: "precio_carga_cop", label: "Precio carga COP", format: (value) => formatMoneyCell(value, "COP") },
+    { key: "precio_usd", label: "Precio USD", format: (value) => formatMoneyCell(value, "USD") },
+    { key: "estado", label: "Estado" },
+  ],
+};
+
+const getPdfColumns = (moduleName, rows) => {
+  if (pdfColumnConfig[moduleName]) return pdfColumnConfig[moduleName];
+
+  return Object.keys(rows[0] || {}).map((key) => ({
+    key,
+    label: formatHeader(key),
+  }));
 };
 
 const BackupsPage = () => {
@@ -150,7 +183,7 @@ const BackupsPage = () => {
         throw new Error("No hay datos para exportar en PDF.");
       }
 
-      const headers = Object.keys(rows[0] || {});
+      const columns = getPdfColumns(selectedModule, rows);
 
       printHtmlDocument(`
         <html>
@@ -181,12 +214,15 @@ const BackupsPage = () => {
             </div>
             <table>
               <thead>
-                <tr>${headers.map((header) => `<th>${escapeHtml(formatHeader(header))}</th>`).join("")}</tr>
+                <tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>
               </thead>
               <tbody>
                 ${rows.map((row) => `
                   <tr>
-                    ${headers.map((header) => `<td>${escapeHtml(formatCell(row[header]))}</td>`).join("")}
+                    ${columns.map((column) => {
+                      const value = column.format ? column.format(row[column.key], row) : formatCell(row[column.key]);
+                      return `<td>${escapeHtml(value)}</td>`;
+                    }).join("")}
                   </tr>
                 `).join("")}
               </tbody>
