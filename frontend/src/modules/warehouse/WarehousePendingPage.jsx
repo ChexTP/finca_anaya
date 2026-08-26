@@ -1195,6 +1195,11 @@ const WarehousePendingPage = () => {
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 
+  const printWarehouseOrderFromList = (sale) => {
+    printHtmlDocument(buildWarehouseOrderHtml(sale), { title: `Orden ${sale.code}` });
+    setMessage(`Orden ${sale.code} abierta para imprimir o guardar como PDF.`);
+  };
+
   const hasCompleteOutputsForSale = () => {
     if (!selectedSale?.items?.length) return false;
 
@@ -1314,14 +1319,24 @@ const WarehousePendingPage = () => {
                       </td>
                       <td className="px-3 py-2 text-slate-600">{getSaleNextAction(sale)}</td>
                       <td className="px-3 py-2">
-                        <button
-                          className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                          type="button"
-                          onClick={() => loadSaleDetail(sale.id)}
-                        >
-                          <Eye size={14} />
-                          Ver
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                            type="button"
+                            onClick={() => loadSaleDetail(sale.id)}
+                          >
+                            <Eye size={14} />
+                            Ver
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-1 rounded border border-leaf bg-emerald-50 px-2 py-1 text-xs font-semibold text-leaf hover:bg-emerald-100"
+                            type="button"
+                            onClick={() => printWarehouseOrderFromList(sale)}
+                          >
+                            <Printer size={14} />
+                            PDF
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
