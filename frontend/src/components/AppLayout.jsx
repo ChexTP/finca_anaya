@@ -194,7 +194,7 @@ const AppLayout = () => {
 
       <div className="flex">
         <aside
-          className={`fixed inset-y-0 left-0 z-30 w-64 border-r border-slate-200 bg-white pt-14 transition-transform lg:static lg:block lg:translate-x-0 lg:pt-0 ${
+          className={`fixed inset-y-0 left-0 z-30 w-[min(92vw,28rem)] overflow-y-auto border-r border-slate-200 bg-white pb-6 pt-14 transition-transform lg:static lg:block lg:w-64 lg:translate-x-0 lg:pt-0 ${
             open ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -204,7 +204,11 @@ const AppLayout = () => {
               <X size={18} />
             </button>
           </div>
-          <nav className="space-y-1 p-3">
+          <div className="border-b border-slate-100 px-3 py-3 lg:hidden">
+            <p className="text-sm font-semibold text-ink">Modulos disponibles</p>
+            <p className="text-xs text-slate-500">Accesos organizados para trabajar mejor desde celular.</p>
+          </div>
+          <nav className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:block lg:space-y-1">
             {items.map((item) => {
               const Icon = item.icon;
               return (
@@ -213,14 +217,17 @@ const AppLayout = () => {
                   to={item.path}
                   end={["/bodega", "/muestras", "/ventas"].includes(item.path)}
                   onClick={() => setOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 rounded px-3 py-2 text-sm font-medium ${
-                      isActive ? "bg-leaf text-white" : "text-slate-700 hover:bg-slate-100"
-                    }`
-                  }
+                  className={({ isActive }) => {
+                    const baseClass = "flex min-h-20 flex-col items-start justify-between gap-2 rounded border px-3 py-3 text-sm font-semibold lg:min-h-0 lg:flex-row lg:items-center lg:justify-start lg:border-0 lg:py-2 lg:font-medium";
+                    const stateClass = isActive
+                      ? "border-leaf bg-leaf text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100 lg:border-transparent lg:bg-transparent";
+
+                    return `${baseClass} ${stateClass}`;
+                  }}
                 >
-                  <Icon size={17} />
-                  {item.label}
+                  <Icon size={19} className="lg:h-[17px] lg:w-[17px]" />
+                  <span className="leading-tight">{item.label}</span>
                 </NavLink>
               );
             })}

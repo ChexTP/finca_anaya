@@ -95,6 +95,24 @@ const formatBaseWithPercentage = (profile) => {
   return profile.base_percentage ? `${profile.base_purchase_coffee_name} ${Number(profile.base_percentage)}%` : profile.base_purchase_coffee_name;
 };
 
+const getCodeSortValue = (profile) => {
+  const code = String(profile.internal_code || "").trim();
+  const numericPart = code.match(/\d+/g)?.join("");
+
+  return numericPart ? Number(numericPart) : Number.NEGATIVE_INFINITY;
+};
+
+const sortProfilesByCodeDesc = (items) => {
+  return [...items].sort((left, right) => {
+    const rightCodeValue = getCodeSortValue(right);
+    const leftCodeValue = getCodeSortValue(left);
+
+    if (rightCodeValue !== leftCodeValue) return rightCodeValue - leftCodeValue;
+
+    return String(right.internal_code || right.name || "").localeCompare(String(left.internal_code || left.name || ""), "es");
+  });
+};
+
 const CoffeeProfilesPage = () => {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
@@ -124,7 +142,7 @@ const CoffeeProfilesPage = () => {
   const filteredProfiles = useMemo(() => {
     const term = search.trim().toLowerCase();
 
-    return profiles.filter((profile) => {
+    return sortProfilesByCodeDesc(profiles.filter((profile) => {
       const matchesCategory = categoryFilter === "all" || profile.category === categoryFilter;
       const matchesStatus =
         statusFilter === "all" ||
@@ -144,7 +162,7 @@ const CoffeeProfilesPage = () => {
         .includes(term);
 
       return matchesCategory && matchesStatus && matchesSearch;
-    });
+    }));
   }, [profiles, search, categoryFilter, statusFilter]);
 
   const selectProfile = (profile) => {
@@ -262,7 +280,7 @@ const CoffeeProfilesPage = () => {
   }, [form.components, form.basePercentage]);
 
   const componentProfileOptions = useMemo(() => {
-    return profiles.filter((profile) => !selectedProfile || profile.id !== selectedProfile.id);
+    return sortProfilesByCodeDesc(profiles.filter((profile) => !selectedProfile || profile.id !== selectedProfile.id));
   }, [profiles, selectedProfile]);
 
   const removeComponent = (index) => {
