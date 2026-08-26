@@ -541,6 +541,42 @@ const WarehousePendingPage = () => {
     processType: item.process_type,
   });
 
+  const getLotCoverageForItem = (lot, item) => {
+    const quantityKg = Number(lot.quantity_kg || 0);
+
+    if (!Number.isFinite(quantityKg) || quantityKg <= 0) return 0;
+
+    // Las salidas son manuales: lo registrado por bodega es lo que realmente se descuenta.
+    return quantityKg;
+  };
+
+  const getItemTakenLots = (item) =>
+    (selectedSale?.deductedLots || []).filter((lot) => String(lot.sale_item_id) === String(item.id));
+
+  const getItemOutputCoverageKg = (item) =>
+    getItemTakenLots(item).reduce((total, lot) => total + getLotCoverageForItem(lot, item), 0);
+
+  const getItemOutputTargetKg = (item) =>
+    Number(item.quantity_kg || 0);
+
+  const getIncompleteOutputItems = () => {
+    if (!selectedSale?.items?.length) return [];
+
+    return selectedSale.items
+      .map((item) => {
+        const targetKg = getItemOutputTargetKg(item);
+        const coverageKg = getItemOutputCoverageKg(item);
+
+        return {
+          ...item,
+          targetKg,
+          coverageKg,
+          missingKg: Math.max(targetKg - coverageKg, 0),
+        };
+      })
+      .filter((item) => item.missingKg > 0.001);
+  };
+
   const hasDirectProfileProcessAvailable = (item) => {
     if (!item?.coffee_profile_id) return false;
 
@@ -1088,10 +1124,18 @@ const WarehousePendingPage = () => {
       return;
     }
 
-    if (["prepare", "dispatch"].includes(action) && !hasCompleteOutputsForSale()) {
+    const incompleteOutputItems = ["prepare", "dispatch"].includes(action)
+      ? getIncompleteOutputItems()
+      : [];
+
+    if (["prepare", "dispatch"].includes(action) && incompleteOutputItems.length > 0) {
+      const missingText = incompleteOutputItems
+        .slice(0, 3)
+        .map((item) => `${getWarehouseItemLabel(item)}: faltan ${formatOperationalKg(item.missingKg)}`)
+        .join(" / ");
       const validationMessage = action === "prepare"
-        ? "Antes de marcar como alistada debe registrar las salidas completas de todos los productos."
-        : "Antes de despachar debe registrar las salidas completas de todos los productos.";
+        ? `Antes de marcar como alistada debe registrar las salidas completas. ${missingText}`
+        : `Antes de despachar debe registrar las salidas completas. ${missingText}`;
       setError(validationMessage);
       alert(validationMessage);
       return;
@@ -1154,9 +1198,7 @@ const WarehousePendingPage = () => {
   const hasCompleteOutputsForSale = () => {
     if (!selectedSale?.items?.length) return false;
 
-    return selectedSale.items.every((item) =>
-      Number(item.reserved_kg || 0) + 0.001 >= getItemOperationalKg(item)
-    );
+    return getIncompleteOutputItems().length === 0;
   };
 
   const pickerRow = lotPicker ? assignmentRows[lotPicker.rowIndex] : null;
@@ -1405,6 +1447,9 @@ const WarehousePendingPage = () => {
                   >
                     {(() => {
                       const suggested = getSuggestedQuantities(item);
+                      const outputCoverageKg = getItemOutputCoverageKg(item);
+                      const physicalTakenKg = Number(item.reserved_kg || 0);
+                      const showPhysicalTaken = Math.abs(outputCoverageKg - physicalTakenKg) > 0.1;
 
                       return (
                         <div className="space-y-4 p-3">
@@ -1423,7 +1468,10 @@ const WarehousePendingPage = () => {
                                 )}
                               </p>
                               <p className="mt-1 text-xs">
-                                <span className="text-amber-700">Sacado: {formatOperationalKg(item.reserved_kg)}</span>
+                                <span className="text-amber-700">
+                                  Sacado: {formatOperationalKg(outputCoverageKg)}
+                                  {showPhysicalTaken && <> · Fisico: {formatOperationalKg(physicalTakenKg)}</>}
+                                </span>
                                 {" · "}
                                 <span className={item.shortage_marked ? "font-semibold text-rose-700" : "font-semibold text-slate-500"}>
                                   Marcado faltante: {getShortageStatusLabel(item)}

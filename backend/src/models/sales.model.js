@@ -1689,7 +1689,7 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
         `
         SELECT
           sale_items.id,
-          ${requiredSaleItemKgSql} AS required_kg,
+          sale_items.quantity_kg AS required_kg,
           COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
             WHERE sale_item_lots.deducted_at IS NOT NULL
           ), 0) AS deducted_kg

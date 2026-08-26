@@ -29,7 +29,7 @@ const toNumber = (value) => {
     return null;
   }
 
-  return Number(value);
+  return Number(String(value).trim().replace(",", "."));
 };
 
 const roundKg = (value) => Number(value.toFixed(3));

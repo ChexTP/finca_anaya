@@ -77,6 +77,7 @@ const initialAdminProcessEdit = {
 
 const formatKg = formatOperationalKg;
 const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
+const parseDecimalInput = (value) => Number(String(value ?? "").trim().replace(",", "."));
 const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
@@ -1143,18 +1144,18 @@ const InventoryPage = ({ mode = "inventory" }) => {
           processVariant: adminLotForm.lotKind === "PROC" ? adminLotForm.processVariant : "normal",
           commercialClassification: adminLotForm.commercialClassification || null,
           coffeeVariety: adminLotForm.coffeeVariety || null,
-          grossWeightKg: Number(adminLotForm.grossWeightKg),
-          netWeightKg: Number(adminLotForm.netWeightKg),
-          availableWeightKg: Number(adminLotForm.availableWeightKg),
-          humidityPercent: adminLotForm.humidityPercent === "" ? null : Number(adminLotForm.humidityPercent),
-          performanceFactor: adminLotForm.performanceFactor === "" ? null : Number(adminLotForm.performanceFactor),
+          grossWeightKg: parseDecimalInput(adminLotForm.grossWeightKg),
+          netWeightKg: parseDecimalInput(adminLotForm.netWeightKg),
+          availableWeightKg: parseDecimalInput(adminLotForm.availableWeightKg),
+          humidityPercent: adminLotForm.humidityPercent === "" ? null : parseDecimalInput(adminLotForm.humidityPercent),
+          performanceFactor: adminLotForm.performanceFactor === "" ? null : parseDecimalInput(adminLotForm.performanceFactor),
           aroma: adminLotForm.aroma,
           flavor: adminLotForm.flavor,
           sweetness: adminLotForm.sweetness,
           body: adminLotForm.body,
           residual: adminLotForm.residual,
           cleanCup: adminLotForm.cleanCup,
-          score: adminLotForm.score === "" ? null : Number(adminLotForm.score),
+          score: adminLotForm.score === "" ? null : parseDecimalInput(adminLotForm.score),
           labNotes: adminLotForm.labNotes,
           receivedAt: adminLotForm.receivedAt,
           originZone: adminLotForm.originZone,
@@ -3675,8 +3676,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     {label}
                     <input
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
-                      type="number"
-                      step="0.001"
+                      inputMode="decimal"
                       value={adminLotForm[field]}
                       onChange={(event) => setAdminLotForm({ ...adminLotForm, [field]: event.target.value })}
                       required={["grossWeightKg", "netWeightKg", "availableWeightKg"].includes(field)}
