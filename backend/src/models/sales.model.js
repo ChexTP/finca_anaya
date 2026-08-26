@@ -1277,23 +1277,6 @@ export const getOperationalLotReservations = async () => {
       const reservedKg = Number(item.reserved_kg || 0);
       const reservedProcessKg = Number(item.reserved_process_kg || 0);
       const reservedBaseKg = Number(item.reserved_base_kg || 0);
-      const isExoticProfile = item.coffee_profile_category === "Exotico";
-      const profileComponents = Array.isArray(item.profile_components)
-        ? item.profile_components.filter((component) => component.purchase_coffee_name)
-        : [];
-      const componentPercentageTotal = profileComponents.reduce((total, component) => total + Number(component.percentage || 0), 0);
-      const hasExplicitRecipe = componentPercentageTotal > 0 || Number(item.base_percentage || 0) > 0;
-      const processTargetKg = isExoticProfile
-        ? Math.ceil((requiredKg * (hasExplicitRecipe ? componentPercentageTotal : 40) / 100) - Number.EPSILON)
-        : 0;
-      const baseTargetKg = isExoticProfile
-        ? Math.ceil((requiredKg * (hasExplicitRecipe && Number(item.base_percentage || 0) > 0 ? Number(item.base_percentage) : 60) / 100) - Number.EPSILON)
-        : 0;
-      const processMissingKg = Math.ceil(Math.max(processTargetKg - reservedProcessKg, 0) - Number.EPSILON);
-      const baseMissingKg = Math.ceil(Math.max(baseTargetKg - reservedBaseKg, 0) - Number.EPSILON);
-      const missingKg = isExoticProfile
-        ? Number((processMissingKg + baseMissingKg).toFixed(3))
-        : Number(Math.max(requiredKg - reservedKg, 0).toFixed(3));
 
       return {
         ...item,
@@ -1301,14 +1284,16 @@ export const getOperationalLotReservations = async () => {
         reserved_kg: Number(reservedKg.toFixed(3)),
         reserved_process_kg: Number(reservedProcessKg.toFixed(3)),
         reserved_base_kg: Number(reservedBaseKg.toFixed(3)),
-        process_target_kg: processTargetKg,
-        base_target_kg: baseTargetKg,
-        process_missing_kg: processMissingKg,
-        base_missing_kg: baseMissingKg,
-        missing_kg: missingKg,
+        process_target_kg: 0,
+        base_target_kg: 0,
+        process_missing_kg: 0,
+        base_missing_kg: 0,
+        // Deficit simplificado: se toma la cantidad requerida por las ventas activas,
+        // sin intentar amarrarla a reservas ni recetas. Es una guia clara de compra/preparacion.
+        missing_kg: Number(requiredKg.toFixed(3)),
       };
     })
-    .filter((item) => item.shortage_marked || item.missing_kg > 0);
+    .filter((item) => item.missing_kg > 0);
 
   return {
     lots,

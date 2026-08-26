@@ -364,7 +364,7 @@ const LotReservationsPage = () => {
         item.variety,
       ].filter(Boolean).join(" ").toLowerCase();
 
-      if (onlyWithDeficit && Number(item.missing_kg || 0) <= 0) return false;
+      if (onlyWithDeficit && Number(item.missing_kg || item.required_kg || 0) <= 0) return false;
       return !term || text.includes(term);
     });
   }, [data.deficits, onlyWithDeficit, search]);
@@ -386,29 +386,15 @@ const LotReservationsPage = () => {
     const grouped = {};
 
     filteredDeficits
-      .filter((item) => Number(item.missing_kg || 0) > 0)
+      .filter((item) => Number(item.missing_kg || item.required_kg || 0) > 0)
       .forEach((item) => {
-        const estimatedParts = getEstimatedDeficitParts(item);
-        const parts = estimatedParts
-          ? [
-              ...getEstimatedProcessParts(estimatedParts).map((component) => ({
-                coffee: component.name,
-                category: "Cafe para proceso",
-                kg: component.kg,
-              })),
-              {
-                coffee: estimatedParts.baseComponentName,
-                category: "Base para proceso",
-                kg: estimatedParts.baseKg,
-              },
-            ].filter((part) => Number(part.kg || 0) > 0)
-          : [
-              {
-                coffee: getDeficitCoffeeName(item),
-                category: "Cafe solicitado",
-                kg: Number(item.missing_kg || 0),
-              },
-            ];
+        const parts = [
+          {
+            coffee: getItemName(item),
+            category: item.product_form || "Cafe pedido",
+            kg: Number(item.missing_kg || item.required_kg || 0),
+          },
+        ];
 
         parts.forEach((part) => {
           const key = `${part.category}-${part.coffee}`;
@@ -418,11 +404,13 @@ const LotReservationsPage = () => {
             kg: 0,
             sales: new Set(),
             clients: new Set(),
+            presentations: new Set(),
           };
 
           current.kg += roundRequirementKg(part.kg);
           if (item.sale_code) current.sales.add(item.sale_code);
           if (item.client_name) current.clients.add(item.client_name);
+          if (item.product_form) current.presentations.add(item.product_form);
           grouped[key] = current;
         });
       });
@@ -433,6 +421,7 @@ const LotReservationsPage = () => {
         kg: roundRequirementKg(item.kg),
         sales: [...item.sales],
         clients: [...item.clients],
+        presentations: [...item.presentations],
       }))
       .sort((left, right) => left.coffee.localeCompare(right.coffee));
   }, [filteredDeficits]);
@@ -494,18 +483,16 @@ const LotReservationsPage = () => {
 
   const detailReports = useMemo(() => {
     const deficitRows = filteredDeficits.map((item) => {
-      const estimatedParts = getEstimatedDeficitParts(item);
       const requiredKg = getItemOperationalRequiredKg(item) || item.required_kg;
-      const missingKg = Math.max(Number(item.missing_kg || 0), Number(requiredKg || 0) - Number(item.reserved_kg || 0), 0);
+      const missingKg = Number(item.missing_kg || requiredKg || 0);
 
       return {
         sale: item.sale_code,
         client: item.client_name,
-        coffee: getDeficitCoffeeName(item),
+        coffee: getItemName(item),
+        presentation: item.product_form || "-",
         requested: formatKg(requiredKg),
-        reserved: formatKg(item.reserved_kg),
-        missing: formatKg(missingKg),
-        estimate: getDeficitGuideLines({ item, estimatedParts, missingKg }).join("\n"),
+        needed: formatKg(missingKg),
         delivery: formatDate(item.estimated_delivery_date),
         assignee: item.order_assignee || "-",
       };
@@ -563,18 +550,18 @@ const LotReservationsPage = () => {
         })),
       },
       deficit: {
-        title: "Detalle de deficit de cafe",
-        filename: "detalle-deficit-cafe.csv",
-        headers: ["Venta", "Cliente", "Cafe", "Pedido", "Reservado", "Faltante", "Guia estimada por perfil", "Entrega", "Encargado"],
+        title: "Detalle de cafe requerido por ventas activas",
+        filename: "detalle-cafe-requerido.csv",
+        headers: ["Venta", "Cliente", "Cafe", "Presentacion", "Cantidad operativa", "Cantidad requerida", "Entrega", "Encargado"],
         rows: deficitRows,
       },
       deficitSummary: {
-        title: "Resumen de cafe necesario",
-        filename: "resumen-cafe-necesario.csv",
-        headers: ["Cafe necesario", "Tipo de necesidad", "Kg totales", "Ventas", "Clientes"],
+        title: "Resumen de cafe requerido por ventas activas",
+        filename: "resumen-cafe-requerido.csv",
+        headers: ["Cafe pedido", "Presentacion", "Kg totales", "Ventas", "Clientes"],
         rows: deficitSummary.map((item) => ({
           coffee: item.coffee,
-          category: item.category,
+          category: item.presentations.join(", ") || item.category,
           kg: formatKg(item.kg),
           sales: item.sales.join(", "),
           clients: item.clients.join(", "),
@@ -609,8 +596,8 @@ const LotReservationsPage = () => {
       rows: getReportRows(selectedReport),
       summary: detailModal === "deficit"
         ? {
-            headers: ["Cafe necesario", "Kg totales", "Tipo"],
-            rows: deficitSummary.map((item) => [item.coffee, formatKg(item.kg), item.category]),
+            headers: ["Cafe pedido", "Kg totales", "Presentacion"],
+            rows: deficitSummary.map((item) => [item.coffee, formatKg(item.kg), item.presentations.join(", ") || item.category]),
           }
         : null,
     });
@@ -644,7 +631,7 @@ const LotReservationsPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">Lotes asignados</h1>
-          <p className="text-sm text-slate-500">Reservas operativas, cafe libre y deficit de pedidos activos.</p>
+          <p className="text-sm text-slate-500">Salidas registradas, cafe libre y cantidades requeridas por ventas activas.</p>
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
@@ -689,7 +676,7 @@ const LotReservationsPage = () => {
           </button>
         </div>
         <div className="rounded border border-slate-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase text-slate-500">Deficit</p>
+          <p className="text-xs font-semibold uppercase text-slate-500">Cafe requerido</p>
           <p className="mt-2 text-2xl font-bold text-rose-700">{formatKg(data.totals?.missing_kg)}</p>
           <button
             className="mt-3 inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
@@ -780,7 +767,7 @@ const LotReservationsPage = () => {
             checked={onlyWithDeficit}
             onChange={(event) => setOnlyWithDeficit(event.target.checked)}
           />
-          Solo deficit
+          Solo cafe requerido
         </label>
       </div>
 
@@ -788,8 +775,8 @@ const LotReservationsPage = () => {
         <div className="rounded border border-rose-200 bg-white">
           <div className="flex items-center justify-between gap-2 border-b border-rose-100 px-4 py-3">
             <div>
-              <h2 className="text-sm font-semibold text-rose-900">Resumen deficit</h2>
-              <p className="text-xs text-slate-500">Cafe necesario agrupado.</p>
+              <h2 className="text-sm font-semibold text-rose-900">Resumen de cafe requerido</h2>
+              <p className="text-xs text-slate-500">Ventas activas agrupadas por cafe pedido.</p>
             </div>
             <button
               className="rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
@@ -801,7 +788,7 @@ const LotReservationsPage = () => {
           </div>
           {deficitSummary.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin deficit" message="No hay cafe faltante con los filtros actuales." />
+              <EmptyState title="Sin cafe requerido" message="No hay ventas activas con los filtros actuales." />
             </div>
           ) : (
             <div className="max-h-72 overflow-auto">
@@ -809,7 +796,7 @@ const LotReservationsPage = () => {
                 <thead className="bg-rose-50 text-rose-900">
                   <tr>
                     <th className="px-3 py-2">Cafe</th>
-                    <th className="px-3 py-2">Tipo</th>
+                    <th className="px-3 py-2">Presentacion</th>
                     <th className="px-3 py-2">Total</th>
                   </tr>
                 </thead>
@@ -817,7 +804,7 @@ const LotReservationsPage = () => {
                   {deficitSummary.map((item) => (
                     <tr key={`${item.category}-${item.coffee}`} className="border-t border-slate-100">
                       <td className="px-3 py-2 font-semibold text-ink">{item.coffee}</td>
-                      <td className="px-3 py-2 text-xs text-slate-500">{item.category}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500">{item.presentations.join(", ") || item.category}</td>
                       <td className="px-3 py-2 font-semibold text-rose-700">{formatKg(item.kg)}</td>
                     </tr>
                   ))}
@@ -911,11 +898,11 @@ const LotReservationsPage = () => {
       <div className="rounded border border-rose-200 bg-white">
         <div className="flex items-center gap-2 border-b border-rose-100 px-4 py-3">
           <AlertTriangle size={16} className="text-rose-700" />
-          <h2 className="text-sm font-semibold text-rose-900">Pedidos con deficit</h2>
+          <h2 className="text-sm font-semibold text-rose-900">Detalle de ventas activas</h2>
         </div>
         {filteredDeficits.length === 0 ? (
           <div className="p-4">
-            <EmptyState title="Sin deficit" message="No hay pedidos incompletos con los filtros actuales." />
+            <EmptyState title="Sin ventas activas" message="No hay cafe requerido con los filtros actuales." />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -925,41 +912,27 @@ const LotReservationsPage = () => {
                   <th className="px-3 py-2">Venta</th>
                   <th className="px-3 py-2">Cliente</th>
                   <th className="px-3 py-2">Cafe</th>
-                  <th className="px-3 py-2">Pedido</th>
-                  <th className="px-3 py-2">Reservado</th>
-                  <th className="px-3 py-2">Faltante</th>
+                  <th className="px-3 py-2">Presentacion</th>
+                  <th className="px-3 py-2">Cantidad operativa</th>
+                  <th className="px-3 py-2">Cantidad requerida</th>
                   <th className="px-3 py-2">Entrega</th>
                   <th className="px-3 py-2">Accion</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDeficits.map((item) => {
-                  const estimatedParts = getEstimatedDeficitParts(item);
                   const requiredKg = getItemOperationalRequiredKg(item) || item.required_kg;
-                  const missingKg = Math.max(Number(item.missing_kg || 0), Number(requiredKg || 0) - Number(item.reserved_kg || 0), 0);
+                  const missingKg = Number(item.missing_kg || requiredKg || 0);
 
                   return (
                     <tr key={item.sale_item_id} className="border-t border-slate-100">
                       <td className="px-3 py-2 font-semibold text-ink">{item.sale_code}</td>
                       <td className="px-3 py-2">{item.client_name}</td>
-                      <td className="px-3 py-2">{getDeficitCoffeeName(item)}</td>
+                      <td className="px-3 py-2">{getItemName(item)}</td>
+                      <td className="px-3 py-2">{item.product_form || "-"}</td>
                       <td className="px-3 py-2">{formatKg(requiredKg)}</td>
-                      <td className="px-3 py-2">{formatKg(item.reserved_kg)}</td>
                       <td className="px-3 py-2">
-                        {estimatedParts ? (
-                          <div className="space-y-1 text-xs">
-                            {getDeficitGuideLines({ item, estimatedParts, missingKg }).map((line, index) => (
-                              <p
-                                key={`${item.sale_item_id}-guide-${index}`}
-                                className={index === 0 ? "font-semibold text-slate-700" : "font-semibold text-rose-700"}
-                              >
-                                {line}
-                              </p>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="font-semibold text-rose-700">{formatKg(missingKg)}</span>
-                        )}
+                        <span className="font-semibold text-rose-700">{formatKg(missingKg)}</span>
                       </td>
                       <td className="px-3 py-2">{formatDate(item.estimated_delivery_date)}</td>
                       <td className="px-3 py-2">

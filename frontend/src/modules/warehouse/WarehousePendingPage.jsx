@@ -1,8 +1,9 @@
-import { AlertTriangle, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Search, Truck, X } from "lucide-react";
+import { AlertTriangle, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Search, Trash2, Truck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
@@ -137,6 +138,7 @@ const itemNumberClasses = [
 ];
 
 const WarehousePendingPage = () => {
+  const { user } = useAuth();
   const [sales, setSales] = useState([]);
   const [availableLots, setAvailableLots] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
@@ -155,6 +157,7 @@ const WarehousePendingPage = () => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const canDeleteOrders = user?.role === "admin";
 
   useEffect(() => {
     setDispatchReceiptFile(null);
@@ -1251,6 +1254,35 @@ const WarehousePendingPage = () => {
     }
   };
 
+  const deleteSaleOrder = async (sale) => {
+    if (!sale?.id) return;
+
+    const confirmed = window.confirm(
+      `Confirma eliminar de raiz la orden ${sale.code}? Esta accion se usa solo para reiniciar pruebas y no se puede deshacer.`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${sale.id}`, { method: "DELETE" });
+      if (selectedSale?.id === sale.id) {
+        setSelectedSale(null);
+        setLoadingDetail(false);
+      }
+      await loadData();
+      window.alert(`Orden ${sale.code} eliminada correctamente.`);
+    } catch (requestError) {
+      window.alert(`No se pudo eliminar la orden ${sale.code}: ${requestError.message}`);
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const hasCompleteOutputsForSale = () => {
     if (!selectedSale?.items?.length) return false;
 
@@ -1387,6 +1419,17 @@ const WarehousePendingPage = () => {
                             <Printer size={14} />
                             PDF
                           </button>
+                          {canDeleteOrders && (
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                              type="button"
+                              onClick={() => deleteSaleOrder(sale)}
+                              disabled={saving}
+                            >
+                              <Trash2 size={14} />
+                              Eliminar
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1420,6 +1463,17 @@ const WarehousePendingPage = () => {
                   <X size={16} />
                   Cerrar
                 </button>
+                {selectedSale && canDeleteOrders && (
+                  <button
+                    className="inline-flex items-center gap-2 rounded border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                    type="button"
+                    onClick={() => deleteSaleOrder(selectedSale)}
+                    disabled={saving}
+                  >
+                    <Trash2 size={16} />
+                    Eliminar orden
+                  </button>
+                )}
               </div>
               <div className="max-h-[calc(100vh-9rem)] overflow-y-auto p-4 sm:p-5">
           {loadingDetail ? (
