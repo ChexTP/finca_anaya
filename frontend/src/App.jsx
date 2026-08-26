@@ -101,7 +101,7 @@ const App = () => {
         <Route
           path="/inventario/muestras"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <InventoryPage mode="samples" />
             </ProtectedRoute>
           }
@@ -109,7 +109,7 @@ const App = () => {
         <Route
           path="/inventario/finca"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <InventoryPage mode="farm" />
             </ProtectedRoute>
           }
@@ -173,7 +173,7 @@ const App = () => {
         <Route
           path="/bodega/historico-aceptados"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <LotHistoryPage type="accepted" />
             </ProtectedRoute>
           }
@@ -181,7 +181,7 @@ const App = () => {
         <Route
           path="/bodega/historico-rechazados"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <LotHistoryPage type="rejected" />
             </ProtectedRoute>
           }
@@ -221,7 +221,7 @@ const App = () => {
         <Route
           path="/muestras/historico"
           element={
-            <ProtectedRoute roles={["admin", "samples"]}>
+            <ProtectedRoute roles={["admin", "samples", "inventory_viewer"]}>
               <SamplesHistoryPage />
             </ProtectedRoute>
           }
@@ -305,7 +305,7 @@ const App = () => {
         <Route
           path="/perfiles-cafe"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <CoffeeProfilesPage />
             </ProtectedRoute>
           }
@@ -313,7 +313,7 @@ const App = () => {
         <Route
           path="/perfiles-compra"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <PurchaseCoffeesPage />
             </ProtectedRoute>
           }

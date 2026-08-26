@@ -30,8 +30,8 @@ const navigation = [
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Liquidaciones", path: "/liquidaciones", icon: ReceiptText, roles: ["admin", "accounting", "inventory_viewer"] },
-  { label: "Salidas a muestras", path: "/inventario/muestras", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Lotes en finca", path: "/inventario/finca", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Salidas a muestras", path: "/inventario/muestras", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
+  { label: "Lotes en finca", path: "/inventario/finca", icon: Coffee, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
   { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
@@ -46,10 +46,10 @@ const navigation = [
   { label: "Ordenes de pedido", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
 
-  { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
+  { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Historico ventas", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting", "inventory_viewer"] },
-  { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
+  { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples", "inventory_viewer"] },
 
   // Modulo contable desactivado: la empresa manejara pagos en su software contable externo.
   // { label: "Pagos de lotes", path: "/cuentas-por-pagar", icon: CreditCard, roles: ["admin", "accounting"] },
@@ -60,8 +60,8 @@ const navigation = [
   // { label: "Documentos", path: "/documentos", icon: FileText, roles: ["admin", "accounting", "seller"] },
 
   { label: "Tipos de cafe", path: "/tipos-cafe", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Perfiles de compra", path: "/perfiles-compra", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Perfiles de venta", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Perfiles de compra", path: "/perfiles-compra", icon: Coffee, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
+  { label: "Perfiles de venta", path: "/perfiles-cafe", icon: SlidersHorizontal, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Consecutivos", path: "/consecutivos", icon: Hash, roles: ["admin", "accounting", "warehouse"] },
 
   { label: "Backups", path: "/backups", icon: DatabaseBackup, roles: ["admin", "accounting"] },

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
@@ -41,6 +42,7 @@ const formatDate = (dateValue) => {
 const normalizeText = (value) => String(value || "").toLowerCase();
 
 const LotHistoryPage = ({ type = "accepted" }) => {
+  const { user } = useAuth();
   const config = historyConfig[type] || historyConfig.accepted;
   const [lots, setLots] = useState([]);
   const [filters, setFilters] = useState({
@@ -52,6 +54,7 @@ const LotHistoryPage = ({ type = "accepted" }) => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const canConfirmRejectedReturn = ["admin", "accounting", "warehouse"].includes(user?.role);
 
   const loadData = async () => {
     setLoading(true);
@@ -193,7 +196,7 @@ const LotHistoryPage = ({ type = "accepted" }) => {
                   <th className="px-4 py-3">Disponible</th>
                   <th className="px-4 py-3">Laboratorio</th>
                   <th className="px-4 py-3">Estado</th>
-                  {type === "rejected" && <th className="px-4 py-3">Devolucion</th>}
+                  {type === "rejected" && canConfirmRejectedReturn && <th className="px-4 py-3">Devolucion</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -216,7 +219,7 @@ const LotHistoryPage = ({ type = "accepted" }) => {
                     <td className="px-4 py-3">
                       <StatusBadge tone={getStatusTone(lot.status)}>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
                     </td>
-                    {type === "rejected" && (
+                    {type === "rejected" && canConfirmRejectedReturn && (
                       <td className="px-4 py-3">
                         {lot.status === "rechazado" ? (
                           <button

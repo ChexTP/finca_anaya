@@ -22,15 +22,15 @@ router.get("/:catalogKey(coffee-types|coffee-presentations)", requireAuth, requi
 router.post("/:catalogKey(coffee-types|coffee-presentations)", requireAuth, requireRoles("admin", "accounting", "warehouse"), postEditableCatalogItem);
 router.put("/:catalogKey(coffee-types|coffee-presentations)/:id", requireAuth, requireRoles("admin", "accounting", "warehouse"), putEditableCatalogItem);
 router.get("/coffee-profiles", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), getCoffeeProfilesAdmin);
-router.post("/coffee-profiles", requireAuth, requireRoles("admin", "accounting", "warehouse"), postCoffeeProfile);
+router.post("/coffee-profiles", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), postCoffeeProfile);
 router.get("/purchase-coffees", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), getPurchaseCoffeesAdmin);
-router.post("/purchase-coffees", requireAuth, requireRoles("admin", "accounting", "warehouse"), postPurchaseCoffee);
-router.put("/purchase-coffees/:id", requireAuth, requireRoles("admin", "accounting", "warehouse"), putPurchaseCoffee);
+router.post("/purchase-coffees", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), postPurchaseCoffee);
+router.put("/purchase-coffees/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), putPurchaseCoffee);
 router.delete("/purchase-coffees/:id", requireAuth, requireRoles("admin"), deletePurchaseCoffeeById);
 router.put(
   "/coffee-profiles/:id",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   putCoffeeProfile
 );
 router.delete("/coffee-profiles/:id", requireAuth, requireRoles("admin"), deleteCoffeeProfileById);

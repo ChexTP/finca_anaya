@@ -17,8 +17,8 @@ const router = Router();
 router.get("/lots", requireAuth, getInventoryLots);
 router.get("/grouped", requireAuth, getInventoryGrouped);
 router.get("/in-process", requireAuth, getInventoryInProcess);
-router.get("/sample-outputs", requireAuth, requireRoles("admin", "accounting", "warehouse"), getSampleInventoryOutputs);
-router.get("/farm-shipments", requireAuth, requireRoles("admin", "accounting", "warehouse"), getFarmShipments);
+router.get("/sample-outputs", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), getSampleInventoryOutputs);
+router.get("/farm-shipments", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), getFarmShipments);
 router.get("/lots/:lotId/movements", requireAuth, getInventoryMovements);
 router.post(
   "/lots/:lotId/adjustments",

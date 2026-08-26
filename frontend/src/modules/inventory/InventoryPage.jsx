@@ -484,8 +484,9 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const canRegisterPurchase = ["admin", "accounting"].includes(user?.role);
+  const canRegisterPurchase = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
+  const canViewInventoryMovements = canAdjustInventory || user?.role === "inventory_viewer";
   const canEditCodes = ["admin", "accounting", "warehouse"].includes(user?.role);
   const canWithdrawInventory = user?.role === "admin";
   const isEditMode = mode === "edit";
@@ -498,8 +499,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
       apiRequest("/inventory/lots"),
       apiRequest("/lots"),
       apiRequest("/inventory/in-process"),
-      canAdjustInventory ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
-      canAdjustInventory ? apiRequest("/inventory/farm-shipments") : Promise.resolve([]),
+      canViewInventoryMovements ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
+      canViewInventoryMovements ? apiRequest("/inventory/farm-shipments") : Promise.resolve([]),
     ];
 
     if (canRegisterPurchase || canEditCodes) {

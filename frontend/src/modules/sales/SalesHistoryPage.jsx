@@ -63,7 +63,7 @@ const SalesHistoryPage = () => {
   const [loading, setLoading] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const canEditCodes = ["admin", "accounting"].includes(user?.role);
-  const canManagePayments = ["admin", "accounting"].includes(user?.role);
+  const canManagePayments = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
 
   const loadSales = async () => {
     setError("");
