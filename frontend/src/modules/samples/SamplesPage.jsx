@@ -92,6 +92,24 @@ const formatProfileOptionLabel = (profile) => {
   return [code, profile?.name].filter(Boolean).join(" - ");
 };
 
+const getProfileCodeSortValue = (profile) => {
+  const code = String(profile?.internal_code || profile?.coffee_profile_code || profile?.code || "").trim();
+  const numericPart = code.match(/\d+/g)?.join("");
+
+  return numericPart ? Number(numericPart) : Number.POSITIVE_INFINITY;
+};
+
+const sortProfilesByCodeDesc = (profiles = []) => {
+  return [...profiles].sort((left, right) => {
+    const leftCodeValue = getProfileCodeSortValue(left);
+    const rightCodeValue = getProfileCodeSortValue(right);
+
+    if (leftCodeValue !== rightCodeValue) return leftCodeValue - rightCodeValue;
+
+    return String(left?.internal_code || left?.name || "").localeCompare(String(right?.internal_code || right?.name || ""), "es");
+  });
+};
+
 const formatDate = (value) => {
   if (!value) return "-";
   const [datePart] = String(value).split("T");
@@ -375,6 +393,9 @@ const SamplesPage = () => {
   const canPrintSampleOrder = ["admin", "accounting", "seller", "samples"].includes(user?.role);
   const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
   const canDeleteSamples = user?.role === "admin";
+  const salesCoffeeProfiles = useMemo(() => (
+    sortProfilesByCodeDesc((catalogs?.coffeeProfiles || []).filter((profile) => profile.is_active !== false))
+  ), [catalogs?.coffeeProfiles]);
   const canUseSampleStatusAction = (status) => {
     const commercialStatuses = ["borrador", "enviada", "cancelada"];
     if (canApproveSampleOrders && commercialStatuses.includes(status)) return true;
@@ -845,7 +866,7 @@ const SamplesPage = () => {
                   onChange={(event) => updateCoffeeProfile(event.target.value)}
                 >
                   <option value="">Perfil o cafe comercial</option>
-                  {catalogs?.coffeeProfiles?.map((profile) => (
+                  {salesCoffeeProfiles.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {formatProfileOptionLabel(profile)}
                     </option>

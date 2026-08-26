@@ -304,7 +304,7 @@ export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
       LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
       LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
       WHERE coffee_lots.id = $1
-      FOR UPDATE
+      FOR UPDATE OF coffee_lots
       `,
       [lotId]
     );

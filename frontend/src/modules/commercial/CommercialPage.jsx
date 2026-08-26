@@ -252,6 +252,24 @@ const formatProfileOptionLabel = (profile) => {
   return [code, profile?.name].filter(Boolean).join(" - ");
 };
 
+const getProfileCodeSortValue = (profile) => {
+  const code = String(profile?.internal_code || profile?.coffee_profile_code || profile?.code || "").trim();
+  const numericPart = code.match(/\d+/g)?.join("");
+
+  return numericPart ? Number(numericPart) : Number.POSITIVE_INFINITY;
+};
+
+const sortProfilesByCodeDesc = (profiles = []) => {
+  return [...profiles].sort((left, right) => {
+    const leftCodeValue = getProfileCodeSortValue(left);
+    const rightCodeValue = getProfileCodeSortValue(right);
+
+    if (leftCodeValue !== rightCodeValue) return leftCodeValue - rightCodeValue;
+
+    return String(left?.internal_code || left?.name || "").localeCompare(String(right?.internal_code || right?.name || ""), "es");
+  });
+};
+
 const getCodeFromForm = (form, prefix) => {
   if (!form.manualCodeNumber) return null;
 
@@ -342,6 +360,9 @@ const CommercialPage = () => {
   const canDeleteRecords = user?.role === "admin";
   const termInputClass = "rounded border border-amber-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink";
   const termLabelClass = "grid gap-1 text-xs font-semibold uppercase text-amber-900";
+  const salesCoffeeProfiles = useMemo(() => (
+    sortProfilesByCodeDesc((catalogs?.coffeeProfiles || []).filter((profile) => profile.is_active !== false))
+  ), [catalogs?.coffeeProfiles]);
 
   const scrollToPanel = (panelRef) => {
     window.requestAnimationFrame(() => {
@@ -504,7 +525,7 @@ const CommercialPage = () => {
   }, [quoteForm.shippingCost, subtotal]);
 
   const priceListAvailableItems = useMemo(() => {
-    const profiles = (catalogs?.coffeeProfiles || [])
+    const profiles = salesCoffeeProfiles
       .filter((profile) => profile.is_active !== false)
       .map((profile) => ({
         id: `profile-${profile.id}`,
@@ -530,7 +551,7 @@ const CommercialPage = () => {
       }));
 
     return [...profiles, ...purchases].sort((left, right) => String(left.label || "").localeCompare(String(right.label || ""), "es"));
-  }, [catalogs]);
+  }, [catalogs, salesCoffeeProfiles]);
 
   const priceListSaleProfiles = useMemo(() => (
     priceListAvailableItems.filter((item) => item.source === "profile")
@@ -614,12 +635,11 @@ const CommercialPage = () => {
   const availableCoffeeOptions = useMemo(() => {
     if (itemForm.itemType === "description") return [];
 
-    const profiles = [...(catalogs?.coffeeProfiles || [])]
+    const profiles = sortProfilesByCodeDesc(catalogs?.coffeeProfiles || [])
       .filter((profile) => (
         profile.is_active !== false &&
         String(profile.category || "").toLowerCase() === String(itemForm.itemType || "").toLowerCase()
-      ))
-      .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "es"));
+      ));
 
     const processMatches = profiles.filter((profile) => (
       !itemForm.processType ||
@@ -2025,7 +2045,7 @@ const CommercialPage = () => {
                       >
                         <option value="">Perfil o cafe comercial</option>
                         <option value="__free__">Descripcion libre</option>
-                        {catalogs?.coffeeProfiles?.map((profile) => (
+                        {salesCoffeeProfiles.map((profile) => (
                           <option key={profile.id} value={profile.id}>{formatProfileOptionLabel(profile)}</option>
                         ))}
                       </select>
