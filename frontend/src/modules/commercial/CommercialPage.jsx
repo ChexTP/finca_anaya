@@ -2211,6 +2211,17 @@ const CommercialPage = () => {
                               <span className="min-w-0 truncate">{option.label}</span>
                             </label>
                             <div className="flex flex-wrap items-center gap-2">
+                              <label className="flex items-center gap-2 rounded bg-white px-2 py-1 text-xs font-semibold text-slate-600">
+                                Presentacion
+                                <select
+                                  className="rounded border border-slate-300 px-2 py-1 text-xs font-normal normal-case text-ink"
+                                  value={item.productForm || "Excelso"}
+                                  onChange={(event) => updatePriceListItem(item.id, "productForm", event.target.value)}
+                                >
+                                  <option value="Excelso">Excelso</option>
+                                  <option value="Pergamino">Pergamino</option>
+                                </select>
+                              </label>
                               <span className="rounded bg-white px-2 py-1 text-xs font-semibold text-slate-700">
                                 {formatUnitPrice(priceListForm.currency, calculation.unitPrice, calculation.priceBasis)}
                               </span>
