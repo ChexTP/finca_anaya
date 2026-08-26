@@ -74,6 +74,17 @@ const formatDate = (value) => {
 };
 
 const formatKg = formatOperationalKg;
+const getAvailableLotKg = (lot) => Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0);
+const formatExactKg = (value) => `${Number(value || 0).toLocaleString("es-CO", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+})} kg`;
+const formatQuantityInputValue = (value) => {
+  const quantity = Number(value || 0);
+  if (!Number.isFinite(quantity) || quantity <= 0) return "";
+
+  return Number(quantity.toFixed(3)).toString();
+};
 
 const matchesProcessStatusFilter = (process, filter) => {
   if (filter === "all") return true;
@@ -329,6 +340,16 @@ const ProcessesPage = ({
       [lotId]: {
         enabled: true,
         quantityKg,
+      },
+    }));
+  };
+
+  const assignFullLotQuantity = (lot) => {
+    setSelectedLots((current) => ({
+      ...current,
+      [lot.id]: {
+        enabled: true,
+        quantityKg: formatQuantityInputValue(getAvailableLotKg(lot)),
       },
     }));
   };
@@ -761,17 +782,26 @@ const ProcessesPage = ({
                     <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
-                    <td className="px-3 py-2">{formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}</td>
+                    <td className="px-3 py-2">{formatExactKg(getAvailableLotKg(lot))}</td>
                     <td className="px-3 py-2">
-                      <input
-                        className="w-32 rounded border border-slate-300 px-2 py-1 text-sm"
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        max={lot.operational_available_kg ?? lot.available_weight_kg}
-                        value={selectedLots[lot.id]?.quantityKg || ""}
-                        onChange={(event) => updateLotQuantity(lot.id, event.target.value)}
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          className="w-32 rounded border border-slate-300 px-2 py-1 text-sm"
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          max={getAvailableLotKg(lot)}
+                          value={selectedLots[lot.id]?.quantityKg || ""}
+                          onChange={(event) => updateLotQuantity(lot.id, event.target.value)}
+                        />
+                        <button
+                          className="rounded border border-leaf px-2 py-1 text-xs font-semibold text-leaf"
+                          type="button"
+                          onClick={() => assignFullLotQuantity(lot)}
+                        >
+                          Todo
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
