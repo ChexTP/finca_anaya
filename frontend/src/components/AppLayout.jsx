@@ -234,7 +234,7 @@ const AppLayout = () => {
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 py-5 lg:px-6">
+        <main className="min-w-0 flex-1 overflow-x-hidden px-3 py-4 sm:px-4 sm:py-5 lg:px-6">
           <Outlet />
         </main>
       </div>
