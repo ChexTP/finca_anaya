@@ -5,7 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { formatOperationalKg } from "../../utils/coffeeCalculations";
+import { formatOperationalKg, roundKgUpToHalf } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
 import { getProcessStatusTone, processStatusLabels } from "../../utils/workflow";
 
@@ -75,10 +75,6 @@ const formatDate = (value) => {
 
 const formatKg = formatOperationalKg;
 const getAvailableLotKg = (lot) => Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0);
-const formatExactKg = (value) => `${Number(value || 0).toLocaleString("es-CO", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 3,
-})} kg`;
 const formatQuantityInputValue = (value) => {
   const quantity = Number(value || 0);
   if (!Number.isFinite(quantity) || quantity <= 0) return "";
@@ -150,11 +146,21 @@ const ProcessesPage = ({
   const selectedInputs = useMemo(() => {
     return Object.entries(selectedLots)
       .filter(([, value]) => value.enabled && Number(value.quantityKg) > 0)
-      .map(([lotId, value]) => ({
-        lotId: Number(lotId),
-        quantityKg: Number(value.quantityKg),
-      }));
-  }, [selectedLots]);
+      .map(([lotId, value]) => {
+        const lot = availableLots.find((availableLot) => String(availableLot.id) === String(lotId));
+        const typedKg = Number(value.quantityKg);
+        const availableKg = lot ? getAvailableLotKg(lot) : typedKg;
+        const displayedAvailableKg = roundKgUpToHalf(availableKg);
+        const quantityKg = typedKg > availableKg && Math.abs(typedKg - displayedAvailableKg) < 0.001
+          ? availableKg
+          : typedKg;
+
+        return {
+          lotId: Number(lotId),
+          quantityKg,
+        };
+      });
+  }, [availableLots, selectedLots]);
 
   const totalSelectedKg = useMemo(() => {
     return selectedInputs.reduce((total, input) => total + input.quantityKg, 0);
@@ -782,7 +788,7 @@ const ProcessesPage = ({
                     <td className="px-3 py-2 font-medium">{formatCoffeeLotCodeName(lot)}</td>
                     <td className="px-3 py-2">{lot.coffee_profile_name || lot.coffee_type_name || "-"}</td>
                     <td className="px-3 py-2">{lot.commercial_classification || "-"}</td>
-                    <td className="px-3 py-2">{formatExactKg(getAvailableLotKg(lot))}</td>
+                    <td className="px-3 py-2">{formatKg(getAvailableLotKg(lot))}</td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <input
@@ -790,7 +796,6 @@ const ProcessesPage = ({
                           type="number"
                           min="0"
                           step="0.001"
-                          max={getAvailableLotKg(lot)}
                           value={selectedLots[lot.id]?.quantityKg || ""}
                           onChange={(event) => updateLotQuantity(lot.id, event.target.value)}
                         />
