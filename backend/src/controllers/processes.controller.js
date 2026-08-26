@@ -280,11 +280,16 @@ export const putProcessPhysicalReview = async (req, res) => {
     const requiresPerformanceFactor = !createsInventoryDirectly;
     const outputs = Array.isArray(req.body.outputs)
       ? req.body.outputs.map((output) => ({
-          coffeeProfileId: Number(output.coffeeProfileId),
+          lotKind: output.lotKind === "LOT" ? "LOT" : "PROC",
+          profileSource: output.profileSource === "purchase" ? "purchase" : "sale",
+          purchaseCoffeeId: output.purchaseCoffeeId ? Number(output.purchaseCoffeeId) : null,
+          coffeeProfileId: output.coffeeProfileId ? Number(output.coffeeProfileId) : null,
+          coffeeTypeId: output.coffeeTypeId ? Number(output.coffeeTypeId) : null,
           outputWeightKg: toNumber(output.outputWeightKg),
           humidityPercent: toNumber(output.humidityPercent),
           performanceFactor: toNumber(output.performanceFactor),
           presentation: output.presentation || "Excelso",
+          processVariant: output.processVariant || "normal",
           notes: output.notes || null,
         }))
       : [];
@@ -294,21 +299,29 @@ export const putProcessPhysicalReview = async (req, res) => {
     const humidity = toNumber(req.body.humidityPercent);
     const performance = toNumber(req.body.performanceFactor);
 
-    const invalidOutput = outputs.find((output) => (
-      !Number.isInteger(output.coffeeProfileId) ||
-      !Number.isFinite(output.outputWeightKg) ||
-      output.outputWeightKg <= 0 ||
-      !output.presentation?.trim() ||
-      (requiresHumidity && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
-      (!requiresHumidity && output.humidityPercent !== null && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
-      (requiresPerformanceFactor && (!Number.isFinite(output.performanceFactor) || output.performanceFactor < 0)) ||
-      (!requiresPerformanceFactor && output.performanceFactor !== null && (!Number.isFinite(output.performanceFactor) || output.performanceFactor < 0))
-    ));
+    const invalidOutput = outputs.find((output) => {
+      const needsSaleProfile = !createsInventoryDirectly || output.profileSource === "sale";
+      const needsPurchaseCoffee = createsInventoryDirectly && output.profileSource === "purchase";
+
+      return (
+        (needsSaleProfile && !Number.isInteger(output.coffeeProfileId)) ||
+        (needsPurchaseCoffee && !Number.isInteger(output.purchaseCoffeeId)) ||
+        !["LOT", "PROC"].includes(output.lotKind) ||
+        !["purchase", "sale"].includes(output.profileSource) ||
+        !Number.isFinite(output.outputWeightKg) ||
+        output.outputWeightKg <= 0 ||
+        !output.presentation?.trim() ||
+        (requiresHumidity && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
+        (!requiresHumidity && output.humidityPercent !== null && (!Number.isFinite(output.humidityPercent) || output.humidityPercent < 0 || output.humidityPercent > 100)) ||
+        (requiresPerformanceFactor && (!Number.isFinite(output.performanceFactor) || output.performanceFactor < 0)) ||
+        (!requiresPerformanceFactor && output.performanceFactor !== null && (!Number.isFinite(output.performanceFactor) || output.performanceFactor < 0))
+      );
+    });
 
     if (outputs.length > 0 && invalidOutput) {
       return res.status(400).json({
         message: createsInventoryDirectly
-          ? "Cada salida debe tener perfil comercial, presentacion y peso validos"
+          ? "Cada salida debe tener tipo, origen, cafe, presentacion y peso validos"
           : requiresPerformanceFactor
           ? "Cada salida debe tener perfil comercial, presentacion, peso, humedad y factor validos"
           : "Cada salida debe tener perfil comercial, presentacion, peso y humedad validos",

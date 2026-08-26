@@ -510,6 +510,14 @@ CREATE TABLE IF NOT EXISTS coffee_process_outputs (
 
 ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS presentation VARCHAR(80) NOT NULL DEFAULT 'Excelso';
 ALTER TABLE coffee_process_outputs ALTER COLUMN presentation TYPE VARCHAR(80);
+ALTER TABLE coffee_process_outputs ALTER COLUMN coffee_profile_id DROP NOT NULL;
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS purchase_coffee_id INTEGER REFERENCES purchase_coffees(id);
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS coffee_type_id INTEGER REFERENCES coffee_types(id);
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS lot_kind VARCHAR(20) NOT NULL DEFAULT 'PROC';
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS profile_source VARCHAR(20) NOT NULL DEFAULT 'sale';
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS coffee_variety VARCHAR(120);
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS commercial_classification VARCHAR(80);
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS process_variant VARCHAR(30) NOT NULL DEFAULT 'normal';
 ALTER TABLE coffee_process_outputs ALTER COLUMN humidity_percent SET DEFAULT 10;
 UPDATE coffee_process_outputs SET humidity_percent = 10 WHERE humidity_percent IS NULL;
 ALTER TABLE coffee_process_outputs ALTER COLUMN humidity_percent SET NOT NULL;

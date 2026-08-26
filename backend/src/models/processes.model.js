@@ -8,6 +8,56 @@ const getOutputPresentationForProcess = (processType, presentation) => {
   return presentation || "Excelso";
 };
 
+const getCoffeeTypeByName = async (client, name) => {
+  if (!name) return null;
+
+  const result = await client.query(
+    `
+    SELECT *
+    FROM coffee_types
+    WHERE LOWER(name) = LOWER($1)
+    LIMIT 1
+    `,
+    [name]
+  );
+
+  return result.rows[0] || null;
+};
+
+const findPurchaseCoffeeForOutput = async (client, purchaseCoffeeId) => {
+  const result = await client.query(
+    `
+    SELECT
+      purchase_coffees.*,
+      coffee_types.id AS coffee_type_id
+    FROM purchase_coffees
+    LEFT JOIN coffee_types ON LOWER(coffee_types.name) = LOWER(purchase_coffees.process_type)
+    WHERE purchase_coffees.id = $1
+    LIMIT 1
+    `,
+    [purchaseCoffeeId]
+  );
+
+  return result.rows[0] || null;
+};
+
+const findSaleProfileForOutput = async (client, coffeeProfileId) => {
+  const result = await client.query(
+    `
+    SELECT
+      coffee_profiles.*,
+      coffee_types.id AS coffee_type_id
+    FROM coffee_profiles
+    LEFT JOIN coffee_types ON LOWER(coffee_types.name) = LOWER(coffee_profiles.process_type)
+    WHERE coffee_profiles.id = $1
+    LIMIT 1
+    `,
+    [coffeeProfileId]
+  );
+
+  return result.rows[0] || null;
+};
+
 export const getNextProcessCode = async () => {
   return getNextCode({ prefix: "PRO", tableName: "coffee_processes" });
 };
@@ -76,9 +126,18 @@ export const listProcesses = async ({ status, processType }) => {
           SELECT json_agg(
             json_build_object(
               'id', coffee_process_outputs.id,
+              'lot_kind', coffee_process_outputs.lot_kind,
+              'profile_source', coffee_process_outputs.profile_source,
               'coffee_profile_id', coffee_process_outputs.coffee_profile_id,
               'coffee_profile_name', coffee_profiles.name,
               'coffee_profile_code', coffee_profiles.internal_code,
+              'purchase_coffee_id', coffee_process_outputs.purchase_coffee_id,
+              'purchase_coffee_name', purchase_coffees.name,
+              'coffee_type_id', coffee_process_outputs.coffee_type_id,
+              'coffee_type_name', coffee_types.name,
+              'coffee_variety', coffee_process_outputs.coffee_variety,
+              'commercial_classification', coffee_process_outputs.commercial_classification,
+              'process_variant', coffee_process_outputs.process_variant,
               'presentation', coffee_process_outputs.presentation,
               'output_lot_id', coffee_process_outputs.output_lot_id,
               'output_lot_code', output_lots.code,
@@ -90,7 +149,9 @@ export const listProcesses = async ({ status, processType }) => {
             ORDER BY coffee_process_outputs.id ASC
           )
           FROM coffee_process_outputs
-          INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
+          LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
+          LEFT JOIN purchase_coffees ON purchase_coffees.id = coffee_process_outputs.purchase_coffee_id
+          LEFT JOIN coffee_types ON coffee_types.id = coffee_process_outputs.coffee_type_id
           LEFT JOIN coffee_lots output_lots ON output_lots.id = coffee_process_outputs.output_lot_id
           WHERE coffee_process_outputs.process_id = coffee_processes.id
         ),
@@ -181,9 +242,13 @@ export const findProcessById = async (id) => {
       coffee_process_outputs.*,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.internal_code AS coffee_profile_code,
+      purchase_coffees.name AS purchase_coffee_name,
+      coffee_types.name AS coffee_type_name,
       output_lots.code AS output_lot_code
     FROM coffee_process_outputs
-    INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
+    LEFT JOIN purchase_coffees ON purchase_coffees.id = coffee_process_outputs.purchase_coffee_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_process_outputs.coffee_type_id
     LEFT JOIN coffee_lots output_lots ON output_lots.id = coffee_process_outputs.output_lot_id
     WHERE coffee_process_outputs.process_id = $1
     ORDER BY coffee_process_outputs.id ASC
@@ -585,18 +650,39 @@ export const completeProcessPhysicalReview = async ({
     const savedOutputs = [];
 
     for (const output of cleanOutputs) {
-      if (!output.coffeeProfileId) {
-        throw new Error("Cada salida del proceso debe tener perfil comercial");
+      const outputLotKind = createsInventoryDirectly && output.lotKind === "LOT" ? "LOT" : "PROC";
+      const outputProfileSource = createsInventoryDirectly && output.profileSource === "purchase" ? "purchase" : "sale";
+      let profile = null;
+      let purchaseCoffee = null;
+      let coffeeTypeId = output.coffeeTypeId || null;
+      let coffeeVariety = null;
+      let commercialClassification = outputLotKind === "PROC" ? "Procesado" : null;
+
+      if (outputProfileSource === "purchase") {
+        purchaseCoffee = await findPurchaseCoffeeForOutput(client, output.purchaseCoffeeId);
+
+        if (!purchaseCoffee || !purchaseCoffee.is_active) {
+          throw new Error("Cafe de compra de salida no encontrado o inactivo");
+        }
+
+        coffeeTypeId = coffeeTypeId || purchaseCoffee.coffee_type_id;
+        coffeeVariety = purchaseCoffee.name;
+        commercialClassification = purchaseCoffee.family || commercialClassification;
+      } else {
+        profile = await findSaleProfileForOutput(client, output.coffeeProfileId);
+
+        if (!profile || !profile.is_active) {
+          throw new Error("Perfil comercial de salida no encontrado o inactivo");
+        }
+
+        coffeeTypeId = coffeeTypeId || profile.coffee_type_id;
+        coffeeVariety = profile.name;
+        commercialClassification = outputLotKind === "PROC" ? "Procesado" : (profile.category || commercialClassification);
       }
 
-      const profileResult = await client.query(
-        "SELECT id, is_active FROM coffee_profiles WHERE id = $1 LIMIT 1",
-        [output.coffeeProfileId]
-      );
-      const profile = profileResult.rows[0];
-
-      if (!profile || !profile.is_active) {
-        throw new Error("Perfil comercial de salida no encontrado o inactivo");
+      if (!coffeeTypeId && output.presentation) {
+        const fallbackCoffeeType = await getCoffeeTypeByName(client, output.presentation);
+        coffeeTypeId = fallbackCoffeeType?.id || null;
       }
 
       const outputHumidityPercent = createsInventoryDirectly && (output.humidityPercent === null || output.humidityPercent === undefined)
@@ -607,19 +693,33 @@ export const completeProcessPhysicalReview = async ({
         `
         INSERT INTO coffee_process_outputs (
           process_id,
+          lot_kind,
+          profile_source,
+          purchase_coffee_id,
           coffee_profile_id,
+          coffee_type_id,
+          coffee_variety,
+          commercial_classification,
+          process_variant,
           presentation,
           output_weight_kg,
           humidity_percent,
           performance_factor,
           notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING *
         `,
         [
           processId,
-          output.coffeeProfileId,
+          outputLotKind,
+          outputProfileSource,
+          purchaseCoffee?.id || null,
+          profile?.id || null,
+          coffeeTypeId,
+          coffeeVariety,
+          commercialClassification,
+          output.processVariant || "normal",
           output.presentation || "Excelso",
           output.outputWeightKg,
           outputHumidityPercent,
@@ -631,25 +731,37 @@ export const completeProcessPhysicalReview = async ({
     }
 
     if (createsInventoryDirectly) {
-      const outputCodes = await reserveNextCodes({
-        prefix: "PROC",
-        tableName: "coffee_lots",
-        count: savedOutputs.length,
-        client,
-      });
       const createdLots = [];
 
-      for (const [index, output] of savedOutputs.entries()) {
-        const code = outputCodes[index];
+      for (const output of savedOutputs) {
+        const outputLotKind = output.lot_kind === "LOT" ? "LOT" : "PROC";
+        const code = await getNextCode({
+          prefix: outputLotKind,
+          tableName: "coffee_lots",
+          client,
+        });
+        const outputPresentation = getOutputPresentationForProcess(process.process_type, output.presentation);
+        const outputCommercialClassification = outputLotKind === "PROC"
+          ? "Procesado"
+          : output.commercial_classification;
+        const outputInitialComment = [
+          `Lote generado por ${process.process_type} ${process.code}`,
+          output.profile_source === "purchase" && output.coffee_variety ? `Cafe de compra: ${output.coffee_variety}` : null,
+          output.profile_source === "sale" && output.coffee_variety ? `Cafe de venta: ${output.coffee_variety}` : null,
+          output.notes,
+        ].filter(Boolean).join("\n");
         const outputResult = await client.query(
           `
           INSERT INTO coffee_lots (
             code,
+            coffee_type_id,
             coffee_profile_id,
             status,
             presentation,
             lot_kind,
             commercial_classification,
+            coffee_variety,
+            process_variant,
             gross_weight_kg,
             tare_weight_kg,
             net_weight_kg,
@@ -659,18 +771,20 @@ export const completeProcessPhysicalReview = async ({
             initial_comment,
             created_by
           )
-          VALUES ($1, $2, 'disponible', $3, 'PROC', 'Procesado', $4, 0, $4, $4, NULL, NULL, $5, $6)
+          VALUES ($1, $2, $3, 'disponible', $4, $5, $6, $7, $8, $9, 0, $9, $9, NULL, NULL, $10, $11)
           RETURNING *
           `,
           [
             code,
+            output.coffee_type_id,
             output.coffee_profile_id,
-            getOutputPresentationForProcess(process.process_type, output.presentation),
+            outputPresentation,
+            outputLotKind,
+            outputCommercialClassification,
+            output.coffee_variety,
+            output.process_variant || "normal",
             output.output_weight_kg,
-            [
-              `Lote generado por ${process.process_type} ${process.code}`,
-              output.notes,
-            ].filter(Boolean).join("\n"),
+            outputInitialComment,
             reviewedBy,
           ]
         );

@@ -35,8 +35,13 @@ const processStatusFilterOptions = [
 const initialPhysicalReviewForm = {
   outputs: [
     {
+      lotKind: "PROC",
+      profileSource: "sale",
+      purchaseCoffeeId: "",
       coffeeProfileId: "",
+      coffeeTypeId: "",
       presentation: "Excelso",
+      processVariant: "normal",
       outputWeightKg: "",
       humidityPercent: "",
       performanceFactor: "",
@@ -46,13 +51,25 @@ const initialPhysicalReviewForm = {
 };
 
 const emptyProcessOutput = {
+  lotKind: "PROC",
+  profileSource: "sale",
+  purchaseCoffeeId: "",
   coffeeProfileId: "",
+  coffeeTypeId: "",
   presentation: "Excelso",
+  processVariant: "normal",
   outputWeightKg: "",
   humidityPercent: "",
   performanceFactor: "",
   notes: "",
 };
+
+const createEmptyProcessOutput = (process) => ({
+  ...emptyProcessOutput,
+  lotKind: directInventoryProcessTypes.includes(process?.process_type) ? "LOT" : "PROC",
+  profileSource: directInventoryProcessTypes.includes(process?.process_type) ? "purchase" : "sale",
+  presentation: process?.process_type === "Trilladora" ? "Excelso" : "Pergamino",
+});
 
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
@@ -63,6 +80,14 @@ const formatProfileLabel = (profile) => {
   const name = profile?.name || profile?.coffee_profile_name || "Perfil";
 
   return [code, name].filter(Boolean).join(" - ");
+};
+
+const formatPurchaseCoffeeLabel = (coffee) => {
+  const code = coffee?.internal_code || coffee?.code;
+  const name = coffee?.name || "Cafe";
+  const detail = [coffee?.family, coffee?.process_type].filter(Boolean).join(" / ");
+
+  return [code, name, detail ? `(${detail})` : null].filter(Boolean).join(" ");
 };
 
 const formatDate = (value) => {
@@ -103,6 +128,7 @@ const ProcessesPage = ({
   const [availableLots, setAvailableLots] = useState([]);
   const [sales, setSales] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
+  const [codeCounters, setCodeCounters] = useState([]);
   const [form, setForm] = useState({ ...initialProcess, processType: defaultProcessType });
   const [selectedLots, setSelectedLots] = useState({});
   const [startProcessId, setStartProcessId] = useState(null);
@@ -308,13 +334,15 @@ const ProcessesPage = ({
       requests.push(apiRequest("/inventory/lots"));
       requests.push(apiRequest("/sales"));
       requests.push(apiRequest("/catalogs"));
+      requests.push(apiRequest("/code-counters"));
     }
 
-    const [processData, lotData = [], saleData = [], catalogData = null] = await Promise.all(requests);
+    const [processData, lotData = [], saleData = [], catalogData = null, codeCounterData = []] = await Promise.all(requests);
     setProcesses(processData);
     setAvailableLots(lotData);
     setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
     setCatalogs(catalogData);
+    setCodeCounters(codeCounterData);
   };
 
   const selectProcessStatusFilter = (status) => {
@@ -358,6 +386,24 @@ const ProcessesPage = ({
         quantityKg: formatQuantityInputValue(getAvailableLotKg(lot)),
       },
     }));
+  };
+
+  const getCounterPreview = (prefix, offset = 0) => {
+    const counter = codeCounters.find((item) => item.prefix === prefix);
+    const year = counter?.year || new Date().getFullYear();
+    const nextNumber = Number(counter?.nextNumber || 1) + offset;
+
+    return `${prefix}-${year}-${String(nextNumber).padStart(4, "0")}`;
+  };
+
+  const getOutputCodePreview = (outputs, output, index) => {
+    const prefix = output.lotKind === "LOT" ? "LOT" : "PROC";
+    const offset = outputs
+      .slice(0, index)
+      .filter((previousOutput) => (previousOutput.lotKind === "LOT" ? "LOT" : "PROC") === prefix)
+      .length;
+
+    return getCounterPreview(prefix, offset);
   };
 
   const createProcess = async (event) => {
@@ -415,14 +461,19 @@ const ProcessesPage = ({
     setPhysicalReviewForm({
       outputs: process.outputs?.length
         ? process.outputs.map((output) => ({
+            lotKind: output.lot_kind || "PROC",
+            profileSource: output.profile_source || (output.purchase_coffee_id ? "purchase" : "sale"),
+            purchaseCoffeeId: output.purchase_coffee_id || "",
             coffeeProfileId: output.coffee_profile_id || "",
+            coffeeTypeId: output.coffee_type_id || "",
             presentation: output.presentation || "Excelso",
+            processVariant: output.process_variant || "normal",
             outputWeightKg: output.output_weight_kg || "",
             humidityPercent: output.humidity_percent || "",
             performanceFactor: output.performance_factor || "",
             notes: output.notes || "",
           }))
-        : [{ ...emptyProcessOutput }],
+        : [createEmptyProcessOutput(process)],
     });
     setStartProcessId(null);
     setError("");
@@ -433,15 +484,23 @@ const ProcessesPage = ({
     setPhysicalReviewForm((current) => ({
       ...current,
       outputs: current.outputs.map((output, outputIndex) => (
-        outputIndex === index ? { ...output, [field]: value } : output
+        outputIndex === index
+          ? {
+              ...output,
+              [field]: value,
+              ...(field === "lotKind" && value === "LOT" ? { profileSource: "purchase", coffeeProfileId: "", processVariant: "normal" } : {}),
+              ...(field === "lotKind" && value === "PROC" ? { profileSource: "sale", purchaseCoffeeId: "" } : {}),
+              ...(field === "profileSource" ? { purchaseCoffeeId: "", coffeeProfileId: "" } : {}),
+            }
+          : output
       )),
     }));
   };
 
-  const addPhysicalOutput = () => {
+  const addPhysicalOutput = (process) => {
     setPhysicalReviewForm((current) => ({
       ...current,
-      outputs: [...current.outputs, { ...emptyProcessOutput }],
+      outputs: [...current.outputs, createEmptyProcessOutput(process)],
     }));
   };
 
@@ -496,7 +555,7 @@ const ProcessesPage = ({
       await loadData();
       if (directInventory) {
         setPhysicalReviewProcessId(process.id);
-        setPhysicalReviewForm({ outputs: [{ ...emptyProcessOutput }] });
+        setPhysicalReviewForm({ outputs: [createEmptyProcessOutput(process)] });
         setStartProcessId(null);
         setProcessStatusFilter("receiving");
         setMessage("Cafe recibido. Registre el peso de regreso para llevarlo a inventario.");
@@ -515,17 +574,23 @@ const ProcessesPage = ({
     const requiresPerformanceFactor = requiresProcessPerformanceFactor(process);
     const requiresHumidity = requiresProcessHumidity(process);
 
-    const invalidOutput = physicalReviewForm.outputs.find((output) => (
-      !output.coffeeProfileId ||
-      !output.presentation ||
-      !output.outputWeightKg ||
-      (requiresHumidity && !output.humidityPercent) ||
-      (requiresPerformanceFactor && !output.performanceFactor)
-    ));
+    const invalidOutput = physicalReviewForm.outputs.find((output) => {
+      const needsPurchaseCoffee = createsInventoryDirectly(process) && output.profileSource === "purchase";
+      const needsSaleProfile = !createsInventoryDirectly(process) || output.profileSource === "sale";
+
+      return (
+        (needsPurchaseCoffee && !output.purchaseCoffeeId) ||
+        (needsSaleProfile && !output.coffeeProfileId) ||
+        !output.presentation ||
+        !output.outputWeightKg ||
+        (requiresHumidity && !output.humidityPercent) ||
+        (requiresPerformanceFactor && !output.performanceFactor)
+      );
+    });
 
     if (invalidOutput) {
       setError(createsInventoryDirectly(process)
-        ? "Cada salida debe tener perfil comercial, presentacion y cantidad final."
+        ? "Cada salida debe tener tipo de registro, origen, cafe, presentacion y cantidad final."
         : requiresPerformanceFactor
         ? "Cada salida debe tener perfil comercial, presentacion, cantidad final, humedad y factor."
         : "Cada salida debe tener perfil comercial, presentacion, cantidad final y humedad.");
@@ -543,8 +608,13 @@ const ProcessesPage = ({
         method: "PUT",
         body: JSON.stringify({
           outputs: physicalReviewForm.outputs.map((output) => ({
-            coffeeProfileId: Number(output.coffeeProfileId),
+            lotKind: output.lotKind,
+            profileSource: output.profileSource,
+            purchaseCoffeeId: output.purchaseCoffeeId ? Number(output.purchaseCoffeeId) : null,
+            coffeeProfileId: output.coffeeProfileId ? Number(output.coffeeProfileId) : null,
+            coffeeTypeId: output.coffeeTypeId ? Number(output.coffeeTypeId) : null,
             presentation: output.presentation,
+            processVariant: output.processVariant || "normal",
             outputWeightKg: Number(output.outputWeightKg),
             humidityPercent: output.humidityPercent === "" ? null : Number(output.humidityPercent),
             performanceFactor: output.performanceFactor === "" ? null : Number(output.performanceFactor),
@@ -870,7 +940,13 @@ const ProcessesPage = ({
                     {process.outputs.map((output) => (
                       <div key={output.id} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
                         <p className="font-semibold text-ink">
-                          {output.output_lot_code || "Sin lote PROC"} - {formatProfileLabel(output)}
+                          {output.output_lot_code || "Sin lote"} - {output.profile_source === "purchase"
+                            ? formatPurchaseCoffeeLabel({
+                                name: output.purchase_coffee_name || output.coffee_variety,
+                                family: output.commercial_classification,
+                                process_type: output.coffee_type_name,
+                              })
+                            : formatProfileLabel(output)}
                         </p>
                         <p className="text-slate-600">
                           {output.presentation || "Excelso"} · {formatKg(output.output_weight_kg)}
@@ -970,14 +1046,14 @@ const ProcessesPage = ({
                         {requiresProcessPerformanceFactor(process)
                           ? "Divida el cafe recibido por perfil comercial, peso, humedad y factor."
                           : createsInventoryDirectly(process)
-                            ? "Registre el cafe recibido por perfil comercial, presentacion y peso. No requiere laboratorio."
+                            ? "Registre si el regreso queda como lote o proceso, y si corresponde a cafe de compra o cafe de venta. Se creara un registro nuevo en inventario."
                             : "Divida el cafe recibido por perfil comercial, peso y humedad."}
                       </p>
                     </div>
                     <button
                       className="inline-flex items-center gap-1 rounded border border-leaf bg-white px-3 py-2 text-xs font-semibold text-leaf hover:bg-emerald-50"
                       type="button"
-                      onClick={addPhysicalOutput}
+                      onClick={() => addPhysicalOutput(process)}
                     >
                       <Plus size={14} />
                       Agregar salida
@@ -985,19 +1061,66 @@ const ProcessesPage = ({
                   </div>
                   {physicalReviewForm.outputs.map((output, index) => (
                     <div key={`process-output-${index}`} className="rounded border border-emerald-200 bg-white p-3">
+                      {createsInventoryDirectly(process) && (
+                        <div className="mb-3 grid gap-2 rounded border border-amber-200 bg-amber-50 p-3 sm:grid-cols-3">
+                          <label className="text-xs font-medium uppercase text-amber-900">
+                            Codigo que se asignara
+                            <div className="mt-1 rounded border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-ink">
+                              {getOutputCodePreview(physicalReviewForm.outputs, output, index)}
+                            </div>
+                          </label>
+                          <label className="text-xs font-medium uppercase text-amber-900">
+                            Tipo de registro
+                            <select
+                              className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm normal-case text-ink"
+                              value={output.lotKind}
+                              onChange={(event) => updatePhysicalOutput(index, "lotKind", event.target.value)}
+                            >
+                              <option value="LOT">Lote</option>
+                              <option value="PROC">Proceso</option>
+                            </select>
+                          </label>
+                          <label className="text-xs font-medium uppercase text-amber-900">
+                            Cafe
+                            <select
+                              className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm normal-case text-ink"
+                              value={output.profileSource}
+                              onChange={(event) => updatePhysicalOutput(index, "profileSource", event.target.value)}
+                            >
+                              <option value="purchase">Cafe de compra</option>
+                              <option value="sale">Cafe de venta</option>
+                            </select>
+                          </label>
+                        </div>
+                      )}
                       <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
-                        <select
-                          className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
-                          value={output.coffeeProfileId}
-                          onChange={(event) => updatePhysicalOutput(index, "coffeeProfileId", event.target.value)}
-                        >
-                          <option value="">Perfil comercial</option>
-                          {catalogs?.coffeeProfiles?.map((profile) => (
-                            <option key={profile.id} value={profile.id}>
-                              {formatProfileLabel(profile)}
-                            </option>
-                          ))}
-                        </select>
+                        {createsInventoryDirectly(process) && output.profileSource === "purchase" ? (
+                          <select
+                            className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                            value={output.purchaseCoffeeId}
+                            onChange={(event) => updatePhysicalOutput(index, "purchaseCoffeeId", event.target.value)}
+                          >
+                            <option value="">Cafe de compra</option>
+                            {catalogs?.purchaseCoffees?.map((coffee) => (
+                              <option key={coffee.id} value={coffee.id}>
+                                {formatPurchaseCoffeeLabel(coffee)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <select
+                            className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                            value={output.coffeeProfileId}
+                            onChange={(event) => updatePhysicalOutput(index, "coffeeProfileId", event.target.value)}
+                          >
+                            <option value="">Perfil comercial</option>
+                            {catalogs?.coffeeProfiles?.map((profile) => (
+                              <option key={profile.id} value={profile.id}>
+                                {formatProfileLabel(profile)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <select
                           className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
                           value={output.presentation}
