@@ -4,11 +4,12 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
+import { cleanProcessLabNotes, formatCoffeeLotCodeName, getProcessIntensityFromNotes, processIntensityOptions } from "../../utils/coffeeLots";
 import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, lotStatusLabels, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
   decision: "aprobado",
+  intensity: "",
   aroma: "",
   flavor: "",
   sweetness: "",
@@ -64,6 +65,7 @@ const initialSaleReview = {
 const initialInventoryLabEdit = {
   humidityPercent: "",
   performanceFactor: "",
+  intensity: "",
   aroma: "",
   flavor: "",
   sweetness: "",
@@ -318,6 +320,8 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
         lot.commercial_classification,
         lot.coffee_variety,
         lot.lab_score,
+        lot.lab_notes,
+        lot.lot_kind === "PROC" ? getProcessIntensityFromNotes(lot.lab_notes) : "",
       ].filter(Boolean).join(" ").toLowerCase();
 
       return !term || text.includes(term);
@@ -350,6 +354,8 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
           output.output_lot_code,
           output.coffee_profile_name,
           output.lab_score,
+          output.lab_notes,
+          getProcessIntensityFromNotes(output.lab_notes),
           output.reviewed_by_name,
         ]),
       ].filter(Boolean).join(" ").toLowerCase();
@@ -365,6 +371,8 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     setSelectedLot(lot);
     setReview(lotReviewDrafts[lot.id] || {
       ...initialReview,
+      intensity: lot.lot_kind === "PROC" ? getProcessIntensityFromNotes(lot.lab_notes) : "",
+      notes: lot.lot_kind === "PROC" ? cleanProcessLabNotes(lot.lab_notes) : lot.lab_notes || "",
       commercialClassification: lot.commercial_classification || "",
       coffeeVariety: lot.coffee_variety || "",
     });
@@ -378,6 +386,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     setInventoryLabForm(inventoryLabDrafts[lot.id] || {
       humidityPercent: lot.humidity_percent ?? "",
       performanceFactor: lot.performance_factor ?? "",
+      intensity: lot.lot_kind === "PROC" ? getProcessIntensityFromNotes(lot.lab_notes) : "",
       aroma: lot.lab_aroma || "",
       flavor: lot.lab_flavor || "",
       sweetness: lot.lab_sweetness || "",
@@ -385,7 +394,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       residual: lot.lab_residual || "",
       cleanCup: lot.lab_clean_cup || "",
       score: lot.lab_score ?? "",
-      notes: lot.lab_notes || "",
+      notes: lot.lot_kind === "PROC" ? cleanProcessLabNotes(lot.lab_notes) : lot.lab_notes || "",
       changeNote: "Correccion de analisis desde laboratorio",
     });
     setMessage("");
@@ -405,6 +414,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       return;
     }
 
+    if (selectedInventoryLot.lot_kind === "PROC" && !inventoryLabForm.intensity) {
+      setError("Seleccione la intensidad del proceso antes de guardar.");
+      return;
+    }
+
     if (!window.confirm(`Confirma guardar el analisis de ${formatCoffeeLotCodeName(selectedInventoryLot)}?`)) return;
 
     setSaving(true);
@@ -412,19 +426,23 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     setError("");
 
     try {
+      const isProcessLot = selectedInventoryLot.lot_kind === "PROC";
+
       await apiRequest(`/lots/${selectedInventoryLot.id}/lab-data`, {
         method: "PUT",
         body: JSON.stringify({
           humidityPercent: inventoryLabForm.humidityPercent === "" ? null : Number(inventoryLabForm.humidityPercent),
           performanceFactor: inventoryLabForm.performanceFactor === "" ? null : Number(inventoryLabForm.performanceFactor),
-          aroma: inventoryLabForm.aroma,
-          flavor: inventoryLabForm.flavor,
-          sweetness: inventoryLabForm.sweetness,
-          body: inventoryLabForm.body,
-          residual: inventoryLabForm.residual,
-          cleanCup: inventoryLabForm.cleanCup,
-          score: inventoryLabForm.score === "" ? null : Number(inventoryLabForm.score),
-          notes: inventoryLabForm.notes,
+          aroma: isProcessLot ? null : inventoryLabForm.aroma,
+          flavor: isProcessLot ? null : inventoryLabForm.flavor,
+          sweetness: isProcessLot ? null : inventoryLabForm.sweetness,
+          body: isProcessLot ? null : inventoryLabForm.body,
+          residual: isProcessLot ? null : inventoryLabForm.residual,
+          cleanCup: isProcessLot ? null : inventoryLabForm.cleanCup,
+          score: isProcessLot ? null : inventoryLabForm.score === "" ? null : Number(inventoryLabForm.score),
+          notes: isProcessLot
+            ? [`Intensidad: ${inventoryLabForm.intensity}`, inventoryLabForm.notes].filter(Boolean).join("\n")
+            : inventoryLabForm.notes,
           changeNote: inventoryLabForm.changeNote,
         }),
       });
@@ -508,21 +526,15 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     if (humidityPercent === null) return;
     const performanceFactor = window.prompt("Factor de rendimiento", output.performance_factor ?? "");
     if (performanceFactor === null) return;
-    const aroma = window.prompt("Aroma", output.lab_aroma || "");
-    if (aroma === null) return;
-    const flavor = window.prompt("Sabor", output.lab_flavor || "");
-    if (flavor === null) return;
-    const sweetness = window.prompt("Dulzor", output.lab_sweetness || "");
-    if (sweetness === null) return;
-    const body = window.prompt("Cuerpo", output.lab_body || "");
-    if (body === null) return;
-    const residual = window.prompt("Residual", output.lab_residual || "");
-    if (residual === null) return;
-    const cleanCup = window.prompt("Taza limpia", output.lab_clean_cup || "");
-    if (cleanCup === null) return;
-    const score = window.prompt("Score", output.lab_score ?? "");
-    if (score === null) return;
-    const notes = window.prompt("Notas de laboratorio", output.lab_notes || "");
+    const currentIntensity = getProcessIntensityFromNotes(output.lab_notes);
+    const intensity = window.prompt("Intensidad del proceso (Alta, Media o Baja)", currentIntensity || "");
+    if (intensity === null) return;
+    const cleanIntensity = intensity.trim();
+    if (!processIntensityOptions.includes(cleanIntensity)) {
+      setError("La intensidad debe ser Alta, Media o Baja.");
+      return;
+    }
+    const notes = window.prompt("Notas de laboratorio", cleanProcessLabNotes(output.lab_notes));
     if (notes === null) return;
     const changeNote = window.prompt("Motivo de la correccion", "Correccion de analisis de proceso");
     if (changeNote === null) return;
@@ -539,14 +551,14 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
         body: JSON.stringify({
           humidityPercent: humidityPercent === "" ? null : Number(humidityPercent),
           performanceFactor: performanceFactor === "" ? null : Number(performanceFactor),
-          aroma,
-          flavor,
-          sweetness,
-          body,
-          residual,
-          cleanCup,
-          score: score === "" ? null : Number(score),
-          notes,
+          aroma: null,
+          flavor: null,
+          sweetness: null,
+          body: null,
+          residual: null,
+          cleanCup: null,
+          score: null,
+          notes: [`Intensidad: ${cleanIntensity}`, notes].filter(Boolean).join("\n"),
           changeNote,
         }),
       });
@@ -974,17 +986,13 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       return;
     }
 
-    const confirmed = window.confirm("Confirma guardar esta revision de laboratorio?");
-
-    if (!confirmed) {
-      return;
-    }
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
     try {
+      const isProcessLot = selectedLot.lot_kind === "PROC";
+
+      if (review.decision === "aprobado" && isProcessLot && !review.intensity) {
+        throw new Error("Seleccione la intensidad del proceso antes de aprobar.");
+      }
+
       const classificationChanged =
         (selectedLot.commercial_classification || "") !== (review.commercialClassification || "") ||
         (selectedLot.coffee_variety || "") !== (review.coffeeVariety || "");
@@ -992,6 +1000,16 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       if (classificationChanged && !review.classificationChangeNote.trim()) {
         throw new Error("Debe escribir una nota interna explicando el cambio de clasificacion.");
       }
+
+      const confirmed = window.confirm("Confirma guardar esta revision de laboratorio?");
+
+      if (!confirmed) {
+        return;
+      }
+
+      setSaving(true);
+      setMessage("");
+      setError("");
 
       await apiRequest(`/lots/${selectedLot.id}/lab-review`, {
         method: "PUT",
@@ -1373,7 +1391,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                 </div>
               )}
 
-              {selectedLot && (
+              {selectedLot && selectedLot.lot_kind !== "PROC" && (
                 <div className="rounded border border-slate-200 p-3">
                   <p className="text-xs font-semibold uppercase text-slate-500">Clasificacion final del cafe</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1407,7 +1425,24 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                 </div>
               )}
 
-              {review.decision === "aprobado" && (
+              {review.decision === "aprobado" && selectedLot?.lot_kind === "PROC" && (
+                <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                  <span>Intensidad del proceso</span>
+                  <select
+                    className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-800"
+                    value={review.intensity}
+                    onChange={(event) => updateLotReview("intensity", event.target.value)}
+                    required
+                  >
+                    <option value="">Seleccione intensidad</option>
+                    {processIntensityOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {review.decision === "aprobado" && selectedLot?.lot_kind !== "PROC" && (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {cuppingFields.map(([field, label]) => (
                     <input
@@ -1483,10 +1518,17 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                           <p className="mt-1 text-xs text-slate-500">
                             Fisico: {formatKg(lot.available_weight_kg)} · Libre operativo: {formatKg(lot.operational_available_kg ?? lot.available_weight_kg)}
                           </p>
+                          {lot.lot_kind === "PROC" && (
+                            <p className="mt-1 text-xs font-semibold text-indigo-700">
+                              Intensidad: {getProcessIntensityFromNotes(lot.lab_notes) || "-"}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <StatusBadge>{lotStatusLabels[lot.status] || lot.status}</StatusBadge>
-                          <span className="text-xs font-semibold text-slate-500">Score {lot.lab_score ?? "-"}</span>
+                          <span className="text-xs font-semibold text-slate-500">
+                            {lot.lot_kind === "PROC" ? "Proceso" : `Score ${lot.lab_score ?? "-"}`}
+                          </span>
                         </div>
                       </div>
                     </button>
@@ -1529,25 +1571,42 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     />
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {cuppingFields.map(([field, label]) => (
+                  {selectedInventoryLot.lot_kind === "PROC" ? (
+                    <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                      <span>Intensidad del proceso</span>
+                      <select
+                        className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-slate-800"
+                        value={inventoryLabForm.intensity}
+                        onChange={(event) => updateInventoryLabForm("intensity", event.target.value)}
+                        required
+                      >
+                        <option value="">Seleccione intensidad</option>
+                        {processIntensityOptions.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {cuppingFields.map(([field, label]) => (
+                        <input
+                          key={`inventory-${field}`}
+                          className="rounded border border-slate-300 px-3 py-2 text-sm"
+                          placeholder={label}
+                          value={inventoryLabForm[field]}
+                          onChange={(event) => updateInventoryLabForm(field, event.target.value)}
+                        />
+                      ))}
                       <input
-                        key={`inventory-${field}`}
                         className="rounded border border-slate-300 px-3 py-2 text-sm"
-                        placeholder={label}
-                        value={inventoryLabForm[field]}
-                        onChange={(event) => updateInventoryLabForm(field, event.target.value)}
+                        placeholder="Score"
+                        type="number"
+                        step="0.01"
+                        value={inventoryLabForm.score}
+                        onChange={(event) => updateInventoryLabForm("score", event.target.value)}
                       />
-                    ))}
-                    <input
-                      className="rounded border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="Score"
-                      type="number"
-                      step="0.01"
-                      value={inventoryLabForm.score}
-                      onChange={(event) => updateInventoryLabForm("score", event.target.value)}
-                    />
-                  </div>
+                    </div>
+                  )}
 
                   <textarea
                     className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -2282,31 +2341,33 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                         <p className="text-sm text-slate-500">Finalizado: {formatDate(process.finalized_at)}</p>
                       </div>
                       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                        {(process.outputs || []).map((output, index) => (
-                          <div key={`${process.id}-${output.output_lot_id || index}`} className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
-                            <p className="font-semibold text-ink">
-                              {output.output_lot_code || "Sin lote PROC"} - {output.coffee_profile_name || "Cafe procesado"}
-                            </p>
-                            <p className="text-slate-600">
-                              {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
-                            </p>
-                            <p className="mt-2 text-xs text-slate-600">
-                              Aroma {output.lab_aroma || "-"} · Sabor {output.lab_flavor || "-"} · Dulzor {output.lab_sweetness || "-"} · Cuerpo {output.lab_body || "-"} · Residual {output.lab_residual || "-"} · Taza limpia {output.lab_clean_cup || "-"}
-                            </p>
-                            <p className="mt-1 text-xs font-semibold text-ink">Score: {output.lab_score || "-"}</p>
-                            {output.lab_notes && <p className="mt-1 text-xs text-slate-500">Notas: {output.lab_notes}</p>}
-                            {["admin", "laboratory"].includes(user?.role) && (
-                              <button
-                                className="mt-3 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                                disabled={saving}
-                                type="button"
-                                onClick={() => editHistoryProcessOutputLabData(output)}
-                              >
-                                Editar analisis
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                        {(process.outputs || []).map((output, index) => {
+                          const processIntensity = getProcessIntensityFromNotes(output.lab_notes);
+                          const processNotes = cleanProcessLabNotes(output.lab_notes);
+
+                          return (
+                            <div key={`${process.id}-${output.output_lot_id || index}`} className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+                              <p className="font-semibold text-ink">
+                                {output.output_lot_code || "Sin lote PROC"} - {output.coffee_profile_name || "Cafe procesado"}
+                              </p>
+                              <p className="text-slate-600">
+                                {output.output_weight_kg} kg · Humedad {output.humidity_percent}% · Factor {output.performance_factor}
+                              </p>
+                              <p className="mt-2 text-xs font-semibold text-ink">Intensidad: {processIntensity || "-"}</p>
+                              {processNotes && <p className="mt-1 text-xs text-slate-500">Notas: {processNotes}</p>}
+                              {["admin", "laboratory"].includes(user?.role) && (
+                                <button
+                                  className="mt-3 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                  disabled={saving}
+                                  type="button"
+                                  onClick={() => editHistoryProcessOutputLabData(output)}
+                                >
+                                  Editar analisis
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

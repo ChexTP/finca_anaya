@@ -2,7 +2,7 @@ import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
-import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, getProcessIntensityFromNotes, processIntensityOptions } from "../../utils/coffeeLots";
 
 const allOption = "todos";
 
@@ -52,6 +52,7 @@ const InventorySummaryPage = () => {
     presentation: allOption,
     process: allOption,
     category: allOption,
+    intensity: allOption,
     status: allOption,
   });
 
@@ -77,6 +78,7 @@ const InventorySummaryPage = () => {
     presentations: buildOptions(lots, (lot) => lot.presentation),
     processes: buildOptions(lots, (lot) => lot.coffee_type_name || (lot.lot_kind === "PROC" ? "Procesado" : "")),
     categories: buildOptions(lots, (lot) => lot.commercial_classification || lot.lot_kind),
+    intensities: processIntensityOptions,
     statuses: buildOptions(lots, (lot) => lot.status),
   }), [lots]);
 
@@ -86,10 +88,12 @@ const InventorySummaryPage = () => {
     return lots.filter((lot) => {
       const process = lot.coffee_type_name || (lot.lot_kind === "PROC" ? "Procesado" : "");
       const category = lot.commercial_classification || lot.lot_kind || "";
+      const intensity = lot.lot_kind === "PROC" ? getProcessIntensityFromNotes(lot.lab_notes) : "";
 
       if (filters.presentation !== allOption && lot.presentation !== filters.presentation) return false;
       if (filters.process !== allOption && process !== filters.process) return false;
       if (filters.category !== allOption && category !== filters.category) return false;
+      if (filters.intensity !== allOption && intensity !== filters.intensity) return false;
       if (filters.status !== allOption && lot.status !== filters.status) return false;
 
       if (!search) return true;
@@ -105,6 +109,7 @@ const InventorySummaryPage = () => {
         lot.status,
         lot.performance_factor,
         lot.humidity_percent,
+        intensity,
       ]
         .filter(Boolean)
         .join(" ")
@@ -121,6 +126,7 @@ const InventorySummaryPage = () => {
         presentation: lot.presentation || "Pergamino",
         process: lot.coffee_type_name || (lot.lot_kind === "PROC" ? "Procesado" : "-"),
         category: lot.commercial_classification || lot.lot_kind || "-",
+        intensity: lot.lot_kind === "PROC" ? getProcessIntensityFromNotes(lot.lab_notes) || "-" : "-",
         lotsCount: 0,
         totalKg: 0,
         reservedKg: 0,
@@ -187,7 +193,7 @@ const InventorySummaryPage = () => {
       </div>
 
       <div className="rounded border border-slate-200 bg-white">
-        <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-2 xl:grid-cols-6">
           <label className="space-y-1 text-xs font-semibold uppercase text-slate-500 md:col-span-2 xl:col-span-1">
             <span>Buscar</span>
             <div className="flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2">
@@ -204,6 +210,7 @@ const InventorySummaryPage = () => {
           <FilterSelect label="Presentacion" value={filters.presentation} options={options.presentations} onChange={(value) => updateFilter("presentation", value)} />
           <FilterSelect label="Proceso" value={filters.process} options={options.processes} onChange={(value) => updateFilter("process", value)} />
           <FilterSelect label="Categoria" value={filters.category} options={options.categories} onChange={(value) => updateFilter("category", value)} />
+          <FilterSelect label="Intensidad procesos" value={filters.intensity} options={options.intensities} onChange={(value) => updateFilter("intensity", value)} />
           <FilterSelect label="Estado" value={filters.status} options={options.statuses} onChange={(value) => updateFilter("status", value)} />
         </div>
 
@@ -220,6 +227,7 @@ const InventorySummaryPage = () => {
                   <th className="px-3 py-2">Presentacion</th>
                   <th className="px-3 py-2">Proceso</th>
                   <th className="px-3 py-2">Categoria</th>
+                  <th className="px-3 py-2">Intensidad</th>
                   <th className="px-3 py-2">Lotes</th>
                   <th className="px-3 py-2">Libre</th>
                   <th className="px-3 py-2">Reservado</th>
@@ -236,6 +244,7 @@ const InventorySummaryPage = () => {
                           {group.lots.map((lot) => (
                             <p key={lot.id}>
                               {formatCoffeeLotCodeName(lot)} · libre {formatOperationalKg(getLotQuantity(lot))}
+                              {lot.lot_kind === "PROC" ? ` · intensidad ${getProcessIntensityFromNotes(lot.lab_notes) || "-"}` : ""}
                             </p>
                           ))}
                         </div>
@@ -244,6 +253,7 @@ const InventorySummaryPage = () => {
                     <td className="px-3 py-2">{group.presentation}</td>
                     <td className="px-3 py-2">{group.process}</td>
                     <td className="px-3 py-2">{group.category}</td>
+                    <td className="px-3 py-2">{group.intensity}</td>
                     <td className="px-3 py-2">{group.lotsCount}</td>
                     <td className="px-3 py-2 font-semibold text-leaf">{formatOperationalKg(group.totalKg)}</td>
                     <td className="px-3 py-2 font-semibold text-amber-700">{formatOperationalKg(group.reservedKg)}</td>

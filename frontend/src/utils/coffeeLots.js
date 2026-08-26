@@ -4,6 +4,20 @@ export const getProcessVariantLabel = (lot) => (
   lot?.process_variant === "ensamblado" ? "Proceso ensamblado" : "Proceso normal"
 );
 
+export const processIntensityOptions = ["Alta", "Media", "Baja"];
+
+export const getProcessIntensityFromNotes = (notes = "") => {
+  const match = String(notes || "").match(/Intensidad:\s*(Alta|Media|Baja)/i);
+  if (!match) return "";
+
+  const value = match[1].toLowerCase();
+  return value.charAt(0).toUpperCase() + value.slice(1);
+};
+
+export const cleanProcessLabNotes = (notes = "") => {
+  return String(notes || "").replace(/^\s*Intensidad:\s*(Alta|Media|Baja|-)\s*\n?/i, "").trim();
+};
+
 export const getCoffeeLotGroup = (lot) => {
   const presentation = lot.presentation || "Pergamino";
 

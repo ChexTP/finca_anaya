@@ -398,9 +398,17 @@ const ProcessesPage = ({
 
   const getOutputCodePreview = (outputs, output, index) => {
     const prefix = output.lotKind === "LOT" ? "LOT" : "PROC";
+    const sharedInventoryPrefixes = ["LOT", "PROC"];
     const offset = outputs
       .slice(0, index)
-      .filter((previousOutput) => (previousOutput.lotKind === "LOT" ? "LOT" : "PROC") === prefix)
+      .filter((previousOutput) => {
+        const previousPrefix = previousOutput.lotKind === "LOT" ? "LOT" : "PROC";
+        if (sharedInventoryPrefixes.includes(prefix)) {
+          return sharedInventoryPrefixes.includes(previousPrefix);
+        }
+
+        return previousPrefix === prefix;
+      })
       .length;
 
     return getCounterPreview(prefix, offset);

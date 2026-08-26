@@ -746,6 +746,7 @@ export const putLabReview = async (req, res) => {
       cleanCup,
       score,
       notes,
+      intensity,
       commercialClassification,
       coffeeVariety,
       classificationChangeNote,
@@ -765,6 +766,8 @@ export const putLabReview = async (req, res) => {
     const humidity = toNumber(currentLot.humidity_percent);
     const performance = toNumber(currentLot.performance_factor);
     const scoreValue = toNumber(score);
+    const isProcessLot = currentLot.lot_kind === "PROC";
+    const cleanIntensity = String(intensity || "").trim();
 
     if (decision === "aprobado" && (!isValidNumber(humidity) || !isValidNumber(performance))) {
       return res.status(400).json({
@@ -780,7 +783,13 @@ export const putLabReview = async (req, res) => {
       return res.status(400).json({ message: "El factor de rendimiento debe ser mayor o igual a cero" });
     }
 
-    if (decision === "aprobado") {
+    if (decision === "aprobado" && isProcessLot && !["Alta", "Media", "Baja"].includes(cleanIntensity)) {
+      return res.status(400).json({
+        message: "La intensidad es obligatoria para aprobar un proceso",
+      });
+    }
+
+    if (decision === "aprobado" && !isProcessLot) {
       const missingField = requiredCuppingFields.find((field) => !req.body[field]);
 
       if (missingField || !isValidNumber(scoreValue)) {
@@ -822,23 +831,26 @@ export const putLabReview = async (req, res) => {
 
     // El rango ideal definido por el cliente es 10% a 12%; se alerta, pero no bloquea la decision.
     const humidityAlert = humidity !== null && (humidity < 10 || humidity > 12);
+    const finalNotes = isProcessLot
+      ? [`Intensidad: ${cleanIntensity || "-"}`, notes].filter(Boolean).join("\n")
+      : notes;
 
     const lot = await updateLotLabReview(req.params.id, {
       status: decision,
       humidityPercent: humidity,
       performanceFactor: performance,
-      aroma,
+      aroma: isProcessLot ? null : aroma,
       fragrance: null,
-      flavor,
+      flavor: isProcessLot ? null : flavor,
       acidity: null,
-      sweetness,
-      body,
+      sweetness: isProcessLot ? null : sweetness,
+      body: isProcessLot ? null : body,
       balance: null,
       uniformity: null,
-      residual,
-      cleanCup,
-      score: scoreValue,
-      notes,
+      residual: isProcessLot ? null : residual,
+      cleanCup: isProcessLot ? null : cleanCup,
+      score: isProcessLot ? null : scoreValue,
+      notes: finalNotes,
       commercialClassification: finalClassification || null,
       coffeeVariety: finalVariety || null,
       classificationChangeNote,

@@ -6,7 +6,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
-import { formatCoffeeLotCodeName, getCoffeeLotGroup, groupCoffeeLots } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, getCoffeeLotGroup, getProcessIntensityFromNotes, groupCoffeeLots, processIntensityOptions } from "../../utils/coffeeLots";
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
 import { printHtmlDocument } from "../../utils/printHtml";
@@ -474,6 +474,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [adminProcessForm, setAdminProcessForm] = useState(initialAdminProcessEdit);
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
+  const [selectedProcessIntensity, setSelectedProcessIntensity] = useState("all");
   const [selectedProcessLocation, setSelectedProcessLocation] = useState("all");
   const [inventorySearch, setInventorySearch] = useState("");
   const [lotCodeSearch, setLotCodeSearch] = useState("");
@@ -1371,6 +1372,15 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
   const regularLots = lots.filter((lot) => lot.lot_kind !== "PROC");
   const processLots = lots.filter((lot) => lot.lot_kind === "PROC");
+  const processIntensityCards = processIntensityOptions.map((intensity) => {
+    const intensityLots = processLots.filter((lot) => getProcessIntensityFromNotes(lot.lab_notes) === intensity);
+
+    return {
+      intensity,
+      count: intensityLots.length,
+      kg: intensityLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
+    };
+  });
   const presentationNames = [
     ...new Set([
       ...(catalogs?.coffeePresentations || []).map((presentation) => presentation.name),
@@ -1390,16 +1400,19 @@ const InventoryPage = ({ mode = "inventory" }) => {
     : selectedPresentation === "processes"
       ? processLots
       : regularLots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
+  const intensityFilteredLots = selectedPresentation === "processes" && selectedProcessIntensity !== "all"
+    ? presentationFilteredLots.filter((lot) => getProcessIntensityFromNotes(lot.lab_notes) === selectedProcessIntensity)
+    : presentationFilteredLots;
   const inventoryGroups = groupCoffeeLots(
-    presentationFilteredLots.map((lot) => ({
+    intensityFilteredLots.map((lot) => ({
       ...lot,
       available_weight_kg: lot.operational_available_kg ?? lot.available_weight_kg,
     }))
   );
   const groupCards = Object.values(inventoryGroups).sort((left, right) => left.name.localeCompare(right.name));
   const groupedFilteredLots = selectedGroup === "all"
-    ? presentationFilteredLots
-    : presentationFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
+    ? intensityFilteredLots
+    : intensityFilteredLots.filter((lot) => getCoffeeLotGroup(lot) === selectedGroup);
   const inventorySearchTerm = inventorySearch.trim().toLowerCase();
   const filteredLots = groupedFilteredLots.filter((lot) => {
     if (!inventorySearchTerm) return true;
@@ -1417,6 +1430,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       lot.origin_process_type,
       lot.origin_process_code,
       lot.performance_factor,
+      lot.lot_kind === "PROC" ? getProcessIntensityFromNotes(lot.lab_notes) : "",
     ]
       .filter(Boolean)
       .join(" ")
@@ -1477,7 +1491,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const farmShipmentRows = farmShipments;
   const activeFarmShipmentRows = farmShipmentRows.filter((shipment) => !shipment.received_at);
   const receivedFarmShipmentRows = farmShipmentRows.filter((shipment) => shipment.received_at);
-  const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
+  const totalAvailableKg = intensityFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const totalProcessLotsKg = processLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const totalSampleOutputsKg = sampleOutputs.reduce((total, movement) => total + Number(movement.quantity_kg || 0), 0);
@@ -2541,6 +2555,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
               onClick={() => {
                 setSelectedPresentation("all");
                 setSelectedGroup("all");
+                setSelectedProcessIntensity("all");
               }}
             >
               <span className="block font-semibold">Todo</span>
@@ -2556,6 +2571,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 onClick={() => {
                   setSelectedPresentation(option.presentation);
                   setSelectedGroup("all");
+                  setSelectedProcessIntensity("all");
                 }}
               >
                 <span className="block font-semibold">{option.presentation}</span>
@@ -2570,6 +2586,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
               onClick={() => {
                 setSelectedPresentation("processes");
                 setSelectedGroup("all");
+                setSelectedProcessIntensity("all");
               }}
             >
               <span className="block font-semibold">Procesos</span>
@@ -2584,6 +2601,39 @@ const InventoryPage = ({ mode = "inventory" }) => {
               <span className="text-xs">{sampleOutputs.length} salidas - {formatKg(totalSampleOutputsKg)}</span>
             </button>
           </div>
+          {selectedPresentation === "processes" && (
+            <div className="mb-3 flex flex-wrap gap-2 border-b border-slate-100 pb-3">
+              <button
+                className={`rounded border px-3 py-2 text-left text-sm ${
+                  selectedProcessIntensity === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                }`}
+                type="button"
+                onClick={() => {
+                  setSelectedProcessIntensity("all");
+                  setSelectedGroup("all");
+                }}
+              >
+                <span className="block font-semibold">Todas las intensidades</span>
+                <span className="text-xs">{processLots.length} procesos - {formatKg(totalProcessLotsKg)}</span>
+              </button>
+              {processIntensityCards.map((card) => (
+                <button
+                  key={card.intensity}
+                  className={`rounded border px-3 py-2 text-left text-sm ${
+                    selectedProcessIntensity === card.intensity ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedProcessIntensity(card.intensity);
+                    setSelectedGroup("all");
+                  }}
+                >
+                  <span className="block font-semibold">Procesos {card.intensity.toLowerCase()}</span>
+                  <span className="text-xs">{card.count} lotes - {formatKg(card.kg)}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               className={`rounded border px-3 py-2 text-left text-sm ${
@@ -2593,7 +2643,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
               onClick={() => setSelectedGroup("all")}
             >
               <span className="block font-semibold">Todos los tipos</span>
-              <span className="text-xs">{presentationFilteredLots.length} lotes - {formatKg(totalAvailableKg)}</span>
+              <span className="text-xs">{intensityFilteredLots.length} lotes - {formatKg(totalAvailableKg)}</span>
             </button>
             {groupCards.map((group) => (
               <button
@@ -2750,6 +2800,11 @@ const InventoryPage = ({ mode = "inventory" }) => {
                         <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.coffee_type_name || "Sin tipo"}</span>
                         <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.commercial_classification || "Sin categoria"}</span>
                         <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.coffee_variety || lot.coffee_profile_name || "Sin clasificacion"}</span>
+                        {lot.lot_kind === "PROC" && (
+                          <span className="rounded bg-indigo-50 px-2 py-1 font-semibold text-indigo-700">
+                            Intensidad {getProcessIntensityFromNotes(lot.lab_notes) || "sin definir"}
+                          </span>
+                        )}
                         {originLabel && (
                           <span className="rounded bg-emerald-50 px-2 py-1 font-semibold text-leaf">{originLabel}</span>
                         )}
@@ -2781,7 +2836,10 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     </div>
                     <div className="rounded border border-slate-200 bg-white px-3 py-2">
                       <p className="text-xs font-semibold uppercase text-slate-500">Calidad</p>
-                      <p className="mt-1 text-sm text-slate-700">Humedad {lot.humidity_percent || "-"}% · Factor {lot.performance_factor ?? "-"}</p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        Humedad {lot.humidity_percent || "-"}% · Factor {lot.performance_factor ?? "-"}
+                        {lot.lot_kind === "PROC" ? ` · Intensidad ${getProcessIntensityFromNotes(lot.lab_notes) || "-"}` : ""}
+                      </p>
                     </div>
                     <div className="rounded border border-slate-200 bg-white px-3 py-2">
                       <p className="text-xs font-semibold uppercase text-slate-500">Llegada</p>

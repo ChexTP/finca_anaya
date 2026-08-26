@@ -52,6 +52,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.performance_factor,
       coffee_lots.received_at,
       coffee_lots.lab_score,
+      coffee_lots.lab_notes,
       coffee_lots.created_at,
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,

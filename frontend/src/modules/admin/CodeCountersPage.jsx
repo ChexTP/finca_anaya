@@ -79,6 +79,7 @@ const CodeCountersPage = () => {
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
       <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
         Ajuste estos consecutivos solo durante carga inicial o correcciones controladas. El numero guardado sera el proximo codigo que generara el sistema.
+        LOT y PROC comparten el mismo talonario fisico, por eso ambos avanzan sobre el mismo numero.
       </p>
 
       <div className="rounded border border-slate-200 bg-white">
@@ -105,7 +106,9 @@ const CodeCountersPage = () => {
               <tbody className="divide-y divide-slate-100">
                 {counters.map((counter) => {
                   const nextNumber = Number(formValues[counter.prefix] || 0);
-                  const nextCode = `${counter.prefix}-${counter.year}-${String(nextNumber || 0).padStart(4, "0")}`;
+                  const nextCode = ["LOT", "PROC"].includes(counter.prefix)
+                    ? `LOT/PROC-${counter.year}-${String(nextNumber || 0).padStart(4, "0")}`
+                    : `${counter.prefix}-${counter.year}-${String(nextNumber || 0).padStart(4, "0")}`;
 
                   return (
                     <tr key={counter.prefix}>
