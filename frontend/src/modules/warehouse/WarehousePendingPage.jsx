@@ -847,6 +847,31 @@ const WarehousePendingPage = () => {
     }
   };
 
+  const unassignTakenLot = async (lot) => {
+    if (!selectedSale || !lot?.id) return;
+
+    const confirmed = window.confirm(
+      `Confirmas desasignar ${formatOperationalKg(lot.quantity_kg)} de ${formatCoffeeLotCodeName(lot)} y devolver ese cafe al inventario?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await apiRequest(`/sales/lot-assignments/${lot.id}`, { method: "DELETE" });
+      await loadData();
+      await loadSaleDetail(selectedSale.id, false);
+      setMessage(response.message || "Salida desasignada y cafe devuelto al inventario.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const toggleItemShortage = async (item, assignmentType = "directo") => {
     if (!selectedSale) return;
 
@@ -1438,10 +1463,25 @@ const WarehousePendingPage = () => {
                               <p className="font-semibold uppercase">Salidas ya registradas</p>
                               <div className="mt-2 space-y-1">
                                 {getTakenLotsForItem(item).map((lot) => (
-                                  <p key={lot.id}>
-                                    {formatCoffeeLotCodeName(lot)} - {formatOperationalKg(lot.quantity_kg)}
-                                    {cleanAssignmentNotes(lot.notes) ? ` - ${cleanAssignmentNotes(lot.notes)}` : ""}
-                                  </p>
+                                  <div
+                                    key={lot.id}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-200 bg-white px-3 py-2"
+                                  >
+                                    <p className="min-w-0">
+                                      {formatCoffeeLotCodeName(lot)} - {formatOperationalKg(lot.quantity_kg)}
+                                      {cleanAssignmentNotes(lot.notes) ? ` - ${cleanAssignmentNotes(lot.notes)}` : ""}
+                                    </p>
+                                    {!["alistada", "despachada", "anulada"].includes(selectedSale.status) && (
+                                      <button
+                                        className="rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                                        type="button"
+                                        onClick={() => unassignTakenLot(lot)}
+                                        disabled={saving}
+                                      >
+                                        Desasignar
+                                      </button>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             </div>

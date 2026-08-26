@@ -27,6 +27,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.id,
       coffee_lots.code,
       coffee_lots.lot_kind,
+      coffee_lots.process_variant,
       coffee_lots.presentation,
       coffee_lots.coffee_type_id,
       coffee_lots.coffee_profile_id,
@@ -90,7 +91,12 @@ export const getGroupedInventory = async () => {
         ELSE coffee_lots.coffee_type_id
       END AS group_id,
       CASE
-        WHEN coffee_lots.lot_kind = 'PROC' THEN COALESCE(coffee_profiles.name, 'Sin perfil')
+        WHEN coffee_lots.lot_kind = 'PROC' THEN
+          CASE
+            WHEN coffee_lots.process_variant = 'ensamblado'
+              THEN 'Proceso ensamblado - ' || COALESCE(coffee_profiles.name, 'Sin perfil')
+            ELSE 'Proceso normal - ' || COALESCE(coffee_profiles.name, 'Sin perfil')
+          END
         ELSE coffee_lots.presentation || ' - ' || COALESCE(coffee_types.name, 'Sin tipo')
       END AS group_name,
       COUNT(*) AS lots_count,

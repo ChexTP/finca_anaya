@@ -49,6 +49,7 @@ const buildManualCode = ({ prefix, year, number }) => {
 
 const commercialClassifications = ["Base", "Regional", "Varietal", "Exotico", "Procesado", "Pasilla", "Recuperacion"];
 const regularCategoriesThatNeedExactName = ["Regional", "Varietal", "Exotico"];
+const normalizeProcessVariant = (lotKind, value) => (lotKind === "PROC" && value === "ensamblado" ? "ensamblado" : "normal");
 
 export const getLots = async (req, res) => {
   try {
@@ -120,6 +121,7 @@ export const putLotAdminData = async (req, res) => {
       coffeeProfileId,
       presentation,
       lotKind,
+      processVariant = "normal",
       commercialClassification,
       coffeeVariety,
       grossWeightKg,
@@ -203,6 +205,7 @@ export const putLotAdminData = async (req, res) => {
       coffeeProfileId: coffeeProfileId || null,
       presentation,
       lotKind,
+      processVariant: normalizeProcessVariant(lotKind, processVariant),
       commercialClassification: commercialClassification || null,
       coffeeVariety: coffeeVariety || null,
       grossWeightKg: gross,
@@ -248,6 +251,7 @@ export const postReceivedLot = async (req, res) => {
       coffeeTypeId,
       coffeeProfileId,
       lotKind = "LOT",
+      processVariant = "normal",
       grossWeightKg,
       packagingTypeId,
       packagingQuantity = 0,
@@ -393,6 +397,7 @@ export const postReceivedLot = async (req, res) => {
       coffeeTypeId: coffeeTypeId || null,
       coffeeProfileId: coffeeProfileId || null,
       lotKind: normalizedLotKind,
+      processVariant: normalizeProcessVariant(normalizedLotKind, processVariant),
       status,
       presentation,
       grossWeightKg: gross,
@@ -434,6 +439,7 @@ export const putReceptionData = async (req, res) => {
       coffeeTypeId,
       coffeeProfileId,
       lotKind = "LOT",
+      processVariant = "normal",
       grossWeightKg,
       packagingTypeId,
       packagingQuantity = 0,
@@ -554,6 +560,7 @@ export const putReceptionData = async (req, res) => {
       coffeeTypeId: coffeeTypeId || null,
       coffeeProfileId: coffeeProfileId || null,
       lotKind: normalizedLotKind,
+      processVariant: normalizeProcessVariant(normalizedLotKind, processVariant),
       presentation,
       grossWeightKg: gross,
       packagingTypeId,
@@ -1113,6 +1120,7 @@ export const postStockEntry = async (req, res) => {
     const {
       lotKind,
       profileSource = "purchase",
+      processVariant = "normal",
       coffeeTypeId,
       coffeeProfileId,
       commercialClassification,
@@ -1215,6 +1223,7 @@ export const postStockEntry = async (req, res) => {
     const lot = await createInitialInventoryLot({
       code,
       lotKind,
+      processVariant: normalizeProcessVariant(lotKind, processVariant),
       supplierId: null,
       coffeeTypeId: usesCommercialProfile && lotKind !== "PROC" ? null : coffeeTypeId || null,
       coffeeProfileId: usesCommercialProfile ? coffeeProfileId || null : null,
@@ -1269,6 +1278,7 @@ export const postInitialLoad = async (req, res) => {
   try {
     const {
       lotKind = "LOT",
+      processVariant = "normal",
       supplierId,
       coffeeTypeId,
       coffeeProfileId,
@@ -1357,6 +1367,7 @@ export const postInitialLoad = async (req, res) => {
     const lot = await createInitialInventoryLot({
       code,
       lotKind,
+      processVariant: normalizeProcessVariant(lotKind, processVariant),
       supplierId: supplierId || null,
       coffeeTypeId: coffeeTypeId || null,
       coffeeProfileId: coffeeProfileId || null,

@@ -40,6 +40,7 @@ const initialAdminLotEdit = {
   coffeeProfileId: "",
   presentation: "Pergamino",
   lotKind: "LOT",
+  processVariant: "normal",
   commercialClassification: "",
   coffeeVariety: "",
   grossWeightKg: "",
@@ -1071,6 +1072,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       coffeeProfileId: lot.coffee_profile_id ? String(lot.coffee_profile_id) : "",
       presentation: lot.presentation || "Pergamino",
       lotKind: lot.lot_kind || "LOT",
+      processVariant: lot.process_variant || "normal",
       commercialClassification: lot.commercial_classification || "",
       coffeeVariety: lot.coffee_variety || "",
       grossWeightKg: lot.gross_weight_kg ?? "",
@@ -1138,6 +1140,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
           coffeeProfileId: adminLotForm.coffeeProfileId ? Number(adminLotForm.coffeeProfileId) : null,
           presentation: adminLotForm.presentation,
           lotKind: adminLotForm.lotKind,
+          processVariant: adminLotForm.lotKind === "PROC" ? adminLotForm.processVariant : "normal",
           commercialClassification: adminLotForm.commercialClassification || null,
           coffeeVariety: adminLotForm.coffeeVariety || null,
           grossWeightKg: Number(adminLotForm.grossWeightKg),
@@ -1714,6 +1717,16 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   <option value="PASILLA">Pasilla</option>
                   <option value="RECUPERACION">Recuperacion</option>
                 </select>
+                {adminLotForm.lotKind === "PROC" && (
+                  <select
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={adminLotForm.processVariant}
+                    onChange={(event) => setAdminLotForm({ ...adminLotForm, processVariant: event.target.value })}
+                  >
+                    <option value="normal">Proceso normal</option>
+                    <option value="ensamblado">Proceso ensamblado listo para despacho</option>
+                  </select>
+                )}
                 <select
                   className="rounded border border-slate-300 px-3 py-2 text-sm"
                   value={adminLotForm.coffeeTypeId}
@@ -3579,6 +3592,19 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     <option value="RECUPERACION">Recuperacion</option>
                   </select>
                 </label>
+                {adminLotForm.lotKind === "PROC" && (
+                  <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
+                    Clase de proceso
+                    <select
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
+                      value={adminLotForm.processVariant}
+                      onChange={(event) => setAdminLotForm({ ...adminLotForm, processVariant: event.target.value })}
+                    >
+                      <option value="normal">Proceso normal</option>
+                      <option value="ensamblado">Proceso ensamblado listo para despacho</option>
+                    </select>
+                  </label>
+                )}
                 <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
                   Tipo / proceso
                   <select

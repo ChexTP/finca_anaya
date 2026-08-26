@@ -546,32 +546,33 @@ export const updateLotAdminData = async (id, lotData) => {
         coffee_type_id = $2,
         coffee_profile_id = $3,
         status = CASE
-          WHEN $10 = 0 AND status IN ('disponible', 'vendido_parcial') THEN 'agotado'
-          WHEN $10 > 0 AND status = 'agotado' THEN 'disponible'
+          WHEN $11 = 0 AND status IN ('disponible', 'vendido_parcial') THEN 'agotado'
+          WHEN $11 > 0 AND status = 'agotado' THEN 'disponible'
           ELSE status
         END,
         presentation = $4,
         lot_kind = $5,
-        commercial_classification = $6,
-        coffee_variety = $7,
-        gross_weight_kg = $8,
-        net_weight_kg = $9,
-        available_weight_kg = $10,
-        humidity_percent = $11,
-        performance_factor = $12,
-        lab_aroma = $13,
-        lab_flavor = $14,
-        lab_sweetness = $15,
-        lab_body = $16,
-        lab_residual = $17,
-        lab_clean_cup = $18,
-        lab_score = $19,
-        lab_notes = $20,
-        received_at = $21,
-        origin_zone = $22,
-        initial_comment = $23,
+        process_variant = $6,
+        commercial_classification = $7,
+        coffee_variety = $8,
+        gross_weight_kg = $9,
+        net_weight_kg = $10,
+        available_weight_kg = $11,
+        humidity_percent = $12,
+        performance_factor = $13,
+        lab_aroma = $14,
+        lab_flavor = $15,
+        lab_sweetness = $16,
+        lab_body = $17,
+        lab_residual = $18,
+        lab_clean_cup = $19,
+        lab_score = $20,
+        lab_notes = $21,
+        received_at = $22,
+        origin_zone = $23,
+        initial_comment = $24,
         updated_at = NOW()
-      WHERE id = $24
+      WHERE id = $25
       RETURNING *
       `,
       [
@@ -580,6 +581,7 @@ export const updateLotAdminData = async (id, lotData) => {
         lotData.coffeeProfileId,
         lotData.presentation,
         lotData.lotKind,
+        lotData.processVariant || "normal",
         lotData.commercialClassification,
         lotData.coffeeVariety,
         lotData.grossWeightKg,
@@ -643,6 +645,7 @@ export const createReceivedLot = async (lotData) => {
         status,
         presentation,
         lot_kind,
+        process_variant,
         gross_weight_kg,
         packaging_type_id,
         packaging_quantity,
@@ -664,7 +667,7 @@ export const createReceivedLot = async (lotData) => {
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
       )
       RETURNING *
       `,
@@ -676,6 +679,7 @@ export const createReceivedLot = async (lotData) => {
         lotData.status,
         lotData.presentation || "Pergamino",
         lotData.lotKind || "LOT",
+        lotData.processVariant || "normal",
         lotData.grossWeightKg,
         lotData.packagingTypeId,
         lotData.packagingQuantity,
@@ -764,23 +768,24 @@ export const updateLotReceptionData = async (id, lotData) => {
         coffee_type_id = $2,
         coffee_profile_id = $3,
         lot_kind = $4,
-        status = $5,
-        presentation = $6,
-        gross_weight_kg = $7,
-        packaging_type_id = $8,
-        packaging_quantity = $9,
-        inner_bag_quantity = $10,
-        tare_weight_kg = $11,
-        net_weight_kg = $12,
+        process_variant = $5,
+        status = $6,
+        presentation = $7,
+        gross_weight_kg = $8,
+        packaging_type_id = $9,
+        packaging_quantity = $10,
+        inner_bag_quantity = $11,
+        tare_weight_kg = $12,
+        net_weight_kg = $13,
         available_weight_kg = 0,
-        humidity_percent = $13,
-        performance_factor = $14,
-        received_at = $15,
-        coffee_variety = $16,
-        commercial_classification = $17,
-        origin_zone = $18,
+        humidity_percent = $14,
+        performance_factor = $15,
+        received_at = $16,
+        coffee_variety = $17,
+        commercial_classification = $18,
+        origin_zone = $19,
         updated_at = NOW()
-      WHERE id = $19
+      WHERE id = $20
       RETURNING *
       `,
       [
@@ -788,6 +793,7 @@ export const updateLotReceptionData = async (id, lotData) => {
         lotData.coffeeTypeId,
         lotData.coffeeProfileId || null,
         lotData.lotKind || currentLot.lot_kind || "LOT",
+        lotData.processVariant || currentLot.process_variant || "normal",
         nextStatus,
         lotData.presentation || "Pergamino",
         lotData.grossWeightKg,
@@ -1592,6 +1598,7 @@ export const createInitialInventoryLot = async (lotData) => {
         status,
         presentation,
         lot_kind,
+        process_variant,
         commercial_classification,
         gross_weight_kg,
         tare_weight_kg,
@@ -1609,8 +1616,8 @@ export const createInitialInventoryLot = async (lotData) => {
         created_by
       )
       VALUES (
-        $1, $2, $3, $4, 'disponible', $5, $6, $7, $8, 0, $8, $8,
-        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+        $1, $2, $3, $4, 'disponible', $5, $6, $7, $8, $9, 0, $9, $9,
+        $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
       )
       RETURNING *
       `,
@@ -1621,6 +1628,7 @@ export const createInitialInventoryLot = async (lotData) => {
         lotData.coffeeProfileId,
         lotData.presentation || "Pergamino",
         lotData.lotKind,
+        lotData.processVariant || "normal",
         lotData.commercialClassification,
         lotData.weightKg,
         lotData.humidityPercent,

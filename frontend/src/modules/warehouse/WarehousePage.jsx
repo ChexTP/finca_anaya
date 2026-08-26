@@ -27,6 +27,7 @@ const initialLot = {
   purchaseCoffeeId: "",
   coffeeProfileId: "",
   coffeeTypeId: "",
+  processVariant: "normal",
   presentation: "Pergamino",
   grossWeightKg: "",
   packagingTypeId: "",
@@ -48,6 +49,7 @@ const initialStockEntry = {
   purchaseCoffeeId: "",
   coffeeTypeId: "",
   coffeeProfileId: "",
+  processVariant: "normal",
   commercialClassification: "Regional",
   presentation: "Pergamino",
   coffeeVariety: "",
@@ -453,6 +455,7 @@ const WarehousePage = () => {
       coffeeTypeId: "",
       commercialClassification: lotKind === "PROC" ? "Procesado" : "",
       coffeeVariety: "",
+      processVariant: "normal",
       presentation: lotKind === "PROC" ? "Pergamino" : lotForm.presentation || "Pergamino",
     });
   };
@@ -484,6 +487,7 @@ const WarehousePage = () => {
     ...lotForm,
     supplierId: Number(lotForm.supplierId),
     lotKind: lotForm.lotKind || "LOT",
+    processVariant: lotForm.lotKind === "PROC" ? lotForm.processVariant : "normal",
     coffeeTypeId: lotForm.coffeeTypeId ? Number(lotForm.coffeeTypeId) : null,
     coffeeProfileId: lotForm.coffeeProfileId ? Number(lotForm.coffeeProfileId) : null,
     grossWeightKg: Number(lotForm.grossWeightKg),
@@ -503,6 +507,7 @@ const WarehousePage = () => {
       purchaseCoffeeId: getPurchaseCoffeeIdFromLot(lot),
       coffeeProfileId: lot.coffee_profile_id ? String(lot.coffee_profile_id) : "",
       coffeeTypeId: lot.coffee_type_id ? String(lot.coffee_type_id) : "",
+      processVariant: lot.process_variant || "normal",
       presentation: lot.presentation || "Pergamino",
       grossWeightKg: lot.gross_weight_kg || "",
       packagingTypeId: lot.packaging_type_id ? String(lot.packaging_type_id) : "",
@@ -706,6 +711,7 @@ const WarehousePage = () => {
         body: JSON.stringify({
           ...stockEntryForm,
           profileSource: stockEntryUsesSalesProfiles ? "sale" : "purchase",
+          processVariant: stockEntryForm.lotKind === "PROC" ? stockEntryForm.processVariant : "normal",
           coffeeProfileId: stockEntryForm.coffeeProfileId ? Number(stockEntryForm.coffeeProfileId) : null,
           weightKg: Number(stockEntryForm.weightKg),
           humidityPercent: stockEntryForm.humidityPercent === "" ? null : Number(stockEntryForm.humidityPercent),
@@ -1161,6 +1167,7 @@ const WarehousePage = () => {
                   ...initialStockEntry,
                   lotKind: event.target.value,
                   profileSource: event.target.value === "PROC" ? "sale" : "purchase",
+                  processVariant: "normal",
                   presentation: getDefaultStockPresentation(event.target.value),
                 })}
               >
@@ -1258,19 +1265,29 @@ const WarehousePage = () => {
                 </select>
               )}
               {stockEntryForm.lotKind === "PROC" && (
-                <select
-                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  value={stockEntryForm.coffeeTypeId}
-                  onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeTypeId: event.target.value })}
-                  required
-                >
-                  <option value="">Proceso: lavado, natural, honey...</option>
-                  {catalogs?.coffeeTypes?.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={stockEntryForm.processVariant}
+                    onChange={(event) => setStockEntryForm({ ...stockEntryForm, processVariant: event.target.value })}
+                  >
+                    <option value="normal">Proceso normal</option>
+                    <option value="ensamblado">Proceso ensamblado listo para despacho</option>
+                  </select>
+                  <select
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={stockEntryForm.coffeeTypeId}
+                    onChange={(event) => setStockEntryForm({ ...stockEntryForm, coffeeTypeId: event.target.value })}
+                    required
+                  >
+                    <option value="">Proceso: lavado, natural, honey...</option>
+                    {catalogs?.coffeeTypes?.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
               )}
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1404,19 +1421,29 @@ const WarehousePage = () => {
               </select>
             )}
             {lotForm.lotKind === "PROC" && (
-              <select
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                value={lotForm.coffeeTypeId}
-                onChange={(event) => setLotForm({ ...lotForm, coffeeTypeId: event.target.value })}
-                required
-              >
-                <option value="">Proceso: lavado, natural, honey...</option>
-                {catalogs?.coffeeTypes?.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
+              <>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={lotForm.processVariant}
+                  onChange={(event) => setLotForm({ ...lotForm, processVariant: event.target.value })}
+                >
+                  <option value="normal">Proceso normal</option>
+                  <option value="ensamblado">Proceso ensamblado listo para despacho</option>
+                </select>
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={lotForm.coffeeTypeId}
+                  onChange={(event) => setLotForm({ ...lotForm, coffeeTypeId: event.target.value })}
+                  required
+                >
+                  <option value="">Proceso: lavado, natural, honey...</option>
+                  {catalogs?.coffeeTypes?.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </>
             )}
             <select
               className="rounded border border-slate-300 px-3 py-2 text-sm"

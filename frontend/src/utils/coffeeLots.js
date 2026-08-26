@@ -1,9 +1,13 @@
 import { formatOperationalKg } from "./coffeeCalculations";
 
+export const getProcessVariantLabel = (lot) => (
+  lot?.process_variant === "ensamblado" ? "Proceso ensamblado" : "Proceso normal"
+);
+
 export const getCoffeeLotGroup = (lot) => {
   const presentation = lot.presentation || "Pergamino";
 
-  if (lot.lot_kind === "PROC") return `${presentation} - Proceso - ${lot.coffee_profile_name || lot.coffee_variety || "Sin perfil"}`;
+  if (lot.lot_kind === "PROC") return `${presentation} - ${getProcessVariantLabel(lot)} - ${lot.coffee_profile_name || lot.coffee_variety || "Sin perfil"}`;
   if (lot.lot_kind === "PASILLA") {
     return `${presentation} - Pasillas ${lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name || ""}`.trim();
   }
@@ -50,7 +54,7 @@ export const formatCoffeeLotOption = (lot) => {
 export const getCoffeeLotDescription = (lot) => {
   const presentation = lot.presentation;
   const descriptors = lot.lot_kind === "PROC"
-    ? [presentation, lot.coffee_profile_name || "Cafe procesado", lot.commercial_classification !== "Procesado" ? lot.commercial_classification : "Procesado"]
+    ? [presentation, lot.coffee_profile_name || "Cafe procesado", getProcessVariantLabel(lot)]
     : lot.lot_kind === "PASILLA"
       ? [presentation, "Pasilla", lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name]
       : lot.lot_kind === "RECUPERACION"

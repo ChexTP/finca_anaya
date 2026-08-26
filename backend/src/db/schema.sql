@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
   status VARCHAR(40) NOT NULL DEFAULT 'pendiente_laboratorio',
   presentation VARCHAR(80) NOT NULL DEFAULT 'Pergamino',
   lot_kind VARCHAR(20) NOT NULL DEFAULT 'LOT',
+  process_variant VARCHAR(30) NOT NULL DEFAULT 'normal',
   commercial_classification VARCHAR(30),
   gross_weight_kg NUMERIC(12, 3) NOT NULL,
   packaging_type_id INTEGER REFERENCES packaging_types(id),
@@ -228,6 +229,7 @@ CREATE TABLE IF NOT EXISTS coffee_lots (
     )
   ),
   CONSTRAINT coffee_lots_kind_check CHECK (lot_kind IN ('LOT', 'PROC', 'PASILLA', 'RECUPERACION')),
+  CONSTRAINT coffee_lots_process_variant_check CHECK (process_variant IN ('normal', 'ensamblado')),
   CONSTRAINT coffee_lots_commercial_classification_check CHECK (
     commercial_classification IS NULL OR commercial_classification IN ('Base', 'Regional', 'Varietal', 'Exotico', 'Procesado', 'Pasilla', 'Recuperacion')
   ),
@@ -321,6 +323,9 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS received_at DATE NOT NULL DEFAU
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS coffee_variety VARCHAR(120);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS presentation VARCHAR(80) NOT NULL DEFAULT 'Pergamino';
 ALTER TABLE coffee_lots ALTER COLUMN presentation TYPE VARCHAR(80);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS process_variant VARCHAR(30) NOT NULL DEFAULT 'normal';
+UPDATE coffee_lots SET process_variant = 'normal' WHERE process_variant IS NULL;
+ALTER TABLE coffee_lots ALTER COLUMN process_variant SET DEFAULT 'normal';
 ALTER TABLE purchase_coffees ALTER COLUMN process_type TYPE VARCHAR(80);
 ALTER TABLE purchase_coffees DROP CONSTRAINT IF EXISTS purchase_coffees_process_type_check;
 ALTER TABLE purchase_coffees ADD COLUMN IF NOT EXISTS base_price_factor90_cop NUMERIC(14, 2) NOT NULL DEFAULT 0;
@@ -358,6 +363,11 @@ BEGIN
   ALTER TABLE coffee_lots
   ADD CONSTRAINT coffee_lots_kind_check
   CHECK (lot_kind IN ('LOT', 'PROC', 'PASILLA', 'RECUPERACION'));
+
+  ALTER TABLE coffee_lots DROP CONSTRAINT IF EXISTS coffee_lots_process_variant_check;
+  ALTER TABLE coffee_lots
+  ADD CONSTRAINT coffee_lots_process_variant_check
+  CHECK (process_variant IN ('normal', 'ensamblado'));
 
   ALTER TABLE coffee_lots DROP CONSTRAINT IF EXISTS coffee_lots_commercial_classification_check;
   ALTER TABLE coffee_lots

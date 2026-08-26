@@ -1018,7 +1018,10 @@ export const removeSaleLotAssignment = async ({ assignmentId }) => {
         sales.id AS sale_id,
         sales.code AS sale_code,
         sales.status AS sale_status,
-        coffee_lots.code AS lot_code
+        coffee_lots.code AS lot_code,
+        coffee_lots.available_weight_kg AS lot_available_weight_kg,
+        coffee_lots.net_weight_kg AS lot_net_weight_kg,
+        coffee_lots.status AS lot_status
       FROM sale_item_lots
       INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
       INNER JOIN sales ON sales.id = sale_items.sale_id
@@ -1036,14 +1039,61 @@ export const removeSaleLotAssignment = async ({ assignmentId }) => {
     }
 
     if (
-      assignment.deducted_at ||
       ["alistada", "despachada", "anulada"].includes(assignment.sale_status)
     ) {
       await client.query("ROLLBACK");
       return { locked: true, assignment };
     }
 
+    if (assignment.deducted_at) {
+      const restoredAvailableKg = Number((
+        Number(assignment.lot_available_weight_kg || 0) + Number(assignment.quantity_kg || 0)
+      ).toFixed(3));
+
+      await client.query(
+        `
+        UPDATE coffee_lots
+        SET
+          available_weight_kg = $1,
+          status = CASE
+            WHEN $1 <= 0 THEN 'agotado'
+            WHEN $1 >= COALESCE(net_weight_kg, $1) THEN 'disponible'
+            ELSE 'vendido_parcial'
+          END,
+          updated_at = NOW()
+        WHERE id = $2
+        `,
+        [restoredAvailableKg, assignment.lot_id]
+      );
+
+      await client.query(
+        `
+        INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+        VALUES ($1, 'desasignacion_venta', $2, $3, $4)
+        `,
+        [
+          assignment.lot_id,
+          assignment.quantity_kg,
+          `Desasignacion de cafe de la venta ${assignment.sale_code}`,
+          assignment.created_by || null,
+        ]
+      );
+    }
+
     await client.query("DELETE FROM sale_item_lots WHERE id = $1", [assignmentId]);
+
+    await client.query(
+      `
+      UPDATE sales
+      SET status = CASE
+        WHEN status = 'lote_asignado' THEN 'pendiente_bodega'
+        ELSE status
+      END,
+      updated_at = NOW()
+      WHERE id = $1
+      `,
+      [assignment.sale_id]
+    );
 
     await client.query("COMMIT");
     return { assignment };

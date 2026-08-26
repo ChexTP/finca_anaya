@@ -519,19 +519,24 @@ export const deleteSaleLotAssignment = async (req, res) => {
 
     if (result.locked) {
       return res.status(409).json({
-        message: "No se puede liberar un lote de una venta alistada, despachada, anulada o ya descontada",
+        message: "No se puede desasignar un lote de una venta alistada, despachada o anulada",
         data: result.assignment,
       });
     }
 
     res.json({
-      message: "Reserva de lote liberada correctamente",
+      message: result.assignment.deducted_at
+        ? "Salida desasignada correctamente y cafe devuelto al inventario"
+        : "Reserva de lote liberada correctamente",
       data: result.assignment,
     });
   } catch (error) {
-    logControllerError("Error al liberar reserva de lote", error);
+    logControllerError(req, error, {
+      operation: "deleteSaleLotAssignment",
+      assignmentId: req.params.assignmentId,
+    });
     res.status(500).json({
-      message: "Error al liberar reserva de lote",
+      message: "Error al desasignar lote de la venta",
       error: error.message,
     });
   }
