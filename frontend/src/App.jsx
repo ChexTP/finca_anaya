@@ -69,7 +69,7 @@ const App = () => {
         <Route
           path="/inventario"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <InventoryPage />
             </ProtectedRoute>
           }
@@ -85,7 +85,7 @@ const App = () => {
         <Route
           path="/liquidaciones"
           element={
-            <ProtectedRoute roles={["admin", "accounting"]}>
+            <ProtectedRoute roles={["admin", "accounting", "inventory_viewer"]}>
               <InventoryPage mode="liquidations" />
             </ProtectedRoute>
           }
@@ -157,7 +157,7 @@ const App = () => {
         <Route
           path="/bodega/pendientes"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
               <WarehousePendingPage />
             </ProtectedRoute>
           }
@@ -205,7 +205,7 @@ const App = () => {
         <Route
           path="/comercial"
           element={
-            <ProtectedRoute roles={["admin", "accounting"]}>
+            <ProtectedRoute roles={["admin", "accounting", "inventory_viewer"]}>
               <CommercialPage />
             </ProtectedRoute>
           }
@@ -237,7 +237,7 @@ const App = () => {
         <Route
           path="/ventas/historico"
           element={
-            <ProtectedRoute roles={["admin", "accounting"]}>
+            <ProtectedRoute roles={["admin", "accounting", "inventory_viewer"]}>
               <SalesHistoryPage />
             </ProtectedRoute>
           }

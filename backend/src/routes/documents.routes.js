@@ -10,13 +10,13 @@ const router = Router();
 router.get(
   "/quotes/:id",
   requireAuth,
-  requireRoles("admin", "accounting", "seller"),
+  requireRoles("admin", "accounting", "seller", "inventory_viewer"),
   getQuoteDocument
 );
 router.get(
   "/sales/:id",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   getSaleDocument
 );
 

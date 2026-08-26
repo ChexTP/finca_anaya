@@ -34,9 +34,9 @@ router.put("/:id/lab-review", requireAuth, requireRoles("admin", "accounting", "
 router.put("/:id/lab-data", requireAuth, requireRoles("admin", "accounting", "laboratory"), putLabData);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "accounting", "warehouse"), putPhysicalReview);
 router.delete("/:id/pending-physical-review", requireAuth, requireRoles("admin"), deletePendingPhysicalReview);
-router.post("/liquidate-group", requireAuth, requireRoles("admin", "accounting"), postGroupedLiquidation);
-router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting"), putLiquidation);
-router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting"), putPurchase);
+router.post("/liquidate-group", requireAuth, requireRoles("admin", "accounting", "inventory_viewer"), postGroupedLiquidation);
+router.put("/:id/liquidate", requireAuth, requireRoles("admin", "accounting", "inventory_viewer"), putLiquidation);
+router.put("/:id/purchase", requireAuth, requireRoles("admin", "accounting", "inventory_viewer"), putPurchase);
 router.put("/:id/withdraw-rejected", requireAuth, requireRoles("admin", "accounting", "warehouse"), putRejectedLotWithdrawal);
 router.put("/:id/withdraw", requireAuth, requireRoles("admin"), putLotAdministrativeWithdrawal);
 

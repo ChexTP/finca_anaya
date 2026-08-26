@@ -28,11 +28,11 @@ import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSales);
+router.get("/", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory", "inventory_viewer"), getSales);
 router.get(
   "/lot-reservations",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   getSaleLotReservations
 );
 router.delete(
@@ -41,7 +41,7 @@ router.delete(
   requireRoles("admin", "accounting", "warehouse"),
   deleteSaleLotAssignment
 );
-router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory"), getSale);
+router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory", "inventory_viewer"), getSale);
 router.delete("/:id", requireAuth, requireRoles("admin"), deleteSale);
 router.put("/:id/code", requireAuth, requireRoles("admin", "accounting"), putSaleCode);
 router.post(
@@ -59,7 +59,7 @@ router.post(
 router.put(
   "/:id/send-lab",
   requireAuth,
-  requireRoles("admin", "warehouse", "accounting"),
+  requireRoles("admin", "warehouse", "accounting", "inventory_viewer"),
   putSalePendingLaboratory
 );
 router.put(
@@ -71,13 +71,13 @@ router.put(
 router.put(
   "/:id/prepare",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   putSalePrepared
 );
 router.put(
   "/:id/dispatch",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   putSaleDispatched
 );
 router.put(
@@ -119,31 +119,31 @@ router.put(
 router.put(
   "/:id/priority",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse", "laboratory"),
+  requireRoles("admin", "accounting", "warehouse", "laboratory", "inventory_viewer"),
   putSalePriority
 );
 router.put(
   "/:id/order-assignee",
   requireAuth,
-  requireRoles("admin", "warehouse", "accounting", "laboratory"),
+  requireRoles("admin", "warehouse", "accounting", "laboratory", "inventory_viewer"),
   putSaleOrderAssignee
 );
 router.put(
   "/:id/items/:itemId/shortage",
   requireAuth,
-  requireRoles("admin", "warehouse", "accounting"),
+  requireRoles("admin", "warehouse", "accounting", "inventory_viewer"),
   putSaleItemShortage
 );
 router.put(
   "/:id/lot-assignments",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   putSaleLotAssignments
 );
 router.post(
   "/:id/payments",
   requireAuth,
-  requireRoles("admin", "accounting"),
+  requireRoles("admin", "accounting", "inventory_viewer"),
   postSalePayment
 );
 

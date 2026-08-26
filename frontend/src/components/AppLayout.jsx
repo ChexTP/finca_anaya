@@ -28,13 +28,13 @@ const navigation = [
   { label: "Resumen inventario", path: "/resumen-inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse", "management", "inventory_viewer"] },
 
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
-  { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Liquidaciones", path: "/liquidaciones", icon: ReceiptText, roles: ["admin", "accounting"] },
+  { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
+  { label: "Liquidaciones", path: "/liquidaciones", icon: ReceiptText, roles: ["admin", "accounting", "inventory_viewer"] },
   { label: "Salidas a muestras", path: "/inventario/muestras", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Lotes en finca", path: "/inventario/finca", icon: Coffee, roles: ["admin", "accounting", "warehouse"] },
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { label: "Lotes asignados", path: "/bodega/lotes-asignados", icon: Boxes, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "accounting", "warehouse"] },
+  { label: "Pedidos", path: "/bodega/pendientes", icon: ClipboardList, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
 
   // Flujo anterior de procesos oculto del menu; se conserva la ruta/codigo por si se reactiva mas adelante.
   // { label: "Procesos", path: "/procesos", icon: Coffee, roles: ["admin", "warehouse", "laboratory"] },
@@ -42,13 +42,13 @@ const navigation = [
   { label: "Seleccionadora", path: "/seleccionadora", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { label: "Laboratorio", path: "/laboratorio", icon: Coffee, roles: ["admin", "laboratory"] },
 
-  { label: "Cotizaciones", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting"] },
+  { label: "Cotizaciones", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting", "inventory_viewer"] },
   { label: "Ordenes de pedido", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
   { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
 
   { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
   { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse"] },
-  { label: "Historico ventas", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting"] },
+  { label: "Historico ventas", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting", "inventory_viewer"] },
   { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples"] },
 
   // Modulo contable desactivado: la empresa manejara pagos en su software contable externo.

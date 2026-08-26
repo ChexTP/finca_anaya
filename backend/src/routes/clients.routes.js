@@ -11,7 +11,7 @@ const router = Router();
 
 router.get("/", requireAuth, getClients);
 router.get("/:id", requireAuth, getClient);
-router.post("/", requireAuth, requireRoles("admin", "accounting", "seller"), postClient);
-router.put("/:id", requireAuth, requireRoles("admin", "accounting", "seller"), putClient);
+router.post("/", requireAuth, requireRoles("admin", "accounting", "seller", "inventory_viewer"), postClient);
+router.put("/:id", requireAuth, requireRoles("admin", "accounting", "seller", "inventory_viewer"), putClient);
 
 export default router;
