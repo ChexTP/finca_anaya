@@ -10,6 +10,7 @@ import {
   putReceptionData,
   putLabReview,
   putLabData,
+  putReturnToLaboratoryFromLiquidation,
   putPhysicalReview,
   deletePendingPhysicalReview,
   putPurchase,
@@ -32,6 +33,7 @@ router.put("/:id/admin-data", requireAuth, requireRoles("admin", "accounting", "
 router.put("/:id/reception", requireAuth, requireRoles("admin", "accounting", "warehouse"), putReceptionData);
 router.put("/:id/lab-review", requireAuth, requireRoles("admin", "accounting", "laboratory"), putLabReview);
 router.put("/:id/lab-data", requireAuth, requireRoles("admin", "accounting", "laboratory"), putLabData);
+router.put("/:id/return-to-laboratory", requireAuth, requireRoles("admin", "accounting", "inventory_viewer"), putReturnToLaboratoryFromLiquidation);
 router.put("/:id/physical-review", requireAuth, requireRoles("admin", "accounting", "warehouse"), putPhysicalReview);
 router.delete("/:id/pending-physical-review", requireAuth, requireRoles("admin"), deletePendingPhysicalReview);
 router.post("/liquidate-group", requireAuth, requireRoles("admin", "accounting", "inventory_viewer"), postGroupedLiquidation);

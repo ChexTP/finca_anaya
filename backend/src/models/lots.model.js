@@ -952,6 +952,67 @@ export const updateLotLabReview = async (id, reviewData) => {
   }
 };
 
+export const returnLotToLaboratoryFromLiquidation = async (id, userId) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `
+      SELECT *
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id]
+    );
+    const currentLot = currentResult.rows[0];
+
+    if (!currentLot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (currentLot.status !== "pendiente_liquidacion") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot: currentLot };
+    }
+
+    const result = await client.query(
+      `
+      UPDATE coffee_lots
+      SET status = 'pendiente_laboratorio', available_weight_kg = 0, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [id]
+    );
+    const lot = result.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'devuelto_laboratorio', $2, $3, $4)
+      `,
+      [
+        lot.id,
+        lot.net_weight_kg,
+        "Lote devuelto a laboratorio desde liquidaciones para corregir aprobacion o registrar rechazo",
+        userId,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return lot;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const updateLotLabData = async (id, reviewData) => {
   const client = await pool.connect();
 

@@ -428,6 +428,8 @@ CREATE TABLE IF NOT EXISTS farm_shipments (
 
 CREATE INDEX IF NOT EXISTS idx_farm_shipments_lot_id ON farm_shipments(lot_id);
 CREATE INDEX IF NOT EXISTS idx_farm_shipments_shipped_at ON farm_shipments(shipped_at);
+ALTER TABLE farm_shipments ADD COLUMN IF NOT EXISTS received_at TIMESTAMP;
+ALTER TABLE farm_shipments ADD COLUMN IF NOT EXISTS received_by INTEGER REFERENCES users(id);
 
 CREATE TABLE IF NOT EXISTS coffee_processes (
   id SERIAL PRIMARY KEY,
@@ -490,6 +492,8 @@ CREATE TABLE IF NOT EXISTS coffee_process_inputs (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT coffee_process_inputs_quantity_check CHECK (quantity_kg > 0)
 );
+ALTER TABLE coffee_process_inputs ADD COLUMN IF NOT EXISTS received_at TIMESTAMP;
+ALTER TABLE coffee_process_inputs ADD COLUMN IF NOT EXISTS received_by INTEGER REFERENCES users(id);
 
 CREATE TABLE IF NOT EXISTS coffee_process_outputs (
   id SERIAL PRIMARY KEY,

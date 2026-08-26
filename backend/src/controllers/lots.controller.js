@@ -16,6 +16,7 @@ import {
   markLotAsAdministrativelyWithdrawn,
   updateLotLabData,
   updateLotLabReview,
+  returnLotToLaboratoryFromLiquidation,
   updateLotPhysicalReview,
   deletePendingPhysicalReviewLot,
   liquidateLot,
@@ -932,6 +933,33 @@ export const putLabData = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al corregir datos de laboratorio",
+      error: error.message,
+    });
+  }
+};
+
+export const putReturnToLaboratoryFromLiquidation = async (req, res) => {
+  try {
+    const lot = await returnLotToLaboratoryFromLiquidation(req.params.id, req.user.id);
+
+    if (!lot) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (lot.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se pueden devolver a laboratorio lotes pendientes de liquidacion",
+        data: lot.lot,
+      });
+    }
+
+    res.json({
+      message: "Lote devuelto a laboratorio. Ahora puede revisarse y rechazarse si corresponde.",
+      data: lot,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al devolver lote a laboratorio",
       error: error.message,
     });
   }

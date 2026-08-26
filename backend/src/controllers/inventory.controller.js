@@ -5,9 +5,12 @@ import {
   listInventoryInProcess,
   listSampleInventoryOutputs,
   listFarmShipments,
+  listFarmProcessInputShipments,
   adjustLotInventory,
   registerSampleInventoryOutput,
   sendLotToFarm,
+  markFarmShipmentAsReceived,
+  markFarmProcessInputAsReceived,
 } from "../models/inventory.model.js";
 import { findLotById } from "../models/lots.model.js";
 
@@ -88,8 +91,14 @@ export const getSampleInventoryOutputs = async (req, res) => {
 
 export const getFarmShipments = async (req, res) => {
   try {
-    const shipments = await listFarmShipments();
-    res.json(shipments);
+    const [directShipments, processShipments] = await Promise.all([
+      listFarmShipments(),
+      listFarmProcessInputShipments(),
+    ]);
+
+    res.json([...directShipments, ...processShipments].sort((left, right) => {
+      return new Date(right.shipped_at || right.created_at || 0) - new Date(left.shipped_at || left.created_at || 0);
+    }));
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener lotes enviados a finca",
@@ -259,6 +268,52 @@ export const postFarmShipment = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al registrar envio a finca",
+      error: error.message,
+    });
+  }
+};
+
+export const putFarmShipmentReceived = async (req, res) => {
+  try {
+    const shipment = await markFarmShipmentAsReceived({
+      shipmentId: req.params.shipmentId,
+      userId: req.user.id,
+    });
+
+    if (!shipment) {
+      return res.status(404).json({ message: "Envio a finca no encontrado o ya recibido" });
+    }
+
+    res.json({
+      message: "Lote marcado como recibido desde finca",
+      data: shipment,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al marcar lote como recibido desde finca",
+      error: error.message,
+    });
+  }
+};
+
+export const putFarmProcessInputReceived = async (req, res) => {
+  try {
+    const input = await markFarmProcessInputAsReceived({
+      inputId: req.params.inputId,
+      userId: req.user.id,
+    });
+
+    if (!input) {
+      return res.status(404).json({ message: "Registro de finca no encontrado o ya recibido" });
+    }
+
+    res.json({
+      message: "Lote de finca marcado como recibido",
+      data: input,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al marcar registro de finca como recibido",
       error: error.message,
     });
   }

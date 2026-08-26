@@ -29,6 +29,36 @@ const priorityOrder = {
   baja: 3,
 };
 
+const escapeHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;");
+
+const openLoadingDocumentTab = (title) => {
+  const tab = window.open("", "_blank");
+
+  if (!tab) return null;
+
+  try {
+    tab.opener = null;
+  } catch {
+    // Algunos navegadores no permiten modificar opener; no afecta la impresion.
+  }
+
+  tab.document.open();
+  tab.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><meta charset="utf-8" /></head><body style="font-family: Arial, sans-serif; padding: 24px;"><strong>Cargando orden...</strong></body></html>`);
+  tab.document.close();
+
+  return tab;
+};
+
+const writeDocumentTab = (tab, html) => {
+  tab.document.open();
+  tab.document.write(html);
+  tab.document.close();
+};
+
 const presentationFilterOptions = ["Todas", "Pergamino", "Excelso"];
 const formatAssignmentKgInput = (value) => {
   const kg = Number(value);
@@ -1195,9 +1225,30 @@ const WarehousePendingPage = () => {
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 
-  const printWarehouseOrderFromList = (sale) => {
-    printHtmlDocument(buildWarehouseOrderHtml(sale), { title: `Orden ${sale.code}` });
-    setMessage(`Orden ${sale.code} abierta para imprimir o guardar como PDF.`);
+  const printWarehouseOrderFromList = async (sale) => {
+    const title = `Orden ${sale.code}`;
+    const documentTab = openLoadingDocumentTab(title);
+
+    setMessage("");
+    setError("");
+
+    try {
+      const saleDetail = await apiRequest(`/sales/${sale.id}`);
+      const html = buildWarehouseOrderHtml(saleDetail);
+
+      if (documentTab) {
+        writeDocumentTab(documentTab, html);
+      } else {
+        printHtmlDocument(html, { title });
+      }
+
+      setMessage(`Orden ${saleDetail.code || sale.code} abierta para revisar, imprimir o guardar como PDF.`);
+    } catch (requestError) {
+      if (documentTab) {
+        documentTab.close();
+      }
+      setError(`Error al abrir PDF de pedido: ${requestError.message}`);
+    }
   };
 
   const hasCompleteOutputsForSale = () => {

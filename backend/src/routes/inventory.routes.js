@@ -9,6 +9,8 @@ import {
   postInventoryAdjustment,
   postSampleInventoryOutput,
   postFarmShipment,
+  putFarmShipmentReceived,
+  putFarmProcessInputReceived,
 } from "../controllers/inventory.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
@@ -17,9 +19,11 @@ const router = Router();
 router.get("/lots", requireAuth, getInventoryLots);
 router.get("/grouped", requireAuth, getInventoryGrouped);
 router.get("/in-process", requireAuth, getInventoryInProcess);
-router.get("/sample-outputs", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), getSampleInventoryOutputs);
-router.get("/farm-shipments", requireAuth, requireRoles("admin", "accounting", "warehouse", "inventory_viewer"), getFarmShipments);
+router.get("/sample-outputs", requireAuth, requireRoles("admin", "accounting", "warehouse", "samples", "inventory_viewer"), getSampleInventoryOutputs);
+router.get("/farm-shipments", requireAuth, requireRoles("admin", "accounting", "warehouse", "samples", "inventory_viewer"), getFarmShipments);
 router.get("/lots/:lotId/movements", requireAuth, getInventoryMovements);
+router.put("/farm-shipments/:shipmentId/received", requireAuth, requireRoles("admin", "accounting", "warehouse"), putFarmShipmentReceived);
+router.put("/farm-process-inputs/:inputId/received", requireAuth, requireRoles("admin", "accounting", "warehouse"), putFarmProcessInputReceived);
 router.post(
   "/lots/:lotId/adjustments",
   requireAuth,
@@ -29,7 +33,7 @@ router.post(
 router.post(
   "/lots/:lotId/sample-output",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "samples"),
   postSampleInventoryOutput
 );
 router.post(

@@ -69,7 +69,7 @@ const App = () => {
         <Route
           path="/inventario"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "samples", "inventory_viewer"]}>
               <InventoryPage />
             </ProtectedRoute>
           }
@@ -101,7 +101,7 @@ const App = () => {
         <Route
           path="/inventario/muestras"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "samples", "inventory_viewer"]}>
               <InventoryPage mode="samples" />
             </ProtectedRoute>
           }

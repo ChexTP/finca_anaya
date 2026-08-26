@@ -137,6 +137,7 @@ export const listInventoryInProcess = async () => {
       coffee_process_inputs.lot_id,
       coffee_process_inputs.quantity_kg,
       coffee_process_inputs.created_at,
+      coffee_process_inputs.received_at,
       coffee_processes.code AS process_code,
       coffee_processes.status AS process_status,
       coffee_processes.process_type,
@@ -163,6 +164,7 @@ export const listInventoryInProcess = async () => {
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
     WHERE coffee_processes.status IN ('en_proceso', 'pendiente_revision_fisica', 'pendiente_laboratorio')
+      AND coffee_process_inputs.received_at IS NULL
     ORDER BY coffee_processes.updated_at DESC, coffee_process_inputs.created_at ASC
     `
   );
@@ -219,11 +221,64 @@ export const listFarmShipments = async () => {
   const result = await pool.query(
     `
     SELECT
+      'farm_shipment' AS source_type,
       farm_shipments.*,
-      users.name AS shipped_by_name
+      shipped_user.name AS shipped_by_name,
+      received_user.name AS received_by_name
     FROM farm_shipments
-    LEFT JOIN users ON users.id = farm_shipments.shipped_by
+    LEFT JOIN users shipped_user ON shipped_user.id = farm_shipments.shipped_by
+    LEFT JOIN users received_user ON received_user.id = farm_shipments.received_by
     ORDER BY farm_shipments.shipped_at DESC, farm_shipments.id DESC
+    `
+  );
+
+  return result.rows;
+};
+
+export const listFarmProcessInputShipments = async () => {
+  const result = await pool.query(
+    `
+    SELECT
+      'process_input' AS source_type,
+      coffee_process_inputs.id,
+      coffee_process_inputs.lot_id,
+      coffee_process_inputs.quantity_kg,
+      coffee_process_inputs.created_at,
+      coffee_process_inputs.created_at AS shipped_at,
+      coffee_process_inputs.received_at,
+      coffee_processes.code AS process_code,
+      coffee_processes.status AS process_status,
+      coffee_processes.process_type,
+      coffee_processes.process_location,
+      coffee_processes.estimated_return_date,
+      coffee_lots.code AS lot_code,
+      coffee_lots.lot_kind,
+      coffee_lots.presentation,
+      coffee_lots.commercial_classification,
+      coffee_lots.coffee_variety,
+      coffee_lots.humidity_percent,
+      coffee_lots.performance_factor,
+      coffee_lots.lab_aroma,
+      coffee_lots.lab_flavor,
+      coffee_lots.lab_sweetness,
+      coffee_lots.lab_body,
+      coffee_lots.lab_residual,
+      coffee_lots.lab_clean_cup,
+      coffee_lots.lab_score,
+      coffee_lots.lab_notes,
+      suppliers.name AS supplier_name,
+      coffee_types.name AS coffee_type_name,
+      coffee_profiles.name AS coffee_profile_name,
+      received_user.name AS received_by_name
+    FROM coffee_process_inputs
+    INNER JOIN coffee_processes ON coffee_processes.id = coffee_process_inputs.process_id
+    INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
+    LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
+    LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
+    LEFT JOIN coffee_profiles ON coffee_profiles.id = coffee_lots.coffee_profile_id
+    LEFT JOIN users received_user ON received_user.id = coffee_process_inputs.received_by
+    WHERE COALESCE(coffee_processes.process_type, '') NOT IN ('Trilladora', 'Seleccionadora', 'Seleccion electronica')
+    ORDER BY coffee_process_inputs.created_at DESC, coffee_process_inputs.id DESC
     `
   );
 
@@ -349,6 +404,72 @@ export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
 
     await client.query("COMMIT");
     return shipmentResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const markFarmShipmentAsReceived = async ({ shipmentId, userId }) => {
+  const result = await pool.query(
+    `
+    UPDATE farm_shipments
+    SET received_at = NOW(), received_by = $2
+    WHERE id = $1 AND received_at IS NULL
+    RETURNING *
+    `,
+    [shipmentId, userId]
+  );
+
+  return result.rows[0] || null;
+};
+
+export const markFarmProcessInputAsReceived = async ({ inputId, userId }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const inputResult = await client.query(
+      `
+      UPDATE coffee_process_inputs
+      SET received_at = NOW(), received_by = $2
+      WHERE id = $1 AND received_at IS NULL
+      RETURNING *
+      `,
+      [inputId, userId]
+    );
+    const input = inputResult.rows[0];
+
+    if (!input) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const pendingResult = await client.query(
+      `
+      SELECT COUNT(*)::int AS pending_count
+      FROM coffee_process_inputs
+      WHERE process_id = $1 AND received_at IS NULL
+      `,
+      [input.process_id]
+    );
+
+    if (Number(pendingResult.rows[0]?.pending_count || 0) === 0) {
+      await client.query(
+        `
+        UPDATE coffee_processes
+        SET status = 'finalizado', finalized_by = $2, finalized_at = COALESCE(finalized_at, NOW()), updated_at = NOW()
+        WHERE id = $1
+        `,
+        [input.process_id, userId]
+      );
+    }
+
+    await client.query("COMMIT");
+    return input;
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

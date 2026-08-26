@@ -488,7 +488,9 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
   const canRegisterPurchase = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
   const canAdjustInventory = ["admin", "accounting", "warehouse"].includes(user?.role);
-  const canViewInventoryMovements = canAdjustInventory || user?.role === "inventory_viewer";
+  const canRegisterSampleOutput = ["admin", "warehouse", "samples"].includes(user?.role);
+  const canSendLotToFarm = ["admin", "warehouse"].includes(user?.role);
+  const canViewInventoryMovements = canAdjustInventory || ["samples", "inventory_viewer"].includes(user?.role);
   const canEditCodes = ["admin", "accounting", "warehouse"].includes(user?.role);
   const canWithdrawInventory = user?.role === "admin";
   const isEditMode = mode === "edit";
@@ -940,6 +942,31 @@ const InventoryPage = ({ mode = "inventory" }) => {
     }
   };
 
+  const returnLiquidationLotToLaboratory = async (lot) => {
+    if (!lot) return;
+
+    if (!window.confirm(`Confirma devolver ${formatCoffeeLotCodeName(lot)} a laboratorio para corregir la revision?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/lots/${lot.id}/return-to-laboratory`, { method: "PUT" });
+      if (selectedLiquidationLot?.id === lot.id) {
+        setSelectedLiquidationLot(null);
+        setLiquidationForm(initialLiquidation);
+      }
+      setSelectedLiquidationLotIds((currentIds) => currentIds.filter((id) => id !== lot.id));
+      await loadData();
+      setMessage("Lote devuelto a laboratorio. Ya puede revisarse de nuevo y rechazarse si corresponde.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const registerSampleOutput = async (lot) => {
     const quantity = window.prompt(`Cantidad kg que sale a muestras desde ${formatCoffeeLotCodeName(lot)}`, "");
     if (!quantity) return;
@@ -1029,6 +1056,54 @@ const InventoryPage = ({ mode = "inventory" }) => {
     printHtmlDocument(buildFarmShipmentHtml(shipment), {
       title: `Envio a finca ${shipment.lot_code || ""}`,
     });
+  };
+
+  const markFarmRowAsReceived = async (shipment) => {
+    if (!shipment || shipment.received_at) return;
+
+    if (!window.confirm(`Confirma que ${shipment.lot_code || "este lote"} ya fue recibido desde finca?`)) return;
+
+    const endpoint = shipment.source_type === "process_input"
+      ? `/inventory/farm-process-inputs/${shipment.id}/received`
+      : `/inventory/farm-shipments/${shipment.shipment_id || shipment.id}/received`;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(endpoint, { method: "PUT" });
+      await loadData();
+      setMessage("Lote marcado como recibido desde finca. Quedo guardado en el historico.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const markProcessRowAsReceived = async (row) => {
+    if (!row || getProcessLocationGroup(row.process_type) !== "En finca") return;
+
+    if (!window.confirm(`Confirma que ${row.lot_code || "este lote"} ya fue recibido desde finca?`)) return;
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      if (row.source_type === "farm_shipment") {
+        await apiRequest(`/inventory/farm-shipments/${row.shipment_id || row.id}/received`, { method: "PUT" });
+      } else {
+        await apiRequest(`/inventory/farm-process-inputs/${row.id}/received`, { method: "PUT" });
+      }
+      await loadData();
+      setMessage("Lote marcado como recibido desde finca. Quedo guardado en el historico.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const editLotCode = async (lot) => {
@@ -1348,8 +1423,21 @@ const InventoryPage = ({ mode = "inventory" }) => {
       .toLowerCase()
       .includes(inventorySearchTerm);
   });
+  const directFarmRows = farmShipments
+    .filter((shipment) => shipment.source_type === "farm_shipment" && !shipment.received_at)
+    .map((shipment) => ({
+      ...shipment,
+      id: `farm-${shipment.id}`,
+      shipment_id: shipment.id,
+      process_code: "Envio a finca",
+      process_status: "en_proceso",
+      process_type: "Finca",
+      process_location: "Finca",
+      estimated_return_date: null,
+    }));
+  const outOfWarehouseRows = [...inProcessInventory, ...directFarmRows];
   const processLocationCards = ["En finca", "En trilla", "En seleccionadora"].map((location) => {
-    const rows = inProcessInventory.filter((row) => getProcessLocationGroup(row.process_type) === location);
+    const rows = outOfWarehouseRows.filter((row) => getProcessLocationGroup(row.process_type) === location);
 
     return {
       location,
@@ -1357,7 +1445,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       kg: rows.reduce((total, row) => total + Number(row.quantity_kg || 0), 0),
     };
   });
-  const filteredInProcessInventory = inProcessInventory.filter((row) => {
+  const filteredInProcessInventory = outOfWarehouseRows.filter((row) => {
     if (selectedProcessLocation !== "all" && getProcessLocationGroup(row.process_type) !== selectedProcessLocation) {
       return false;
     }
@@ -1385,12 +1473,15 @@ const InventoryPage = ({ mode = "inventory" }) => {
       .toLowerCase()
       .includes(inventorySearchTerm);
   });
-  const totalInProcessKg = inProcessInventory.reduce((total, row) => total + Number(row.quantity_kg || 0), 0);
+  const totalInProcessKg = outOfWarehouseRows.reduce((total, row) => total + Number(row.quantity_kg || 0), 0);
+  const farmShipmentRows = farmShipments;
+  const activeFarmShipmentRows = farmShipmentRows.filter((shipment) => !shipment.received_at);
+  const receivedFarmShipmentRows = farmShipmentRows.filter((shipment) => shipment.received_at);
   const totalAvailableKg = presentationFilteredLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const allAvailableKg = lots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const totalProcessLotsKg = processLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0);
   const totalSampleOutputsKg = sampleOutputs.reduce((total, movement) => total + Number(movement.quantity_kg || 0), 0);
-  const totalFarmShipmentsKg = farmShipments.reduce((total, shipment) => total + Number(shipment.quantity_kg || 0), 0);
+  const totalFarmShipmentsKg = activeFarmShipmentRows.reduce((total, shipment) => total + Number(shipment.quantity_kg || 0), 0);
   const getLotOriginLabel = (lot) => {
     if (!lot.origin_process_type) return null;
 
@@ -1528,17 +1619,17 @@ const InventoryPage = ({ mode = "inventory" }) => {
             <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-3">
               <p className="text-xs font-semibold uppercase text-emerald-800">Total enviado a finca</p>
               <p className="mt-1 text-2xl font-bold text-emerald-900">{formatKg(totalFarmShipmentsKg)}</p>
-              <p className="mt-1 text-xs text-emerald-800">{farmShipments.length} envios registrados</p>
+              <p className="mt-1 text-xs text-emerald-800">{activeFarmShipmentRows.length} envios pendientes</p>
             </div>
           </div>
           <div className="rounded border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-semibold text-slate-800">Historico de lotes enviados a finca</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Lotes pendientes de recibir desde finca</h2>
               <p className="mt-1 text-xs text-slate-500">Cafe que salio de inventario y debe regresar como proceso.</p>
             </div>
-            {farmShipments.length === 0 ? (
+            {activeFarmShipmentRows.length === 0 ? (
               <div className="p-4">
-                <EmptyState title="Sin envios a finca" message="Cuando bodega envie cafe a finca, el registro aparecera aqui." />
+                <EmptyState title="Sin lotes pendientes en finca" message="Cuando bodega envie cafe a finca, el registro aparecera aqui." />
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1555,8 +1646,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {farmShipments.map((shipment) => (
-                      <tr key={shipment.id}>
+                    {activeFarmShipmentRows.map((shipment) => (
+                      <tr key={`${shipment.source_type}-${shipment.id}`}>
                         <td className="px-3 py-2">{formatDateTime(shipment.shipped_at)}</td>
                         <td className="px-3 py-2 font-semibold">{shipment.lot_code}</td>
                         <td className="px-3 py-2">{shipment.supplier_name || "-"}</td>
@@ -1568,6 +1659,63 @@ const InventoryPage = ({ mode = "inventory" }) => {
                         <td className="px-3 py-2">
                           H {shipment.humidity_percent ?? "-"}% · Factor {shipment.performance_factor ?? "-"} · Score {shipment.lab_score ?? "-"}
                         </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              className="inline-flex items-center gap-2 rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                              type="button"
+                              onClick={() => printFarmShipment(shipment)}
+                            >
+                              <FileText size={14} />
+                              PDF
+                            </button>
+                            <button
+                              className="rounded border border-emerald-400 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                              type="button"
+                              onClick={() => markFarmRowAsReceived(shipment)}
+                              disabled={saving}
+                            >
+                              Lote recibido
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div className="rounded border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <h2 className="text-sm font-semibold text-slate-800">Historico de lotes recibidos desde finca</h2>
+              <p className="mt-1 text-xs text-slate-500">Registros cerrados despues de confirmar que el cafe regreso a la empresa.</p>
+            </div>
+            {receivedFarmShipmentRows.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="Sin recibidos de finca" message="Los lotes cerrados como recibidos apareceran aqui." />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-100 text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2">Enviado</th>
+                      <th className="px-3 py-2">Recibido</th>
+                      <th className="px-3 py-2">Lote origen</th>
+                      <th className="px-3 py-2">Cafe</th>
+                      <th className="px-3 py-2">Cantidad</th>
+                      <th className="px-3 py-2">Accion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {receivedFarmShipmentRows.map((shipment) => (
+                      <tr key={`${shipment.source_type}-${shipment.id}`}>
+                        <td className="px-3 py-2">{formatDateTime(shipment.shipped_at)}</td>
+                        <td className="px-3 py-2">{formatDateTime(shipment.received_at)}</td>
+                        <td className="px-3 py-2 font-semibold">{shipment.lot_code}</td>
+                        <td className="px-3 py-2">{getShipmentCoffeeName(shipment)}</td>
+                        <td className="px-3 py-2 font-semibold">{formatKg(shipment.quantity_kg)}</td>
                         <td className="px-3 py-2">
                           <button
                             className="inline-flex items-center gap-2 rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
@@ -2129,13 +2277,23 @@ const InventoryPage = ({ mode = "inventory" }) => {
                         <td className="px-3 py-2">{formatOptionalKg(lot.gross_weight_kg)}</td>
                         <td className="px-3 py-2">{formatOptionalKg(lot.net_weight_kg)}</td>
                         <td className="px-3 py-2">
-                          <button
-                            className="rounded border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
-                            type="button"
-                            onClick={() => selectLiquidationLot(lot)}
-                          >
-                            Liquidar
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              className="rounded border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                              type="button"
+                              onClick={() => selectLiquidationLot(lot)}
+                            >
+                              Liquidar
+                            </button>
+                            <button
+                              className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                              type="button"
+                              onClick={() => returnLiquidationLotToLaboratory(lot)}
+                              disabled={saving}
+                            >
+                              Volver a laboratorio
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2539,6 +2697,18 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     <p className="mt-1 text-sm text-slate-700">Humedad {row.humidity_percent || "-"}% · Factor {row.performance_factor ?? "-"}</p>
                   </div>
                 </div>
+                {getProcessLocationGroup(row.process_type) === "En finca" && (
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      className="rounded border border-emerald-400 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                      type="button"
+                      onClick={() => markProcessRowAsReceived(row)}
+                      disabled={saving}
+                    >
+                      Lote recibido
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -2619,25 +2789,29 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     </div>
                   </div>
 
-                  {["admin", "warehouse"].includes(user?.role) && (
+                  {(canRegisterSampleOutput || canSendLotToFarm) && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
-                        type="button"
-                        onClick={() => registerSampleOutput(lot)}
-                        disabled={saving}
-                      >
-                        Sacar muestra
-                      </button>
-                      <button
-                        className="inline-flex items-center gap-1 rounded border border-emerald-300 px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
-                        type="button"
-                        onClick={() => openFarmShipmentModal(lot)}
-                        disabled={saving}
-                      >
-                        <Send size={14} />
-                        Enviar a finca
-                      </button>
+                      {canRegisterSampleOutput && (
+                        <button
+                          className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                          type="button"
+                          onClick={() => registerSampleOutput(lot)}
+                          disabled={saving}
+                        >
+                          Sacar muestra
+                        </button>
+                      )}
+                      {canSendLotToFarm && (
+                        <button
+                          className="inline-flex items-center gap-1 rounded border border-emerald-300 px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50 disabled:opacity-60"
+                          type="button"
+                          onClick={() => openFarmShipmentModal(lot)}
+                          disabled={saving}
+                        >
+                          <Send size={14} />
+                          Enviar a finca
+                        </button>
+                      )}
                     </div>
                   )}
                 </article>
