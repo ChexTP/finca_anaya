@@ -3,6 +3,8 @@ import { getNextCode } from "./codeCounters.model.js";
 import { logger } from "../utils/logger.js";
 import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 
+const OPERATIONAL_ROUNDING_TOLERANCE_KG = 0.5;
+
 const requiredSaleItemKgSql = `
   CASE
     WHEN sale_items.product_form = 'Excelso' AND sale_items.process_type = 'Natural' THEN CEIL(sale_items.quantity_kg * 140 / 70)
@@ -922,12 +924,14 @@ export const replaceSaleLotAssignments = async ({ saleId, items, itemAssignees =
       }
 
       const freeOperationalKg = Number(lot.available_weight_kg || 0);
+      const requestedQuantityKg = Number(item.quantityKg || 0);
 
-      if (freeOperationalKg < item.quantityKg) {
+      if (freeOperationalKg + OPERATIONAL_ROUNDING_TOLERANCE_KG < requestedQuantityKg) {
         throw new Error(`El lote ${lot.code || lot.id} no tiene cantidad operativa suficiente. Libre operativo: ${Math.max(freeOperationalKg, 0).toFixed(3)} kg`);
       }
 
-      const newAvailable = Number((freeOperationalKg - item.quantityKg).toFixed(3));
+      const deductedQuantityKg = requestedQuantityKg > freeOperationalKg ? freeOperationalKg : requestedQuantityKg;
+      const newAvailable = Number((freeOperationalKg - deductedQuantityKg).toFixed(3));
       const newStatus = newAvailable === 0 ? "agotado" : "vendido_parcial";
 
       await client.query(
@@ -944,7 +948,7 @@ export const replaceSaleLotAssignments = async ({ saleId, items, itemAssignees =
         INSERT INTO sale_item_lots (sale_item_id, lot_id, quantity_kg, notes, created_by, deducted_at)
         VALUES ($1, $2, $3, $4, $5, NOW())
         `,
-        [item.saleItemId, item.lotId, item.quantityKg, item.notes || null, createdBy]
+        [item.saleItemId, item.lotId, deductedQuantityKg, item.notes || null, createdBy]
       );
 
       await client.query(
@@ -952,7 +956,7 @@ export const replaceSaleLotAssignments = async ({ saleId, items, itemAssignees =
         INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
         VALUES ($1, 'venta_salida', $2, $3, $4)
         `,
-        [item.lotId, item.quantityKg, `Cafe sacado para venta ${sale.code}`, createdBy]
+        [item.lotId, deductedQuantityKg, `Cafe sacado para venta ${sale.code}`, createdBy]
       );
     }
 

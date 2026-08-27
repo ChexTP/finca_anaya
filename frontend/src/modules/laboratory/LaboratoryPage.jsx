@@ -993,9 +993,12 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
         throw new Error("Seleccione la intensidad del proceso antes de aprobar.");
       }
 
-      const classificationChanged =
-        (selectedLot.commercial_classification || "") !== (review.commercialClassification || "") ||
-        (selectedLot.coffee_variety || "") !== (review.coffeeVariety || "");
+      const reviewClassification = review.commercialClassification || selectedLot.commercial_classification || "";
+      const reviewVariety = review.coffeeVariety || selectedLot.coffee_variety || "";
+      const classificationChanged = !isProcessLot && (
+        (selectedLot.commercial_classification || "") !== reviewClassification ||
+        (selectedLot.coffee_variety || "") !== reviewVariety
+      );
 
       if (classificationChanged && !review.classificationChangeNote.trim()) {
         throw new Error("Debe escribir una nota interna explicando el cambio de clasificacion.");
@@ -1015,6 +1018,8 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
         method: "PUT",
         body: JSON.stringify({
           ...review,
+          commercialClassification: reviewClassification,
+          coffeeVariety: reviewVariety,
           score: review.score === "" ? null : Number(review.score),
         }),
       });

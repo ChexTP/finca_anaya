@@ -5,7 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { calculateOperationalKg, formatOperationalKg } from "../../utils/coffeeCalculations";
+import { calculateOperationalKg, formatOperationalKg, roundKgUpToHalf } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import { readImageFileAsDataUrl } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
@@ -1068,7 +1068,8 @@ const WarehousePendingPage = () => {
           const rowIndex = assignmentRows.indexOf(row);
           const selectedLotOption = getSelectedLotOption(row);
           const selectedAvailableKg = row.lotId ? getLotAvailableForAssignmentRow(row.lotId, rowIndex) : 0;
-          const quantityExceedsAvailable = row.lotId && Number(row.quantityKg || 0) > selectedAvailableKg;
+          const selectedAvailableDisplayKg = roundKgUpToHalf(selectedAvailableKg);
+          const quantityExceedsAvailable = row.lotId && Number(row.quantityKg || 0) > selectedAvailableDisplayKg;
 
           return (
             <div key={`assignment-${item.id}-${assignmentType}-${rowIndex}`} className="grid min-w-0 gap-3 rounded border border-slate-200 bg-white p-3">
@@ -1107,7 +1108,7 @@ const WarehousePendingPage = () => {
                     type="number"
                     min="0.1"
                     step="0.1"
-                    max={row.lotId ? selectedAvailableKg : undefined}
+                    max={row.lotId ? selectedAvailableDisplayKg : undefined}
                     value={row.quantityKg}
                     onChange={(event) => updateAssignmentRow(rowIndex, "quantityKg", event.target.value)}
                     onBlur={(event) => updateAssignmentRow(rowIndex, "quantityKg", formatAssignmentKgInput(event.target.value))}

@@ -809,9 +809,10 @@ export const putLabReview = async (req, res) => {
 
     const finalClassification = commercialClassification || currentLot.commercial_classification;
     const finalVariety = coffeeVariety !== undefined ? String(coffeeVariety || "").trim() : currentLot.coffee_variety;
-    const classificationChanged =
+    const classificationChanged = !isProcessLot && (
       (currentLot.commercial_classification || "") !== (finalClassification || "") ||
-      (currentLot.coffee_variety || "") !== (finalVariety || "");
+      (currentLot.coffee_variety || "") !== (finalVariety || "")
+    );
 
     if (
       decision === "aprobado" &&
