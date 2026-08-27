@@ -356,7 +356,7 @@ const CommercialPage = () => {
   const formPanelRef = useRef(null);
   const detailPanelRef = useRef(null);
 
-  const canConvertToSale = ["admin", "accounting"].includes(user?.role);
+  const canConvertToSale = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
   const canDeleteRecords = user?.role === "admin";
   const termInputClass = "rounded border border-amber-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink";
   const termLabelClass = "grid gap-1 text-xs font-semibold uppercase text-amber-900";

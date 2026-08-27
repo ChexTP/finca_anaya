@@ -47,7 +47,7 @@ router.put("/:id/code", requireAuth, requireRoles("admin", "accounting"), putSal
 router.post(
   "/from-quote/:quoteId",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   postSaleFromQuote
 );
 router.post(
