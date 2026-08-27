@@ -38,7 +38,7 @@ router.get(
 router.delete(
   "/lot-assignments/:assignmentId",
   requireAuth,
-  requireRoles("admin", "accounting", "warehouse"),
+  requireRoles("admin", "accounting", "warehouse", "inventory_viewer"),
   deleteSaleLotAssignment
 );
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory", "inventory_viewer"), getSale);
