@@ -5,7 +5,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { formatOperationalKg } from "../../utils/coffeeCalculations";
+import { formatOperationalKg, roundKgUpToHalf } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, getCoffeeLotGroup, getProcessIntensityFromNotes, groupCoffeeLots, processIntensityOptions } from "../../utils/coffeeLots";
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
@@ -76,6 +76,17 @@ const initialAdminProcessEdit = {
 };
 
 const formatKg = formatOperationalKg;
+const FARM_SHIPMENT_ROUNDING_TOLERANCE_KG = 0.5;
+
+const getFarmShipmentAvailableKg = (lot) => Number(lot?.operational_available_kg ?? lot?.available_weight_kg ?? 0);
+
+const formatFarmShipmentInputKg = (lot) => {
+  const roundedKg = roundKgUpToHalf(getFarmShipmentAvailableKg(lot));
+
+  if (!Number.isFinite(roundedKg) || roundedKg <= 0) return "";
+
+  return Number(roundedKg.toFixed(1)).toString();
+};
 const formatOptionalKg = (value) => (value === null || value === undefined || value === "" ? "-" : formatKg(value));
 const parseDecimalInput = (value) => Number(String(value ?? "").trim().replace(",", "."));
 const formatMoneyValue = (value) => Number(value || 0).toLocaleString("es-CO", {
@@ -1004,7 +1015,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
   const openFarmShipmentModal = (lot) => {
     setFarmShipmentLot(lot);
-    setFarmShipmentQuantity(lot.operational_available_kg ?? lot.available_weight_kg ?? "");
+    setFarmShipmentQuantity(formatFarmShipmentInputKg(lot));
     setMessage("");
     setError("");
   };
@@ -1020,15 +1031,15 @@ const InventoryPage = ({ mode = "inventory" }) => {
     if (!farmShipmentLot) return;
 
     const quantity = Number(farmShipmentQuantity);
-    const available = Number(farmShipmentLot.available_weight_kg || 0);
+    const available = getFarmShipmentAvailableKg(farmShipmentLot);
 
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setError("La cantidad para enviar a finca debe ser mayor a cero.");
       return;
     }
 
-    if (quantity > available) {
-      setError("La cantidad enviada a finca no puede superar el disponible fisico del lote.");
+    if (quantity > available + FARM_SHIPMENT_ROUNDING_TOLERANCE_KG) {
+      setError("La cantidad enviada a finca no puede superar el libre operativo del lote.");
       return;
     }
 
@@ -3699,7 +3710,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 <input
                   className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
                   min="0"
-                  step="0.001"
+                  step="0.5"
                   type="number"
                   value={farmShipmentQuantity}
                   onChange={(event) => setFarmShipmentQuantity(event.target.value)}

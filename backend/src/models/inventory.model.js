@@ -321,13 +321,19 @@ export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
     }
 
     const currentAvailable = Number(lot.available_weight_kg || 0);
+    let shipmentQuantityKg = Number(quantityKg || 0);
+    const roundingToleranceKg = 0.5;
 
-    if (quantityKg > currentAvailable) {
+    if (shipmentQuantityKg > currentAvailable && shipmentQuantityKg - currentAvailable <= roundingToleranceKg) {
+      shipmentQuantityKg = currentAvailable;
+    }
+
+    if (shipmentQuantityKg > currentAvailable) {
       await client.query("ROLLBACK");
       return { negativeInventory: true, lot };
     }
 
-    const newAvailable = Number((currentAvailable - quantityKg).toFixed(3));
+    const newAvailable = Number((currentAvailable - shipmentQuantityKg).toFixed(3));
     const newStatus = newAvailable === 0 ? "agotado" : lot.status === "vendido_parcial" ? "vendido_parcial" : "disponible";
 
     const shipmentResult = await client.query(
@@ -371,7 +377,7 @@ export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
         lot.coffee_type_name,
         lot.coffee_profile_name,
         lot.coffee_variety,
-        quantityKg,
+        shipmentQuantityKg,
         lot.humidity_percent,
         lot.performance_factor,
         lot.lab_aroma,
@@ -400,7 +406,7 @@ export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
       INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
       VALUES ($1, 'envio_finca', $2, $3, $4)
       `,
-      [lot.id, quantityKg, `Cafe enviado a finca para regresar como proceso`, userId]
+      [lot.id, shipmentQuantityKg, `Cafe enviado a finca para regresar como proceso`, userId]
     );
 
     await client.query("COMMIT");
