@@ -187,6 +187,14 @@ const App = () => {
           }
         />
         <Route
+          path="/bodega/historico-retirados"
+          element={
+            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
+              <LotHistoryPage type="retired" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/proveedores"
           element={
             <ProtectedRoute roles={["admin", "accounting", "warehouse"]}>

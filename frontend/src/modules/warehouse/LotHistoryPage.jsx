@@ -8,7 +8,6 @@ import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { lotStatusLabels } from "../../utils/workflow";
 
 const acceptedStatuses = ["pendiente_liquidacion", "disponible", "vendido_parcial", "agotado", "en_proceso", "procesado"];
-const rejectedStatuses = ["rechazado", "retirado"];
 
 const historyConfig = {
   accepted: {
@@ -20,10 +19,17 @@ const historyConfig = {
   },
   rejected: {
     title: "Historico rechazados",
-    description: "Lotes rechazados por laboratorio o retirados por el proveedor.",
-    statuses: rejectedStatuses,
+    description: "Lotes rechazados por laboratorio que aun no se han retirado.",
+    statuses: ["rechazado"],
     emptyTitle: "Sin lotes rechazados",
     emptyMessage: "Los cafes rechazados por laboratorio apareceran aqui.",
+  },
+  retired: {
+    title: "Historico retirados",
+    description: "Cafes retirados del inventario o devueltos al proveedor.",
+    statuses: ["retirado"],
+    emptyTitle: "Sin lotes retirados",
+    emptyMessage: "Los cafes retirados del inventario apareceran aqui.",
   },
 };
 

@@ -48,6 +48,7 @@ const navigation = [
 
   { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
+  { label: "Historico retirados", path: "/bodega/historico-retirados", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Historico ventas", path: "/ventas/historico", icon: FileText, roles: ["admin", "accounting", "inventory_viewer"] },
   { label: "Historico muestras", path: "/muestras/historico", icon: FileText, roles: ["admin", "samples", "inventory_viewer"] },
 
