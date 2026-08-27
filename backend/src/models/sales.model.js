@@ -4,6 +4,48 @@ import { logger } from "../utils/logger.js";
 import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 
 const OPERATIONAL_ROUNDING_TOLERANCE_KG = 0.5;
+const PAYMENT_TOLERANCE = 0.01;
+
+const normalizeSalePaymentFields = (sale, calculatedAmountPaid = null) => {
+  const total = Number(sale.total || 0);
+  const amountPaid = Number(Number(calculatedAmountPaid ?? sale.amount_paid ?? 0).toFixed(2));
+  const rawBalance = total - amountPaid;
+  const balanceDue = rawBalance <= PAYMENT_TOLERANCE ? 0 : Number(Math.max(rawBalance, 0).toFixed(2));
+  const paymentStatus = balanceDue <= PAYMENT_TOLERANCE
+    ? "pagada"
+    : amountPaid > PAYMENT_TOLERANCE
+      ? "pago_parcial"
+      : sale.payment_status || "pendiente_pago";
+
+  return {
+    ...sale,
+    amount_paid: amountPaid,
+    balance_due: balanceDue,
+    payment_status: paymentStatus,
+  };
+};
+
+const applyCalculatedPaymentFields = async (sales) => {
+  if (!sales.length) {
+    return sales;
+  }
+
+  const ids = sales.map((sale) => sale.id);
+  const paymentsResult = await pool.query(
+    `
+    SELECT sale_id, COALESCE(SUM(amount), 0) AS amount_paid
+    FROM sale_payments
+    WHERE sale_id = ANY($1::int[])
+    GROUP BY sale_id
+    `,
+    [ids]
+  );
+  const paymentsBySale = new Map(
+    paymentsResult.rows.map((row) => [Number(row.sale_id), Number(row.amount_paid || 0)])
+  );
+
+  return sales.map((sale) => normalizeSalePaymentFields(sale, paymentsBySale.get(Number(sale.id))));
+};
 
 const requiredSaleItemKgSql = `
   CASE
@@ -24,11 +66,6 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
   if (status) {
     params.push(status);
     conditions.push(`sales.status = $${params.length}`);
-  }
-
-  if (paymentStatus) {
-    params.push(paymentStatus);
-    conditions.push(`sales.payment_status = $${params.length}`);
   }
 
   if (clientId) {
@@ -99,7 +136,8 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
     params
   );
 
-  return result.rows;
+  const sales = await applyCalculatedPaymentFields(result.rows);
+  return paymentStatus ? sales.filter((sale) => sale.payment_status === paymentStatus) : sales;
 };
 
 export const findSaleById = async (id) => {
@@ -304,8 +342,14 @@ export const findSaleById = async (id) => {
     return groups;
   }, {});
 
+  const calculatedAmountPaid = paymentsResult.rows.reduce(
+    (total, payment) => total + Number(payment.amount || 0),
+    0
+  );
+  const saleWithPaymentStatus = normalizeSalePaymentFields(sale, calculatedAmountPaid);
+
   return {
-    ...sale,
+    ...saleWithPaymentStatus,
     items: itemsResult.rows.map((item) => {
       const assignedLots = lotsBySaleItem[item.id] || [];
       const reservedKg = assignedLots.reduce((total, lot) => total + Number(lot.quantity_kg || 0), 0);
@@ -2049,20 +2093,21 @@ export const registerSalePayment = async ({
       `,
       [saleId]
     );
-    const currentAmountPaid = Number(paidResult.rows[0].amount_paid);
-    const currentBalance = Number((Number(sale.total) - currentAmountPaid).toFixed(2));
+    const currentAmountPaid = Number(Number(paidResult.rows[0].amount_paid || 0).toFixed(2));
+    const saleTotal = Number(sale.total || 0);
+    const currentBalance = Number(Math.max(saleTotal - currentAmountPaid, 0).toFixed(2));
 
     logger.info("Validando abono de venta", {
       saleId,
       saleCode: sale.code,
-      total: Number(sale.total),
+      total: saleTotal,
       currentAmountPaid,
       currentBalance,
       paymentAmount: amount,
       registeredBy,
     });
 
-    if (amount > currentBalance) {
+    if (amount > currentBalance + PAYMENT_TOLERANCE) {
       logger.warn("Abono rechazado por superar saldo pendiente", {
         saleId,
         saleCode: sale.code,
@@ -2082,6 +2127,8 @@ export const registerSalePayment = async ({
       };
     }
 
+    const paymentAmount = amount > currentBalance ? currentBalance : amount;
+
     await client.query(
       `
       INSERT INTO sale_payments (
@@ -2095,12 +2142,15 @@ export const registerSalePayment = async ({
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       `,
-      [saleId, amount, paymentMethodId, paymentReference, paidAt, notes || null, registeredBy]
+      [saleId, paymentAmount, paymentMethodId, paymentReference, paidAt, notes || null, registeredBy]
     );
 
-    const newAmountPaid = Number((currentAmountPaid + amount).toFixed(2));
-    const newBalance = Number(Math.max(Number(sale.total) - newAmountPaid, 0).toFixed(2));
-    const newPaymentStatus = newBalance === 0 ? "pagada" : "pago_parcial";
+    const newAmountPaid = Number((currentAmountPaid + paymentAmount).toFixed(2));
+    const newBalanceRaw = saleTotal - newAmountPaid;
+    const newBalance = newBalanceRaw <= PAYMENT_TOLERANCE
+      ? 0
+      : Number(Math.max(newBalanceRaw, 0).toFixed(2));
+    const newPaymentStatus = newBalance <= PAYMENT_TOLERANCE ? "pagada" : "pago_parcial";
 
     const updateResult = await client.query(
       `
@@ -2121,7 +2171,7 @@ export const registerSalePayment = async ({
     logger.info("Abono de venta registrado", {
       saleId,
       saleCode: sale.code,
-      paymentAmount: amount,
+      paymentAmount,
       newAmountPaid,
       newBalance,
       newPaymentStatus,

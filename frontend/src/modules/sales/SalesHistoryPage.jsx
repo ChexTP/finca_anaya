@@ -67,7 +67,7 @@ const SalesHistoryPage = () => {
 
   const loadSales = async () => {
     setError("");
-    const requests = [apiRequest("/sales")];
+    const requests = [apiRequest("/sales?status=despachada")];
 
     if (canManagePayments) {
       requests.push(apiRequest("/catalogs"));

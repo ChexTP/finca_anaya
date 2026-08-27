@@ -270,6 +270,10 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
       params.push(statuses[0]);
       conditions.push(`coffee_lots.status = $${params.length}`);
     }
+
+    if (statuses.includes("pendiente_liquidacion")) {
+      conditions.push(`coffee_lots.lot_kind <> 'PROC'`);
+    }
   }
 
   if (supplierId) {
@@ -862,8 +866,15 @@ export const updateLotLabReview = async (id, reviewData) => {
       `
       UPDATE coffee_lots
       SET
-        status = CASE WHEN $1 = 'aprobado' THEN 'pendiente_liquidacion' ELSE 'rechazado' END,
-        available_weight_kg = 0,
+        status = CASE
+          WHEN $1 = 'rechazado' THEN 'rechazado'
+          WHEN lot_kind = 'PROC' THEN 'disponible'
+          ELSE 'pendiente_liquidacion'
+        END,
+        available_weight_kg = CASE
+          WHEN $1 = 'aprobado' AND lot_kind = 'PROC' THEN net_weight_kg
+          ELSE 0
+        END,
         humidity_percent = $2,
         performance_factor = $16,
         lab_aroma = $3,
@@ -921,7 +932,9 @@ export const updateLotLabReview = async (id, reviewData) => {
         reviewData.status === "aprobado" ? "laboratorio_aprobado" : "laboratorio_rechazado",
         lot.net_weight_kg,
         reviewData.status === "aprobado"
-          ? "Lote aprobado por laboratorio; pendiente de liquidacion antes de quedar disponible"
+          ? lot.lot_kind === "PROC"
+            ? "Proceso aprobado por laboratorio; disponible en inventario sin liquidacion"
+            : "Lote aprobado por laboratorio; pendiente de liquidacion antes de quedar disponible"
           : "Lote rechazado por laboratorio",
         reviewData.reviewedBy,
       ]
@@ -977,6 +990,11 @@ export const returnLotToLaboratoryFromLiquidation = async (id, userId) => {
     if (currentLot.status !== "pendiente_liquidacion") {
       await client.query("ROLLBACK");
       return { invalidStatus: true, lot: currentLot };
+    }
+
+    if (currentLot.lot_kind === "PROC") {
+      await client.query("ROLLBACK");
+      return { processLotNotLiquidable: true, lot: currentLot };
     }
 
     const result = await client.query(
@@ -1233,6 +1251,12 @@ export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, 
     if (missingId) {
       await client.query("ROLLBACK");
       return null;
+    }
+
+    const processLot = currentResult.rows.find((lot) => lot.lot_kind === "PROC");
+    if (processLot) {
+      await client.query("ROLLBACK");
+      return { processLotNotLiquidable: true, lot: processLot };
     }
 
     const invalidLot = currentResult.rows.find((lot) => lot.status !== "pendiente_liquidacion");

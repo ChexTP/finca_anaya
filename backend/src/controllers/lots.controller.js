@@ -873,7 +873,9 @@ export const putLabReview = async (req, res) => {
     res.json({
       message:
         decision === "aprobado"
-          ? "Lote aprobado y pendiente de liquidacion"
+          ? lot.lot_kind === "PROC"
+            ? "Proceso aprobado y disponible en inventario"
+            : "Lote aprobado y pendiente de liquidacion"
           : "Lote rechazado por laboratorio",
       humidityAlert,
       data: lot,
@@ -1079,6 +1081,13 @@ export const putLiquidation = async (req, res) => {
       });
     }
 
+    if (lot.processLotNotLiquidable) {
+      return res.status(409).json({
+        message: "Los procesos no necesitan liquidacion porque ya pertenecen a la empresa",
+        data: lot.lot,
+      });
+    }
+
     res.json({
       message: "Lote liquidado correctamente. Ya queda disponible para uso operativo.",
       data: lot,
@@ -1140,6 +1149,13 @@ export const postGroupedLiquidation = async (req, res) => {
     if (result.invalidStatus) {
       return res.status(409).json({
         message: "Solo se pueden liquidar lotes pendientes de liquidacion",
+        data: result.lot,
+      });
+    }
+
+    if (result.processLotNotLiquidable) {
+      return res.status(409).json({
+        message: "Los procesos no necesitan liquidacion porque ya pertenecen a la empresa",
         data: result.lot,
       });
     }

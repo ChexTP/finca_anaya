@@ -1221,3 +1221,12 @@ CREATE INDEX IF NOT EXISTS idx_sample_requests_created_by ON sample_requests(cre
 CREATE INDEX IF NOT EXISTS idx_sample_requests_requested_at ON sample_requests(requested_at);
 CREATE INDEX IF NOT EXISTS idx_backup_exports_module_name ON backup_exports(module_name);
 CREATE INDEX IF NOT EXISTS idx_backup_exports_created_at ON backup_exports(created_at);
+
+-- Los procesos ya son cafe de la empresa; no deben pasar por liquidacion de compra.
+UPDATE coffee_lots
+SET
+  status = 'disponible',
+  available_weight_kg = net_weight_kg,
+  updated_at = NOW()
+WHERE lot_kind = 'PROC'
+  AND status = 'pendiente_liquidacion';
