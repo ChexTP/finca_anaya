@@ -1732,6 +1732,7 @@ const WarehousePendingPage = () => {
                         className="hidden"
                         type="file"
                         accept="image/*"
+                        capture="environment"
                         onChange={(event) => setDispatchReceiptFile(event.target.files?.[0] || null)}
                       />
                     </label>

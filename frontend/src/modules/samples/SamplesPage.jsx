@@ -1180,6 +1180,7 @@ const SamplesPage = () => {
                                 className="hidden"
                                 type="file"
                                 accept="image/*"
+                                capture="environment"
                                 disabled={uploadingGuideId === sample.id}
                                 onChange={(event) => {
                                   uploadShippingGuide(sample, event.target.files?.[0]);
