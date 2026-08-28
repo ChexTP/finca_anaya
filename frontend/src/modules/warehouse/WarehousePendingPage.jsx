@@ -376,9 +376,9 @@ const WarehousePendingPage = () => {
     }
     if (type === "base") return Number(suggested?.baseKg || 0);
 
-    // En salidas directas el selector de presentacion decide si se usa el peso solicitado
-    // en excelso o la conversion operativa a pergamino. Evita convertir dos veces.
-    return Number(item.quantity_kg || 0);
+    // En el flujo actual bodega registra la salida real sin que la recomendacion
+    // convierta, bloquee o fuerce cantidades.
+    return Math.ceil(Number(quantityKg || 0) - Number.EPSILON);
   };
 
   const getAssignmentRowTargetKg = (row) => {
@@ -1162,19 +1162,6 @@ const WarehousePendingPage = () => {
       ? getIncompleteOutputItems()
       : [];
 
-    if (["prepare", "dispatch"].includes(action) && incompleteOutputItems.length > 0) {
-      const missingText = incompleteOutputItems
-        .slice(0, 3)
-        .map((item) => `${getWarehouseItemLabel(item)}: faltan ${formatOperationalKg(item.missingKg)}`)
-        .join(" / ");
-      const validationMessage = action === "prepare"
-        ? `Antes de marcar como alistada debe registrar las salidas completas. ${missingText}`
-        : `Antes de despachar debe registrar las salidas completas. ${missingText}`;
-      setError(validationMessage);
-      alert(validationMessage);
-      return;
-    }
-
     const confirmed = window.confirm(`Confirmas ${label}?`);
     if (!confirmed) return;
 
@@ -1585,7 +1572,7 @@ const WarehousePendingPage = () => {
                                 {" · "}
                                 Pedido: {formatOperationalKg(item.quantity_kg)}
                                 {getItemOperationalKg(item) !== Number(item.quantity_kg) && (
-                                  <> · Operativo bodega: {formatOperationalKg(getItemOperationalKg(item))}</>
+                                  <> · Referencia: {formatOperationalKg(getItemOperationalKg(item))}</>
                                 )}
                               </p>
                               <p className="mt-1 text-xs">
@@ -1659,7 +1646,7 @@ const WarehousePendingPage = () => {
                           {["pendiente_alistamiento", "pendiente_bodega", "lote_asignado", "ensamble_definido"].includes(selectedSale.status) && (
                             <div className="space-y-3">
                               <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-base text-emerald-900">
-                                <span className="font-semibold">Sugerencia en pergamino:</span>{" "}
+                                <span className="font-semibold">Sugerencia operativa:</span>{" "}
                                 {formatOperationalKg(calculateSourceKgForItem(item, item.quantity_kg, "Pergamino"))}
                               </div>
                               {renderAssignmentBlock(item, {
