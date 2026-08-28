@@ -1158,10 +1158,6 @@ const WarehousePendingPage = () => {
       return;
     }
 
-    const incompleteOutputItems = ["prepare", "dispatch"].includes(action)
-      ? getIncompleteOutputItems()
-      : [];
-
     const confirmed = window.confirm(`Confirmas ${label}?`);
     if (!confirmed) return;
 

@@ -188,7 +188,6 @@ const quoteFilters = [
   { key: "all", label: "Todas" },
   { key: "draft", label: "Borradores" },
   { key: "enviada", label: "Enviadas" },
-  { key: "aceptada", label: "Aceptadas" },
   { key: "anulada", label: "Anuladas" },
 ];
 
@@ -595,7 +594,8 @@ const CommercialPage = () => {
   };
 
   const quoteCounts = useMemo(() => {
-    const counts = quotes.reduce(
+    const activeQuotes = quotes.filter((quote) => quote.status !== "aceptada");
+    const counts = activeQuotes.reduce(
       (counts, quote) => ({
         ...counts,
         all: counts.all + 1,
@@ -612,6 +612,8 @@ const CommercialPage = () => {
     const term = quoteSearch.trim().toLowerCase();
 
     return quotes.filter((quote) => {
+      if (quote.status === "aceptada") return false;
+
       const matchesStatus = quoteFilter === "all" || quote.status === quoteFilter;
       const matchesSearch = !term || [
         quote.code,
