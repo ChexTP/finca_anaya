@@ -14,9 +14,15 @@ import { printable } from "../../utils/printFormatting";
 
 const initialSupplier = {
   name: "",
+  documentType: "",
+  documentNumber: "",
   phone: "",
+  email: "",
   address: "",
+  city: "",
   originZone: "",
+  shippingNotes: "",
+  billingNotes: "",
   notes: "",
 };
 
@@ -538,9 +544,15 @@ const WarehousePage = () => {
     setEditingSupplier(supplier);
     setSupplierForm({
       name: supplier.name || "",
+      documentType: supplier.document_type || "",
+      documentNumber: supplier.document_number || "",
       phone: supplier.phone || "",
+      email: supplier.email || "",
       address: supplier.address || "",
+      city: supplier.city || "",
       originZone: supplier.origin_zone || "",
+      shippingNotes: supplier.shipping_notes || "",
+      billingNotes: supplier.billing_notes || "",
       notes: supplier.notes || "",
     });
     setShowSupplierForm(true);
@@ -595,6 +607,12 @@ const WarehousePage = () => {
     event.preventDefault();
     setMessage("");
     setError("");
+
+    if (!supplierForm.name.trim()) {
+      setError("El nombre del proveedor es obligatorio.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -1080,23 +1098,70 @@ const WarehousePage = () => {
                 value={supplierForm.name}
                 onChange={(event) => setSupplierForm({ ...supplierForm, name: event.target.value })}
               />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  value={supplierForm.documentType}
+                  onChange={(event) => setSupplierForm({ ...supplierForm, documentType: event.target.value })}
+                >
+                  <option value="">Tipo documento opcional</option>
+                  <option value="CC">CC</option>
+                  <option value="NIT">NIT</option>
+                </select>
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Numero documento opcional"
+                  value={supplierForm.documentNumber}
+                  onChange={(event) => setSupplierForm({ ...supplierForm, documentNumber: event.target.value })}
+                />
+              </div>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Telefono"
+                placeholder="Telefono opcional"
                 value={supplierForm.phone}
                 onChange={(event) => setSupplierForm({ ...supplierForm, phone: event.target.value })}
               />
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Direccion"
+                placeholder="Correo opcional"
+                value={supplierForm.email}
+                onChange={(event) => setSupplierForm({ ...supplierForm, email: event.target.value })}
+              />
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Direccion opcional"
                 value={supplierForm.address}
                 onChange={(event) => setSupplierForm({ ...supplierForm, address: event.target.value })}
               />
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Zona de procedencia"
+                placeholder="Ciudad opcional"
+                value={supplierForm.city}
+                onChange={(event) => setSupplierForm({ ...supplierForm, city: event.target.value })}
+              />
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Zona de procedencia opcional"
                 value={supplierForm.originZone}
                 onChange={(event) => setSupplierForm({ ...supplierForm, originZone: event.target.value })}
+              />
+              <textarea
+                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Notas de envio opcionales"
+                value={supplierForm.shippingNotes}
+                onChange={(event) => setSupplierForm({ ...supplierForm, shippingNotes: event.target.value })}
+              />
+              <textarea
+                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Notas de facturacion opcionales"
+                value={supplierForm.billingNotes}
+                onChange={(event) => setSupplierForm({ ...supplierForm, billingNotes: event.target.value })}
+              />
+              <textarea
+                className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Notas internas opcionales"
+                value={supplierForm.notes}
+                onChange={(event) => setSupplierForm({ ...supplierForm, notes: event.target.value })}
               />
               <button className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
                 <Save size={16} />
@@ -1112,7 +1177,9 @@ const WarehousePage = () => {
                 {suppliers.map((supplier) => (
                   <div key={supplier.id} className="rounded border border-slate-200 p-3 text-sm">
                     <p className="font-semibold text-ink">{supplier.name}</p>
-                    <p className="text-xs text-slate-500">{supplier.phone} · {supplier.origin_zone || "Sin zona"}</p>
+                    <p className="text-xs text-slate-500">
+                      {supplier.phone || "Sin telefono"} · {supplier.origin_zone || "Sin zona"}
+                    </p>
                     <button
                       className="mt-2 rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                       type="button"

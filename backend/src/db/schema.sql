@@ -121,9 +121,9 @@ CREATE TABLE IF NOT EXISTS suppliers (
   name VARCHAR(150) NOT NULL,
   document_type VARCHAR(30),
   document_number VARCHAR(60),
-  phone VARCHAR(40) UNIQUE NOT NULL,
+  phone VARCHAR(40) UNIQUE,
   email VARCHAR(150),
-  address TEXT NOT NULL,
+  address TEXT,
   city VARCHAR(100),
   country VARCHAR(100),
   origin_zone TEXT,
@@ -142,6 +142,8 @@ ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS city VARCHAR(100);
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS country VARCHAR(100);
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS shipping_notes TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS billing_notes TEXT;
+ALTER TABLE suppliers ALTER COLUMN phone DROP NOT NULL;
+ALTER TABLE suppliers ALTER COLUMN address DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS clients (
   id SERIAL PRIMARY KEY,

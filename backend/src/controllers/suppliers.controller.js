@@ -51,9 +51,9 @@ export const postSupplier = async (req, res) => {
       notes,
     } = req.body;
 
-    if (!name || !phone || !address) {
+    if (!name) {
       return res.status(400).json({
-        message: "Nombre, telefono y direccion son obligatorios",
+        message: "El nombre del proveedor es obligatorio",
       });
     }
 
@@ -106,9 +106,9 @@ export const putSupplier = async (req, res) => {
       isActive = true,
     } = req.body;
 
-    if (!name || !phone || !address) {
+    if (!name) {
       return res.status(400).json({
-        message: "Nombre, telefono y direccion son obligatorios",
+        message: "El nombre del proveedor es obligatorio",
       });
     }
 

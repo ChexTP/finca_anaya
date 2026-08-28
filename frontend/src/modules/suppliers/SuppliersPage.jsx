@@ -12,7 +12,6 @@ const initialSupplier = {
   email: "",
   address: "",
   city: "",
-  country: "",
   originZone: "",
   shippingNotes: "",
   billingNotes: "",
@@ -56,7 +55,6 @@ const SuppliersPage = () => {
         supplier.email,
         supplier.address,
         supplier.city,
-        supplier.country,
         supplier.origin_zone,
         supplier.shipping_notes,
         supplier.billing_notes,
@@ -82,7 +80,6 @@ const SuppliersPage = () => {
       email: supplier.email || "",
       address: supplier.address || "",
       city: supplier.city || "",
-      country: supplier.country || "",
       originZone: supplier.origin_zone || "",
       shippingNotes: supplier.shipping_notes || "",
       billingNotes: supplier.billing_notes || "",
@@ -103,8 +100,8 @@ const SuppliersPage = () => {
   const saveSupplier = async (event) => {
     event.preventDefault();
 
-    if (!form.name.trim() || !form.phone.trim() || !form.address.trim()) {
-      setError("Nombre, telefono y direccion son obligatorios.");
+    if (!form.name.trim()) {
+      setError("El nombre del proveedor es obligatorio.");
       return;
     }
 
@@ -199,12 +196,12 @@ const SuppliersPage = () => {
                         <p className="text-xs text-slate-500">{supplier.notes || "-"}</p>
                       </td>
                       <td className="px-3 py-2">{[supplier.document_type, supplier.document_number].filter(Boolean).join(" ") || "-"}</td>
-                      <td className="px-3 py-2">{supplier.phone}</td>
+                      <td className="px-3 py-2">{supplier.phone || "-"}</td>
                       <td className="px-3 py-2">{supplier.email || "-"}</td>
                       <td className="px-3 py-2">{supplier.address || "-"}</td>
                       <td className="px-3 py-2">
                         <p>{supplier.origin_zone || "-"}</p>
-                        <p className="text-xs text-slate-500">{[supplier.city, supplier.country].filter(Boolean).join(", ") || "-"}</p>
+                        <p className="text-xs text-slate-500">{supplier.city || "-"}</p>
                       </td>
                       <td className="px-3 py-2">
                         <StatusBadge tone={supplier.is_active ? "success" : "neutral"}>
@@ -253,12 +250,15 @@ const SuppliersPage = () => {
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
             <div className="grid gap-3 sm:grid-cols-2">
-              <input
+              <select
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Tipo documento opcional"
                 value={form.documentType}
                 onChange={(event) => setForm({ ...form, documentType: event.target.value })}
-              />
+              >
+                <option value="">Tipo documento opcional</option>
+                <option value="CC">CC</option>
+                <option value="NIT">NIT</option>
+              </select>
               <input
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Numero documento opcional"
@@ -284,20 +284,12 @@ const SuppliersPage = () => {
               value={form.address}
               onChange={(event) => setForm({ ...form, address: event.target.value })}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ciudad opcional"
-                value={form.city}
-                onChange={(event) => setForm({ ...form, city: event.target.value })}
-              />
-              <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Pais opcional"
-                value={form.country}
-                onChange={(event) => setForm({ ...form, country: event.target.value })}
-              />
-            </div>
+            <input
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Ciudad opcional"
+              value={form.city}
+              onChange={(event) => setForm({ ...form, city: event.target.value })}
+            />
             <input
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
               placeholder="Zona de procedencia"
