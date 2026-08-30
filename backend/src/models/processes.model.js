@@ -24,6 +24,40 @@ const getCoffeeTypeByName = async (client, name) => {
   return result.rows[0] || null;
 };
 
+const getTrillaReturnCodeForInput = async ({ client, inputLot, isFullLot }) => {
+  if (!inputLot?.code) {
+    return null;
+  }
+
+  if (isFullLot) {
+    return {
+      code: inputLot.code,
+      parentLotId: inputLot.id,
+      parentLotCode: inputLot.code,
+      millSequence: null,
+      reuseOriginalLot: true,
+    };
+  }
+
+  const sequenceResult = await client.query(
+    `
+    SELECT COALESCE(MAX(mill_sequence), 0) + 1 AS next_sequence
+    FROM coffee_lots
+    WHERE parent_lot_id = $1
+    `,
+    [inputLot.id]
+  );
+  const nextSequence = Number(sequenceResult.rows[0]?.next_sequence || 1);
+
+  return {
+    code: `${inputLot.code}-${nextSequence}`,
+    parentLotId: inputLot.id,
+    parentLotCode: inputLot.code,
+    millSequence: nextSequence,
+    reuseOriginalLot: false,
+  };
+};
+
 const findPurchaseCoffeeForOutput = async (client, purchaseCoffeeId) => {
   const result = await client.query(
     `
@@ -95,9 +129,20 @@ export const listProcesses = async ({ status, processType }) => {
         (
           SELECT json_agg(
             json_build_object(
+              'id', coffee_process_inputs.id,
               'lot_id', coffee_process_inputs.lot_id,
               'lot_code', coffee_lots.code,
               'quantity_kg', coffee_process_inputs.quantity_kg,
+              'was_full_lot', coffee_process_inputs.was_full_lot,
+              'lot_kind', coffee_lots.lot_kind,
+              'presentation', coffee_lots.presentation,
+              'coffee_profile_id', coffee_lots.coffee_profile_id,
+              'coffee_type_id', coffee_lots.coffee_type_id,
+              'derived_lot_count', (
+                SELECT COUNT(*)::int
+                FROM coffee_lots child_lots
+                WHERE child_lots.parent_lot_id = coffee_lots.id
+              ),
               'input_percentage',
                 CASE
                   WHEN coffee_processes.total_input_kg > 0
@@ -144,6 +189,9 @@ export const listProcesses = async ({ status, processType }) => {
               'output_weight_kg', coffee_process_outputs.output_weight_kg,
               'humidity_percent', coffee_process_outputs.humidity_percent,
               'performance_factor', coffee_process_outputs.performance_factor,
+              'source_input_id', coffee_process_outputs.source_input_id,
+              'parent_lot_id', coffee_process_outputs.parent_lot_id,
+              'mill_sequence', coffee_process_outputs.mill_sequence,
               'notes', coffee_process_outputs.notes
             )
             ORDER BY coffee_process_outputs.id ASC
@@ -215,6 +263,15 @@ export const findProcessById = async (id) => {
       coffee_process_inputs.*,
       coffee_lots.code AS lot_code,
       coffee_lots.available_weight_kg AS current_available_weight_kg,
+      coffee_lots.lot_kind,
+      coffee_lots.presentation,
+      coffee_lots.coffee_profile_id,
+      coffee_lots.coffee_type_id,
+      (
+        SELECT COUNT(*)::int
+        FROM coffee_lots child_lots
+        WHERE child_lots.parent_lot_id = coffee_lots.id
+      ) AS derived_lot_count,
       coffee_lots.commercial_classification,
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
@@ -485,6 +542,7 @@ export const startProcess = async ({ processId, processType, processLocation, es
 
       const newAvailable = Number((currentAvailable - quantity).toFixed(3));
       const newStatus = newAvailable === 0 ? "en_proceso" : "vendido_parcial";
+      const wasFullLot = Math.abs(currentAvailable - quantity) < 0.001;
 
       await client.query(
         `
@@ -493,6 +551,15 @@ export const startProcess = async ({ processId, processType, processLocation, es
         WHERE id = $3
         `,
         [newAvailable, newStatus, lot.id]
+      );
+
+      await client.query(
+        `
+        UPDATE coffee_process_inputs
+        SET was_full_lot = $1
+        WHERE id = $2
+        `,
+        [wasFullLot, input.id]
       );
 
       await client.query(
@@ -705,9 +772,10 @@ export const completeProcessPhysicalReview = async ({
           output_weight_kg,
           humidity_percent,
           performance_factor,
+          source_input_id,
           notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
         `,
         [
@@ -724,6 +792,7 @@ export const completeProcessPhysicalReview = async ({
           output.outputWeightKg,
           outputHumidityPercent,
           output.performanceFactor,
+          output.sourceInputId || null,
           output.notes || null,
         ]
       );
@@ -732,10 +801,55 @@ export const completeProcessPhysicalReview = async ({
 
     if (createsInventoryDirectly) {
       const createdLots = [];
+      const inputsResult = await client.query(
+        `
+        SELECT
+          coffee_process_inputs.*,
+          coffee_lots.code AS lot_code,
+          coffee_lots.supplier_id,
+          coffee_lots.lot_kind,
+          coffee_lots.presentation,
+          coffee_lots.coffee_profile_id,
+          coffee_lots.coffee_type_id,
+          coffee_lots.packaging_type_id,
+          coffee_lots.packaging_quantity,
+          coffee_lots.inner_bag_quantity,
+          coffee_lots.received_at,
+          coffee_lots.origin_zone,
+          (
+            SELECT COUNT(*)::int
+            FROM coffee_lots child_lots
+            WHERE child_lots.parent_lot_id = coffee_lots.id
+          ) AS derived_lot_count
+        FROM coffee_process_inputs
+        INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
+        WHERE coffee_process_inputs.process_id = $1
+        ORDER BY coffee_process_inputs.id ASC
+        `,
+        [processId]
+      );
+      const inputsById = new Map(inputsResult.rows.map((input) => [Number(input.id), input]));
+      const fallbackInput = inputsResult.rows.length === 1 ? inputsResult.rows[0] : null;
 
       for (const output of savedOutputs) {
         const outputLotKind = output.lot_kind === "LOT" ? "LOT" : "PROC";
-        const code = await getNextCode({
+        const sourceInput = output.source_input_id
+          ? inputsById.get(Number(output.source_input_id))
+          : fallbackInput;
+        const sourceLot = sourceInput
+          ? {
+              id: sourceInput.lot_id,
+              code: sourceInput.lot_code,
+            }
+          : null;
+        const derivedCode = process.process_type === "Trilladora" && outputLotKind === "LOT" && sourceInput
+          ? await getTrillaReturnCodeForInput({
+              client,
+              inputLot: sourceLot,
+              isFullLot: Boolean(sourceInput.was_full_lot),
+            })
+          : null;
+        const code = derivedCode?.code || await getNextCode({
           prefix: outputLotKind,
           tableName: "coffee_lots",
           client,
@@ -750,54 +864,121 @@ export const completeProcessPhysicalReview = async ({
           output.profile_source === "sale" && output.coffee_variety ? `Cafe de venta: ${output.coffee_variety}` : null,
           output.notes,
         ].filter(Boolean).join("\n");
-        const outputResult = await client.query(
-          `
-          INSERT INTO coffee_lots (
-            code,
-            coffee_type_id,
-            coffee_profile_id,
-            status,
-            presentation,
-            lot_kind,
-            commercial_classification,
-            coffee_variety,
-            process_variant,
-            gross_weight_kg,
-            tare_weight_kg,
-            net_weight_kg,
-            available_weight_kg,
-            humidity_percent,
-            performance_factor,
-            initial_comment,
-            created_by
-          )
-          VALUES ($1, $2, $3, 'disponible', $4, $5, $6, $7, $8, $9, 0, $9, $9, NULL, NULL, $10, $11)
-          RETURNING *
-          `,
-          [
-            code,
-            output.coffee_type_id,
-            output.coffee_profile_id,
-            outputPresentation,
-            outputLotKind,
-            outputCommercialClassification,
-            output.coffee_variety,
-            output.process_variant || "normal",
-            output.output_weight_kg,
-            outputInitialComment,
-            reviewedBy,
-          ]
-        );
+        const outputResult = derivedCode?.reuseOriginalLot
+          ? await client.query(
+              `
+              UPDATE coffee_lots
+              SET
+                code = $1,
+                coffee_type_id = $2,
+                coffee_profile_id = $3,
+                status = 'disponible',
+                presentation = $4,
+                lot_kind = $5,
+                commercial_classification = $6,
+                coffee_variety = $7,
+                process_variant = $8,
+                gross_weight_kg = $9,
+                tare_weight_kg = 0,
+                net_weight_kg = $9,
+                available_weight_kg = $9,
+                humidity_percent = NULL,
+                performance_factor = NULL,
+                initial_comment = $10,
+                origin_process_input_id = $12,
+                parent_lot_id = NULL,
+                parent_lot_code = NULL,
+                mill_sequence = NULL,
+                updated_at = NOW()
+              WHERE id = $11
+              RETURNING *
+              `,
+              [
+                code,
+                output.coffee_type_id,
+                output.coffee_profile_id,
+                outputPresentation,
+                outputLotKind,
+                outputCommercialClassification,
+                output.coffee_variety,
+                output.process_variant || "normal",
+                output.output_weight_kg,
+                outputInitialComment,
+                sourceInput.lot_id,
+                sourceInput.id,
+              ]
+            )
+          : await client.query(
+              `
+              INSERT INTO coffee_lots (
+                code,
+                supplier_id,
+                coffee_type_id,
+                coffee_profile_id,
+                status,
+                presentation,
+                lot_kind,
+                commercial_classification,
+                coffee_variety,
+                process_variant,
+                gross_weight_kg,
+                packaging_type_id,
+                packaging_quantity,
+                inner_bag_quantity,
+                tare_weight_kg,
+                net_weight_kg,
+                available_weight_kg,
+                humidity_percent,
+                performance_factor,
+                received_at,
+                origin_zone,
+                initial_comment,
+                parent_lot_id,
+                parent_lot_code,
+                origin_process_input_id,
+                mill_sequence,
+                created_by
+              )
+              VALUES ($1, $2, $3, $4, 'disponible', $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, $10, $10, NULL, NULL, CURRENT_DATE, $14, $15, $16, $17, $18, $19, $20)
+              RETURNING *
+              `,
+              [
+                code,
+                sourceInput?.supplier_id || null,
+                output.coffee_type_id,
+                output.coffee_profile_id,
+                outputPresentation,
+                outputLotKind,
+                outputCommercialClassification,
+                output.coffee_variety,
+                output.process_variant || "normal",
+                output.output_weight_kg,
+                sourceInput?.packaging_type_id || null,
+                0,
+                0,
+                sourceInput?.origin_zone || null,
+                outputInitialComment,
+                derivedCode?.parentLotId || sourceInput?.lot_id || null,
+                derivedCode?.parentLotCode || sourceInput?.lot_code || null,
+                sourceInput?.id || null,
+                derivedCode?.millSequence || null,
+                reviewedBy,
+              ]
+            );
         const newLot = outputResult.rows[0];
         createdLots.push(newLot);
 
         await client.query(
           `
           UPDATE coffee_process_outputs
-          SET output_lot_id = $1, updated_at = NOW()
-          WHERE id = $2
+          SET
+            output_lot_id = $1,
+            parent_lot_id = $2,
+            mill_sequence = $3,
+            updated_at = NOW()
+          WHERE id = $4
           `,
-          [newLot.id, output.id]
+          [newLot.id, derivedCode?.parentLotId || sourceInput?.lot_id || null, derivedCode?.millSequence || null, output.id]
         );
 
         await client.query(
@@ -934,7 +1115,7 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
     const outputsResult = await client.query(
       `
       SELECT
-        coffee_process_outputs.*,
+      coffee_process_outputs.*,
         coffee_profiles.name AS coffee_profile_name,
         coffee_profiles.internal_code AS coffee_profile_code
       FROM coffee_process_outputs

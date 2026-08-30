@@ -486,6 +486,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [selectedProcessIntensity, setSelectedProcessIntensity] = useState("all");
+  const [selectedProcessVariant, setSelectedProcessVariant] = useState("all");
   const [selectedProcessLocation, setSelectedProcessLocation] = useState("all");
   const [inventorySearch, setInventorySearch] = useState("");
   const [lotCodeSearch, setLotCodeSearch] = useState("");
@@ -1383,13 +1384,16 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
   const regularLots = lots.filter((lot) => lot.lot_kind !== "PROC");
   const processLots = lots.filter((lot) => lot.lot_kind === "PROC");
-  const processIntensityCards = processIntensityOptions.map((intensity) => {
-    const intensityLots = processLots.filter((lot) => getProcessIntensityFromNotes(lot.lab_notes) === intensity);
+  const processVariantCards = [
+    { value: "normal", label: "Procesos puros" },
+    { value: "ensamblado", label: "Procesos ensamblados" },
+  ].map((variant) => {
+    const variantLots = processLots.filter((lot) => (lot.process_variant || "normal") === variant.value);
 
     return {
-      intensity,
-      count: intensityLots.length,
-      kg: intensityLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
+      ...variant,
+      count: variantLots.length,
+      kg: variantLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
     };
   });
   const presentationNames = [
@@ -1411,9 +1415,25 @@ const InventoryPage = ({ mode = "inventory" }) => {
     : selectedPresentation === "processes"
       ? processLots
       : regularLots.filter((lot) => (lot.presentation || "Pergamino") === selectedPresentation);
-  const intensityFilteredLots = selectedPresentation === "processes" && selectedProcessIntensity !== "all"
-    ? presentationFilteredLots.filter((lot) => getProcessIntensityFromNotes(lot.lab_notes) === selectedProcessIntensity)
+  const processVariantFilteredLots = selectedPresentation === "processes" && selectedProcessVariant !== "all"
+    ? presentationFilteredLots.filter((lot) => (lot.process_variant || "normal") === selectedProcessVariant)
     : presentationFilteredLots;
+  const totalProcessVariantKg = processVariantFilteredLots.reduce(
+    (total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
+    0
+  );
+  const processIntensityCards = processIntensityOptions.map((intensity) => {
+    const intensityLots = processVariantFilteredLots.filter((lot) => getProcessIntensityFromNotes(lot.lab_notes) === intensity);
+
+    return {
+      intensity,
+      count: intensityLots.length,
+      kg: intensityLots.reduce((total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0), 0),
+    };
+  });
+  const intensityFilteredLots = selectedPresentation === "processes" && selectedProcessIntensity !== "all"
+    ? processVariantFilteredLots.filter((lot) => getProcessIntensityFromNotes(lot.lab_notes) === selectedProcessIntensity)
+    : processVariantFilteredLots;
   const inventoryGroups = groupCoffeeLots(
     intensityFilteredLots.map((lot) => ({
       ...lot,
@@ -2567,6 +2587,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 setSelectedPresentation("all");
                 setSelectedGroup("all");
                 setSelectedProcessIntensity("all");
+                setSelectedProcessVariant("all");
               }}
             >
               <span className="block font-semibold">Todo</span>
@@ -2583,6 +2604,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   setSelectedPresentation(option.presentation);
                   setSelectedGroup("all");
                   setSelectedProcessIntensity("all");
+                  setSelectedProcessVariant("all");
                 }}
               >
                 <span className="block font-semibold">{option.presentation}</span>
@@ -2598,6 +2620,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 setSelectedPresentation("processes");
                 setSelectedGroup("all");
                 setSelectedProcessIntensity("all");
+                setSelectedProcessVariant("all");
               }}
             >
               <span className="block font-semibold">Procesos</span>
@@ -2613,7 +2636,39 @@ const InventoryPage = ({ mode = "inventory" }) => {
             </button>
           </div>
           {selectedPresentation === "processes" && (
-            <div className="mb-3 flex flex-wrap gap-2 border-b border-slate-100 pb-3">
+            <div className="mb-3 space-y-3 border-b border-slate-100 pb-3">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={`rounded border px-3 py-2 text-left text-sm ${
+                    selectedProcessVariant === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedProcessVariant("all");
+                    setSelectedGroup("all");
+                  }}
+                >
+                  <span className="block font-semibold">Todos los procesos</span>
+                  <span className="text-xs">{processLots.length} lotes - {formatKg(totalProcessLotsKg)}</span>
+                </button>
+                {processVariantCards.map((card) => (
+                  <button
+                    key={card.value}
+                    className={`rounded border px-3 py-2 text-left text-sm ${
+                      selectedProcessVariant === card.value ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProcessVariant(card.value);
+                      setSelectedGroup("all");
+                    }}
+                  >
+                    <span className="block font-semibold">{card.label}</span>
+                    <span className="text-xs">{card.count} lotes - {formatKg(card.kg)}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
               <button
                 className={`rounded border px-3 py-2 text-left text-sm ${
                   selectedProcessIntensity === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
@@ -2624,9 +2679,9 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   setSelectedGroup("all");
                 }}
               >
-                <span className="block font-semibold">Todas las intensidades</span>
-                <span className="text-xs">{processLots.length} procesos - {formatKg(totalProcessLotsKg)}</span>
-              </button>
+                  <span className="block font-semibold">Todas las intensidades</span>
+                  <span className="text-xs">{processVariantFilteredLots.length} procesos - {formatKg(totalProcessVariantKg)}</span>
+                </button>
               {processIntensityCards.map((card) => (
                 <button
                   key={card.intensity}
@@ -2643,6 +2698,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   <span className="text-xs">{card.count} lotes - {formatKg(card.kg)}</span>
                 </button>
               ))}
+              </div>
             </div>
           )}
           <div className="flex flex-wrap gap-2">

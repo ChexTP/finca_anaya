@@ -320,6 +320,10 @@ ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_method_id INTE
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_payment_reference TEXT;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_paid_at TIMESTAMP;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS purchase_registered_by INTEGER REFERENCES users(id);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS parent_lot_id INTEGER REFERENCES coffee_lots(id);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS parent_lot_code VARCHAR(30);
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS origin_process_input_id INTEGER;
+ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS mill_sequence INTEGER;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS performance_factor NUMERIC(8, 2);
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS received_at DATE NOT NULL DEFAULT CURRENT_DATE;
 ALTER TABLE coffee_lots ADD COLUMN IF NOT EXISTS coffee_variety VARCHAR(120);
@@ -496,6 +500,7 @@ CREATE TABLE IF NOT EXISTS coffee_process_inputs (
 );
 ALTER TABLE coffee_process_inputs ADD COLUMN IF NOT EXISTS received_at TIMESTAMP;
 ALTER TABLE coffee_process_inputs ADD COLUMN IF NOT EXISTS received_by INTEGER REFERENCES users(id);
+ALTER TABLE coffee_process_inputs ADD COLUMN IF NOT EXISTS was_full_lot BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS coffee_process_outputs (
   id SERIAL PRIMARY KEY,
@@ -524,6 +529,9 @@ ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS profile_source VARCH
 ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS coffee_variety VARCHAR(120);
 ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS commercial_classification VARCHAR(80);
 ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS process_variant VARCHAR(30) NOT NULL DEFAULT 'normal';
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS source_input_id INTEGER REFERENCES coffee_process_inputs(id);
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS parent_lot_id INTEGER REFERENCES coffee_lots(id);
+ALTER TABLE coffee_process_outputs ADD COLUMN IF NOT EXISTS mill_sequence INTEGER;
 ALTER TABLE coffee_process_outputs ALTER COLUMN humidity_percent SET DEFAULT 10;
 UPDATE coffee_process_outputs SET humidity_percent = 10 WHERE humidity_percent IS NULL;
 ALTER TABLE coffee_process_outputs ALTER COLUMN humidity_percent SET NOT NULL;

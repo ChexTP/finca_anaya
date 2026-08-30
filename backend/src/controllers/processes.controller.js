@@ -290,6 +290,7 @@ export const putProcessPhysicalReview = async (req, res) => {
           performanceFactor: toNumber(output.performanceFactor),
           presentation: output.presentation || "Excelso",
           processVariant: output.processVariant || "normal",
+          sourceInputId: output.sourceInputId ? Number(output.sourceInputId) : null,
           notes: output.notes || null,
         }))
       : [];

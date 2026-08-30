@@ -45,6 +45,7 @@ const initialPhysicalReviewForm = {
       outputWeightKg: "",
       humidityPercent: "",
       performanceFactor: "",
+      sourceInputId: "",
       notes: "",
     },
   ],
@@ -61,15 +62,25 @@ const emptyProcessOutput = {
   outputWeightKg: "",
   humidityPercent: "",
   performanceFactor: "",
+  sourceInputId: "",
   notes: "",
 };
 
-const createEmptyProcessOutput = (process) => ({
-  ...emptyProcessOutput,
-  lotKind: directInventoryProcessTypes.includes(process?.process_type) ? "LOT" : "PROC",
-  profileSource: directInventoryProcessTypes.includes(process?.process_type) ? "purchase" : "sale",
-  presentation: process?.process_type === "Trilladora" ? "Excelso" : "Pergamino",
-});
+const createEmptyProcessOutput = (process, sourceInput = null) => {
+  const directInventory = directInventoryProcessTypes.includes(process?.process_type);
+
+  return {
+    ...emptyProcessOutput,
+    lotKind: directInventory ? (sourceInput?.lot_kind || "LOT") : "PROC",
+    profileSource: directInventory
+      ? (sourceInput?.coffee_profile_id ? "sale" : "purchase")
+      : "sale",
+    coffeeProfileId: sourceInput?.coffee_profile_id || "",
+    coffeeTypeId: sourceInput?.coffee_type_id || "",
+    presentation: process?.process_type === "Trilladora" ? "Excelso" : (sourceInput?.presentation || "Pergamino"),
+    sourceInputId: sourceInput?.id || "",
+  };
+};
 
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
@@ -397,6 +408,27 @@ const ProcessesPage = ({
   };
 
   const getOutputCodePreview = (outputs, output, index) => {
+    const sourceInput = output.sourceInputId
+      ? processes
+        .flatMap((process) => process.inputs || [])
+        .find((input) => Number(input.id) === Number(output.sourceInputId))
+      : null;
+
+    if (sourceInput && output.lotKind === "LOT") {
+      if (sourceInput.was_full_lot) return sourceInput.lot_code || getCounterPreview("LOT");
+
+      const previousPartialReturns = outputs
+        .slice(0, index)
+        .filter((previousOutput) => (
+          previousOutput.lotKind === "LOT"
+          && Number(previousOutput.sourceInputId) === Number(output.sourceInputId)
+        ))
+        .length;
+      const nextSequence = Number(sourceInput.derived_lot_count || 0) + previousPartialReturns + 1;
+
+      return `${sourceInput.lot_code || "LOT"}-${nextSequence}`;
+    }
+
     const prefix = output.lotKind === "LOT" ? "LOT" : "PROC";
     const sharedInventoryPrefixes = ["LOT", "PROC"];
     const offset = outputs
@@ -465,6 +497,8 @@ const ProcessesPage = ({
   };
 
   const openPhysicalReviewForm = (process) => {
+    const directInventory = createsInventoryDirectly(process);
+
     setPhysicalReviewProcessId(process.id);
     setPhysicalReviewForm({
       outputs: process.outputs?.length
@@ -479,9 +513,12 @@ const ProcessesPage = ({
             outputWeightKg: output.output_weight_kg || "",
             humidityPercent: output.humidity_percent || "",
             performanceFactor: output.performance_factor || "",
+            sourceInputId: output.source_input_id || "",
             notes: output.notes || "",
           }))
-        : [createEmptyProcessOutput(process)],
+        : directInventory && process.inputs?.length
+          ? process.inputs.map((input) => createEmptyProcessOutput(process, input))
+          : [createEmptyProcessOutput(process)],
     });
     setStartProcessId(null);
     setError("");
@@ -563,7 +600,11 @@ const ProcessesPage = ({
       await loadData();
       if (directInventory) {
         setPhysicalReviewProcessId(process.id);
-        setPhysicalReviewForm({ outputs: [createEmptyProcessOutput(process)] });
+        setPhysicalReviewForm({
+          outputs: process.inputs?.length
+            ? process.inputs.map((input) => createEmptyProcessOutput(process, input))
+            : [createEmptyProcessOutput(process)],
+        });
         setStartProcessId(null);
         setProcessStatusFilter("receiving");
         setMessage("Cafe recibido. Registre el peso de regreso para llevarlo a inventario.");
@@ -587,6 +628,7 @@ const ProcessesPage = ({
       const needsSaleProfile = !createsInventoryDirectly(process) || output.profileSource === "sale";
 
       return (
+        (createsInventoryDirectly(process) && process.inputs?.length > 1 && !output.sourceInputId) ||
         (needsPurchaseCoffee && !output.purchaseCoffeeId) ||
         (needsSaleProfile && !output.coffeeProfileId) ||
         !output.presentation ||
@@ -626,6 +668,7 @@ const ProcessesPage = ({
             outputWeightKg: Number(output.outputWeightKg),
             humidityPercent: output.humidityPercent === "" ? null : Number(output.humidityPercent),
             performanceFactor: output.performanceFactor === "" ? null : Number(output.performanceFactor),
+            sourceInputId: output.sourceInputId ? Number(output.sourceInputId) : null,
             notes: output.notes || null,
           })),
         }),
@@ -1069,13 +1112,44 @@ const ProcessesPage = ({
                   </div>
                   {physicalReviewForm.outputs.map((output, index) => (
                     <div key={`process-output-${index}`} className="rounded border border-emerald-200 bg-white p-3">
+                      {createsInventoryDirectly(process) && output.sourceInputId && (
+                        <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          {(() => {
+                            const sourceInput = process.inputs?.find((input) => Number(input.id) === Number(output.sourceInputId));
+                            if (!sourceInput) return "Lote origen no encontrado.";
+
+                            return (
+                              <>
+                                <span className="font-semibold text-ink">Lote origen:</span>{" "}
+                                {sourceInput.lot_code} - {formatInputLabel(sourceInput)} - salieron {formatKg(sourceInput.quantity_kg)}
+                                {sourceInput.was_full_lot ? " completos" : " parciales"}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                       {createsInventoryDirectly(process) && (
-                        <div className="mb-3 grid gap-2 rounded border border-amber-200 bg-amber-50 p-3 sm:grid-cols-3">
+                        <div className="mb-3 grid gap-2 rounded border border-amber-200 bg-amber-50 p-3 sm:grid-cols-2 lg:grid-cols-4">
                           <label className="text-xs font-medium uppercase text-amber-900">
                             Codigo que se asignara
                             <div className="mt-1 rounded border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-ink">
                               {getOutputCodePreview(physicalReviewForm.outputs, output, index)}
                             </div>
+                          </label>
+                          <label className="text-xs font-medium uppercase text-amber-900">
+                            Lote que regreso
+                            <select
+                              className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm normal-case text-ink"
+                              value={output.sourceInputId}
+                              onChange={(event) => updatePhysicalOutput(index, "sourceInputId", event.target.value)}
+                            >
+                              <option value="">Sin lote origen</option>
+                              {process.inputs?.map((input) => (
+                                <option key={input.id} value={input.id}>
+                                  {input.lot_code} - {formatKg(input.quantity_kg)}
+                                </option>
+                              ))}
+                            </select>
                           </label>
                           <label className="text-xs font-medium uppercase text-amber-900">
                             Tipo de registro
