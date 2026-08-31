@@ -378,7 +378,7 @@ const WarehousePendingPage = () => {
 
     // En el flujo actual bodega registra la salida real sin que la recomendacion
     // convierta, bloquee o fuerce cantidades.
-    return Math.ceil(Number(quantityKg || 0) - Number.EPSILON);
+    return Math.ceil(Number(item.quantity_kg || 0) - Number.EPSILON);
   };
 
   const getAssignmentRowTargetKg = (row) => {
