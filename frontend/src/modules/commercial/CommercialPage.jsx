@@ -90,17 +90,18 @@ const today = new Date().toISOString().slice(0, 10);
 const initialSample = {
   manualCodeNumber: "",
   manualCodeYear: String(new Date().getFullYear()),
+  clientId: "",
   requesterName: "",
   requesterPhone: "",
   requesterEmail: "",
   requesterCompany: "",
   requesterAddress: "",
   requesterCity: "",
-  requesterCountry: "",
+  requesterCountry: "Colombia",
   coffeeTypeId: "",
   coffeeProfileId: "",
   description: "",
-  quantityGrams: "",
+  quantityGrams: "700",
   requestedAt: today,
   tentativeDeliveryDate: "",
   notes: "",
@@ -112,7 +113,7 @@ const emptySampleItem = {
   coffeeTypeId: "",
   coffeeProfileId: "",
   description: "",
-  quantityGrams: "",
+  quantityGrams: "700",
   useFreeDescription: false,
 };
 
@@ -362,6 +363,9 @@ const CommercialPage = () => {
   const salesCoffeeProfiles = useMemo(() => (
     sortProfilesByCodeDesc((catalogs?.coffeeProfiles || []).filter((profile) => profile.is_active !== false))
   ), [catalogs?.coffeeProfiles]);
+  const sortedClients = useMemo(() => (
+    [...clients].sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "es"))
+  ), [clients]);
 
   const scrollToPanel = (panelRef) => {
     window.requestAnimationFrame(() => {
@@ -409,6 +413,40 @@ const CommercialPage = () => {
 
   const getSampleCodeFromForm = (form) => {
     return getCodeFromForm(form, "MUE");
+  };
+
+  const getDefaultSampleCoffeeTypeId = (catalogSource = catalogs) => {
+    const defaultType = (catalogSource?.coffeeTypes || []).find((type) => (
+      String(type.name || "").trim().toLowerCase() === "lavado"
+    ));
+
+    return defaultType ? String(defaultType.id) : "";
+  };
+
+  const getSampleItemDefaults = (catalogSource = catalogs) => ({
+    ...emptySampleItem,
+    coffeeTypeId: getDefaultSampleCoffeeTypeId(catalogSource),
+  });
+
+  const getSampleFormDefaults = (catalogSource = catalogs) => ({
+    ...initialSample,
+    coffeeTypeId: getDefaultSampleCoffeeTypeId(catalogSource),
+  });
+
+  const applyClientToSampleForm = (clientId) => {
+    const client = sortedClients.find((clientItem) => String(clientItem.id) === String(clientId));
+
+    setSampleForm((currentForm) => ({
+      ...currentForm,
+      clientId,
+      requesterName: client?.name || "",
+      requesterPhone: client?.phone || "",
+      requesterEmail: client?.email || "",
+      requesterCompany: client?.name || "",
+      requesterAddress: client?.address || "",
+      requesterCity: client?.city || "",
+      requesterCountry: client?.country || "Colombia",
+    }));
   };
 
   const itemOperationalKg = useMemo(() => calculateOperationalKg({
@@ -676,11 +714,36 @@ const CommercialPage = () => {
         ? currentForm
         : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "COT")?.nextCode, "COT") }
     ));
-    setSampleForm((currentForm) => (
-      currentForm.requesterName || sampleItems.length > 0 || currentForm.quantityGrams
-        ? currentForm
-        : { ...currentForm, ...getCodeParts(countersData.find((counter) => counter.prefix === "MUE")?.nextCode, "MUE") }
-    ));
+    setSampleForm((currentForm) => {
+      const sampleDefaults = getSampleFormDefaults(catalogData);
+      const sampleHasUserData = Boolean(
+        currentForm.clientId ||
+        currentForm.requesterName ||
+        currentForm.requesterPhone ||
+        currentForm.requesterEmail ||
+        currentForm.requesterCompany ||
+        currentForm.requesterAddress ||
+        currentForm.requesterCity ||
+        sampleItems.length > 0 ||
+        currentForm.coffeeProfileId ||
+        currentForm.description ||
+        (currentForm.quantityGrams && currentForm.quantityGrams !== sampleDefaults.quantityGrams)
+      );
+
+      if (sampleHasUserData) {
+        return {
+          ...currentForm,
+          requesterCountry: currentForm.requesterCountry || sampleDefaults.requesterCountry,
+          coffeeTypeId: currentForm.coffeeTypeId || sampleDefaults.coffeeTypeId,
+          quantityGrams: currentForm.quantityGrams || sampleDefaults.quantityGrams,
+        };
+      }
+
+      return {
+        ...sampleDefaults,
+        ...getCodeParts(countersData.find((counter) => counter.prefix === "MUE")?.nextCode, "MUE"),
+      };
+    });
     setPriceListForm((currentForm) => (
       editingPriceListId || currentForm.clientId || priceListItems.length > 0
         ? currentForm
@@ -1014,7 +1077,7 @@ const CommercialPage = () => {
         price: null,
       },
     ]);
-    setSampleForm((currentForm) => ({ ...currentForm, ...emptySampleItem }));
+    setSampleForm((currentForm) => ({ ...currentForm, ...getSampleItemDefaults() }));
     setError("");
   };
 
@@ -1033,6 +1096,7 @@ const CommercialPage = () => {
         coffeeTypeId: sampleForm.coffeeTypeId ? Number(sampleForm.coffeeTypeId) : null,
         coffeeProfileId: sampleForm.coffeeProfileId ? Number(sampleForm.coffeeProfileId) : null,
         description: sampleForm.description || null,
+        useFreeDescription: sampleForm.useFreeDescription,
         quantityGrams: Number(sampleForm.quantityGrams),
         price: null,
       }] : [];
@@ -1053,7 +1117,7 @@ const CommercialPage = () => {
 
       setSampleItems([]);
       const refreshedData = await loadData();
-      setSampleForm({ ...initialSample, ...getNextCodeParts("MUE", refreshedData.countersData) });
+      setSampleForm({ ...getSampleFormDefaults(), ...getNextCodeParts("MUE", refreshedData.countersData) });
       setMessage(`Solicitud de muestra ${response.data?.code || ""} creada y enviada a muestras.`);
     } catch (requestError) {
       showErrorAlert(requestError.message);
@@ -2010,13 +2074,47 @@ const CommercialPage = () => {
                       />
                     </div>
                   </div>
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Nombre de quien solicita" value={sampleForm.requesterName} onChange={(event) => setSampleForm({ ...sampleForm, requesterName: event.target.value })} required />
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Telefono" value={sampleForm.requesterPhone} onChange={(event) => setSampleForm({ ...sampleForm, requesterPhone: event.target.value })} />
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Correo opcional" value={sampleForm.requesterEmail} onChange={(event) => setSampleForm({ ...sampleForm, requesterEmail: event.target.value })} />
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Empresa opcional" value={sampleForm.requesterCompany} onChange={(event) => setSampleForm({ ...sampleForm, requesterCompany: event.target.value })} />
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2" placeholder="Direccion de envio" value={sampleForm.requesterAddress} onChange={(event) => setSampleForm({ ...sampleForm, requesterAddress: event.target.value })} />
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Ciudad" value={sampleForm.requesterCity} onChange={(event) => setSampleForm({ ...sampleForm, requesterCity: event.target.value })} />
-                  <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Pais" value={sampleForm.requesterCountry} onChange={(event) => setSampleForm({ ...sampleForm, requesterCountry: event.target.value })} />
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500 md:col-span-2">
+                    Cliente existente
+                    <select
+                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      value={sampleForm.clientId}
+                      onChange={(event) => applyClientToSampleForm(event.target.value)}
+                    >
+                      <option value="">Seleccionar cliente de la lista</option>
+                      {sortedClients.map((client) => (
+                        <option key={client.id} value={client.id}>{client.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Nombre de quien solicita
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Nombre de quien solicita" value={sampleForm.requesterName} onChange={(event) => setSampleForm({ ...sampleForm, requesterName: event.target.value })} required />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Telefono
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Telefono" value={sampleForm.requesterPhone} onChange={(event) => setSampleForm({ ...sampleForm, requesterPhone: event.target.value })} />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Correo
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Correo opcional" value={sampleForm.requesterEmail} onChange={(event) => setSampleForm({ ...sampleForm, requesterEmail: event.target.value })} />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Empresa
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Empresa opcional" value={sampleForm.requesterCompany} onChange={(event) => setSampleForm({ ...sampleForm, requesterCompany: event.target.value })} />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500 md:col-span-2">
+                    Direccion de envio
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Direccion de envio" value={sampleForm.requesterAddress} onChange={(event) => setSampleForm({ ...sampleForm, requesterAddress: event.target.value })} />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Ciudad
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Ciudad" value={sampleForm.requesterCity} onChange={(event) => setSampleForm({ ...sampleForm, requesterCity: event.target.value })} />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                    Pais
+                    <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Pais" value={sampleForm.requesterCountry} onChange={(event) => setSampleForm({ ...sampleForm, requesterCountry: event.target.value })} />
+                  </label>
                 </div>
 
                 <div className="mt-4 rounded border border-slate-200 p-3">
