@@ -1,5 +1,6 @@
 import { Edit, Eye, FileDown, FlaskConical, Plus, RefreshCw, Save, Trash2, UserPlus, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -327,6 +328,7 @@ const itemFromQuoteItem = (item) => ({
 
 const CommercialPage = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [quotes, setQuotes] = useState([]);
   const [samples, setSamples] = useState([]);
   const [clients, setClients] = useState([]);
@@ -355,6 +357,8 @@ const CommercialPage = () => {
   const [saving, setSaving] = useState(false);
   const formPanelRef = useRef(null);
   const detailPanelRef = useRef(null);
+  const handledEditQuoteIdRef = useRef("");
+  const editQuoteIdFromUrl = searchParams.get("editQuoteId");
 
   const canConvertToSale = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
   const canDeleteRecords = user?.role === "admin";
@@ -755,6 +759,24 @@ const CommercialPage = () => {
   useEffect(() => {
     loadData().catch((requestError) => setError(requestError.message));
   }, []);
+
+  useEffect(() => {
+    if (!editQuoteIdFromUrl || handledEditQuoteIdRef.current === editQuoteIdFromUrl) return;
+
+    handledEditQuoteIdRef.current = editQuoteIdFromUrl;
+    loadQuoteForEdit(editQuoteIdFromUrl)
+      .then(() => {
+        setSearchParams((currentParams) => {
+          const nextParams = new URLSearchParams(currentParams);
+          nextParams.delete("editQuoteId");
+          return nextParams;
+        }, { replace: true });
+      })
+      .catch((requestError) => {
+        handledEditQuoteIdRef.current = "";
+        setError(requestError.message || "No se pudo cargar la cotizacion para editar.");
+      });
+  }, [editQuoteIdFromUrl, setSearchParams]);
 
   useEffect(() => {
     if (formMode !== "priceList" || editingPriceListId || priceListAutoLoaded || priceListItems.length > 0 || priceListSaleProfiles.length === 0) return;
@@ -1172,7 +1194,13 @@ const CommercialPage = () => {
         setError("");
       }
       setSelectedQuote(response.data);
-      setMessage(wasEditing ? "Cotizacion actualizada correctamente." : "Cotizacion creada correctamente.");
+      setMessage(
+        wasEditing && response.data?.status === "aceptada"
+          ? "Cotizacion y orden de pedido actualizadas correctamente."
+          : wasEditing
+            ? "Cotizacion actualizada correctamente."
+            : "Cotizacion creada correctamente."
+      );
     } catch (requestError) {
       showErrorAlert(requestError.message);
     } finally {

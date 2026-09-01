@@ -1,5 +1,6 @@
 import { Eye, FileDown, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -105,6 +106,7 @@ const getOperationalFilterKey = (status) => {
 
 const SalesPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [sales, setSales] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
@@ -135,6 +137,7 @@ const SalesPage = () => {
   const showFinancialData = false;
   const canEditCodes = ["admin", "accounting"].includes(user?.role);
   const canDeleteRecords = user?.role === "admin";
+  const canEditAcceptedQuote = user?.role === "admin";
   const pageCopy = roleCopy[user?.role] || {
     title: "Ordenes",
     subtitle: "Alistamiento, despacho y seguimiento operativo.",
@@ -521,6 +524,15 @@ const SalesPage = () => {
     }
   };
 
+  const editLinkedQuote = (quoteId) => {
+    if (!quoteId) {
+      setError("Esta venta no tiene cotizacion asociada.");
+      return;
+    }
+
+    navigate(`/comercial?editQuoteId=${quoteId}`);
+  };
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -650,6 +662,17 @@ const SalesPage = () => {
                               PDF cotizacion
                             </button>
                           )}
+                          {canEditAcceptedQuote && sale.quote_id && (
+                            <button
+                              className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                              disabled={saving || ["despachada", "anulada"].includes(sale.status)}
+                              onClick={() => editLinkedQuote(sale.quote_id)}
+                              type="button"
+                            >
+                              <Edit3 size={14} />
+                              Editar cotizacion
+                            </button>
+                          )}
                           {canEditCodes && (
                             <button
                               className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
@@ -745,15 +768,28 @@ const SalesPage = () => {
               )}
 
               {selectedSale.quote_id && (
-                <button
-                  className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-                  disabled={saving}
-                  onClick={() => printQuotePdf(selectedSale.quote_id)}
-                  type="button"
-                >
-                  <FileDown size={17} />
-                  Imprimir / guardar PDF de cotizacion
-                </button>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded bg-leaf px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+                    disabled={saving}
+                    onClick={() => printQuotePdf(selectedSale.quote_id)}
+                    type="button"
+                  >
+                    <FileDown size={17} />
+                    PDF cotizacion
+                  </button>
+                  {canEditAcceptedQuote && (
+                    <button
+                      className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 px-3 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                      disabled={saving || ["despachada", "anulada"].includes(selectedSale.status)}
+                      onClick={() => editLinkedQuote(selectedSale.quote_id)}
+                      type="button"
+                    >
+                      <Edit3 size={17} />
+                      Editar cotizacion
+                    </button>
+                  )}
+                </div>
               )}
               {canDeleteRecords && (
                 <button

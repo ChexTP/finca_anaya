@@ -237,6 +237,61 @@ const ensureEditableSaleFromQuote = (sale) => {
 };
 
 const clearSaleItemsForQuoteSync = async (client, saleId) => {
+  const deductedLotsResult = await client.query(
+    `
+    SELECT
+      sale_item_lots.id,
+      sale_item_lots.lot_id,
+      sale_item_lots.quantity_kg,
+      sale_item_lots.created_by,
+      coffee_lots.available_weight_kg,
+      sales.code AS sale_code
+    FROM sale_item_lots
+    INNER JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+    INNER JOIN sales ON sales.id = sale_items.sale_id
+    INNER JOIN coffee_lots ON coffee_lots.id = sale_item_lots.lot_id
+    WHERE sale_items.sale_id = $1
+      AND sale_item_lots.deducted_at IS NOT NULL
+    FOR UPDATE OF sale_item_lots, coffee_lots
+    `,
+    [saleId]
+  );
+
+  for (const assignment of deductedLotsResult.rows) {
+    const restoredAvailableKg = Number((
+      Number(assignment.available_weight_kg || 0) + Number(assignment.quantity_kg || 0)
+    ).toFixed(3));
+
+    await client.query(
+      `
+      UPDATE coffee_lots
+      SET
+        available_weight_kg = $1,
+        status = CASE
+          WHEN $1 <= 0 THEN 'agotado'
+          WHEN $1 >= COALESCE(net_weight_kg, $1) THEN 'disponible'
+          ELSE 'vendido_parcial'
+        END,
+        updated_at = NOW()
+      WHERE id = $2
+      `,
+      [restoredAvailableKg, assignment.lot_id]
+    );
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'desasignacion_venta', $2, $3, $4)
+      `,
+      [
+        assignment.lot_id,
+        assignment.quantity_kg,
+        `Inventario restaurado al sincronizar cotizacion de la venta ${assignment.sale_code}`,
+        assignment.created_by || null,
+      ]
+    );
+  }
+
   // Antes de recrear items de cotizacion se eliminan las referencias de venta.
   await client.query("DELETE FROM sale_blend_items WHERE sale_id = $1", [saleId]);
   await client.query(
@@ -245,7 +300,6 @@ const clearSaleItemsForQuoteSync = async (client, saleId) => {
     WHERE sale_item_id IN (
       SELECT id FROM sale_items WHERE sale_id = $1
     )
-    AND deducted_at IS NULL
     `,
     [saleId]
   );
