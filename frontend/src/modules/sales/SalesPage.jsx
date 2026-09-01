@@ -1,4 +1,4 @@
-import { Eye, FileDown, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Trash2, Truck } from "lucide-react";
+import { Edit3, Eye, FileDown, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Trash2, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
