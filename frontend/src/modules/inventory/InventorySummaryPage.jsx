@@ -1,5 +1,6 @@
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeNameWithCode, getProcessIntensityFromNotes, processIntensityOptions } from "../../utils/coffeeLots";
@@ -7,6 +8,10 @@ import { formatCoffeeLotCodeName, formatCoffeeNameWithCode, getProcessIntensityF
 const allOption = "todos";
 
 const getLotQuantity = (lot) => Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0);
+const initialReservationForm = {
+  quantityKg: "",
+  reservedFor: "",
+};
 
 const normalizeText = (value) => String(value || "").trim();
 
@@ -44,9 +49,13 @@ const buildOptions = (lots, getter) => {
 };
 
 const InventorySummaryPage = () => {
+  const { user } = useAuth();
   const [lots, setLots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reservationLot, setReservationLot] = useState(null);
+  const [reservationForm, setReservationForm] = useState(initialReservationForm);
   const [filters, setFilters] = useState({
     search: "",
     presentation: allOption,
@@ -160,6 +169,85 @@ const InventorySummaryPage = () => {
     setFilters((current) => ({ ...current, [name]: value }));
   };
 
+  const canReserveInventory = ["admin", "inventory_viewer"].includes(user?.role);
+
+  const openReservationModal = (lot) => {
+    setReservationLot(lot);
+    setReservationForm({
+      quantityKg: String(lot.operational_available_kg ?? lot.available_weight_kg ?? ""),
+      reservedFor: "",
+    });
+    setError("");
+  };
+
+  const closeReservationModal = () => {
+    setReservationLot(null);
+    setReservationForm(initialReservationForm);
+  };
+
+  const registerInventoryReservation = async (event) => {
+    event.preventDefault();
+    if (!reservationLot) return;
+
+    const quantity = Number(reservationForm.quantityKg);
+    const freeOperationalKg = getLotQuantity(reservationLot);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError("La cantidad a reservar debe ser mayor a cero");
+      return;
+    }
+
+    if (quantity > freeOperationalKg + 0.001) {
+      setError(`La reserva supera el libre operativo del lote: ${formatOperationalKg(freeOperationalKg)}`);
+      return;
+    }
+
+    const reservedFor = reservationForm.reservedFor.trim();
+    if (!reservedFor) {
+      setError("Debe indicar para quien o para que es la reserva");
+      return;
+    }
+
+    if (!window.confirm(`Confirma reservar ${formatOperationalKg(quantity)} de ${formatCoffeeLotCodeName(reservationLot)}?`)) return;
+
+    setSaving(true);
+    setError("");
+
+    try {
+      await apiRequest(`/inventory/lots/${reservationLot.id}/reservations`, {
+        method: "POST",
+        body: JSON.stringify({
+          quantityKg: quantity,
+          reservedFor,
+        }),
+      });
+      closeReservationModal();
+      await loadInventory();
+    } catch (err) {
+      setError(err.message || "Error al registrar reserva");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const releaseInventoryReservation = async (reservation) => {
+    if (!window.confirm(`Confirma liberar la reserva de ${formatOperationalKg(reservation.quantity_kg)}?`)) return;
+
+    setSaving(true);
+    setError("");
+
+    try {
+      await apiRequest(`/inventory/reservations/${reservation.id}/release`, {
+        method: "PUT",
+      });
+      await loadInventory();
+    } catch (err) {
+      setError(err.message || "Error al liberar reserva");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -242,12 +330,49 @@ const InventorySummaryPage = () => {
                       <p className="font-semibold text-ink">{group.name}</p>
                       <details className="mt-2">
                         <summary className="cursor-pointer text-xs font-semibold text-leaf">Ver lotes</summary>
-                        <div className="mt-2 space-y-1 text-xs text-slate-600">
+                        <div className="mt-2 space-y-2 text-xs text-slate-600">
                           {group.lots.map((lot) => (
-                            <p key={lot.id}>
-                              {formatCoffeeLotCodeName(lot)} · libre {formatOperationalKg(getLotQuantity(lot))}
-                              {lot.lot_kind === "PROC" ? ` · intensidad ${getProcessIntensityFromNotes(lot.lab_notes) || "-"}` : ""}
-                            </p>
+                            <div key={lot.id} className="rounded border border-slate-200 bg-white p-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p>
+                                  {formatCoffeeLotCodeName(lot)} · libre {formatOperationalKg(getLotQuantity(lot))}
+                                  {Number(lot.manual_reserved_kg || 0) > 0 ? ` · reservado manual ${formatOperationalKg(lot.manual_reserved_kg)}` : ""}
+                                  {lot.lot_kind === "PROC" ? ` · intensidad ${getProcessIntensityFromNotes(lot.lab_notes) || "-"}` : ""}
+                                </p>
+                                {canReserveInventory && (
+                                  <button
+                                    className="rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                                    type="button"
+                                    onClick={() => openReservationModal(lot)}
+                                    disabled={saving || getLotQuantity(lot) <= 0}
+                                  >
+                                    Reservar
+                                  </button>
+                                )}
+                              </div>
+                              {Array.isArray(lot.manual_reservations) && lot.manual_reservations.length > 0 && (
+                                <div className="mt-2 space-y-1 rounded bg-amber-50 p-2 text-amber-900">
+                                  {lot.manual_reservations.map((reservation) => (
+                                    <div key={reservation.id} className="flex flex-wrap items-center justify-between gap-2">
+                                      <span>
+                                        {formatOperationalKg(reservation.quantity_kg)} · {reservation.reserved_for}
+                                        {reservation.created_by_name ? ` · ${reservation.created_by_name}` : ""}
+                                      </span>
+                                      {canReserveInventory && (
+                                        <button
+                                          className="rounded border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                                          type="button"
+                                          onClick={() => releaseInventoryReservation(reservation)}
+                                          disabled={saving}
+                                        >
+                                          Liberar
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </details>
@@ -266,6 +391,86 @@ const InventorySummaryPage = () => {
           </div>
         )}
       </div>
+
+      {reservationLot && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+          <form
+            className="my-6 w-full max-w-xl rounded border border-amber-200 bg-white shadow-xl"
+            onSubmit={registerInventoryReservation}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-amber-200 px-4 py-3">
+              <div>
+                <h2 className="text-base font-bold text-ink">Reservar cafe</h2>
+                <p className="text-sm text-slate-500">{formatCoffeeLotCodeName(reservationLot)}</p>
+              </div>
+              <button
+                className="rounded border border-slate-300 p-2 text-slate-600 hover:bg-slate-50"
+                type="button"
+                onClick={closeReservationModal}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Fisico</p>
+                  <p className="mt-1 font-bold text-ink">{formatOperationalKg(reservationLot.available_weight_kg)}</p>
+                </div>
+                <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-amber-700">Reservado</p>
+                  <p className="mt-1 font-bold text-amber-700">{formatOperationalKg(reservationLot.reserved_kg)}</p>
+                </div>
+                <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-leaf">Libre</p>
+                  <p className="mt-1 font-bold text-leaf">{formatOperationalKg(getLotQuantity(reservationLot))}</p>
+                </div>
+              </div>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Cantidad a reservar kg</span>
+                <input
+                  className="w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  min="0"
+                  step="0.5"
+                  type="number"
+                  value={reservationForm.quantityKg}
+                  onChange={(event) => setReservationForm((current) => ({ ...current, quantityKg: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1 text-sm font-semibold text-slate-700">
+                <span>Reservado para / motivo</span>
+                <textarea
+                  className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 font-normal"
+                  placeholder="Pedido, cliente o motivo de la reserva"
+                  value={reservationForm.reservedFor}
+                  onChange={(event) => setReservationForm((current) => ({ ...current, reservedFor: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  onClick={closeReservationModal}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="rounded bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={saving}
+                >
+                  Guardar reserva
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   );
 };

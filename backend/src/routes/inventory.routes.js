@@ -11,6 +11,8 @@ import {
   postFarmShipment,
   putFarmShipmentReceived,
   putFarmProcessInputReceived,
+  postInventoryReservation,
+  putInventoryReservationReleased,
 } from "../controllers/inventory.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
@@ -24,6 +26,18 @@ router.get("/farm-shipments", requireAuth, requireRoles("admin", "accounting", "
 router.get("/lots/:lotId/movements", requireAuth, getInventoryMovements);
 router.put("/farm-shipments/:shipmentId/received", requireAuth, requireRoles("admin", "accounting", "warehouse"), putFarmShipmentReceived);
 router.put("/farm-process-inputs/:inputId/received", requireAuth, requireRoles("admin", "accounting", "warehouse"), putFarmProcessInputReceived);
+router.put(
+  "/reservations/:reservationId/release",
+  requireAuth,
+  requireRoles("admin", "inventory_viewer"),
+  putInventoryReservationReleased
+);
+router.post(
+  "/lots/:lotId/reservations",
+  requireAuth,
+  requireRoles("admin", "inventory_viewer"),
+  postInventoryReservation
+);
 router.post(
   "/lots/:lotId/adjustments",
   requireAuth,

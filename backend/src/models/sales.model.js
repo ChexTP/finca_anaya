@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { ensureInventoryReservationsTable } from "./inventoryReservations.model.js";
 import { getNextCode } from "./codeCounters.model.js";
 import { logger } from "../utils/logger.js";
 import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
@@ -1154,6 +1155,8 @@ export const removeSaleLotAssignment = async ({ assignmentId }) => {
 };
 
 export const getOperationalLotReservations = async () => {
+  await ensureInventoryReservationsTable();
+
   const lotsResult = await pool.query(
     `
     SELECT
@@ -1172,10 +1175,18 @@ export const getOperationalLotReservations = async () => {
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
+      (
+        COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+          WHERE sale_item_lots.deducted_at IS NULL
+            AND sales.status NOT IN ('despachada', 'anulada')
+        ), 0)
+        + COALESCE(manual_reservations.reserved_kg, 0)
+      ) AS reserved_kg,
       COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
         WHERE sale_item_lots.deducted_at IS NULL
           AND sales.status NOT IN ('despachada', 'anulada')
-      ), 0) AS reserved_kg
+      ), 0) AS sale_reserved_kg,
+      COALESCE(manual_reservations.reserved_kg, 0) AS manual_reserved_kg
     FROM coffee_lots
     LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
@@ -1183,13 +1194,20 @@ export const getOperationalLotReservations = async () => {
     LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
     LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
     LEFT JOIN sales ON sales.id = sale_items.sale_id
+    LEFT JOIN (
+      SELECT lot_id, SUM(quantity_kg) AS reserved_kg
+      FROM inventory_reservations
+      WHERE status = 'activa'
+      GROUP BY lot_id
+    ) manual_reservations ON manual_reservations.lot_id = coffee_lots.id
     WHERE coffee_lots.status IN ('disponible', 'vendido_parcial', 'agotado')
-    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name
+    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name, manual_reservations.reserved_kg
     HAVING coffee_lots.available_weight_kg > 0
       OR COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
         WHERE sale_item_lots.deducted_at IS NULL
           AND sales.status NOT IN ('despachada', 'anulada')
       ), 0) > 0
+      OR COALESCE(manual_reservations.reserved_kg, 0) > 0
     ORDER BY coffee_lots.received_at ASC, coffee_lots.created_at ASC
     `
   );

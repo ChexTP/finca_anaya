@@ -1,6 +1,9 @@
 import { pool } from "../db.js";
+import { ensureInventoryReservationsTable } from "./inventoryReservations.model.js";
 
 export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId }) => {
+  await ensureInventoryReservationsTable();
+
   const params = [];
   const conditions = ["coffee_lots.available_weight_kg > 0", "coffee_lots.status <> 'retirado'"];
 
@@ -37,17 +40,46 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.gross_weight_kg,
       coffee_lots.net_weight_kg,
       coffee_lots.available_weight_kg,
+      (
+        COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+          WHERE sale_item_lots.deducted_at IS NULL
+            AND sales.status NOT IN ('despachada', 'anulada')
+        ), 0)
+        + COALESCE(manual_reservations.reserved_kg, 0)
+      ) AS reserved_kg,
       COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
         WHERE sale_item_lots.deducted_at IS NULL
           AND sales.status NOT IN ('despachada', 'anulada')
-      ), 0) AS reserved_kg,
+      ), 0) AS sale_reserved_kg,
+      COALESCE(manual_reservations.reserved_kg, 0) AS manual_reserved_kg,
       GREATEST(
-        coffee_lots.available_weight_kg - COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
-          WHERE sale_item_lots.deducted_at IS NULL
-            AND sales.status NOT IN ('despachada', 'anulada')
-        ), 0),
+        coffee_lots.available_weight_kg
+          - COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+            WHERE sale_item_lots.deducted_at IS NULL
+              AND sales.status NOT IN ('despachada', 'anulada')
+          ), 0)
+          - COALESCE(manual_reservations.reserved_kg, 0),
         0
       ) AS operational_available_kg,
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'id', inventory_reservations.id,
+              'quantity_kg', inventory_reservations.quantity_kg,
+              'reserved_for', inventory_reservations.reserved_for,
+              'created_at', inventory_reservations.created_at,
+              'created_by_name', reservation_users.name
+            )
+            ORDER BY inventory_reservations.created_at ASC, inventory_reservations.id ASC
+          )
+          FROM inventory_reservations
+          LEFT JOIN users reservation_users ON reservation_users.id = inventory_reservations.created_by
+          WHERE inventory_reservations.lot_id = coffee_lots.id
+            AND inventory_reservations.status = 'activa'
+        ),
+        '[]'::json
+      ) AS manual_reservations,
       coffee_lots.humidity_percent,
       coffee_lots.performance_factor,
       coffee_lots.received_at,
@@ -70,8 +102,14 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
     LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
     LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
     LEFT JOIN sales ON sales.id = sale_items.sale_id
+    LEFT JOIN (
+      SELECT lot_id, SUM(quantity_kg) AS reserved_kg
+      FROM inventory_reservations
+      WHERE status = 'activa'
+      GROUP BY lot_id
+    ) manual_reservations ON manual_reservations.lot_id = coffee_lots.id
     WHERE ${conditions.join(" AND ")}
-    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name, coffee_profiles.internal_code, origin_process.code, origin_process.process_type, origin_process.process_location
+    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name, coffee_profiles.internal_code, origin_process.code, origin_process.process_type, origin_process.process_location, manual_reservations.reserved_kg
     ORDER BY coffee_lots.created_at ASC
     `,
     params
@@ -81,6 +119,8 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
 };
 
 export const getGroupedInventory = async () => {
+  await ensureInventoryReservationsTable();
+
   const result = await pool.query(
     `
     SELECT
@@ -103,8 +143,8 @@ export const getGroupedInventory = async () => {
       END AS group_name,
       COUNT(*) AS lots_count,
       SUM(coffee_lots.available_weight_kg) AS available_weight_kg,
-      COALESCE(SUM(reservations.reserved_kg), 0) AS reserved_kg,
-      GREATEST(SUM(coffee_lots.available_weight_kg) - COALESCE(SUM(reservations.reserved_kg), 0), 0) AS operational_available_kg,
+      COALESCE(SUM(reservations.reserved_kg), 0) + COALESCE(SUM(manual_reservations.reserved_kg), 0) AS reserved_kg,
+      GREATEST(SUM(coffee_lots.available_weight_kg) - COALESCE(SUM(reservations.reserved_kg), 0) - COALESCE(SUM(manual_reservations.reserved_kg), 0), 0) AS operational_available_kg,
       MIN(coffee_lots.created_at) AS oldest_lot_date
     FROM coffee_lots
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
@@ -120,6 +160,12 @@ export const getGroupedInventory = async () => {
         AND sales.status NOT IN ('despachada', 'anulada')
       GROUP BY sale_item_lots.lot_id
     ) reservations ON reservations.lot_id = coffee_lots.id
+    LEFT JOIN (
+      SELECT lot_id, SUM(quantity_kg) AS reserved_kg
+      FROM inventory_reservations
+      WHERE status = 'activa'
+      GROUP BY lot_id
+    ) manual_reservations ON manual_reservations.lot_id = coffee_lots.id
     WHERE coffee_lots.status IN ('disponible', 'vendido_parcial')
       AND coffee_lots.available_weight_kg > 0
     GROUP BY group_type, group_id, group_name
@@ -190,6 +236,135 @@ export const listLotMovements = async (lotId) => {
   );
 
   return result.rows;
+};
+
+export const reserveLotInventory = async ({ lotId, quantityKg, reservedFor, userId }) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureInventoryReservationsTable(client);
+    await client.query("BEGIN");
+
+    const lotResult = await client.query(
+      `
+      SELECT id, code, status, available_weight_kg
+      FROM coffee_lots
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [lotId]
+    );
+    const lot = lotResult.rows[0];
+
+    if (!lot) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (!["disponible", "vendido_parcial"].includes(lot.status)) {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, lot };
+    }
+
+    const reservationsResult = await client.query(
+      `
+      SELECT
+        COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+          WHERE sale_item_lots.deducted_at IS NULL
+            AND sales.status NOT IN ('despachada', 'anulada')
+        ), 0) AS sale_reserved_kg,
+        COALESCE((
+          SELECT SUM(quantity_kg)
+          FROM inventory_reservations
+          WHERE lot_id = $1
+            AND status = 'activa'
+        ), 0) AS manual_reserved_kg
+      FROM coffee_lots
+      LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
+      LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
+      LEFT JOIN sales ON sales.id = sale_items.sale_id
+      WHERE coffee_lots.id = $1
+      GROUP BY coffee_lots.id
+      `,
+      [lotId]
+    );
+    const reserved = reservationsResult.rows[0] || {};
+    const freeOperationalKg = Number(lot.available_weight_kg || 0)
+      - Number(reserved.sale_reserved_kg || 0)
+      - Number(reserved.manual_reserved_kg || 0);
+
+    if (freeOperationalKg + 0.001 < quantityKg) {
+      await client.query("ROLLBACK");
+      return { insufficientInventory: true, lot, freeOperationalKg };
+    }
+
+    const reservationResult = await client.query(
+      `
+      INSERT INTO inventory_reservations (lot_id, quantity_kg, reserved_for, created_by)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+      `,
+      [lotId, quantityKg, reservedFor, userId]
+    );
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'reserva_manual', $2, $3, $4)
+      `,
+      [lotId, quantityKg, `Reserva manual: ${reservedFor}`, userId]
+    );
+
+    await client.query("COMMIT");
+    return reservationResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const releaseInventoryReservation = async ({ reservationId, userId }) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureInventoryReservationsTable(client);
+    await client.query("BEGIN");
+
+    const reservationResult = await client.query(
+      `
+      UPDATE inventory_reservations
+      SET status = 'liberada', released_by = $2, released_at = NOW()
+      WHERE id = $1
+        AND status = 'activa'
+      RETURNING *
+      `,
+      [reservationId, userId]
+    );
+    const reservation = reservationResult.rows[0];
+
+    if (!reservation) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    await client.query(
+      `
+      INSERT INTO inventory_movements (lot_id, movement_type, quantity_kg, notes, created_by)
+      VALUES ($1, 'liberacion_reserva', $2, $3, $4)
+      `,
+      [reservation.lot_id, reservation.quantity_kg, `Reserva liberada: ${reservation.reserved_for}`, userId]
+    );
+
+    await client.query("COMMIT");
+    return reservation;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const listSampleInventoryOutputs = async () => {

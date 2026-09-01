@@ -11,6 +11,8 @@ import {
   sendLotToFarm,
   markFarmShipmentAsReceived,
   markFarmProcessInputAsReceived,
+  reserveLotInventory,
+  releaseInventoryReservation,
 } from "../models/inventory.model.js";
 import { findLotById } from "../models/lots.model.js";
 
@@ -221,6 +223,84 @@ export const postSampleInventoryOutput = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error al registrar salida a muestras",
+      error: error.message,
+    });
+  }
+};
+
+export const postInventoryReservation = async (req, res) => {
+  try {
+    const { quantityKg, reservedFor } = req.body;
+    const quantity = toNumber(quantityKg);
+    const cleanReservedFor = String(reservedFor || "").trim();
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return res.status(400).json({
+        message: "La cantidad a reservar debe ser mayor a cero",
+      });
+    }
+
+    if (!cleanReservedFor) {
+      return res.status(400).json({
+        message: "Debe indicar para quien o para que es la reserva",
+      });
+    }
+
+    const reservation = await reserveLotInventory({
+      lotId: req.params.lotId,
+      quantityKg: quantity,
+      reservedFor: cleanReservedFor,
+      userId: req.user.id,
+    });
+
+    if (!reservation) {
+      return res.status(404).json({ message: "Lote no encontrado" });
+    }
+
+    if (reservation.invalidStatus) {
+      return res.status(409).json({
+        message: "Solo se puede reservar cafe disponible o vendido parcialmente",
+        data: reservation.lot,
+      });
+    }
+
+    if (reservation.insufficientInventory) {
+      return res.status(409).json({
+        message: `La reserva supera el libre operativo del lote. Libre operativo: ${Number(reservation.freeOperationalKg || 0).toLocaleString("es-CO")} kg`,
+        data: reservation.lot,
+      });
+    }
+
+    res.status(201).json({
+      message: "Reserva registrada correctamente",
+      data: reservation,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al registrar reserva de inventario",
+      error: error.message,
+    });
+  }
+};
+
+export const putInventoryReservationReleased = async (req, res) => {
+  try {
+    const reservation = await releaseInventoryReservation({
+      reservationId: req.params.reservationId,
+      userId: req.user.id,
+    });
+
+    if (!reservation) {
+      return res.status(404).json({ message: "Reserva no encontrada o ya liberada" });
+    }
+
+    res.json({
+      message: "Reserva liberada correctamente",
+      data: reservation,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al liberar reserva de inventario",
       error: error.message,
     });
   }
