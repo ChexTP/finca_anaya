@@ -32,18 +32,56 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  html,
+  body,
+  #root {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  main {
+    width: 100%;
+  }
+
+  p,
+  span,
+  h1,
+  h2,
+  h3,
+  h4,
+  label,
+  summary,
+  td,
+  th {
+    overflow-wrap: anywhere;
+  }
+
   input,
   select,
   textarea {
     font-size: 16px;
   }
 
+  input,
+  select,
+  textarea,
+  button {
+    min-height: 44px;
+  }
+
+  textarea {
+    min-height: 96px;
+  }
+
   section {
     min-width: 0;
+    width: 100%;
+    gap: 1rem;
   }
 
   section > .flex:first-child {
     align-items: stretch;
+    gap: 0.75rem;
   }
 
   section > .flex:first-child > div {
@@ -54,6 +92,34 @@ textarea {
   section > .flex:first-child button {
     justify-content: center;
     width: 100%;
+  }
+
+  section > .grid,
+  form > .grid,
+  .rounded > .grid,
+  .border > .grid {
+    min-width: 0;
+  }
+
+  section [class*="grid-cols-"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  section [class*="xl:grid-cols-"],
+  section [class*="lg:grid-cols-"],
+  section [class*="md:grid-cols-"],
+  section [class*="sm:grid-cols-"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  section [class*="max-w-"],
+  section [class*="w-["] {
+    max-width: 100% !important;
+  }
+
+  section .rounded,
+  section .border {
+    min-width: 0;
   }
 
   section h1 {
@@ -79,6 +145,12 @@ textarea {
     margin-right: -0.25rem;
     max-width: calc(100vw - 1.5rem);
     padding-bottom: 0.5rem;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .overflow-x-auto > table {
+    min-width: max-content;
   }
 
   table {
@@ -104,6 +176,47 @@ textarea {
     min-width: 8.5rem;
   }
 
+  td button,
+  td a {
+    min-height: 36px;
+  }
+
+  section > div,
+  section > form,
+  section > aside,
+  section article {
+    max-width: 100%;
+  }
+
+  section form,
+  section aside,
+  section article,
+  section .rounded {
+    overflow-wrap: anywhere;
+  }
+
+  section form .flex,
+  section article .flex,
+  section aside .flex {
+    min-width: 0;
+  }
+
+  section form .flex-wrap > button,
+  section article .flex-wrap > button,
+  section aside .flex-wrap > button,
+  section form .flex-wrap > a,
+  section article .flex-wrap > a,
+  section aside .flex-wrap > a {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  section form button,
+  section article button,
+  section aside button {
+    white-space: normal;
+  }
+
   details summary {
     gap: 0.75rem;
   }
@@ -115,13 +228,21 @@ textarea {
     padding: 0.75rem !important;
   }
 
-  .fixed.inset-0 > div {
+  .fixed.inset-0 > div,
+  .fixed.inset-0 > form,
+  .fixed.inset-0 > aside {
     max-height: calc(100dvh - 1.5rem) !important;
     width: 100% !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    overflow-y: auto;
   }
 
   .fixed.inset-0 table {
     min-width: 680px;
+  }
+
+  .fixed.inset-0 .sticky {
+    top: 0;
   }
 }
 
