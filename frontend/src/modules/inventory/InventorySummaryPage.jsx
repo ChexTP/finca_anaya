@@ -2,7 +2,7 @@ import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg } from "../../utils/coffeeCalculations";
-import { formatCoffeeLotCodeName, getProcessIntensityFromNotes, processIntensityOptions } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, formatCoffeeNameWithCode, getProcessIntensityFromNotes, processIntensityOptions } from "../../utils/coffeeLots";
 
 const allOption = "todos";
 
@@ -11,8 +11,8 @@ const getLotQuantity = (lot) => Number(lot.operational_available_kg ?? lot.avail
 const normalizeText = (value) => String(value || "").trim();
 
 const getCoffeeName = (lot) => {
-  if (lot.lot_kind === "PROC") return lot.coffee_profile_name || lot.coffee_variety || "Proceso sin perfil";
-  return lot.coffee_variety || lot.coffee_profile_name || lot.commercial_classification || lot.coffee_type_name || "Cafe sin clasificar";
+  if (lot.lot_kind === "PROC") return formatCoffeeNameWithCode(lot, "Proceso sin perfil");
+  return formatCoffeeNameWithCode(lot, "Cafe sin clasificar");
 };
 
 const getGroupName = (lot) => {
@@ -106,6 +106,8 @@ const InventorySummaryPage = () => {
         category,
         lot.coffee_variety,
         lot.coffee_profile_name,
+        lot.coffee_profile_code,
+        getCoffeeName(lot),
         lot.status,
         lot.performance_factor,
         lot.humidity_percent,

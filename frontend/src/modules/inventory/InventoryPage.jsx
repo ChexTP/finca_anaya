@@ -6,7 +6,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatOperationalKg, roundKgUpToHalf } from "../../utils/coffeeCalculations";
-import { formatCoffeeLotCodeName, getCoffeeLotGroup, getProcessIntensityFromNotes, groupCoffeeLots, processIntensityOptions } from "../../utils/coffeeLots";
+import { formatCoffeeLotCodeName, formatCoffeeNameWithCode, getCoffeeLotGroup, getProcessIntensityFromNotes, groupCoffeeLots, processIntensityOptions } from "../../utils/coffeeLots";
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
 import { printHtmlDocument } from "../../utils/printHtml";
@@ -1458,6 +1458,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
       lot.commercial_classification,
       lot.coffee_variety,
       lot.coffee_profile_name,
+      lot.coffee_profile_code,
+      formatCoffeeNameWithCode(lot, ""),
       lot.origin_process_type,
       lot.origin_process_code,
       lot.performance_factor,
@@ -1511,6 +1513,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
       row.commercial_classification,
       row.coffee_variety,
       row.coffee_profile_name,
+      row.coffee_profile_code,
+      formatCoffeeNameWithCode(row, ""),
       row.performance_factor,
     ]
       .filter(Boolean)
@@ -1550,6 +1554,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
         lot.commercial_classification,
         lot.coffee_variety,
         lot.coffee_profile_name,
+        lot.coffee_profile_code,
+        formatCoffeeNameWithCode(lot, ""),
       ]
         .filter(Boolean)
         .join(" ")
@@ -2763,7 +2769,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                         <span className="rounded bg-slate-100 px-2 py-1 font-semibold text-slate-700">{lot.presentation || "Pergamino"}</span>
                         <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.coffee_type_name || "Sin tipo"}</span>
                         <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.commercial_classification || "Sin categoria"}</span>
-                        <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{lot.coffee_variety || lot.coffee_profile_name || "Sin clasificacion"}</span>
+                        <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{formatCoffeeNameWithCode(lot, "Sin clasificacion")}</span>
                         {lot.lot_kind === "PROC" && (
                           <span className="rounded bg-indigo-50 px-2 py-1 font-semibold text-indigo-700">
                             Intensidad {getProcessIntensityFromNotes(lot.lab_notes) || "sin definir"}
@@ -3640,7 +3646,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                 <p><span className="font-semibold">Presentacion:</span> {farmShipmentLot.presentation || "-"}</p>
                 <p><span className="font-semibold">Tipo:</span> {farmShipmentLot.coffee_type_name || "-"}</p>
                 <p><span className="font-semibold">Categoria:</span> {farmShipmentLot.commercial_classification || "-"}</p>
-                <p><span className="font-semibold">Cafe:</span> {farmShipmentLot.coffee_profile_name || farmShipmentLot.coffee_variety || "-"}</p>
+                <p><span className="font-semibold">Cafe:</span> {formatCoffeeNameWithCode(farmShipmentLot, "-")}</p>
                 <p><span className="font-semibold">Humedad:</span> {farmShipmentLot.humidity_percent ?? "-"}%</p>
                 <p><span className="font-semibold">Factor:</span> {farmShipmentLot.performance_factor ?? "-"}</p>
                 <p><span className="font-semibold">Score:</span> {farmShipmentLot.lab_score ?? "-"}</p>

@@ -18,15 +18,28 @@ export const cleanProcessLabNotes = (notes = "") => {
   return String(notes || "").replace(/^\s*Intensidad:\s*(Alta|Media|Baja|-)\s*\n?/i, "").trim();
 };
 
+export const formatCoffeeNameWithCode = (lot, fallback = "Cafe sin clasificar") => {
+  const profileName = String(lot?.coffee_profile_name || "").trim();
+  const profileCode = String(lot?.coffee_profile_code || lot?.internal_code || "").trim();
+  const genericName = String(lot?.coffee_variety || lot?.purchase_coffee_name || lot?.commercial_classification || lot?.coffee_type_name || "").trim();
+  const name = profileName || genericName;
+
+  if (!name && profileCode) return profileCode;
+  if (!name) return fallback;
+  if (!profileCode || name.toLowerCase().startsWith(profileCode.toLowerCase())) return name;
+
+  return `${profileCode} ${name}`;
+};
+
 export const getCoffeeLotGroup = (lot) => {
   const presentation = lot.presentation || "Pergamino";
 
-  if (lot.lot_kind === "PROC") return `${presentation} - ${getProcessVariantLabel(lot)} - ${lot.coffee_profile_name || lot.coffee_variety || "Sin perfil"}`;
+  if (lot.lot_kind === "PROC") return `${presentation} - ${getProcessVariantLabel(lot)} - ${formatCoffeeNameWithCode(lot, "Sin perfil")}`;
   if (lot.lot_kind === "PASILLA") {
-    return `${presentation} - Pasillas ${lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name || ""}`.trim();
+    return `${presentation} - Pasillas ${formatCoffeeNameWithCode(lot, "")}`.trim();
   }
   if (lot.lot_kind === "RECUPERACION") {
-    return `${presentation} - Recuperacion ${lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name || ""}`.trim();
+    return `${presentation} - Recuperacion ${formatCoffeeNameWithCode(lot, "")}`.trim();
   }
 
   const category = lot.commercial_classification || "Sin categoria";
@@ -68,12 +81,12 @@ export const formatCoffeeLotOption = (lot) => {
 export const getCoffeeLotDescription = (lot) => {
   const presentation = lot.presentation;
   const descriptors = lot.lot_kind === "PROC"
-    ? [presentation, lot.coffee_profile_name || "Cafe procesado", getProcessVariantLabel(lot)]
+    ? [presentation, formatCoffeeNameWithCode(lot, "Cafe procesado"), getProcessVariantLabel(lot)]
     : lot.lot_kind === "PASILLA"
-      ? [presentation, "Pasilla", lot.coffee_profile_name || lot.coffee_variety || lot.coffee_type_name]
+      ? [presentation, "Pasilla", formatCoffeeNameWithCode(lot, "")]
       : lot.lot_kind === "RECUPERACION"
-        ? [presentation, "Recuperacion", lot.coffee_profile_name || lot.coffee_variety, lot.commercial_classification, lot.coffee_type_name]
-        : [presentation, lot.coffee_variety || lot.coffee_profile_name || lot.commercial_classification, lot.commercial_classification, lot.coffee_type_name];
+        ? [presentation, "Recuperacion", formatCoffeeNameWithCode(lot, ""), lot.commercial_classification, lot.coffee_type_name]
+        : [presentation, formatCoffeeNameWithCode(lot, ""), lot.commercial_classification, lot.coffee_type_name];
 
   const uniqueDescriptors = [...new Set(descriptors.filter(Boolean))];
   const [main, ...details] = uniqueDescriptors;
