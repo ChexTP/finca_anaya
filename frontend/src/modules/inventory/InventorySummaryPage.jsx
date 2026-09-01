@@ -174,7 +174,7 @@ const InventorySummaryPage = () => {
   const openReservationModal = (lot) => {
     setReservationLot(lot);
     setReservationForm({
-      quantityKg: String(lot.operational_available_kg ?? lot.available_weight_kg ?? ""),
+      quantityKg: String(lot.available_weight_kg ?? ""),
       reservedFor: "",
     });
     setError("");
@@ -190,15 +190,15 @@ const InventorySummaryPage = () => {
     if (!reservationLot) return;
 
     const quantity = Number(reservationForm.quantityKg);
-    const freeOperationalKg = getLotQuantity(reservationLot);
+    const availableKg = Number(reservationLot.available_weight_kg ?? 0);
 
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setError("La cantidad a reservar debe ser mayor a cero");
       return;
     }
 
-    if (quantity > freeOperationalKg + 0.001) {
-      setError(`La reserva supera el libre operativo del lote: ${formatOperationalKg(freeOperationalKg)}`);
+    if (quantity > availableKg + 0.001) {
+      setError(`La reserva supera el cafe fisico disponible del lote: ${formatOperationalKg(availableKg)}`);
       return;
     }
 
@@ -248,6 +248,14 @@ const InventorySummaryPage = () => {
     }
   };
 
+  const showReservationNotes = (reservations = []) => {
+    const notes = reservations
+      .map((reservation) => `${formatOperationalKg(reservation.quantity_kg)} - ${reservation.reserved_for}`)
+      .join("\n");
+
+    window.alert(notes || "Sin nota de reserva.");
+  };
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -277,7 +285,7 @@ const InventorySummaryPage = () => {
           <p className="mt-2 text-2xl font-bold text-leaf">{formatOperationalKg(totals.totalKg)}</p>
         </div>
         <div className="rounded border border-amber-200 bg-amber-50 p-4">
-          <p className="text-xs font-semibold uppercase text-amber-700">Reservado</p>
+          <p className="text-xs font-semibold uppercase text-amber-700">Reservado ventas</p>
           <p className="mt-2 text-2xl font-bold text-amber-700">{formatOperationalKg(totals.reservedKg)}</p>
         </div>
       </div>
@@ -336,7 +344,7 @@ const InventorySummaryPage = () => {
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p>
                                   {formatCoffeeLotCodeName(lot)} · libre {formatOperationalKg(getLotQuantity(lot))}
-                                  {Number(lot.manual_reserved_kg || 0) > 0 ? ` · reservado manual ${formatOperationalKg(lot.manual_reserved_kg)}` : ""}
+                                  {Number(lot.manual_reserved_kg || 0) > 0 ? ` · etiqueta reservado ${formatOperationalKg(lot.manual_reserved_kg)}` : ""}
                                   {lot.lot_kind === "PROC" ? ` · intensidad ${getProcessIntensityFromNotes(lot.lab_notes) || "-"}` : ""}
                                 </p>
                                 {canReserveInventory && (
@@ -344,7 +352,7 @@ const InventorySummaryPage = () => {
                                     className="rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
                                     type="button"
                                     onClick={() => openReservationModal(lot)}
-                                    disabled={saving || getLotQuantity(lot) <= 0}
+                                    disabled={saving || Number(lot.available_weight_kg ?? 0) <= 0}
                                   >
                                     Reservar
                                   </button>
@@ -352,6 +360,13 @@ const InventorySummaryPage = () => {
                               </div>
                               {Array.isArray(lot.manual_reservations) && lot.manual_reservations.length > 0 && (
                                 <div className="mt-2 space-y-1 rounded bg-amber-50 p-2 text-amber-900">
+                                  <button
+                                    className="rounded bg-amber-100 px-2 py-1 text-xs font-bold uppercase text-amber-800 hover:bg-amber-200"
+                                    type="button"
+                                    onClick={() => showReservationNotes(lot.manual_reservations)}
+                                  >
+                                    Reservado - ver nota
+                                  </button>
                                   {lot.manual_reservations.map((reservation) => (
                                     <div key={reservation.id} className="flex flex-wrap items-center justify-between gap-2">
                                       <span>
@@ -419,7 +434,7 @@ const InventorySummaryPage = () => {
                   <p className="mt-1 font-bold text-ink">{formatOperationalKg(reservationLot.available_weight_kg)}</p>
                 </div>
                 <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-xs font-semibold uppercase text-amber-700">Reservado</p>
+                  <p className="text-xs font-semibold uppercase text-amber-700">Reservado ventas</p>
                   <p className="mt-1 font-bold text-amber-700">{formatOperationalKg(reservationLot.reserved_kg)}</p>
                 </div>
                 <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2">

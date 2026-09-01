@@ -1038,7 +1038,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
     setReservationLot(lot);
     setReservationForm({
       ...initialReservationForm,
-      quantityKg: String(lot.operational_available_kg ?? lot.available_weight_kg ?? ""),
+      quantityKg: String(lot.available_weight_kg ?? ""),
     });
     setMessage("");
     setError("");
@@ -1054,15 +1054,15 @@ const InventoryPage = ({ mode = "inventory" }) => {
     if (!reservationLot) return;
 
     const quantity = Number(reservationForm.quantityKg);
-    const freeOperationalKg = Number(reservationLot.operational_available_kg ?? reservationLot.available_weight_kg ?? 0);
+    const availableKg = Number(reservationLot.available_weight_kg ?? 0);
 
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setError("La cantidad a reservar debe ser mayor a cero.");
       return;
     }
 
-    if (quantity > freeOperationalKg + 0.001) {
-      setError("La reserva no puede superar el libre operativo del lote.");
+    if (quantity > availableKg + 0.001) {
+      setError("La reserva no puede superar el cafe fisico disponible del lote.");
       return;
     }
 
@@ -1085,7 +1085,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
       });
       closeReservationModal();
       await loadData();
-      setMessage("Reserva registrada. El cafe queda apartado y se resta del libre operativo.");
+      setMessage("Reserva registrada como etiqueta informativa. El libre operativo no cambia.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -1103,12 +1103,20 @@ const InventoryPage = ({ mode = "inventory" }) => {
     try {
       await apiRequest(`/inventory/reservations/${reservation.id}/release`, { method: "PUT" });
       await loadData();
-      setMessage("Reserva liberada. El cafe vuelve al libre operativo.");
+      setMessage("Etiqueta de reserva liberada.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setSaving(false);
     }
+  };
+
+  const showReservationNotes = (reservations = []) => {
+    const notes = reservations
+      .map((reservation) => `${formatKg(reservation.quantity_kg)} - ${reservation.reserved_for}`)
+      .join("\n");
+
+    window.alert(notes || "Sin nota de reserva.");
   };
 
   const registerFarmShipment = async (event) => {
@@ -2882,7 +2890,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                       <p className="mt-1 font-bold text-ink">{formatKg(lot.available_weight_kg)}</p>
                     </div>
                     <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
-                      <p className="text-xs font-semibold uppercase text-amber-700">Reservado</p>
+                      <p className="text-xs font-semibold uppercase text-amber-700">Reservado ventas</p>
                       <p className="mt-1 font-bold text-amber-700">{formatKg(lot.reserved_kg)}</p>
                     </div>
                     <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2">
@@ -2904,7 +2912,13 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
                   {Array.isArray(lot.manual_reservations) && lot.manual_reservations.length > 0 && (
                     <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm">
-                      <p className="text-xs font-semibold uppercase text-amber-800">Reservas activas</p>
+                      <button
+                        className="rounded bg-amber-100 px-2 py-1 text-xs font-bold uppercase text-amber-800 hover:bg-amber-200"
+                        type="button"
+                        onClick={() => showReservationNotes(lot.manual_reservations)}
+                      >
+                        Reservado - ver nota
+                      </button>
                       <div className="mt-2 space-y-2">
                         {lot.manual_reservations.map((reservation) => (
                           <div key={reservation.id} className="flex flex-wrap items-center justify-between gap-2">
@@ -2935,7 +2949,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                           className="rounded border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
                           type="button"
                           onClick={() => openReservationModal(lot)}
-                          disabled={saving || Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0) <= 0}
+                          disabled={saving || Number(lot.available_weight_kg ?? 0) <= 0}
                         >
                           Reservar
                         </button>
@@ -3754,7 +3768,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   <p className="mt-1 font-bold text-ink">{formatKg(reservationLot.available_weight_kg)}</p>
                 </div>
                 <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-xs font-semibold uppercase text-amber-700">Reservado</p>
+                  <p className="text-xs font-semibold uppercase text-amber-700">Reservado ventas</p>
                   <p className="mt-1 font-bold text-amber-700">{formatKg(reservationLot.reserved_kg)}</p>
                 </div>
                 <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2">
@@ -3765,7 +3779,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
 
               {Array.isArray(reservationLot.manual_reservations) && reservationLot.manual_reservations.length > 0 && (
                 <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
-                  <p className="text-xs font-semibold uppercase text-amber-800">Reservas activas</p>
+                  <p className="text-xs font-semibold uppercase text-amber-800">Etiquetas de reserva activas</p>
                   <div className="mt-2 space-y-1">
                     {reservationLot.manual_reservations.map((reservation) => (
                       <p key={reservation.id} className="text-amber-950">

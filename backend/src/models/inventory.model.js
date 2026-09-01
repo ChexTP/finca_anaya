@@ -40,13 +40,10 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_lots.gross_weight_kg,
       coffee_lots.net_weight_kg,
       coffee_lots.available_weight_kg,
-      (
-        COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
-          WHERE sale_item_lots.deducted_at IS NULL
-            AND sales.status NOT IN ('despachada', 'anulada')
-        ), 0)
-        + COALESCE(manual_reservations.reserved_kg, 0)
-      ) AS reserved_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+        WHERE sale_item_lots.deducted_at IS NULL
+          AND sales.status NOT IN ('despachada', 'anulada')
+      ), 0) AS reserved_kg,
       COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
         WHERE sale_item_lots.deducted_at IS NULL
           AND sales.status NOT IN ('despachada', 'anulada')
@@ -58,7 +55,6 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
             WHERE sale_item_lots.deducted_at IS NULL
               AND sales.status NOT IN ('despachada', 'anulada')
           ), 0)
-          - COALESCE(manual_reservations.reserved_kg, 0),
         0
       ) AS operational_available_kg,
       COALESCE(
@@ -143,8 +139,9 @@ export const getGroupedInventory = async () => {
       END AS group_name,
       COUNT(*) AS lots_count,
       SUM(coffee_lots.available_weight_kg) AS available_weight_kg,
-      COALESCE(SUM(reservations.reserved_kg), 0) + COALESCE(SUM(manual_reservations.reserved_kg), 0) AS reserved_kg,
-      GREATEST(SUM(coffee_lots.available_weight_kg) - COALESCE(SUM(reservations.reserved_kg), 0) - COALESCE(SUM(manual_reservations.reserved_kg), 0), 0) AS operational_available_kg,
+      COALESCE(SUM(reservations.reserved_kg), 0) AS reserved_kg,
+      COALESCE(SUM(manual_reservations.reserved_kg), 0) AS manual_reserved_kg,
+      GREATEST(SUM(coffee_lots.available_weight_kg) - COALESCE(SUM(reservations.reserved_kg), 0), 0) AS operational_available_kg,
       MIN(coffee_lots.created_at) AS oldest_lot_date
     FROM coffee_lots
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
@@ -266,36 +263,11 @@ export const reserveLotInventory = async ({ lotId, quantityKg, reservedFor, user
       return { invalidStatus: true, lot };
     }
 
-    const reservationsResult = await client.query(
-      `
-      SELECT
-        COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
-          WHERE sale_item_lots.deducted_at IS NULL
-            AND sales.status NOT IN ('despachada', 'anulada')
-        ), 0) AS sale_reserved_kg,
-        COALESCE((
-          SELECT SUM(quantity_kg)
-          FROM inventory_reservations
-          WHERE lot_id = $1
-            AND status = 'activa'
-        ), 0) AS manual_reserved_kg
-      FROM coffee_lots
-      LEFT JOIN sale_item_lots ON sale_item_lots.lot_id = coffee_lots.id
-      LEFT JOIN sale_items ON sale_items.id = sale_item_lots.sale_item_id
-      LEFT JOIN sales ON sales.id = sale_items.sale_id
-      WHERE coffee_lots.id = $1
-      GROUP BY coffee_lots.id
-      `,
-      [lotId]
-    );
-    const reserved = reservationsResult.rows[0] || {};
-    const freeOperationalKg = Number(lot.available_weight_kg || 0)
-      - Number(reserved.sale_reserved_kg || 0)
-      - Number(reserved.manual_reserved_kg || 0);
+    const availableKg = Number(lot.available_weight_kg || 0);
 
-    if (freeOperationalKg + 0.001 < quantityKg) {
+    if (availableKg + 0.001 < quantityKg) {
       await client.query("ROLLBACK");
-      return { insufficientInventory: true, lot, freeOperationalKg };
+      return { insufficientInventory: true, lot, freeOperationalKg: availableKg };
     }
 
     const reservationResult = await client.query(

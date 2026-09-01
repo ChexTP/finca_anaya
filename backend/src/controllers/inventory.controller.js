@@ -266,7 +266,7 @@ export const postInventoryReservation = async (req, res) => {
 
     if (reservation.insufficientInventory) {
       return res.status(409).json({
-        message: `La reserva supera el libre operativo del lote. Libre operativo: ${Number(reservation.freeOperationalKg || 0).toLocaleString("es-CO")} kg`,
+        message: `La reserva supera el cafe fisico disponible del lote. Disponible: ${Number(reservation.freeOperationalKg || 0).toLocaleString("es-CO")} kg`,
         data: reservation.lot,
       });
     }

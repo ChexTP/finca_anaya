@@ -1175,13 +1175,10 @@ export const getOperationalLotReservations = async () => {
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
-      (
-        COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
-          WHERE sale_item_lots.deducted_at IS NULL
-            AND sales.status NOT IN ('despachada', 'anulada')
-        ), 0)
-        + COALESCE(manual_reservations.reserved_kg, 0)
-      ) AS reserved_kg,
+      COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+        WHERE sale_item_lots.deducted_at IS NULL
+          AND sales.status NOT IN ('despachada', 'anulada')
+      ), 0) AS reserved_kg,
       COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
         WHERE sale_item_lots.deducted_at IS NULL
           AND sales.status NOT IN ('despachada', 'anulada')
