@@ -268,8 +268,8 @@ const clearSaleItemsForQuoteSync = async (client, saleId) => {
       SET
         available_weight_kg = $1,
         status = CASE
-          WHEN $1 <= 0 THEN 'agotado'
-          WHEN $1 >= COALESCE(net_weight_kg, $1) THEN 'disponible'
+          WHEN $1::numeric <= 0 THEN 'agotado'
+          WHEN $1::numeric >= COALESCE(net_weight_kg, $1::numeric) THEN 'disponible'
           ELSE 'vendido_parcial'
         END,
         updated_at = NOW()
