@@ -5,6 +5,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
+import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
 import { printable } from "../../utils/printFormatting";
 
@@ -631,29 +632,21 @@ const SamplesPage = () => {
       return;
     }
 
-    if (file.size > 4 * 1024 * 1024) {
-      setError("La imagen de la guia no debe superar 4 MB.");
-      return;
-    }
-
     setUploadingGuideId(sample.id);
     setMessage("");
     setError("");
 
     try {
-      const image = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error("No se pudo leer la imagen de la guia"));
-        reader.readAsDataURL(file);
+      const preparedGuide = await prepareImageForUpload(file, {
+        errorMessage: "No se pudo leer la imagen de la guia",
       });
 
       await apiRequest(`/samples/${sample.id}/shipping-guide`, {
         method: "PUT",
         body: JSON.stringify({
-          image,
-          fileName: file.name,
-          mimeType: file.type,
+          image: preparedGuide.image,
+          fileName: preparedGuide.fileName,
+          mimeType: preparedGuide.mimeType,
         }),
       });
 

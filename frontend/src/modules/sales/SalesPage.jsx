@@ -7,7 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
-import { readImageFileAsDataUrl } from "../../utils/files";
+import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
 import { getSaleNextAction, getSaleStatusTone, paymentStatusLabels, saleStatusLabels } from "../../utils/workflow";
 import { buildWarehouseOrderHtml as buildWarehouseOrderDocumentHtml } from "../warehouse/WarehousePage";
@@ -411,14 +411,14 @@ const SalesPage = () => {
       }
 
       if (action === "dispatch") {
-        const image = await readImageFileAsDataUrl(
+        const preparedReceipt = await prepareImageForUpload(
           dispatchReceiptFile,
-          "No se pudo leer la foto del recibo"
+          { errorMessage: "No se pudo leer la foto del recibo" }
         );
         payload.dispatchReceipt = {
-          image,
-          fileName: dispatchReceiptFile.name,
-          mimeType: dispatchReceiptFile.type,
+          image: preparedReceipt.image,
+          fileName: preparedReceipt.fileName,
+          mimeType: preparedReceipt.mimeType,
         };
       }
 
@@ -467,14 +467,14 @@ const SalesPage = () => {
       const payload = { status: adminManualStatus, notes };
 
       if (adminManualStatus === "despachada") {
-        const image = await readImageFileAsDataUrl(
+        const preparedReceipt = await prepareImageForUpload(
           adminManualReceiptFile,
-          "No se pudo leer la foto de la guia"
+          { errorMessage: "No se pudo leer la foto de la guia" }
         );
         payload.dispatchReceipt = {
-          image,
-          fileName: adminManualReceiptFile.name,
-          mimeType: adminManualReceiptFile.type,
+          image: preparedReceipt.image,
+          fileName: preparedReceipt.fileName,
+          mimeType: preparedReceipt.mimeType,
         };
       }
 

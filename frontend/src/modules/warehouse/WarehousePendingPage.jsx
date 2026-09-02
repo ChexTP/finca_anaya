@@ -7,7 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { calculateOperationalKg, formatOperationalKg, roundKgUpToHalf } from "../../utils/coffeeCalculations";
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
-import { readImageFileAsDataUrl } from "../../utils/files";
+import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
 import {
   getSaleNextAction,
@@ -1169,14 +1169,14 @@ const WarehousePendingPage = () => {
       const payload = { notes };
 
       if (action === "dispatch") {
-        const image = await readImageFileAsDataUrl(
+        const preparedReceipt = await prepareImageForUpload(
           dispatchReceiptFile,
-          "No se pudo leer la foto del recibo"
+          { errorMessage: "No se pudo leer la foto del recibo" }
         );
         payload.dispatchReceipt = {
-          image,
-          fileName: dispatchReceiptFile.name,
-          mimeType: dispatchReceiptFile.type,
+          image: preparedReceipt.image,
+          fileName: preparedReceipt.fileName,
+          mimeType: preparedReceipt.mimeType,
         };
       }
 
