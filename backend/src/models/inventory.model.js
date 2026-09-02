@@ -54,7 +54,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
           - COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
             WHERE sale_item_lots.deducted_at IS NULL
               AND sales.status NOT IN ('despachada', 'anulada')
-          ), 0)
+          ), 0),
         0
       ) AS operational_available_kg,
       COALESCE(
