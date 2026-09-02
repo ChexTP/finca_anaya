@@ -1737,10 +1737,9 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
         `
         SELECT
           sale_items.id,
-          sale_items.quantity_kg AS required_kg,
-          COALESCE(SUM(sale_item_lots.quantity_kg) FILTER (
+          COUNT(sale_item_lots.id) FILTER (
             WHERE sale_item_lots.deducted_at IS NOT NULL
-          ), 0) AS deducted_kg
+          ) AS deducted_outputs_count
         FROM sale_items
         LEFT JOIN sale_item_lots ON sale_item_lots.sale_item_id = sale_items.id
         WHERE sale_items.sale_id = $1
@@ -1751,7 +1750,7 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
       );
 
       const incompleteItem = outputCheck.rows.find((item) =>
-        Number(item.deducted_kg || 0) + 0.001 < Number(item.required_kg || 0)
+        Number(item.deducted_outputs_count || 0) === 0
       );
 
       return outputCheck.rows.length > 0 && !incompleteItem;
