@@ -1190,7 +1190,7 @@ export const putSaleAdminStatusOverride = async (req, res) => {
   try {
     const { status, notes } = req.body;
 
-    if (!["aprobada_laboratorio", "alistada", "despachada"].includes(status)) {
+    if (!["pendiente_bodega", "aprobada_laboratorio", "alistada", "despachada"].includes(status)) {
       return res.status(400).json({
         message: "El estado manual de la venta no es valido",
       });

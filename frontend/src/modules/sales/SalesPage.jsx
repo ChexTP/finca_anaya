@@ -993,6 +993,7 @@ const SalesPage = () => {
                       onChange={(event) => setAdminManualStatus(event.target.value)}
                       disabled={saving}
                     >
+                      <option value="pendiente_bodega">Pendiente bodega</option>
                       <option value="aprobada_laboratorio">Aprobada laboratorio</option>
                       <option value="alistada">Alistada</option>
                       <option value="despachada">Despachada</option>
