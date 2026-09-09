@@ -15,6 +15,7 @@ const initialProfile = {
   basePurchaseCoffeeId: "",
   basePercentage: "",
   basePriceCop: "",
+  basePricePergaminoCop: "",
   basePriceUsd: "",
   isActive: true,
 };
@@ -179,6 +180,7 @@ const CoffeeProfilesPage = () => {
       basePurchaseCoffeeId: getBasePurchaseCoffeeId(profile),
       basePercentage: profile.base_percentage || "",
       basePriceCop: Number(profile.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : "",
+      basePricePergaminoCop: Number(profile.base_price_pergamino_cop || 0) > 0 ? String(profile.base_price_pergamino_cop) : "",
       basePriceUsd: Number(profile.base_price_usd || 0) > 0 ? String(profile.base_price_usd) : "",
       isActive: profile.is_active,
     });
@@ -213,6 +215,7 @@ const CoffeeProfilesPage = () => {
         basePurchaseCoffeeId: form.basePurchaseCoffeeId ? Number(form.basePurchaseCoffeeId) : null,
         basePercentage: form.basePercentage === "" ? null : Number(form.basePercentage),
         basePriceCop: form.basePriceCop === "" ? 0 : Number(form.basePriceCop),
+        basePricePergaminoCop: form.basePricePergaminoCop === "" ? 0 : Number(form.basePricePergaminoCop),
         basePriceUsd: 0,
       };
 
@@ -364,7 +367,8 @@ const CoffeeProfilesPage = () => {
                     <th className="px-4 py-3">Proceso</th>
                     <th className="px-4 py-3">Componentes</th>
                     <th className="px-4 py-3">Base principal</th>
-                    <th className="px-4 py-3">Precio carga</th>
+                    <th className="px-4 py-3">Precio excelso</th>
+                    <th className="px-4 py-3">Precio pergamino</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3 text-right">Accion</th>
                   </tr>
@@ -383,6 +387,9 @@ const CoffeeProfilesPage = () => {
                       <td className="px-4 py-3 text-slate-600">{formatBaseWithPercentage(profile)}</td>
                       <td className="px-4 py-3 text-slate-600">
                         {Number(profile.base_price_cop || 0) > 0 ? `COP ${Number(profile.base_price_cop).toLocaleString("es-CO")}` : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {Number(profile.base_price_pergamino_cop || 0) > 0 ? `COP ${Number(profile.base_price_pergamino_cop).toLocaleString("es-CO")}` : "-"}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge tone={profile.is_active ? "success" : "danger"}>
@@ -477,7 +484,7 @@ const CoffeeProfilesPage = () => {
                 </select>
               </label>
               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                Precio carga COP
+                Precio carga Excelso COP
                 <input
                   className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
                   placeholder="Vacio si no esta definido"
@@ -485,6 +492,17 @@ const CoffeeProfilesPage = () => {
                   step="0.01"
                   value={form.basePriceCop}
                   onChange={(event) => setForm({ ...form, basePriceCop: event.target.value })}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                Precio carga Pergamino COP
+                <input
+                  className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                  placeholder="Vacio si no esta definido"
+                  type="number"
+                  step="0.01"
+                  value={form.basePricePergaminoCop}
+                  onChange={(event) => setForm({ ...form, basePricePergaminoCop: event.target.value })}
                 />
               </label>
             </div>

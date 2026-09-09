@@ -20,6 +20,7 @@ const requiredPurchaseCoffees = [
 ];
 
 let coffeeProfilesCharacterizationNotePromise = null;
+let coffeeProfilesPergaminoPricePromise = null;
 
 export const ensureCoffeeProfilesCharacterizationNoteColumn = async () => {
   if (!coffeeProfilesCharacterizationNotePromise) {
@@ -29,6 +30,21 @@ export const ensureCoffeeProfilesCharacterizationNoteColumn = async () => {
   }
 
   return coffeeProfilesCharacterizationNotePromise;
+};
+
+export const ensureCoffeeProfilesPergaminoPriceColumn = async () => {
+  if (!coffeeProfilesPergaminoPricePromise) {
+    coffeeProfilesPergaminoPricePromise = pool.query(
+      "ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_price_pergamino_cop NUMERIC(14, 2) DEFAULT 0"
+    );
+  }
+
+  return coffeeProfilesPergaminoPricePromise;
+};
+
+const ensureCoffeeProfileExtraColumns = async () => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+  await ensureCoffeeProfilesPergaminoPriceColumn();
 };
 
 const ensureNamedCatalogRows = async (tableName, names) => {
@@ -46,7 +62,7 @@ const ensureNamedCatalogRows = async (tableName, names) => {
 };
 
 export const ensureRequiredCatalogs = async () => {
-  await ensureCoffeeProfilesCharacterizationNoteColumn();
+  await ensureCoffeeProfileExtraColumns();
   await ensureNamedCatalogRows("coffee_types", requiredCoffeeTypes);
   await ensureNamedCatalogRows("coffee_presentations", requiredCoffeePresentations);
   await ensureNamedCatalogRows("payment_methods", requiredPaymentMethods);
@@ -123,7 +139,7 @@ export const updateSimpleCatalogItem = async (tableName, id, { name, isActive = 
 
 export const listCatalog = async (tableName) => {
   if (tableName === "coffee_profiles") {
-    await ensureCoffeeProfilesCharacterizationNoteColumn();
+    await ensureCoffeeProfileExtraColumns();
   }
 
   const orderBy = ["purchase_coffees", "coffee_profiles"].includes(tableName)
@@ -143,7 +159,7 @@ export const listCatalog = async (tableName) => {
 };
 
 export const listCoffeeProfilesForAdmin = async () => {
-  await ensureCoffeeProfilesCharacterizationNoteColumn();
+  await ensureCoffeeProfileExtraColumns();
 
   const result = await pool.query(
     `
@@ -271,9 +287,12 @@ export const createCoffeeProfile = async ({
   processPercentage,
   basePercentage,
   basePriceCop,
+  basePricePergaminoCop,
   basePriceUsd,
   components = [],
 }) => {
+  await ensureCoffeeProfileExtraColumns();
+
   const client = await pool.connect();
 
   try {
@@ -292,9 +311,10 @@ export const createCoffeeProfile = async ({
         process_percentage,
         base_percentage,
         base_price_cop,
+        base_price_pergamino_cop,
         base_price_usd
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
       `,
       [
@@ -308,6 +328,7 @@ export const createCoffeeProfile = async ({
         processPercentage,
         basePercentage,
         basePriceCop,
+        basePricePergaminoCop,
         basePriceUsd,
       ]
     );
@@ -338,11 +359,14 @@ export const updateCoffeeProfile = async (
     processPercentage,
     basePercentage,
     basePriceCop,
+    basePricePergaminoCop,
     basePriceUsd,
     components = [],
     isActive,
   }
 ) => {
+  await ensureCoffeeProfileExtraColumns();
+
   const client = await pool.connect();
 
   try {
@@ -362,10 +386,11 @@ export const updateCoffeeProfile = async (
         process_percentage = $8,
         base_percentage = $9,
         base_price_cop = $10,
-        base_price_usd = $11,
-        is_active = $12,
+        base_price_pergamino_cop = $11,
+        base_price_usd = $12,
+        is_active = $13,
         updated_at = NOW()
-      WHERE id = $13
+      WHERE id = $14
       RETURNING *
       `,
       [
@@ -379,6 +404,7 @@ export const updateCoffeeProfile = async (
         processPercentage,
         basePercentage,
         basePriceCop,
+        basePricePergaminoCop,
         basePriceUsd,
         isActive,
         id,

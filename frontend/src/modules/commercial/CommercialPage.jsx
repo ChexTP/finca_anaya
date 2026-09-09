@@ -207,6 +207,16 @@ const formatPriceInputValue = (value) => {
   return numericValue > 0 ? String(Math.round(numericValue)) : "";
 };
 
+const getProfileLoadPriceByForm = (profile, productForm) => {
+  if (!profile) return "";
+  const form = String(productForm || "Excelso").toLowerCase();
+  const price = form === "pergamino"
+    ? profile.base_price_pergamino_cop
+    : profile.base_price_cop;
+
+  return formatPriceInputValue(price);
+};
+
 const calculateManualKgPrice = ({ priceKgCop, currency, exchangeRate, exportCostUsdLb = fixedCommercialCosts.exportCostUsdLb, usdIncoterm = "EXW" }) => {
   const kgPriceCop = Number(priceKgCop || 0);
   const rate = Number(exchangeRate || 0);
@@ -575,7 +585,9 @@ const CommercialPage = () => {
         label: formatProfileOptionLabel(profile),
         category: profile.category || "Exotico",
         processType: profile.process_type || "",
-        priceLoadCop: formatPriceInputValue(profile.base_price_cop),
+        priceLoadCop: getProfileLoadPriceByForm(profile, "Excelso"),
+        priceLoadExcelsoCop: getProfileLoadPriceByForm(profile, "Excelso"),
+        priceLoadPergaminoCop: getProfileLoadPriceByForm(profile, "Pergamino"),
         productForm: "Excelso",
       }));
     const purchases = (catalogs?.purchaseCoffees || [])
@@ -616,7 +628,20 @@ const CommercialPage = () => {
 
   const updatePriceListItem = (itemId, field, value) => {
     setPriceListItems((items) => items.map((currentItem) => (
-      currentItem.id === itemId ? { ...currentItem, [field]: value } : currentItem
+      currentItem.id === itemId
+        ? {
+            ...currentItem,
+            [field]: value,
+            ...(field === "productForm" && currentItem.priceInputMode !== "kg"
+              ? {
+                  priceLoadCop: value === "Pergamino"
+                    ? (priceListAvailableItems.find((option) => option.id === currentItem.catalogId)?.priceLoadPergaminoCop || "")
+                    : (priceListAvailableItems.find((option) => option.id === currentItem.catalogId)?.priceLoadExcelsoCop || ""),
+                  packaging: value === "Excelso" ? currentItem.packaging : "Empaque tradicional",
+                }
+              : {}),
+          }
+        : currentItem
     )));
   };
 
@@ -937,7 +962,22 @@ const CommercialPage = () => {
       description: "",
       processType: profile?.process_type || itemForm.processType,
       variety: profile?.name || itemForm.variety,
-      priceLoadCop: itemForm.priceInputMode === "load" ? (formatPriceInputValue(profile?.base_price_cop) || itemForm.priceLoadCop) : itemForm.priceLoadCop,
+      priceLoadCop: itemForm.priceInputMode === "load"
+        ? (getProfileLoadPriceByForm(profile, itemForm.productForm) || itemForm.priceLoadCop)
+        : itemForm.priceLoadCop,
+    });
+  };
+
+  const updateItemProductForm = (productForm) => {
+    const selectedProfile = catalogs?.coffeeProfiles?.find((profile) => String(profile.id) === String(itemForm.coffeeProfileId));
+
+    setItemForm({
+      ...itemForm,
+      productForm,
+      packaging: productForm === "Excelso" ? itemForm.packaging : "Empaque tradicional",
+      priceLoadCop: itemForm.priceInputMode === "load"
+        ? (getProfileLoadPriceByForm(selectedProfile, productForm) || "")
+        : itemForm.priceLoadCop,
     });
   };
 
@@ -1747,7 +1787,7 @@ const CommercialPage = () => {
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                   Presentacion
-                  <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.productForm} onChange={(event) => setItemForm({ ...itemForm, productForm: event.target.value, packaging: event.target.value === "Excelso" ? itemForm.packaging : "Empaque tradicional" })}>
+                  <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={itemForm.productForm} onChange={(event) => updateItemProductForm(event.target.value)}>
                     <option value="Excelso">Excelso</option>
                     <option value="Pergamino">Pergamino</option>
                   </select>
@@ -1835,7 +1875,7 @@ const CommercialPage = () => {
                 </label>
                 {itemForm.priceInputMode === "load" ? (
                 <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                  Precio carga COP
+                  Precio carga {itemForm.productForm === "Pergamino" ? "Pergamino" : "Excelso"} COP
                   <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Precio carga en pesos" type="number" step="0.01" value={itemForm.priceLoadCop} onChange={(event) => setItemForm({ ...itemForm, priceLoadCop: event.target.value })} />
                 </label>
                 ) : (
@@ -2421,7 +2461,7 @@ const CommercialPage = () => {
                               </label>
                             ) : (
                               <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-                                Precio carga COP
+                                Precio carga {item.productForm === "Pergamino" ? "Pergamino" : "Excelso"} COP
                                 <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="number" step="1" value={item.priceLoadCop} onChange={(event) => updatePriceListItem(item.id, "priceLoadCop", event.target.value)} />
                               </label>
                             )}

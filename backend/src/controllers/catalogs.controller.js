@@ -401,6 +401,7 @@ export const putCoffeeProfile = async (req, res) => {
       processPercentage,
       basePercentage,
       basePriceCop = 0,
+      basePricePergaminoCop = 0,
       basePriceUsd = 0,
       isActive = true,
       components = [],
@@ -415,12 +416,13 @@ export const putCoffeeProfile = async (req, res) => {
     }
 
     const priceCop = toNumber(basePriceCop);
+    const pricePergaminoCop = toNumber(basePricePergaminoCop);
     const priceUsd = toNumber(basePriceUsd);
     const processPct = toNumber(processPercentage);
     const basePct = toNumber(basePercentage);
     const normalizedComponents = normalizeProfileComponents(components, basePct);
 
-    if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
+    if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(pricePergaminoCop) || pricePergaminoCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
         message: "Los precios base deben ser valores validos mayores o iguales a cero",
       });
@@ -461,6 +463,7 @@ export const putCoffeeProfile = async (req, res) => {
       processPercentage: processPct,
       basePercentage: basePct,
       basePriceCop: priceCop,
+      basePricePergaminoCop: pricePergaminoCop,
       basePriceUsd: priceUsd,
       components: normalizedComponents.components,
       isActive,
@@ -495,6 +498,7 @@ export const postCoffeeProfile = async (req, res) => {
       processPercentage,
       basePercentage,
       basePriceCop = 0,
+      basePricePergaminoCop = 0,
       basePriceUsd = 0,
       components = [],
     } = req.body;
@@ -508,12 +512,13 @@ export const postCoffeeProfile = async (req, res) => {
     }
 
     const priceCop = toNumber(basePriceCop);
+    const pricePergaminoCop = toNumber(basePricePergaminoCop);
     const priceUsd = toNumber(basePriceUsd);
     const processPct = toNumber(processPercentage);
     const basePct = toNumber(basePercentage);
     const normalizedComponents = normalizeProfileComponents(components, basePct);
 
-    if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
+    if (!Number.isFinite(priceCop) || priceCop < 0 || !Number.isFinite(pricePergaminoCop) || pricePergaminoCop < 0 || !Number.isFinite(priceUsd) || priceUsd < 0) {
       return res.status(400).json({
         message: "Los precios base deben ser valores validos mayores o iguales a cero",
       });
@@ -548,6 +553,7 @@ export const postCoffeeProfile = async (req, res) => {
       processPercentage: processPct,
       basePercentage: basePct,
       basePriceCop: priceCop,
+      basePricePergaminoCop: pricePergaminoCop,
       basePriceUsd: priceUsd,
       components: normalizedComponents.components,
     });
