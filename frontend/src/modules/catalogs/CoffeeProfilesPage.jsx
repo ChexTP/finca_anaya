@@ -8,6 +8,7 @@ import { apiRequest } from "../../utils/api";
 const initialProfile = {
   name: "",
   code: "",
+  characterizationNote: "",
   category: "",
   processType: "",
   components: [{ componentType: "purchase", purchaseCoffeeId: "", componentProfileId: "", percentage: "" }],
@@ -151,6 +152,7 @@ const CoffeeProfilesPage = () => {
       const matchesSearch = !term || [
         profile.name,
         profile.internal_code,
+        profile.characterization_note,
         profile.category,
         profile.process_type,
         formatComponentSummary(profile),
@@ -170,6 +172,7 @@ const CoffeeProfilesPage = () => {
     setForm({
       name: profile.name || "",
       code: profile.internal_code || "",
+      characterizationNote: profile.characterization_note || "",
       category: profile.category || "",
       processType: profile.process_type || "",
       components: buildProfileComponents(profile),
@@ -355,6 +358,7 @@ const CoffeeProfilesPage = () => {
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Perfil</th>
+                    <th className="px-4 py-3">Caracterizacion</th>
                     <th className="px-4 py-3">Codigo</th>
                     <th className="px-4 py-3">Categoria</th>
                     <th className="px-4 py-3">Proceso</th>
@@ -369,6 +373,7 @@ const CoffeeProfilesPage = () => {
                   {filteredProfiles.map((profile) => (
                     <tr key={profile.id}>
                       <td className="px-4 py-3 font-medium text-ink">{profile.name}</td>
+                      <td className="px-4 py-3 text-slate-600">{profile.characterization_note || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.internal_code || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.category || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{profile.process_type || "-"}</td>
@@ -441,6 +446,12 @@ const CoffeeProfilesPage = () => {
               placeholder="Codigo interno opcional"
               value={form.code}
               onChange={(event) => setForm({ ...form, code: event.target.value })}
+            />
+            <textarea
+              className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Caracterizacion interna opcional (ej: Sandia)"
+              value={form.characterizationNote}
+              onChange={(event) => setForm({ ...form, characterizationNote: event.target.value })}
             />
             <select
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm"

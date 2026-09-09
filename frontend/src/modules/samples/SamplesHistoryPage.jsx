@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { prepareImageForUpload } from "../../utils/files";
+import { formatCoffeeNameWithCharacterization } from "../../utils/coffeeLots";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -46,7 +47,12 @@ const hasCompleteSampleLabReview = (sample) => {
 };
 
 const formatRequestedCoffee = (item) => {
-  return [item.coffee_type_name, item.coffee_profile_name, item.description]
+  const profileName = formatCoffeeNameWithCharacterization(
+    item.coffee_profile_name,
+    item.coffee_profile_characterization_note
+  );
+
+  return [item.coffee_type_name, profileName, item.description]
     .filter(Boolean)
     .join(" - ") || "Cafe sin especificar";
 };

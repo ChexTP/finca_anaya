@@ -19,6 +19,18 @@ const requiredPurchaseCoffees = [
   ["Geisha Natural", "Varietal", "Natural"],
 ];
 
+let coffeeProfilesCharacterizationNotePromise = null;
+
+export const ensureCoffeeProfilesCharacterizationNoteColumn = async () => {
+  if (!coffeeProfilesCharacterizationNotePromise) {
+    coffeeProfilesCharacterizationNotePromise = pool.query(
+      "ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS characterization_note TEXT"
+    );
+  }
+
+  return coffeeProfilesCharacterizationNotePromise;
+};
+
 const ensureNamedCatalogRows = async (tableName, names) => {
   for (const name of names) {
     await pool.query(
@@ -34,6 +46,7 @@ const ensureNamedCatalogRows = async (tableName, names) => {
 };
 
 export const ensureRequiredCatalogs = async () => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
   await ensureNamedCatalogRows("coffee_types", requiredCoffeeTypes);
   await ensureNamedCatalogRows("coffee_presentations", requiredCoffeePresentations);
   await ensureNamedCatalogRows("payment_methods", requiredPaymentMethods);
@@ -109,6 +122,10 @@ export const updateSimpleCatalogItem = async (tableName, id, { name, isActive = 
 };
 
 export const listCatalog = async (tableName) => {
+  if (tableName === "coffee_profiles") {
+    await ensureCoffeeProfilesCharacterizationNoteColumn();
+  }
+
   const orderBy = ["purchase_coffees", "coffee_profiles"].includes(tableName)
     ? "created_at DESC, id DESC"
     : "name ASC";
@@ -126,6 +143,8 @@ export const listCatalog = async (tableName) => {
 };
 
 export const listCoffeeProfilesForAdmin = async () => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const result = await pool.query(
     `
     SELECT
@@ -244,6 +263,7 @@ export const deletePurchaseCoffee = async (id) => {
 export const createCoffeeProfile = async ({
   name,
   code,
+  characterizationNote,
   category,
   processType,
   processPurchaseCoffeeId,
@@ -264,6 +284,7 @@ export const createCoffeeProfile = async ({
       INSERT INTO coffee_profiles (
         name,
         internal_code,
+        characterization_note,
         category,
         process_type,
         process_purchase_coffee_id,
@@ -273,12 +294,13 @@ export const createCoffeeProfile = async ({
         base_price_cop,
         base_price_usd
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
       `,
       [
         name,
         code,
+        characterizationNote,
         category,
         processType,
         processPurchaseCoffeeId,
@@ -308,6 +330,7 @@ export const updateCoffeeProfile = async (
   {
     name,
     code,
+    characterizationNote,
     category,
     processType,
     processPurchaseCoffeeId,
@@ -331,22 +354,24 @@ export const updateCoffeeProfile = async (
       SET
         name = $1,
         internal_code = $2,
-        category = $3,
-        process_type = $4,
-        process_purchase_coffee_id = $5,
-        base_purchase_coffee_id = $6,
-        process_percentage = $7,
-        base_percentage = $8,
-        base_price_cop = $9,
-        base_price_usd = $10,
-        is_active = $11,
+        characterization_note = $3,
+        category = $4,
+        process_type = $5,
+        process_purchase_coffee_id = $6,
+        base_purchase_coffee_id = $7,
+        process_percentage = $8,
+        base_percentage = $9,
+        base_price_cop = $10,
+        base_price_usd = $11,
+        is_active = $12,
         updated_at = NOW()
-      WHERE id = $12
+      WHERE id = $13
       RETURNING *
       `,
       [
         name,
         code,
+        characterizationNote,
         category,
         processType,
         processPurchaseCoffeeId,

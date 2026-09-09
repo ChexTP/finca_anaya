@@ -1,8 +1,10 @@
 import { pool } from "../db.js";
+import { ensureCoffeeProfilesCharacterizationNoteColumn } from "./catalogs.model.js";
 import { ensureInventoryReservationsTable } from "./inventoryReservations.model.js";
 
 export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId }) => {
   await ensureInventoryReservationsTable();
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
 
   const params = [];
   const conditions = ["coffee_lots.available_weight_kg > 0", "coffee_lots.status <> 'retirado'"];
@@ -86,6 +88,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       origin_process.code AS origin_process_code,
       origin_process.process_type AS origin_process_type,
       origin_process.process_location AS origin_process_location
@@ -105,7 +108,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
       GROUP BY lot_id
     ) manual_reservations ON manual_reservations.lot_id = coffee_lots.id
     WHERE ${conditions.join(" AND ")}
-    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name, coffee_profiles.internal_code, origin_process.code, origin_process.process_type, origin_process.process_location, manual_reservations.reserved_kg
+    GROUP BY coffee_lots.id, suppliers.name, coffee_types.name, coffee_profiles.name, coffee_profiles.internal_code, coffee_profiles.characterization_note, origin_process.code, origin_process.process_type, origin_process.process_location, manual_reservations.reserved_kg
     ORDER BY coffee_lots.created_at ASC
     `,
     params
@@ -116,6 +119,7 @@ export const listAvailableLots = async ({ status, coffeeTypeId, coffeeProfileId 
 
 export const getGroupedInventory = async () => {
   await ensureInventoryReservationsTable();
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
 
   const result = await pool.query(
     `
@@ -132,8 +136,10 @@ export const getGroupedInventory = async () => {
         WHEN coffee_lots.lot_kind = 'PROC' THEN
           CASE
             WHEN coffee_lots.process_variant = 'ensamblado'
-              THEN 'Proceso ensamblado - ' || CONCAT_WS(' ', NULLIF(coffee_profiles.internal_code, ''), COALESCE(coffee_profiles.name, 'Sin perfil'))
-            ELSE 'Proceso normal - ' || CONCAT_WS(' ', NULLIF(coffee_profiles.internal_code, ''), COALESCE(coffee_profiles.name, 'Sin perfil'))
+              THEN 'Proceso ensamblado - ' || CONCAT_WS(' ', NULLIF(coffee_profiles.internal_code, ''), COALESCE(coffee_profiles.name, 'Sin perfil')) ||
+                CASE WHEN NULLIF(TRIM(COALESCE(coffee_profiles.characterization_note, '')), '') IS NULL THEN '' ELSE ' (' || TRIM(coffee_profiles.characterization_note) || ')' END
+            ELSE 'Proceso normal - ' || CONCAT_WS(' ', NULLIF(coffee_profiles.internal_code, ''), COALESCE(coffee_profiles.name, 'Sin perfil')) ||
+                CASE WHEN NULLIF(TRIM(COALESCE(coffee_profiles.characterization_note, '')), '') IS NULL THEN '' ELSE ' (' || TRIM(coffee_profiles.characterization_note) || ')' END
           END
         ELSE coffee_lots.presentation || ' - ' || COALESCE(coffee_types.name, 'Sin tipo')
       END AS group_name,
@@ -174,6 +180,8 @@ export const getGroupedInventory = async () => {
 };
 
 export const listInventoryInProcess = async () => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const result = await pool.query(
     `
     SELECT
@@ -200,7 +208,8 @@ export const listInventoryInProcess = async () => {
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
-      coffee_profiles.internal_code AS coffee_profile_code
+      coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note
     FROM coffee_process_inputs
     INNER JOIN coffee_processes ON coffee_processes.id = coffee_process_inputs.process_id
     INNER JOIN coffee_lots ON coffee_lots.id = coffee_process_inputs.lot_id
@@ -340,6 +349,8 @@ export const releaseInventoryReservation = async ({ reservationId, userId }) => 
 };
 
 export const listSampleInventoryOutputs = async () => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const result = await pool.query(
     `
     SELECT
@@ -354,6 +365,7 @@ export const listSampleInventoryOutputs = async () => {
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       users.name AS created_by_name
     FROM inventory_movements
     INNER JOIN coffee_lots ON coffee_lots.id = inventory_movements.lot_id
@@ -387,6 +399,8 @@ export const listFarmShipments = async () => {
 };
 
 export const listFarmProcessInputShipments = async () => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const result = await pool.query(
     `
     SELECT
@@ -421,6 +435,7 @@ export const listFarmProcessInputShipments = async () => {
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       received_user.name AS received_by_name
     FROM coffee_process_inputs
     INNER JOIN coffee_processes ON coffee_processes.id = coffee_process_inputs.process_id
@@ -438,6 +453,8 @@ export const listFarmProcessInputShipments = async () => {
 };
 
 export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const client = await pool.connect();
 
   try {
@@ -450,7 +467,8 @@ export const sendLotToFarm = async ({ lotId, quantityKg, userId }) => {
         suppliers.name AS supplier_name,
         coffee_types.name AS coffee_type_name,
         coffee_profiles.name AS coffee_profile_name,
-        coffee_profiles.internal_code AS coffee_profile_code
+        coffee_profiles.internal_code AS coffee_profile_code,
+        coffee_profiles.characterization_note AS coffee_profile_characterization_note
       FROM coffee_lots
       LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
       LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id

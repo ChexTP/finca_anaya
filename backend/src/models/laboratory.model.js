@@ -1,6 +1,9 @@
 import { pool } from "../db.js";
+import { ensureCoffeeProfilesCharacterizationNoteColumn } from "./catalogs.model.js";
 
 export const listLaboratoryHistory = async () => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const lotsResult = await pool.query(
     `
     SELECT
@@ -21,6 +24,8 @@ export const listLaboratoryHistory = async () => {
       coffee_lots.lab_reviewed_at,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       users.name AS reviewed_by_name
     FROM coffee_lots
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id
@@ -40,6 +45,8 @@ export const listLaboratoryHistory = async () => {
         coffee_process_outputs.id AS process_output_id,
         coffee_process_outputs.output_lot_id,
         coffee_profiles.name AS coffee_profile_name,
+        coffee_profiles.internal_code AS coffee_profile_code,
+        coffee_profiles.characterization_note AS coffee_profile_characterization_note,
         coffee_process_outputs.output_weight_kg,
         coffee_process_outputs.humidity_percent,
         coffee_process_outputs.performance_factor
@@ -53,6 +60,8 @@ export const listLaboratoryHistory = async () => {
         NULL::integer AS process_output_id,
         coffee_processes.output_lot_id,
         coffee_profiles.name AS coffee_profile_name,
+        coffee_profiles.internal_code AS coffee_profile_code,
+        coffee_profiles.characterization_note AS coffee_profile_characterization_note,
         coffee_processes.output_weight_kg,
         coffee_processes.physical_humidity_percent,
         coffee_processes.physical_performance_factor
@@ -81,6 +90,8 @@ export const listLaboratoryHistory = async () => {
             'output_lot_id', output_lots.id,
             'output_lot_code', output_lots.code,
             'coffee_profile_name', process_output_rows.coffee_profile_name,
+            'coffee_profile_code', process_output_rows.coffee_profile_code,
+            'coffee_profile_characterization_note', process_output_rows.coffee_profile_characterization_note,
             'output_weight_kg', process_output_rows.output_weight_kg,
             'humidity_percent', process_output_rows.humidity_percent,
             'performance_factor', process_output_rows.performance_factor,

@@ -8,6 +8,7 @@ import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
 import { printable } from "../../utils/printFormatting";
+import { formatCoffeeNameWithCharacterization } from "../../utils/coffeeLots";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -90,7 +91,8 @@ const statusOrder = {
 
 const formatProfileOptionLabel = (profile) => {
   const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
-  return [code, profile?.name].filter(Boolean).join(" - ");
+  const name = formatCoffeeNameWithCharacterization(profile?.name, profile?.characterization_note || profile?.coffee_profile_characterization_note);
+  return [code, name].filter(Boolean).join(" - ");
 };
 
 const getProfileCodeSortValue = (profile) => {
@@ -186,7 +188,11 @@ const buildSampleItemLabSummary = (item) => {
 };
 
 const formatRequestedCoffee = (item) => {
-  const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
+  const profileName = formatCoffeeNameWithCharacterization(
+    item.coffee_profile_name,
+    item.coffee_profile_characterization_note
+  );
+  const details = [item.coffee_type_name, profileName, item.description].filter(Boolean);
   return printable([...new Set(details)].join(" - ") || "Cafe sin especificar");
 };
 
@@ -545,7 +551,7 @@ const SamplesPage = () => {
         description: form.description || null,
         coffeeName: [
           catalogs?.coffeeTypes?.find((type) => String(type.id) === String(form.coffeeTypeId))?.name,
-          catalogs?.coffeeProfiles?.find((profile) => String(profile.id) === String(form.coffeeProfileId))?.name,
+          formatProfileOptionLabel(catalogs?.coffeeProfiles?.find((profile) => String(profile.id) === String(form.coffeeProfileId))),
           form.description,
         ].filter(Boolean).join(" - "),
         quantityGrams: Number(form.quantityGrams),

@@ -18,11 +18,27 @@ export const cleanProcessLabNotes = (notes = "") => {
   return String(notes || "").replace(/^\s*Intensidad:\s*(Alta|Media|Baja|-)\s*\n?/i, "").trim();
 };
 
+export const getCoffeeProfileCharacterizationNote = (lot = {}) => (
+  String(lot?.coffee_profile_characterization_note || lot?.characterization_note || "").trim()
+);
+
+export const formatCoffeeNameWithCharacterization = (name, note) => {
+  const cleanName = String(name || "").trim();
+  const cleanNote = String(note || "").trim();
+
+  if (!cleanName || !cleanNote) return cleanName;
+  if (cleanName.toLowerCase().includes(cleanNote.toLowerCase())) return cleanName;
+
+  return `${cleanName} (${cleanNote})`;
+};
+
 export const formatCoffeeNameWithCode = (lot, fallback = "Cafe sin clasificar") => {
   const profileName = String(lot?.coffee_profile_name || "").trim();
   const profileCode = String(lot?.coffee_profile_code || lot?.internal_code || "").trim();
   const genericName = String(lot?.coffee_variety || lot?.purchase_coffee_name || lot?.commercial_classification || lot?.coffee_type_name || "").trim();
-  const name = profileName || genericName;
+  const name = profileName
+    ? formatCoffeeNameWithCharacterization(profileName, getCoffeeProfileCharacterizationNote(lot))
+    : genericName;
 
   if (!name && profileCode) return profileCode;
   if (!name) return fallback;

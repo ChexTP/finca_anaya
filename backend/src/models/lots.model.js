@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { ensureCoffeeProfilesCharacterizationNoteColumn } from "./catalogs.model.js";
 import { getNextCode } from "./codeCounters.model.js";
 
 export const findPackagingTypeById = async (id) => {
@@ -12,6 +13,8 @@ export const findCoffeeTypeById = async (id) => {
 };
 
 export const findCoffeeProfileById = async (id) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const result = await pool.query("SELECT * FROM coffee_profiles WHERE id = $1 LIMIT 1", [id]);
   return result.rows[0];
 };
@@ -254,6 +257,8 @@ const markLotPayableAsPaid = async ({ client, lot, paymentData }) => {
 };
 
 export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const params = [];
   const conditions = [];
 
@@ -300,6 +305,7 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       purchase_coffees.id AS purchase_coffee_id,
       purchase_coffees.name AS purchase_coffee_name,
       purchase_coffees.base_price_factor90_cop AS purchase_base_price_factor90_cop,
@@ -323,6 +329,8 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
 };
 
 export const findLotById = async (id) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const result = await pool.query(
     `
     SELECT
@@ -335,6 +343,7 @@ export const findLotById = async (id) => {
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       purchase_coffees.id AS purchase_coffee_id,
       purchase_coffees.name AS purchase_coffee_name,
       purchase_coffees.base_price_factor90_cop AS purchase_base_price_factor90_cop,

@@ -334,6 +334,12 @@ const toNumber = (value) => {
   return Number(value);
 };
 
+const toText = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text || null;
+};
+
 const normalizeProfileComponents = (components = [], basePercentage = null) => {
   if (!Array.isArray(components)) {
     return { error: "Los componentes deben enviarse como una lista" };
@@ -387,6 +393,7 @@ export const putCoffeeProfile = async (req, res) => {
     const {
       name,
       code,
+      characterizationNote,
       category,
       processType,
       processPurchaseCoffeeId,
@@ -446,6 +453,7 @@ export const putCoffeeProfile = async (req, res) => {
     const updatedProfile = await updateCoffeeProfile(req.params.id, {
       name,
       code: code || null,
+      characterizationNote: toText(characterizationNote),
       category: category || null,
       processType: processType || null,
       processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,
@@ -479,6 +487,7 @@ export const postCoffeeProfile = async (req, res) => {
     const {
       name,
       code,
+      characterizationNote,
       category,
       processType,
       processPurchaseCoffeeId,
@@ -531,6 +540,7 @@ export const postCoffeeProfile = async (req, res) => {
     const profile = await createCoffeeProfile({
       name,
       code: code || null,
+      characterizationNote: toText(characterizationNote),
       category: category || null,
       processType: processType || null,
       processPurchaseCoffeeId: firstComponent?.purchaseCoffeeId || processPurchaseCoffeeId || null,

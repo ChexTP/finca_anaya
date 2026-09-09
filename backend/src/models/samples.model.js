@@ -1,11 +1,14 @@
 import { pool } from "../db.js";
 import { getNextCode } from "./codeCounters.model.js";
+import { ensureCoffeeProfilesCharacterizationNoteColumn } from "./catalogs.model.js";
 
 export const getNextSampleCode = async () => {
   return getNextCode({ prefix: "MUE", tableName: "sample_requests" });
 };
 
 export const listSampleRequests = async ({ createdBy, status }) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const params = [];
   const conditions = [];
 
@@ -27,6 +30,8 @@ export const listSampleRequests = async ({ createdBy, status }) => {
       sample_requests.*,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       created_user.name AS created_by_name,
       handled_user.name AS handled_by_name
     FROM sample_requests
@@ -44,12 +49,16 @@ export const listSampleRequests = async ({ createdBy, status }) => {
 };
 
 export const findSampleRequestById = async (id) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const result = await pool.query(
     `
     SELECT
       sample_requests.*,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       created_user.name AS created_by_name,
       handled_user.name AS handled_by_name
     FROM sample_requests
@@ -69,13 +78,16 @@ export const findSampleRequestById = async (id) => {
 
 const attachSampleItems = async (samples) => {
   if (samples.length === 0) return samples;
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
 
   const result = await pool.query(
     `
     SELECT
       sample_request_items.*,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note
     FROM sample_request_items
     LEFT JOIN coffee_types ON coffee_types.id = sample_request_items.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sample_request_items.coffee_profile_id
@@ -95,7 +107,9 @@ const attachSampleItems = async (samples) => {
       coffee_lots.commercial_classification,
       coffee_lots.coffee_variety,
       coffee_types.name AS coffee_type_name,
-      coffee_profiles.name AS coffee_profile_name
+      coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note
     FROM sample_item_blends
     LEFT JOIN coffee_lots ON coffee_lots.id = sample_item_blends.lot_id
     LEFT JOIN coffee_types ON coffee_types.id = coffee_lots.coffee_type_id

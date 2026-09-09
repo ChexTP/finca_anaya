@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { ensureCoffeeProfilesCharacterizationNoteColumn } from "./catalogs.model.js";
 import { getNextCode, reserveNextCodes } from "./codeCounters.model.js";
 
 const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
@@ -97,6 +98,8 @@ export const getNextProcessCode = async () => {
 };
 
 export const listProcesses = async ({ status, processType }) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const params = [];
   const conditions = [];
 
@@ -124,6 +127,8 @@ export const listProcesses = async ({ status, processType }) => {
       sale_clients.name AS sale_client_name,
       output_lot.code AS output_lot_code,
       output_profile.name AS output_lot_profile_name,
+      output_profile.internal_code AS output_lot_profile_code,
+      output_profile.characterization_note AS output_lot_profile_characterization_note,
       users.name AS created_by_name,
       COALESCE(
         (
@@ -151,6 +156,8 @@ export const listProcesses = async ({ status, processType }) => {
               END,
               'coffee_type_name', coffee_types.name,
               'coffee_profile_name', coffee_profiles.name,
+              'coffee_profile_code', coffee_profiles.internal_code,
+              'coffee_profile_characterization_note', coffee_profiles.characterization_note,
               'supplier_name', suppliers.name,
               'commercial_classification', coffee_lots.commercial_classification
             )
@@ -176,6 +183,7 @@ export const listProcesses = async ({ status, processType }) => {
               'coffee_profile_id', coffee_process_outputs.coffee_profile_id,
               'coffee_profile_name', coffee_profiles.name,
               'coffee_profile_code', coffee_profiles.internal_code,
+              'coffee_profile_characterization_note', coffee_profiles.characterization_note,
               'purchase_coffee_id', coffee_process_outputs.purchase_coffee_id,
               'purchase_coffee_name', purchase_coffees.name,
               'coffee_type_id', coffee_process_outputs.coffee_type_id,
@@ -225,6 +233,8 @@ export const listProcesses = async ({ status, processType }) => {
 };
 
 export const findProcessById = async (id) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const processResult = await pool.query(
     `
     SELECT
@@ -237,6 +247,8 @@ export const findProcessById = async (id) => {
       sale_clients.name AS sale_client_name,
       output_lot.code AS output_lot_code,
       output_profile.name AS output_lot_profile_name,
+      output_profile.internal_code AS output_lot_profile_code,
+      output_profile.characterization_note AS output_lot_profile_characterization_note,
       users.name AS created_by_name
     FROM coffee_processes
     LEFT JOIN quotes ON quotes.id = coffee_processes.quote_id
@@ -276,6 +288,8 @@ export const findProcessById = async (id) => {
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
       coffee_profiles.name AS coffee_profile_name,
+      coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       CASE
         WHEN coffee_processes.total_input_kg > 0
         THEN ROUND((coffee_process_inputs.quantity_kg / coffee_processes.total_input_kg * 100)::numeric, 2)
@@ -299,6 +313,7 @@ export const findProcessById = async (id) => {
       coffee_process_outputs.*,
       coffee_profiles.name AS coffee_profile_name,
       coffee_profiles.internal_code AS coffee_profile_code,
+      coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       purchase_coffees.name AS purchase_coffee_name,
       coffee_types.name AS coffee_type_name,
       output_lots.code AS output_lot_code
@@ -1077,6 +1092,8 @@ export const completeProcessPhysicalReview = async ({
 };
 
 export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
+  await ensureCoffeeProfilesCharacterizationNoteColumn();
+
   const client = await pool.connect();
 
   try {
@@ -1117,7 +1134,8 @@ export const finishProcess = async ({ processId, outputLot, finalizedBy }) => {
       SELECT
       coffee_process_outputs.*,
         coffee_profiles.name AS coffee_profile_name,
-        coffee_profiles.internal_code AS coffee_profile_code
+        coffee_profiles.internal_code AS coffee_profile_code,
+        coffee_profiles.characterization_note AS coffee_profile_characterization_note
       FROM coffee_process_outputs
       INNER JOIN coffee_profiles ON coffee_profiles.id = coffee_process_outputs.coffee_profile_id
       WHERE coffee_process_outputs.process_id = $1

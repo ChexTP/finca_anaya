@@ -4,7 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
-import { cleanProcessLabNotes, formatCoffeeLotCodeName, getProcessIntensityFromNotes, processIntensityOptions } from "../../utils/coffeeLots";
+import { cleanProcessLabNotes, formatCoffeeLotCodeName, formatCoffeeNameWithCharacterization, getProcessIntensityFromNotes, processIntensityOptions } from "../../utils/coffeeLots";
 import { getProcessNextAction, getProcessStatusTone, getSaleStatusTone, lotStatusLabels, processStatusLabels, saleStatusLabels } from "../../utils/workflow";
 
 const initialReview = {
@@ -88,7 +88,8 @@ const cuppingFields = [
 
 const formatProfileOptionLabel = (profile) => {
   const code = profile?.internal_code || profile?.coffee_profile_code || profile?.code;
-  return [code, profile?.name].filter(Boolean).join(" - ");
+  const name = formatCoffeeNameWithCharacterization(profile?.name, profile?.characterization_note || profile?.coffee_profile_characterization_note);
+  return [code, name].filter(Boolean).join(" - ");
 };
 
 const processFilters = [
@@ -96,11 +97,18 @@ const processFilters = [
 ];
 
 const formatInputLabel = (input) => {
-  return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
+  return formatCoffeeNameWithCharacterization(
+    input.coffee_profile_name,
+    input.coffee_profile_characterization_note
+  ) || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
 
 const formatRequestedCoffee = (item = {}) => {
-  const details = [item.coffee_type_name, item.coffee_profile_name, item.description].filter(Boolean);
+  const profileName = formatCoffeeNameWithCharacterization(
+    item.coffee_profile_name,
+    item.coffee_profile_characterization_note
+  );
+  const details = [item.coffee_type_name, profileName, item.description].filter(Boolean);
   return [...new Set(details)].join(" - ") || "Cafe sin especificar";
 };
 
