@@ -28,6 +28,16 @@ const getDefinitionByPrefix = (prefix) => {
   return codeCounterDefinitions.find((definition) => definition.prefix === prefix);
 };
 
+const getCurrentNextNumber = ({ counterGroup, counters = [] }) => {
+  const canonicalCounter = counters.find((counter) => counter.prefix === counterGroup.counterPrefix);
+
+  if (canonicalCounter) {
+    return Math.max(1, Number(canonicalCounter.next_number || 1));
+  }
+
+  return Math.max(1, ...counters.map((counter) => Number(counter.next_number || 1)));
+};
+
 const getLastUsedNumber = async ({ prefix, tableName, year, client = pool }) => {
   const group = getCounterGroup(prefix);
   const prefixPattern = group.prefixes.join("|");
@@ -84,18 +94,13 @@ export const listCodeCounters = async () => {
     const groupCounters = counterGroup.prefixes
       .map((prefix) => countersByPrefix[prefix])
       .filter(Boolean);
-    const currentNextNumber = Math.max(
-      1,
-      ...groupCounters.map((counter) => Number(counter.next_number || 1))
-    );
+    const currentNextNumber = getCurrentNextNumber({ counterGroup, counters: groupCounters });
     const lastUsedNumber = await getLastUsedNumber({
       prefix: definition.prefix,
       tableName: definition.tableName,
       year,
     });
-    // El consecutivo visible siempre debe respetar los codigos reales existentes.
-    // Esto evita repetir codigos cuando se crea o edita uno manualmente.
-    const nextNumber = Math.max(currentNextNumber, lastUsedNumber + 1);
+    const nextNumber = currentNextNumber;
 
     return {
       ...definition,
@@ -146,14 +151,11 @@ export const getNextCode = async ({ prefix, tableName, client = pool }) => {
   );
 
   const canonicalCounter = counterResult.rows.find((counter) => counter.prefix === counterGroup.counterPrefix);
-  const currentNextNumber = Math.max(
-    1,
-    ...counterResult.rows.map((counter) => Number(counter.next_number || 1))
-  );
-  const lastUsedNumber = await getLastUsedNumber({ prefix, tableName, year, client });
-  let nextNumber = Math.max(currentNextNumber, lastUsedNumber + 1);
+  let nextNumber = getCurrentNextNumber({ counterGroup, counters: counterResult.rows });
 
   // Si administracion configura un numero que ya existe, se avanza al siguiente libre.
+  // No se fuerza contra el mayor historico porque a veces el talonario real
+  // necesita volver a un rango menor despues de una correccion operativa.
   while (await codeExists({ prefix, tableName, year, number: nextNumber, client })) {
     nextNumber += 1;
   }
