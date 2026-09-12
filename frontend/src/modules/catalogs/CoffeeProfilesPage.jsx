@@ -286,8 +286,8 @@ const CoffeeProfilesPage = () => {
   }, [form.components, form.basePercentage]);
 
   const componentProfileOptions = useMemo(() => {
-    return sortProfilesByCodeDesc(profiles.filter((profile) => !selectedProfile || profile.id !== selectedProfile.id));
-  }, [profiles, selectedProfile]);
+    return sortProfilesByCodeDesc(profiles);
+  }, [profiles]);
 
   const removeComponent = (index) => {
     setForm({
