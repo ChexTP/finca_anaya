@@ -1,5 +1,5 @@
 import { pool } from "../db.js";
-import { ensureCoffeeProfilesCharacterizationNoteColumn } from "./catalogs.model.js";
+import { ensureCoffeeProfileExtraColumns } from "./catalogs.model.js";
 import { getNextCode } from "./codeCounters.model.js";
 
 export const findPackagingTypeById = async (id) => {
@@ -13,7 +13,7 @@ export const findCoffeeTypeById = async (id) => {
 };
 
 export const findCoffeeProfileById = async (id) => {
-  await ensureCoffeeProfilesCharacterizationNoteColumn();
+  await ensureCoffeeProfileExtraColumns();
 
   const result = await pool.query("SELECT * FROM coffee_profiles WHERE id = $1 LIMIT 1", [id]);
   return result.rows[0];

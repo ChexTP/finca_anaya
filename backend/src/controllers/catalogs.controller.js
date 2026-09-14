@@ -400,9 +400,9 @@ export const putCoffeeProfile = async (req, res) => {
       basePurchaseCoffeeId,
       processPercentage,
       basePercentage,
-      basePriceCop = 0,
-      basePricePergaminoCop = 0,
-      basePriceUsd = 0,
+      basePriceCop,
+      basePricePergaminoCop,
+      basePriceUsd,
       isActive = true,
       components = [],
     } = req.body;
@@ -415,9 +415,15 @@ export const putCoffeeProfile = async (req, res) => {
       return res.status(400).json({ message: "Proceso comercial no valido" });
     }
 
-    const priceCop = toNumber(basePriceCop);
-    const pricePergaminoCop = toNumber(basePricePergaminoCop);
-    const priceUsd = toNumber(basePriceUsd);
+    const profile = await findCoffeeProfileById(req.params.id);
+
+    if (!profile) {
+      return res.status(404).json({ message: "Perfil comercial no encontrado" });
+    }
+
+    const priceCop = toNumber(Object.hasOwn(req.body, "basePriceCop") ? basePriceCop : profile.base_price_cop);
+    const pricePergaminoCop = toNumber(Object.hasOwn(req.body, "basePricePergaminoCop") ? basePricePergaminoCop : profile.base_price_pergamino_cop);
+    const priceUsd = toNumber(Object.hasOwn(req.body, "basePriceUsd") ? basePriceUsd : profile.base_price_usd);
     const processPct = toNumber(processPercentage);
     const basePct = toNumber(basePercentage);
     const normalizedComponents = normalizeProfileComponents(components, basePct);
@@ -442,12 +448,6 @@ export const putCoffeeProfile = async (req, res) => {
 
     if (basePurchaseCoffeeId && basePct === null) {
       return res.status(400).json({ message: "Indique el porcentaje de la base principal" });
-    }
-
-    const profile = await findCoffeeProfileById(req.params.id);
-
-    if (!profile) {
-      return res.status(404).json({ message: "Perfil comercial no encontrado" });
     }
 
     const firstComponent = normalizedComponents.components.find((component) => component.componentType === "purchase");

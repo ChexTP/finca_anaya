@@ -42,7 +42,7 @@ export const ensureCoffeeProfilesPergaminoPriceColumn = async () => {
   return coffeeProfilesPergaminoPricePromise;
 };
 
-const ensureCoffeeProfileExtraColumns = async () => {
+export const ensureCoffeeProfileExtraColumns = async () => {
   await ensureCoffeeProfilesCharacterizationNoteColumn();
   await ensureCoffeeProfilesPergaminoPriceColumn();
 };

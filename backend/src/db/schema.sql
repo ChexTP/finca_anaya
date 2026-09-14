@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS coffee_profiles (
   process_percentage NUMERIC(5, 2),
   base_percentage NUMERIC(5, 2),
   base_price_cop NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  base_price_pergamino_cop NUMERIC(14, 2) NOT NULL DEFAULT 0,
   base_price_usd NUMERIC(14, 2) NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -280,6 +281,7 @@ ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_purchase_coffee_id 
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_purchase_coffee_id INTEGER REFERENCES purchase_coffees(id);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS process_percentage NUMERIC(5, 2);
 ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_percentage NUMERIC(5, 2);
+ALTER TABLE coffee_profiles ADD COLUMN IF NOT EXISTS base_price_pergamino_cop NUMERIC(14, 2) NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS coffee_profile_components (
   id SERIAL PRIMARY KEY,
   coffee_profile_id INTEGER NOT NULL REFERENCES coffee_profiles(id) ON DELETE CASCADE,
