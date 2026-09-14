@@ -115,6 +115,18 @@ const sortProfilesByCodeDesc = (items) => {
   });
 };
 
+const getProfileExcelsoPrice = (profile) => (
+  profile?.base_price_cop
+  ?? profile?.basePriceCop
+  ?? profile?.price_load_cop
+  ?? profile?.priceLoadCop
+);
+
+const getProfilePergaminoPrice = (profile) => (
+  profile?.base_price_pergamino_cop
+  ?? profile?.basePricePergaminoCop
+);
+
 const CoffeeProfilesPage = () => {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
@@ -179,8 +191,8 @@ const CoffeeProfilesPage = () => {
       components: buildProfileComponents(profile),
       basePurchaseCoffeeId: getBasePurchaseCoffeeId(profile),
       basePercentage: profile.base_percentage || "",
-      basePriceCop: Number(profile.base_price_cop || 0) > 0 ? String(profile.base_price_cop) : "",
-      basePricePergaminoCop: Number(profile.base_price_pergamino_cop || 0) > 0 ? String(profile.base_price_pergamino_cop) : "",
+      basePriceCop: Number(getProfileExcelsoPrice(profile) || 0) > 0 ? String(getProfileExcelsoPrice(profile)) : "",
+      basePricePergaminoCop: Number(getProfilePergaminoPrice(profile) || 0) > 0 ? String(getProfilePergaminoPrice(profile)) : "",
       basePriceUsd: Number(profile.base_price_usd || 0) > 0 ? String(profile.base_price_usd) : "",
       isActive: profile.is_active,
     });
@@ -386,10 +398,10 @@ const CoffeeProfilesPage = () => {
                       </td>
                       <td className="px-4 py-3 text-slate-600">{formatBaseWithPercentage(profile)}</td>
                       <td className="px-4 py-3 text-slate-600">
-                        {Number(profile.base_price_cop || 0) > 0 ? `COP ${Number(profile.base_price_cop).toLocaleString("es-CO")}` : "-"}
+                        {Number(getProfileExcelsoPrice(profile) || 0) > 0 ? `COP ${Number(getProfileExcelsoPrice(profile)).toLocaleString("es-CO")}` : "-"}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
-                        {Number(profile.base_price_pergamino_cop || 0) > 0 ? `COP ${Number(profile.base_price_pergamino_cop).toLocaleString("es-CO")}` : "-"}
+                        {Number(getProfilePergaminoPrice(profile) || 0) > 0 ? `COP ${Number(getProfilePergaminoPrice(profile)).toLocaleString("es-CO")}` : "-"}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge tone={profile.is_active ? "success" : "danger"}>

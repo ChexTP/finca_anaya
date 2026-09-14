@@ -207,12 +207,24 @@ const formatPriceInputValue = (value) => {
   return numericValue > 0 ? String(Math.round(numericValue)) : "";
 };
 
+const getProfileExcelsoLoadPrice = (profile) => (
+  profile?.base_price_cop
+  ?? profile?.basePriceCop
+  ?? profile?.price_load_cop
+  ?? profile?.priceLoadCop
+);
+
+const getProfilePergaminoLoadPrice = (profile) => (
+  profile?.base_price_pergamino_cop
+  ?? profile?.basePricePergaminoCop
+);
+
 const getProfileLoadPriceByForm = (profile, productForm) => {
   if (!profile) return "";
   const form = String(productForm || "Excelso").toLowerCase();
   const price = form === "pergamino"
-    ? profile.base_price_pergamino_cop
-    : profile.base_price_cop;
+    ? getProfilePergaminoLoadPrice(profile)
+    : getProfileExcelsoLoadPrice(profile);
 
   return formatPriceInputValue(price);
 };
