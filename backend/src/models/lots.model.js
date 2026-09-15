@@ -257,7 +257,7 @@ const markLotPayableAsPaid = async ({ client, lot, paymentData }) => {
 };
 
 export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
-  await ensureCoffeeProfilesCharacterizationNoteColumn();
+  await ensureCoffeeProfileExtraColumns();
 
   const params = [];
   const conditions = [];
@@ -329,7 +329,7 @@ export const listLots = async ({ status, supplierId, coffeeTypeId }) => {
 };
 
 export const findLotById = async (id) => {
-  await ensureCoffeeProfilesCharacterizationNoteColumn();
+  await ensureCoffeeProfileExtraColumns();
 
   const result = await pool.query(
     `
