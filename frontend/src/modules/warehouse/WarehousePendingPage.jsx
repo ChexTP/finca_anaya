@@ -157,7 +157,7 @@ const WarehousePendingPage = () => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const canDeleteOrders = user?.role === "admin";
+  const canDeleteOrders = ["admin", "inventory_viewer"].includes(user?.role);
 
   useEffect(() => {
     setDispatchReceiptFile(null);

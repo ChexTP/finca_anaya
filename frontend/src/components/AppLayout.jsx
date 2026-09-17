@@ -30,6 +30,7 @@ const navigation = [
   { label: "Recepcion", path: "/bodega", icon: Boxes, roles: ["admin", "warehouse"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "accounting", "warehouse", "samples", "inventory_viewer"] },
   { label: "Liquidaciones", path: "/liquidaciones", icon: ReceiptText, roles: ["admin", "accounting", "inventory_viewer"] },
+  { label: "Ordenes de compra", path: "/ordenes-compra", icon: ReceiptText, roles: ["admin", "accounting", "inventory_viewer"] },
   { label: "Salidas a muestras", path: "/inventario/muestras", icon: FileText, roles: ["admin", "accounting", "warehouse", "samples", "inventory_viewer"] },
   { label: "Lotes en finca", path: "/inventario/finca", icon: Coffee, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Editar inventario", path: "/inventario/editar", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },

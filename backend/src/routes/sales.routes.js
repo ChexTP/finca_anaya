@@ -42,7 +42,7 @@ router.delete(
   deleteSaleLotAssignment
 );
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "warehouse", "seller", "laboratory", "inventory_viewer"), getSale);
-router.delete("/:id", requireAuth, requireRoles("admin"), deleteSale);
+router.delete("/:id", requireAuth, requireRoles("admin", "inventory_viewer"), deleteSale);
 router.put("/:id/code", requireAuth, requireRoles("admin", "accounting"), putSaleCode);
 router.post(
   "/from-quote/:quoteId",

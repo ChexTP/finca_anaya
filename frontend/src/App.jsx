@@ -253,7 +253,7 @@ const App = () => {
         <Route
           path="/ordenes-compra"
           element={
-            <ProtectedRoute roles={["admin", "accounting"]}>
+            <ProtectedRoute roles={["admin", "accounting", "inventory_viewer"]}>
               <PayablesPage />
             </ProtectedRoute>
           }
