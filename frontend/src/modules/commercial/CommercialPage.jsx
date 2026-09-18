@@ -383,7 +383,7 @@ const CommercialPage = () => {
   const editQuoteIdFromUrl = searchParams.get("editQuoteId");
 
   const canConvertToSale = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
-  const canDeleteRecords = user?.role === "admin";
+  const canDeleteRecords = ["admin", "inventory_viewer"].includes(user?.role);
   const termInputClass = "rounded border border-amber-200 bg-white px-3 py-2 text-sm font-normal normal-case text-ink";
   const termLabelClass = "grid gap-1 text-xs font-semibold uppercase text-amber-900";
   const salesCoffeeProfiles = useMemo(() => (
