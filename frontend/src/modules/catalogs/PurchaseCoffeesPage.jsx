@@ -147,59 +147,61 @@ const PurchaseCoffeesPage = () => {
               <EmptyState title="Sin perfiles" message="Los cafes para compra apareceran aqui." />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Cafe</th>
-                    <th className="px-4 py-3">Familia</th>
-                    <th className="px-4 py-3">Proceso</th>
-                    <th className="px-4 py-3">Precio carga</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3 text-right">Accion</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {coffees.map((coffee) => (
-                    <tr key={coffee.id}>
-                      <td className="px-4 py-3 font-medium text-ink">{coffee.name}</td>
-                      <td className="px-4 py-3 text-slate-600">{coffee.family}</td>
-                      <td className="px-4 py-3 text-slate-600">{coffee.process_type}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {Number(coffee.base_price_factor90_cop || 0) > 0
-                          ? `COP ${Number(coffee.base_price_factor90_cop).toLocaleString("es-CO")}`
-                          : "COP 0"}
-                      </td>
-                      <td className="px-4 py-3">
+            <div className="divide-y divide-slate-100">
+              {coffees.map((coffee) => (
+                <article key={coffee.id} className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="max-w-full break-words font-semibold text-ink">{coffee.name}</h3>
                         <StatusBadge tone={coffee.is_active ? "success" : "danger"}>
                           {coffee.is_active ? "activo" : "inactivo"}
                         </StatusBadge>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
-                            onClick={() => selectCoffee(coffee)}
-                            type="button"
-                          >
-                            Editar
-                          </button>
-                          {user?.role === "admin" && (
-                            <button
-                              className="inline-flex items-center gap-1 rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                              onClick={() => deleteCoffee(coffee)}
-                              type="button"
-                            >
-                              <Trash2 size={14} />
-                              Eliminar
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {[coffee.family, coffee.process_type].filter(Boolean).join(" · ") || "Sin familia o proceso"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 justify-end gap-2">
+                      <button
+                        className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                        onClick={() => selectCoffee(coffee)}
+                        type="button"
+                      >
+                        Editar
+                      </button>
+                      {user?.role === "admin" && (
+                        <button
+                          className="inline-flex items-center gap-1 rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                          onClick={() => deleteCoffee(coffee)}
+                          type="button"
+                        >
+                          <Trash2 size={14} />
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <dl className="mt-3 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+                    <div>
+                      <dt className="font-semibold uppercase text-slate-500">Familia</dt>
+                      <dd className="mt-0.5 text-slate-700">{coffee.family || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold uppercase text-slate-500">Proceso</dt>
+                      <dd className="mt-0.5 text-slate-700">{coffee.process_type || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold uppercase text-slate-500">Precio carga</dt>
+                      <dd className="mt-0.5 text-slate-700">
+                        {Number(coffee.base_price_factor90_cop || 0) > 0
+                          ? `COP ${Number(coffee.base_price_factor90_cop).toLocaleString("es-CO")}`
+                          : "COP 0"}
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
             </div>
           )}
         </div>

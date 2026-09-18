@@ -368,71 +368,69 @@ const CoffeeProfilesPage = () => {
               <EmptyState title="Sin perfiles" message="No hay perfiles para los filtros seleccionados." />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Perfil</th>
-                    <th className="px-4 py-3">Caracterizacion</th>
-                    <th className="px-4 py-3">Codigo</th>
-                    <th className="px-4 py-3">Categoria</th>
-                    <th className="px-4 py-3">Proceso</th>
-                    <th className="px-4 py-3">Componentes</th>
-                    <th className="px-4 py-3">Base principal</th>
-                    <th className="px-4 py-3">Precio excelso</th>
-                    <th className="px-4 py-3">Precio pergamino</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3 text-right">Accion</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredProfiles.map((profile) => (
-                    <tr key={profile.id}>
-                      <td className="px-4 py-3 font-medium text-ink">{profile.name}</td>
-                      <td className="px-4 py-3 text-slate-600">{profile.characterization_note || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{profile.internal_code || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{profile.category || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{profile.process_type || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {formatComponentSummary(profile)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{formatBaseWithPercentage(profile)}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {Number(getProfileExcelsoPrice(profile) || 0) > 0 ? `COP ${Number(getProfileExcelsoPrice(profile)).toLocaleString("es-CO")}` : "-"}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {Number(getProfilePergaminoPrice(profile) || 0) > 0 ? `COP ${Number(getProfilePergaminoPrice(profile)).toLocaleString("es-CO")}` : "-"}
-                      </td>
-                      <td className="px-4 py-3">
+            <div className="divide-y divide-slate-100">
+              {filteredProfiles.map((profile) => (
+                <article key={profile.id} className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="max-w-full break-words font-semibold text-ink">{profile.name}</h3>
                         <StatusBadge tone={profile.is_active ? "success" : "danger"}>
                           {profile.is_active ? "activo" : "inactivo"}
                         </StatusBadge>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
-                            onClick={() => selectProfile(profile)}
-                            type="button"
-                          >
-                            Editar
-                          </button>
-                          {user?.role === "admin" && (
-                            <button
-                              className="inline-flex items-center gap-1 rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                              onClick={() => deleteProfile(profile)}
-                              type="button"
-                            >
-                              <Trash2 size={14} />
-                              Eliminar
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {[profile.internal_code, profile.category, profile.process_type].filter(Boolean).join(" · ") || "Sin codigo o categoria"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 justify-end gap-2">
+                      <button
+                        className="rounded border border-leaf px-3 py-1 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                        onClick={() => selectProfile(profile)}
+                        type="button"
+                      >
+                        Editar
+                      </button>
+                      {user?.role === "admin" && (
+                        <button
+                          className="inline-flex items-center gap-1 rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                          onClick={() => deleteProfile(profile)}
+                          type="button"
+                        >
+                          <Trash2 size={14} />
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <dl className="mt-3 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2 2xl:grid-cols-3">
+                    <div className="min-w-0">
+                      <dt className="font-semibold uppercase text-slate-500">Caracterizacion</dt>
+                      <dd className="mt-0.5 break-words text-slate-700">{profile.characterization_note || "-"}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="font-semibold uppercase text-slate-500">Componentes</dt>
+                      <dd className="mt-0.5 break-words text-slate-700">{formatComponentSummary(profile)}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="font-semibold uppercase text-slate-500">Base principal</dt>
+                      <dd className="mt-0.5 break-words text-slate-700">{formatBaseWithPercentage(profile)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold uppercase text-slate-500">Precio excelso</dt>
+                      <dd className="mt-0.5 text-slate-700">
+                        {Number(getProfileExcelsoPrice(profile) || 0) > 0 ? `COP ${Number(getProfileExcelsoPrice(profile)).toLocaleString("es-CO")}` : "-"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold uppercase text-slate-500">Precio pergamino</dt>
+                      <dd className="mt-0.5 text-slate-700">
+                        {Number(getProfilePergaminoPrice(profile) || 0) > 0 ? `COP ${Number(getProfilePergaminoPrice(profile)).toLocaleString("es-CO")}` : "-"}
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
             </div>
           )}
         </div>
