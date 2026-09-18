@@ -418,14 +418,26 @@ const CoffeeProfilesPage = () => {
                     </div>
                     <div>
                       <dt className="font-semibold uppercase text-slate-500">Precio excelso</dt>
-                      <dd className="mt-0.5 text-slate-700">
-                        {Number(getProfileExcelsoPrice(profile) || 0) > 0 ? `COP ${Number(getProfileExcelsoPrice(profile)).toLocaleString("es-CO")}` : "-"}
+                      <dd className="mt-1">
+                        {Number(getProfileExcelsoPrice(profile) || 0) > 0 ? (
+                          <span className="inline-flex rounded border border-emerald-200 bg-emerald-50 px-2 py-1 font-semibold text-emerald-800">
+                            COP {Number(getProfileExcelsoPrice(profile)).toLocaleString("es-CO")}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
                       </dd>
                     </div>
                     <div>
                       <dt className="font-semibold uppercase text-slate-500">Precio pergamino</dt>
-                      <dd className="mt-0.5 text-slate-700">
-                        {Number(getProfilePergaminoPrice(profile) || 0) > 0 ? `COP ${Number(getProfilePergaminoPrice(profile)).toLocaleString("es-CO")}` : "-"}
+                      <dd className="mt-1">
+                        {Number(getProfilePergaminoPrice(profile) || 0) > 0 ? (
+                          <span className="inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                            COP {Number(getProfilePergaminoPrice(profile)).toLocaleString("es-CO")}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
                       </dd>
                     </div>
                   </dl>

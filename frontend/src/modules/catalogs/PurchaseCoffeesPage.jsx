@@ -193,10 +193,14 @@ const PurchaseCoffeesPage = () => {
                     </div>
                     <div>
                       <dt className="font-semibold uppercase text-slate-500">Precio carga</dt>
-                      <dd className="mt-0.5 text-slate-700">
-                        {Number(coffee.base_price_factor90_cop || 0) > 0
-                          ? `COP ${Number(coffee.base_price_factor90_cop).toLocaleString("es-CO")}`
-                          : "COP 0"}
+                      <dd className="mt-1">
+                        {Number(coffee.base_price_factor90_cop || 0) > 0 ? (
+                          <span className="inline-flex rounded border border-emerald-200 bg-emerald-50 px-2 py-1 font-semibold text-emerald-800">
+                            COP {Number(coffee.base_price_factor90_cop).toLocaleString("es-CO")}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">COP 0</span>
+                        )}
                       </dd>
                     </div>
                   </dl>
