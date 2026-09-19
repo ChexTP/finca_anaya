@@ -313,7 +313,7 @@ const App = () => {
         <Route
           path="/perfiles-cafe"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
+            <ProtectedRoute roles={["admin", "warehouse", "inventory_viewer"]}>
               <CoffeeProfilesPage />
             </ProtectedRoute>
           }
@@ -321,7 +321,7 @@ const App = () => {
         <Route
           path="/perfiles-compra"
           element={
-            <ProtectedRoute roles={["admin", "accounting", "warehouse", "inventory_viewer"]}>
+            <ProtectedRoute roles={["admin", "warehouse", "inventory_viewer"]}>
               <PurchaseCoffeesPage />
             </ProtectedRoute>
           }
