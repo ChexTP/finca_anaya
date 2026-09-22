@@ -49,6 +49,48 @@ const applyCalculatedPaymentFields = async (sales) => {
   return sales.map((sale) => normalizeSalePaymentFields(sale, paymentsBySale.get(Number(sale.id))));
 };
 
+const recalculateSalePaymentSummary = async (client, saleId) => {
+  const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+  const sale = saleResult.rows[0];
+
+  if (!sale) return null;
+
+  const paidResult = await client.query(
+    `
+    SELECT COALESCE(SUM(amount), 0) AS amount_paid
+    FROM sale_payments
+    WHERE sale_id = $1
+    `,
+    [saleId]
+  );
+  const total = Number(sale.total || 0);
+  const amountPaid = Number(Number(paidResult.rows[0].amount_paid || 0).toFixed(2));
+  const rawBalance = total - amountPaid;
+  const balanceDue = rawBalance <= PAYMENT_TOLERANCE ? 0 : Number(Math.max(rawBalance, 0).toFixed(2));
+  const paymentStatus = balanceDue <= PAYMENT_TOLERANCE
+    ? "pagada"
+    : amountPaid > PAYMENT_TOLERANCE
+      ? "pago_parcial"
+      : "pendiente_pago";
+
+  const updateResult = await client.query(
+    `
+    UPDATE sales
+    SET
+      amount_paid = $1,
+      balance_due = $2,
+      payment_status = $3,
+      estimated_payment_date = CASE WHEN $2::numeric = 0 THEN NULL ELSE estimated_payment_date END,
+      updated_at = NOW()
+    WHERE id = $4
+    RETURNING *
+    `,
+    [amountPaid, balanceDue, paymentStatus, saleId]
+  );
+
+  return updateResult.rows[0];
+};
+
 const requiredSaleItemKgSql = `
   CASE
     WHEN sale_items.product_form = 'Excelso' AND sale_items.process_type = 'Natural' THEN CEIL(sale_items.quantity_kg * 140 / 70)
@@ -2214,6 +2256,132 @@ export const registerSalePayment = async ({
       registeredBy,
     });
     return updateResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const updateSalePayment = async ({
+  saleId,
+  paymentId,
+  amount,
+  paymentMethodId,
+  paymentReference,
+  paidAt,
+  notes,
+}) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (sale.status === "anulada") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, sale };
+    }
+
+    const paymentResult = await client.query(
+      "SELECT * FROM sale_payments WHERE id = $1 AND sale_id = $2 FOR UPDATE",
+      [paymentId, saleId]
+    );
+    const payment = paymentResult.rows[0];
+
+    if (!payment) {
+      await client.query("ROLLBACK");
+      return { paymentNotFound: true, sale };
+    }
+
+    const otherPaidResult = await client.query(
+      `
+      SELECT COALESCE(SUM(amount), 0) AS amount_paid
+      FROM sale_payments
+      WHERE sale_id = $1 AND id <> $2
+      `,
+      [saleId, paymentId]
+    );
+    const otherAmountPaid = Number(Number(otherPaidResult.rows[0].amount_paid || 0).toFixed(2));
+    const saleTotal = Number(sale.total || 0);
+
+    if (otherAmountPaid + amount > saleTotal + PAYMENT_TOLERANCE) {
+      await client.query("ROLLBACK");
+      return {
+        amountTooHigh: true,
+        sale: {
+          ...sale,
+          amount_paid: otherAmountPaid + Number(payment.amount || 0),
+          balance_due: Math.max(saleTotal - otherAmountPaid - Number(payment.amount || 0), 0),
+        },
+      };
+    }
+
+    await client.query(
+      `
+      UPDATE sale_payments
+      SET
+        amount = $1,
+        payment_method_id = $2,
+        payment_reference = $3,
+        paid_at = $4,
+        notes = $5
+      WHERE id = $6 AND sale_id = $7
+      `,
+      [amount, paymentMethodId, paymentReference, paidAt, notes || null, paymentId, saleId]
+    );
+
+    const updatedSale = await recalculateSalePaymentSummary(client, saleId);
+    await client.query("COMMIT");
+    return updatedSale;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteSalePayment = async ({ saleId, paymentId }) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const saleResult = await client.query("SELECT * FROM sales WHERE id = $1 FOR UPDATE", [saleId]);
+    const sale = saleResult.rows[0];
+
+    if (!sale) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    if (sale.status === "anulada") {
+      await client.query("ROLLBACK");
+      return { invalidStatus: true, sale };
+    }
+
+    const deletedResult = await client.query(
+      "DELETE FROM sale_payments WHERE id = $1 AND sale_id = $2 RETURNING *",
+      [paymentId, saleId]
+    );
+
+    if (!deletedResult.rows[0]) {
+      await client.query("ROLLBACK");
+      return { paymentNotFound: true, sale };
+    }
+
+    const updatedSale = await recalculateSalePaymentSummary(client, saleId);
+    await client.query("COMMIT");
+    return updatedSale;
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

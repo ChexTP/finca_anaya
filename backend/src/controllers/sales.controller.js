@@ -9,6 +9,8 @@ import {
   cancelSale,
   deleteSaleById,
   registerSalePayment,
+  updateSalePayment,
+  deleteSalePayment,
   replaceSaleBlendOrder,
   markSaleReadyForBlend,
   markSaleWithoutBlend,
@@ -917,6 +919,134 @@ export const postSalePayment = async (req, res) => {
 
     res.status(500).json({
       message: "Error al registrar pago",
+      error: error.message,
+    });
+  }
+};
+
+export const putSalePayment = async (req, res) => {
+  try {
+    const {
+      amount,
+      paymentMethodId,
+      paymentReference,
+      paidAt,
+      notes,
+    } = req.body;
+
+    const paymentAmount = toNumber(amount);
+
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      return res.status(400).json({ message: "El valor del pago debe ser mayor a cero" });
+    }
+
+    if (!paymentMethodId || !paymentReference) {
+      return res.status(400).json({
+        message: "Metodo de pago y referencia son obligatorios",
+      });
+    }
+
+    const paymentMethod = await findPaymentMethodById(paymentMethodId);
+
+    if (!paymentMethod || !paymentMethod.is_active) {
+      return res.status(404).json({ message: "Metodo de pago no encontrado o inactivo" });
+    }
+
+    const sale = await updateSalePayment({
+      saleId: req.params.id,
+      paymentId: req.params.paymentId,
+      amount: paymentAmount,
+      paymentMethodId,
+      paymentReference,
+      paidAt: paidAt || new Date(),
+      notes,
+    });
+
+    if (!sale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (sale.invalidStatus) {
+      return res.status(409).json({
+        message: "No se pueden editar pagos sobre ventas anuladas",
+        data: sale.sale,
+      });
+    }
+
+    if (sale.paymentNotFound) {
+      return res.status(404).json({
+        message: "Pago no encontrado",
+        data: sale.sale,
+      });
+    }
+
+    if (sale.amountTooHigh) {
+      return res.status(409).json({
+        message: "El pago no puede superar el saldo pendiente",
+        data: sale.sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Pago actualizado correctamente",
+      data: fullSale,
+    });
+  } catch (error) {
+    logControllerError(req, error, {
+      operation: "putSalePayment",
+      saleId: req.params.id,
+      paymentId: req.params.paymentId,
+    });
+
+    res.status(500).json({
+      message: "Error al actualizar pago",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteSalePaymentById = async (req, res) => {
+  try {
+    const sale = await deleteSalePayment({
+      saleId: req.params.id,
+      paymentId: req.params.paymentId,
+    });
+
+    if (!sale) {
+      return res.status(404).json({ message: "Venta no encontrada" });
+    }
+
+    if (sale.invalidStatus) {
+      return res.status(409).json({
+        message: "No se pueden reversar pagos sobre ventas anuladas",
+        data: sale.sale,
+      });
+    }
+
+    if (sale.paymentNotFound) {
+      return res.status(404).json({
+        message: "Pago no encontrado",
+        data: sale.sale,
+      });
+    }
+
+    const fullSale = await findSaleById(req.params.id);
+
+    res.json({
+      message: "Pago reversado correctamente",
+      data: fullSale,
+    });
+  } catch (error) {
+    logControllerError(req, error, {
+      operation: "deleteSalePaymentById",
+      saleId: req.params.id,
+      paymentId: req.params.paymentId,
+    });
+
+    res.status(500).json({
+      message: "Error al reversar pago",
       error: error.message,
     });
   }

@@ -1,4 +1,4 @@
-import { Download, Eye, Printer, RefreshCw, X } from "lucide-react";
+import { Download, Edit, Eye, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
@@ -58,12 +58,15 @@ const SalesHistoryPage = () => {
     payment: "all",
   });
   const [paymentForm, setPaymentForm] = useState(initialPayment);
+  const [editingPaymentId, setEditingPaymentId] = useState(null);
+  const [paymentEditForm, setPaymentEditForm] = useState(initialPayment);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const canEditCodes = ["admin", "accounting"].includes(user?.role);
   const canManagePayments = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
+  const canAdjustPaymentRecords = ["admin", "accounting"].includes(user?.role);
 
   const loadSales = async () => {
     setError("");
@@ -177,6 +180,8 @@ const SalesHistoryPage = () => {
         ...initialPayment,
         amount: "",
       });
+      setEditingPaymentId(null);
+      setPaymentEditForm(initialPayment);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -226,6 +231,89 @@ const SalesHistoryPage = () => {
       await loadSales();
       await loadSaleDetail(selectedSale.id);
       setMessage("Pago de venta registrado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditPayment = (payment) => {
+    setEditingPaymentId(payment.id);
+    setPaymentEditForm({
+      amount: String(payment.amount || ""),
+      paymentMethodId: payment.payment_method_id ? String(payment.payment_method_id) : "",
+      paymentReference: payment.payment_reference || "",
+      paidAt: toDateOnly(payment.paid_at) || new Date().toISOString().slice(0, 10),
+      notes: payment.notes || "",
+    });
+    setMessage("");
+    setError("");
+  };
+
+  const cancelEditPayment = () => {
+    setEditingPaymentId(null);
+    setPaymentEditForm(initialPayment);
+  };
+
+  const updatePayment = async (event) => {
+    event.preventDefault();
+
+    if (!selectedSale || !editingPaymentId) return;
+
+    const paymentAmount = Number(paymentEditForm.amount);
+
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      setError("Ingrese un valor de pago mayor a cero.");
+      return;
+    }
+
+    if (!paymentEditForm.paymentMethodId || !paymentEditForm.paymentReference.trim()) {
+      setError("Seleccione el metodo de pago y escriba una referencia.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/payments/${editingPaymentId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          ...paymentEditForm,
+          amount: paymentAmount,
+          paymentMethodId: Number(paymentEditForm.paymentMethodId),
+        }),
+      });
+      await loadSales();
+      await loadSaleDetail(selectedSale.id);
+      setMessage("Pago actualizado correctamente.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reversePayment = async (payment) => {
+    if (!selectedSale) return;
+
+    const confirmed = window.confirm(
+      `Confirma reversar el pago de ${formatMoney(selectedSale.currency, payment.amount)} registrado el ${formatDate(payment.paid_at)}?`
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await apiRequest(`/sales/${selectedSale.id}/payments/${payment.id}`, { method: "DELETE" });
+      await loadSales();
+      await loadSaleDetail(selectedSale.id);
+      setMessage("Pago reversado correctamente.");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -561,13 +649,105 @@ const SalesHistoryPage = () => {
                           <div className="mt-2 space-y-2">
                             {selectedSale.payments.map((payment) => (
                               <div key={payment.id} className="rounded bg-slate-50 px-3 py-2">
-                                <p className="font-semibold text-ink">
-                                  {formatMoney(selectedSale.currency, payment.amount)}
-                                </p>
-                                <p className="text-xs text-slate-600">
-                                  {payment.payment_method_name || "-"} · {payment.payment_reference || "-"} · {formatDate(payment.paid_at)}
-                                </p>
-                                {payment.notes && <p className="text-xs text-slate-500">{payment.notes}</p>}
+                                {editingPaymentId === payment.id ? (
+                                  <form className="space-y-2" onSubmit={updatePayment}>
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                      <input
+                                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        value={paymentEditForm.amount}
+                                        onChange={(event) => setPaymentEditForm({ ...paymentEditForm, amount: event.target.value })}
+                                      />
+                                      <select
+                                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                        value={paymentEditForm.paymentMethodId}
+                                        onChange={(event) => setPaymentEditForm({ ...paymentEditForm, paymentMethodId: event.target.value })}
+                                      >
+                                        <option value="">Metodo de pago</option>
+                                        {catalogs?.paymentMethods?.map((method) => (
+                                          <option key={method.id} value={method.id}>
+                                            {method.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <input
+                                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                        placeholder="Referencia o recibo"
+                                        value={paymentEditForm.paymentReference}
+                                        onChange={(event) => setPaymentEditForm({ ...paymentEditForm, paymentReference: event.target.value })}
+                                      />
+                                      <input
+                                        className="rounded border border-slate-300 px-3 py-2 text-sm"
+                                        type="date"
+                                        value={paymentEditForm.paidAt}
+                                        onChange={(event) => setPaymentEditForm({ ...paymentEditForm, paidAt: event.target.value })}
+                                      />
+                                    </div>
+                                    <textarea
+                                      className="min-h-14 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                                      placeholder="Nota opcional"
+                                      value={paymentEditForm.notes}
+                                      onChange={(event) => setPaymentEditForm({ ...paymentEditForm, notes: event.target.value })}
+                                    />
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        className="rounded bg-leaf px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                                        disabled={loading}
+                                        type="submit"
+                                      >
+                                        Guardar pago
+                                      </button>
+                                      <button
+                                        className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                                        type="button"
+                                        onClick={cancelEditPayment}
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </form>
+                                ) : (
+                                  <>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div>
+                                        <p className="font-semibold text-ink">
+                                          {formatMoney(selectedSale.currency, payment.amount)}
+                                        </p>
+                                        <p className="text-xs text-slate-600">
+                                          {payment.payment_method_name || "-"} · {payment.payment_reference || "-"} · {formatDate(payment.paid_at)}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                          Registrado por {payment.registered_by_name || "usuario no identificado"}
+                                        </p>
+                                      </div>
+                                      {canAdjustPaymentRecords && (
+                                        <div className="flex shrink-0 gap-2">
+                                          <button
+                                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+                                            disabled={loading}
+                                            type="button"
+                                            onClick={() => startEditPayment(payment)}
+                                          >
+                                            <Edit size={13} />
+                                            Editar
+                                          </button>
+                                          <button
+                                            className="inline-flex items-center gap-1 rounded border border-rose-300 bg-white px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                                            disabled={loading}
+                                            type="button"
+                                            onClick={() => reversePayment(payment)}
+                                          >
+                                            <Trash2 size={13} />
+                                            Reversar
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {payment.notes && <p className="mt-1 text-xs text-slate-500">{payment.notes}</p>}
+                                  </>
+                                )}
                               </div>
                             ))}
                           </div>

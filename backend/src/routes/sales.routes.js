@@ -8,6 +8,8 @@ import {
   putSalePrepared,
   putSaleDispatched,
   postSalePayment,
+  putSalePayment,
+  deleteSalePaymentById,
   putSaleCancelled,
   deleteSale,
   putSaleReadyForBlend,
@@ -145,6 +147,18 @@ router.post(
   requireAuth,
   requireRoles("admin", "accounting", "inventory_viewer"),
   postSalePayment
+);
+router.put(
+  "/:id/payments/:paymentId",
+  requireAuth,
+  requireRoles("admin", "accounting"),
+  putSalePayment
+);
+router.delete(
+  "/:id/payments/:paymentId",
+  requireAuth,
+  requireRoles("admin", "accounting"),
+  deleteSalePaymentById
 );
 
 export default router;
