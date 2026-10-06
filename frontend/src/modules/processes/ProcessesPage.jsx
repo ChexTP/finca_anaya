@@ -82,6 +82,14 @@ const createEmptyProcessOutput = (process, sourceInput = null) => {
   };
 };
 
+const createMergedProcessOutput = (process) => ({
+  ...createEmptyProcessOutput(process),
+  lotKind: "PROC",
+  profileSource: "sale",
+  processVariant: "ensamblado",
+  sourceInputId: "",
+});
+
 const formatInputLabel = (input) => {
   return input.coffee_profile_name || input.coffee_type_name || input.commercial_classification || "Cafe";
 };
@@ -536,6 +544,7 @@ const ProcessesPage = ({
               ...(field === "lotKind" && value === "LOT" ? { profileSource: "purchase", coffeeProfileId: "", processVariant: "normal" } : {}),
               ...(field === "lotKind" && value === "PROC" ? { profileSource: "sale", purchaseCoffeeId: "" } : {}),
               ...(field === "profileSource" ? { purchaseCoffeeId: "", coffeeProfileId: "" } : {}),
+              ...(field === "sourceInputId" && value ? { processVariant: "normal" } : {}),
             }
           : output
       )),
@@ -547,6 +556,12 @@ const ProcessesPage = ({
       ...current,
       outputs: [...current.outputs, createEmptyProcessOutput(process)],
     }));
+  };
+
+  const mergePhysicalOutputs = (process) => {
+    setPhysicalReviewForm({
+      outputs: [createMergedProcessOutput(process)],
+    });
   };
 
   const removePhysicalOutput = (index) => {
@@ -628,7 +643,6 @@ const ProcessesPage = ({
       const needsSaleProfile = !createsInventoryDirectly(process) || output.profileSource === "sale";
 
       return (
-        (createsInventoryDirectly(process) && process.inputs?.length > 1 && !output.sourceInputId) ||
         (needsPurchaseCoffee && !output.purchaseCoffeeId) ||
         (needsSaleProfile && !output.coffeeProfileId) ||
         !output.presentation ||
@@ -664,7 +678,9 @@ const ProcessesPage = ({
             coffeeProfileId: output.coffeeProfileId ? Number(output.coffeeProfileId) : null,
             coffeeTypeId: output.coffeeTypeId ? Number(output.coffeeTypeId) : null,
             presentation: output.presentation,
-            processVariant: output.processVariant || "normal",
+            processVariant: createsInventoryDirectly(process) && process.inputs?.length > 1 && !output.sourceInputId
+              ? "ensamblado"
+              : (output.processVariant || "normal"),
             outputWeightKg: Number(output.outputWeightKg),
             humidityPercent: output.humidityPercent === "" ? null : Number(output.humidityPercent),
             performanceFactor: output.performanceFactor === "" ? null : Number(output.performanceFactor),
@@ -1101,18 +1117,29 @@ const ProcessesPage = ({
                             : "Divida el cafe recibido por perfil comercial, peso y humedad."}
                       </p>
                     </div>
-                    <button
-                      className="inline-flex items-center gap-1 rounded border border-leaf bg-white px-3 py-2 text-xs font-semibold text-leaf hover:bg-emerald-50"
-                      type="button"
-                      onClick={() => addPhysicalOutput(process)}
-                    >
-                      <Plus size={14} />
-                      Agregar salida
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      {createsInventoryDirectly(process) && process.inputs?.length > 1 && (
+                        <button
+                          className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                          type="button"
+                          onClick={() => mergePhysicalOutputs(process)}
+                        >
+                          Juntar entradas en un lote
+                        </button>
+                      )}
+                      <button
+                        className="inline-flex items-center gap-1 rounded border border-leaf bg-white px-3 py-2 text-xs font-semibold text-leaf hover:bg-emerald-50"
+                        type="button"
+                        onClick={() => addPhysicalOutput(process)}
+                      >
+                        <Plus size={14} />
+                        Agregar salida
+                      </button>
+                    </div>
                   </div>
                   {physicalReviewForm.outputs.map((output, index) => (
                     <div key={`process-output-${index}`} className="rounded border border-emerald-200 bg-white p-3">
-                      {createsInventoryDirectly(process) && output.sourceInputId && (
+                      {createsInventoryDirectly(process) && output.sourceInputId ? (
                         <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                           {(() => {
                             const sourceInput = process.inputs?.find((input) => Number(input.id) === Number(output.sourceInputId));
@@ -1127,7 +1154,11 @@ const ProcessesPage = ({
                             );
                           })()}
                         </div>
-                      )}
+                      ) : createsInventoryDirectly(process) && process.inputs?.length > 1 ? (
+                        <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                          Esta salida juntara varios lotes de entrada en un solo registro nuevo. Puede guardarse como lote normal o como proceso.
+                        </div>
+                      ) : null}
                       {createsInventoryDirectly(process) && (
                         <div className="mb-3 grid gap-2 rounded border border-amber-200 bg-amber-50 p-3 sm:grid-cols-2 lg:grid-cols-4">
                           <label className="text-xs font-medium uppercase text-amber-900">
@@ -1143,7 +1174,7 @@ const ProcessesPage = ({
                               value={output.sourceInputId}
                               onChange={(event) => updatePhysicalOutput(index, "sourceInputId", event.target.value)}
                             >
-                              <option value="">Sin lote origen</option>
+                              <option value="">Mezcla de entradas - crear lote nuevo</option>
                               {process.inputs?.map((input) => (
                                 <option key={input.id} value={input.id}>
                                   {input.lot_code} - {formatKg(input.quantity_kg)}

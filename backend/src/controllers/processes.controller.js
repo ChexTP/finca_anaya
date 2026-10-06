@@ -278,6 +278,7 @@ export const putProcessPhysicalReview = async (req, res) => {
     const createsInventoryDirectly = directInventoryProcessTypes.includes(currentProcess.process_type);
     const requiresHumidity = !createsInventoryDirectly;
     const requiresPerformanceFactor = !createsInventoryDirectly;
+    const validSourceInputIds = new Set((currentProcess.inputs || []).map((input) => Number(input.id)));
     const outputs = Array.isArray(req.body.outputs)
       ? req.body.outputs.map((output) => ({
           lotKind: output.lotKind === "LOT" ? "LOT" : "PROC",
@@ -289,8 +290,10 @@ export const putProcessPhysicalReview = async (req, res) => {
           humidityPercent: toNumber(output.humidityPercent),
           performanceFactor: toNumber(output.performanceFactor),
           presentation: output.presentation || "Excelso",
-          processVariant: output.processVariant || "normal",
           sourceInputId: output.sourceInputId ? Number(output.sourceInputId) : null,
+          processVariant: createsInventoryDirectly && (currentProcess.inputs || []).length > 1 && !output.sourceInputId
+            ? "ensamblado"
+            : (output.processVariant || "normal"),
           notes: output.notes || null,
         }))
       : [];
@@ -307,8 +310,10 @@ export const putProcessPhysicalReview = async (req, res) => {
       return (
         (needsSaleProfile && !Number.isInteger(output.coffeeProfileId)) ||
         (needsPurchaseCoffee && !Number.isInteger(output.purchaseCoffeeId)) ||
+        (output.sourceInputId !== null && !validSourceInputIds.has(output.sourceInputId)) ||
         !["LOT", "PROC"].includes(output.lotKind) ||
         !["purchase", "sale"].includes(output.profileSource) ||
+        !["normal", "ensamblado"].includes(output.processVariant) ||
         !Number.isFinite(output.outputWeightKg) ||
         output.outputWeightKg <= 0 ||
         !output.presentation?.trim() ||
