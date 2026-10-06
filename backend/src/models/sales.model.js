@@ -542,16 +542,12 @@ export const updateSaleItemReviews = async ({ saleId, itemReviews, status, notes
     );
     const validIds = new Set(saleItemsResult.rows.map((item) => item.id));
 
-    if (status === "aprobada_laboratorio") {
-      if (
-        saleItemsResult.rows.length === 0 ||
-        itemReviews.length !== saleItemsResult.rows.length ||
-        itemReviews.some((review) => !validIds.has(review.saleItemId))
-      ) {
-        throw new Error("Debe registrar analisis para cada producto de la venta");
-      }
-
+    if (status === "aprobada_laboratorio" && itemReviews.length > 0) {
       for (const review of itemReviews) {
+        if (!validIds.has(review.saleItemId)) {
+          throw new Error("El analisis incluye un producto que no pertenece a la venta");
+        }
+
         await client.query(
           `
           UPDATE sale_items

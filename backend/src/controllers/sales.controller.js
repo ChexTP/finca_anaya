@@ -51,17 +51,6 @@ const toText = (value) => {
   return text || null;
 };
 
-const requiredSaleLabFields = [
-  "humidityPercent",
-  "aroma",
-  "flavor",
-  "sweetness",
-  "body",
-  "residual",
-  "cleanCup",
-  "score",
-];
-
 const maxDispatchReceiptSize = 4 * 1024 * 1024;
 
 const parseDispatchReceipt = (body) => {
@@ -1130,19 +1119,6 @@ export const putSaleLabReview = async (req, res) => {
       score: toText(review.score),
       notes: toText(review.notes),
     }));
-
-    if (status === "aprobada_laboratorio") {
-      const missingLabField = cleanItemReviews.length === 0 || cleanItemReviews.some((review) => (
-        !Number.isInteger(review.saleItemId) ||
-        requiredSaleLabFields.some((field) => !review[field])
-      ));
-
-      if (missingLabField) {
-        return res.status(400).json({
-          message: "Los datos completos de laboratorio de cada producto vendido son obligatorios para aprobar",
-        });
-      }
-    }
 
     const result = await updateSaleItemReviews({
       saleId: Number(req.params.id),

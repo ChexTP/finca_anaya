@@ -1156,21 +1156,6 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
         notes: saleReview.notes || undefined,
       };
 
-      if (saleReview.decision === "aprobada_laboratorio") {
-        requestBody.itemReviews = saleReview.itemReviews.map((itemReview) => ({
-          saleItemId: itemReview.saleItemId,
-          humidityPercent: itemReview.humidityPercent,
-          aroma: itemReview.aroma,
-          flavor: itemReview.flavor,
-          sweetness: itemReview.sweetness,
-          body: itemReview.body,
-          residual: itemReview.residual,
-          cleanCup: itemReview.cleanCup,
-          score: itemReview.score,
-          notes: itemReview.notes || null,
-        }));
-      }
-
       await apiRequest(`/sales/${selectedSaleReview.id}/lab-review`, {
         method: "PUT",
         body: JSON.stringify(requestBody),
@@ -1185,7 +1170,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
       await loadData();
       setMessage(
         saleReview.decision === "aprobada_laboratorio"
-          ? "Analisis de venta aprobado. Bodega ya puede alistar."
+          ? "Venta aprobada. Bodega ya puede alistar."
           : "Venta rechazada y devuelta a bodega para corregir salidas."
       );
     } catch (requestError) {
@@ -2185,59 +2170,14 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                   </select>
 
                   {saleReview.decision === "aprobada_laboratorio" && (
-                    <div className="space-y-3">
-                      {saleReview.itemReviews.map((itemReview, index) => {
-                        const item = selectedSaleReview.items?.find((saleItem) => saleItem.id === itemReview.saleItemId);
-
-                        return (
-                          <div key={itemReview.saleItemId} className="rounded border border-slate-200 p-3">
-                            <p className="mb-3 text-sm font-semibold text-ink">
-                              {formatRequestedCoffee(item)} - {item?.quantity_kg} kg
-                            </p>
-                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                              <input
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Humedad"
-                                type="text"
-                                value={itemReview.humidityPercent}
-                                onChange={(event) => updateSaleItemReview(index, "humidityPercent", event.target.value)}
-                                required
-                              />
-                              {cuppingFields.map(([field, label]) => (
-                                <input
-                                  key={field}
-                                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                  placeholder={label}
-                                  type="text"
-                                  value={itemReview[field]}
-                                  onChange={(event) => updateSaleItemReview(index, field, event.target.value)}
-                                  required
-                                />
-                              ))}
-                              <input
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder="Score"
-                                type="text"
-                                value={itemReview.score}
-                                onChange={(event) => updateSaleItemReview(index, "score", event.target.value)}
-                                required
-                              />
-                            </div>
-                            <textarea
-                              className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                              placeholder="Notas de este producto"
-                              value={itemReview.notes}
-                              onChange={(event) => updateSaleItemReview(index, "notes", event.target.value)}
-                            />
-                          </div>
-                        );
-                      })}
+                    <div className="rounded border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                      Esta aprobacion solo confirma que la venta puede volver a bodega para alistar y despachar. No requiere volver a llenar aroma, sabor, score ni otros datos sensoriales.
                     </div>
                   )}
 
                   <textarea
                     className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    placeholder={saleReview.decision === "ensamble_definido" ? "Motivo del rechazo para corregir en bodega" : "Notas de laboratorio"}
+                    placeholder={saleReview.decision === "ensamble_definido" ? "Motivo del rechazo para corregir en bodega" : "Notas opcionales de aprobacion"}
                     value={saleReview.notes}
                     onChange={(event) => updateSaleReviewForm("notes", event.target.value)}
                     required={saleReview.decision === "ensamble_definido"}
@@ -2247,7 +2187,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     disabled={saving || !selectedSaleReview}
                   >
                     <Save size={16} />
-                    Guardar analisis
+                    Guardar decision
                   </button>
                 </div>
               )}
