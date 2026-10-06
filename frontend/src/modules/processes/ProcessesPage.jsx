@@ -347,21 +347,47 @@ const ProcessesPage = ({
 
   const loadData = async () => {
     const processQuery = fixedProcessType ? `?processType=${encodeURIComponent(fixedProcessType)}` : "";
-    const requests = [apiRequest(`/processes${processQuery}`)];
+    const requests = [
+      ["procesos", apiRequest(`/processes${processQuery}`)],
+      ...(canCreateProcess
+        ? [
+            ["lotes", apiRequest("/inventory/lots")],
+            ["ventas", apiRequest("/sales")],
+            ["catalogos", apiRequest("/catalogs")],
+            ["consecutivos", apiRequest("/code-counters")],
+          ]
+        : []),
+    ];
 
-    if (canCreateProcess) {
-      requests.push(apiRequest("/inventory/lots"));
-      requests.push(apiRequest("/sales"));
-      requests.push(apiRequest("/catalogs"));
-      requests.push(apiRequest("/code-counters"));
-    }
+    const results = await Promise.allSettled(requests.map(([, request]) => request));
+    const failedRequests = [];
+    const getResult = (index, fallback) => {
+      const result = results[index];
+      if (!result || result.status !== "fulfilled") {
+        if (result?.status === "rejected") failedRequests.push(`${requests[index][0]}: ${result.reason.message}`);
+        return fallback;
+      }
 
-    const [processData, lotData = [], saleData = [], catalogData = null, codeCounterData = []] = await Promise.all(requests);
+      return result.value;
+    };
+
+    const processData = getResult(0, []);
+    const lotData = canCreateProcess ? getResult(1, []) : [];
+    const saleData = canCreateProcess ? getResult(2, []) : [];
+    const catalogData = canCreateProcess ? getResult(3, null) : null;
+    const codeCounterData = canCreateProcess ? getResult(4, []) : [];
+
     setProcesses(processData);
     setAvailableLots(lotData);
     setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
     setCatalogs(catalogData);
     setCodeCounters(codeCounterData);
+
+    if (failedRequests.length > 0) {
+      setError(`No se pudo cargar toda la informacion (${failedRequests.join("; ")}).`);
+    } else {
+      setError("");
+    }
   };
 
   const selectProcessStatusFilter = (status) => {
