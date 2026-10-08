@@ -37,7 +37,7 @@ const packagingTypes = [
   ["Tula o estopa", 0.2],
   ["Bolsa interna", 0.05],
 ];
-const paymentMethods = ["Efectivo", "Transferencia", "Cheque", "Otro"];
+const paymentMethods = ["Efectivo", "Transferencia", "Transferencia bancaria", "Cheque", "Otro"];
 const payableCategories = ["Lote de cafe", "Gasto operativo", "Transporte", "Otro"];
 
 const seedCatalog = async (table, rows, columns) => {

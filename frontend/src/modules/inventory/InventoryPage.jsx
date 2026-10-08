@@ -199,7 +199,7 @@ const getPaymentMethodDisplayName = (method) => {
   const name = method?.name || method?.payment_method_name || "";
   return String(name).toLowerCase() === "transferencia" ? "Consignacion" : name;
 };
-const isLiquidationPaymentMethod = (method) => ["efectivo", "transferencia", "consignacion"].includes(String(method?.name || "").toLowerCase());
+const isLiquidationPaymentMethod = (method) => ["efectivo", "transferencia", "transferencia bancaria", "consignacion"].includes(String(method?.name || "").toLowerCase());
 const calculatePurchaseOrderEditItem = (item) => {
   const priceData = calculateLiquidationPrices(
     item.purchasePriceFactor90,

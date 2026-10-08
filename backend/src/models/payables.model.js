@@ -395,7 +395,7 @@ export const registerPayablePayment = async ({
         amount_paid = $1,
         balance_due = $2,
         status = $3,
-        due_date = CASE WHEN $2 = 0 THEN NULL ELSE due_date END,
+        due_date = CASE WHEN $2::numeric = 0 THEN NULL ELSE due_date END,
         updated_at = NOW()
       WHERE id = $4
       RETURNING *

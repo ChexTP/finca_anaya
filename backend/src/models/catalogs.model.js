@@ -1,6 +1,6 @@
 import { pool } from "../db.js";
 
-const requiredPaymentMethods = ["Efectivo", "Transferencia", "Cheque", "Otro"];
+const requiredPaymentMethods = ["Efectivo", "Transferencia", "Transferencia bancaria", "Cheque", "Otro"];
 const requiredPayableCategories = ["Lote de cafe"];
 const requiredCoffeeTypes = ["Lavado", "Natural", "Semilavado"];
 const requiredCoffeePresentations = ["Pergamino", "Excelso"];
