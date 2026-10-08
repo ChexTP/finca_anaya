@@ -10,13 +10,18 @@ export const getNextPriceListCode = async () => {
   return getNextCode({ prefix: "LIST", tableName: "quotes" });
 };
 
-export const listQuotes = async ({ status, sellerId, clientId }) => {
+export const listQuotes = async ({ status, statuses, sellerId, clientId }) => {
   const params = [];
   const conditions = [];
 
   if (status) {
     params.push(status);
     conditions.push(`quotes.status = $${params.length}`);
+  }
+
+  if (Array.isArray(statuses) && statuses.length > 0) {
+    params.push(statuses);
+    conditions.push(`quotes.status = ANY($${params.length}::text[])`);
   }
 
   if (sellerId) {

@@ -740,15 +740,21 @@ const CommercialPage = () => {
   }, [catalogs, itemForm.itemType, itemForm.processType]);
 
   const loadData = async () => {
+    const sampleQuery = new URLSearchParams({
+      statuses: ["borrador", "enviada", "aprobada", "solicitada", "en_preparacion", "pendiente_laboratorio", "aprobada_laboratorio", "lista"].join(","),
+    });
+    const quoteQuery = user?.role === "accounting"
+      ? ""
+      : `?${new URLSearchParams({ statuses: ["borrador", "enviada", "anulada"].join(",") }).toString()}`;
     const [quoteData, sampleData, clientData, catalogData, countersData] = await Promise.all([
-      apiRequest("/quotes"),
-      apiRequest("/samples"),
+      apiRequest(`/quotes${quoteQuery}`),
+      apiRequest(`/samples?${sampleQuery.toString()}`),
       apiRequest("/clients"),
       apiRequest("/catalogs"),
       apiRequest("/code-counters"),
     ]);
     setQuotes(quoteData);
-    setSamples(sampleData.filter((sample) => sample.status !== "entregada"));
+    setSamples(sampleData);
     setClients(clientData);
     setCatalogs(catalogData);
     setCodeCounters(countersData);

@@ -110,7 +110,7 @@ export const getNextProcessCode = async () => {
   return getNextCode({ prefix: "PRO", tableName: "coffee_processes" });
 };
 
-export const listProcesses = async ({ status, processType }) => {
+export const listProcesses = async ({ status, statuses, processType }) => {
   await ensureCoffeeProfilesCharacterizationNoteColumn();
   await ensureProcessPerformanceIndexes();
 
@@ -120,6 +120,11 @@ export const listProcesses = async ({ status, processType }) => {
   if (status) {
     params.push(status);
     conditions.push(`coffee_processes.status = $${params.length}`);
+  }
+
+  if (Array.isArray(statuses) && statuses.length > 0) {
+    params.push(statuses);
+    conditions.push(`coffee_processes.status = ANY($${params.length}::text[])`);
   }
 
   if (processType) {

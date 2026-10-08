@@ -520,38 +520,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const isLiquidationsMode = mode === "liquidations";
 
   const loadData = async () => {
-    const requests = [
-      apiRequest("/inventory/lots"),
-      apiRequest("/lots"),
-      apiRequest("/inventory/in-process"),
-      canViewInventoryMovements ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
-      canViewInventoryMovements ? apiRequest("/inventory/farm-shipments") : Promise.resolve([]),
-    ];
-
-    if (canRegisterPurchase || canEditCodes) {
-      requests.push(apiRequest("/catalogs"));
-    } else {
-      requests.push(Promise.resolve(null));
-    }
-
-    if (canEditCodes) {
-      requests.push(apiRequest("/suppliers"));
-    } else {
-      requests.push(Promise.resolve([]));
-    }
-
-    if (canEditCodes) {
-      requests.push(apiRequest("/processes"));
-    } else {
-      requests.push(Promise.resolve([]));
-    }
-
-    if (canRegisterPurchase) {
-      requests.push(apiRequest("/payables"));
-    } else {
-      requests.push(Promise.resolve([]));
-    }
-
+    const isMainInventoryMode = !isEditMode && !isSampleOutputsMode && !isFarmShipmentsMode && !isLiquidationsMode;
     const [
       availableData,
       allLots,
@@ -562,7 +531,17 @@ const InventoryPage = ({ mode = "inventory" }) => {
       supplierData,
       processData,
       payableData,
-    ] = await Promise.all(requests);
+    ] = await Promise.all([
+      isMainInventoryMode || isEditMode ? apiRequest("/inventory/lots") : Promise.resolve([]),
+      isLiquidationsMode ? apiRequest("/lots?status=pendiente_liquidacion") : isEditMode ? apiRequest("/lots") : Promise.resolve([]),
+      isMainInventoryMode ? apiRequest("/inventory/in-process") : Promise.resolve([]),
+      (isMainInventoryMode || isSampleOutputsMode) && canViewInventoryMovements ? apiRequest("/inventory/sample-outputs") : Promise.resolve([]),
+      (isMainInventoryMode || isFarmShipmentsMode) && canViewInventoryMovements ? apiRequest("/inventory/farm-shipments") : Promise.resolve([]),
+      (canRegisterPurchase && isLiquidationsMode) || (canEditCodes && isEditMode) ? apiRequest("/catalogs") : Promise.resolve(null),
+      canEditCodes && isEditMode ? apiRequest("/suppliers") : Promise.resolve([]),
+      canEditCodes && isEditMode ? apiRequest("/processes") : Promise.resolve([]),
+      canRegisterPurchase && isLiquidationsMode ? apiRequest("/payables") : Promise.resolve([]),
+    ]);
     setLots((availableData || []).filter((lot) => lot.status !== "retirado"));
     setAllLots(allLots);
     setInProcessInventory(inProcessData || []);

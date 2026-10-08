@@ -36,7 +36,10 @@ const processStatuses = ["pendiente", "en_proceso", "pendiente_revision_fisica",
 
 export const getProcesses = async (req, res) => {
   try {
-    const processes = await listProcesses({ status: req.query.status, processType: req.query.processType });
+    const statuses = req.query.statuses
+      ? String(req.query.statuses).split(",").map((status) => status.trim()).filter(Boolean)
+      : null;
+    const processes = await listProcesses({ status: req.query.status, statuses, processType: req.query.processType });
     res.json(processes);
   } catch (error) {
     res.status(500).json({

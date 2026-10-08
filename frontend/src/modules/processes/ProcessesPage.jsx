@@ -31,6 +31,18 @@ const processStatusFilterOptions = [
   { value: "receiving", label: "Esperando recibir" },
   { value: "finalizado", label: "Finalizados" },
 ];
+const activeProcessSaleStatuses = [
+  "pendiente_alistamiento",
+  "pendiente_bodega",
+  "lote_asignado",
+  "proceso_solicitado",
+  "en_proceso",
+  "listo_para_ensamble",
+  "ensamble_definido",
+  "pendiente_laboratorio",
+  "aprobada_laboratorio",
+  "alistada",
+];
 
 const initialPhysicalReviewForm = {
   outputs: [
@@ -357,7 +369,7 @@ const ProcessesPage = ({
 
     const requests = [
       ["lotes", apiRequest("/inventory/lots")],
-      ["ventas", apiRequest("/sales")],
+      ["ventas", apiRequest(`/sales?statuses=${encodeURIComponent(activeProcessSaleStatuses.join(","))}`)],
       ["catalogos", apiRequest("/catalogs")],
       ["consecutivos", apiRequest("/code-counters")],
     ];

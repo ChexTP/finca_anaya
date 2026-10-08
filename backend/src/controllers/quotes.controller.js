@@ -264,8 +264,12 @@ const buildCleanQuoteData = async ({
 export const getQuotes = async (req, res) => {
   try {
     const sellerId = req.user.role === "seller" ? req.user.id : req.query.sellerId;
+    const statuses = req.query.statuses
+      ? String(req.query.statuses).split(",").map((status) => status.trim()).filter(Boolean)
+      : null;
     const quotes = await listQuotes({
       status: req.query.status,
+      statuses,
       sellerId,
       clientId: req.query.clientId,
     });

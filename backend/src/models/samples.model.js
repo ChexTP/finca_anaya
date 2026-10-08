@@ -6,7 +6,7 @@ export const getNextSampleCode = async () => {
   return getNextCode({ prefix: "MUE", tableName: "sample_requests" });
 };
 
-export const listSampleRequests = async ({ createdBy, status }) => {
+export const listSampleRequests = async ({ createdBy, status, statuses }) => {
   await ensureCoffeeProfilesCharacterizationNoteColumn();
 
   const params = [];
@@ -20,6 +20,11 @@ export const listSampleRequests = async ({ createdBy, status }) => {
   if (status) {
     params.push(status);
     conditions.push(`sample_requests.status = $${params.length}`);
+  }
+
+  if (Array.isArray(statuses) && statuses.length > 0) {
+    params.push(statuses);
+    conditions.push(`sample_requests.status = ANY($${params.length}::text[])`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";

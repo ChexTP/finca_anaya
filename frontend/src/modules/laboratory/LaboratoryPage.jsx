@@ -242,12 +242,15 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const [saving, setSaving] = useState(false);
 
   const loadData = async () => {
+    const saleQuery = new URLSearchParams({
+      statuses: ["listo_para_ensamble", "ensamble_definido", "pendiente_laboratorio"].join(","),
+    });
     const results = await Promise.allSettled([
       apiRequest("/lots?status=pendiente_laboratorio"),
       apiRequest("/inventory/lots"),
-      apiRequest("/processes"),
+      apiRequest("/processes?status=pendiente_laboratorio"),
       apiRequest("/samples?status=pendiente_laboratorio"),
-      apiRequest("/sales"),
+      apiRequest(`/sales?${saleQuery.toString()}`),
       apiRequest("/catalogs"),
       apiRequest("/laboratory/history"),
     ]);
@@ -258,7 +261,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
 
     setLots(lotData || []);
     setInventoryLots(inventoryLotData || []);
-    setProcesses((processData || []).filter((process) => process.status === "pendiente_laboratorio"));
+    setProcesses(processData || []);
     setSamples(sampleData || []);
     setSales((saleData || []).filter((sale) => ["listo_para_ensamble", "ensamble_definido"].includes(sale.status)));
     setSaleLabRequests((saleData || []).filter((sale) => sale.status === "pendiente_laboratorio"));

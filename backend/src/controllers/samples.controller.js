@@ -72,9 +72,13 @@ const hasCompleteSampleLabReview = (sample) => {
 export const getSamples = async (req, res) => {
   try {
     const createdBy = req.user.role === "seller" ? req.user.id : req.query.createdBy;
+    const statuses = req.query.statuses
+      ? String(req.query.statuses).split(",").map((status) => status.trim()).filter(Boolean)
+      : null;
     const samples = await listSampleRequests({
       createdBy,
       status: req.query.status,
+      statuses,
     });
 
     if (req.user.role === "samples") {
