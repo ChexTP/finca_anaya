@@ -673,7 +673,9 @@ const CommercialPage = () => {
   };
 
   const quoteCounts = useMemo(() => {
-    const activeQuotes = quotes.filter((quote) => quote.status !== "aceptada");
+    const activeQuotes = user?.role === "accounting"
+      ? quotes
+      : quotes.filter((quote) => quote.status !== "aceptada");
     const counts = activeQuotes.reduce(
       (counts, quote) => ({
         ...counts,
@@ -683,7 +685,7 @@ const CommercialPage = () => {
       { all: 0 }
     );
     return { ...counts, draft: quoteDraft ? 1 : 0 };
-  }, [quotes, quoteDraft]);
+  }, [quotes, quoteDraft, user?.role]);
 
   const filteredQuotes = useMemo(() => {
     if (quoteFilter === "draft") return [];
@@ -691,7 +693,7 @@ const CommercialPage = () => {
     const term = quoteSearch.trim().toLowerCase();
 
     return quotes.filter((quote) => {
-      if (quote.status === "aceptada") return false;
+      if (quote.status === "aceptada" && user?.role !== "accounting") return false;
 
       const matchesStatus = quoteFilter === "all" || quote.status === quoteFilter;
       const matchesSearch = !term || [
@@ -711,7 +713,7 @@ const CommercialPage = () => {
 
       return matchesStatus && matchesSearch;
     });
-  }, [quotes, quoteFilter, quoteSearch]);
+  }, [quotes, quoteFilter, quoteSearch, user?.role]);
 
   const availableCoffeeOptions = useMemo(() => {
     if (itemForm.itemType === "description") return [];
