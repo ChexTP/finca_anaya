@@ -863,7 +863,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
     setError("");
 
     try {
-      await apiRequest(`/payables/${paymentOrder.id}/payments`, {
+      const response = await apiRequest(`/payables/${paymentOrder.id}/payments`, {
         method: "POST",
         body: JSON.stringify({
           amount,
@@ -873,9 +873,17 @@ const InventoryPage = ({ mode = "inventory" }) => {
           notes: paymentForm.notes,
         }),
       });
+      const updatedOrder = response?.data;
+
+      if (updatedOrder?.id) {
+        setPurchaseOrders((orders) => orders.map((order) => (
+          Number(order.id) === Number(updatedOrder.id) ? updatedOrder : order
+        )));
+      }
+
       closePurchaseOrderPayment();
-      await loadData();
       setMessage("Pago registrado correctamente. La orden se reclasifico segun el saldo pendiente.");
+      loadData().catch((requestError) => setError(requestError.message));
     } catch (requestError) {
       setError(requestError.message);
     } finally {

@@ -3,6 +3,19 @@ import { ensureCoffeeProfilesCharacterizationNoteColumn } from "./catalogs.model
 import { getNextCode, reserveNextCodes } from "./codeCounters.model.js";
 
 const directInventoryProcessTypes = ["Trilladora", "Seleccion electronica"];
+let performanceIndexesPromise = null;
+
+const ensureProcessPerformanceIndexes = async () => {
+  if (!performanceIndexesPromise) {
+    performanceIndexesPromise = Promise.all([
+      pool.query("CREATE INDEX IF NOT EXISTS idx_coffee_lots_parent_lot_id ON coffee_lots(parent_lot_id)"),
+      pool.query("CREATE INDEX IF NOT EXISTS idx_coffee_process_outputs_output_lot_id ON coffee_process_outputs(output_lot_id)"),
+      pool.query("CREATE INDEX IF NOT EXISTS idx_sale_item_lots_deducted_at ON sale_item_lots(deducted_at)"),
+    ]);
+  }
+
+  return performanceIndexesPromise;
+};
 
 const getOutputPresentationForProcess = (processType, presentation) => {
   if (processType === "Trilladora") return "Excelso";
@@ -99,6 +112,7 @@ export const getNextProcessCode = async () => {
 
 export const listProcesses = async ({ status, processType }) => {
   await ensureCoffeeProfilesCharacterizationNoteColumn();
+  await ensureProcessPerformanceIndexes();
 
   const params = [];
   const conditions = [];

@@ -347,16 +347,19 @@ const ProcessesPage = ({
 
   const loadData = async () => {
     const processQuery = fixedProcessType ? `?processType=${encodeURIComponent(fixedProcessType)}` : "";
+    const processData = await apiRequest(`/processes${processQuery}`);
+    setProcesses(processData);
+
+    if (!canCreateProcess) {
+      setError("");
+      return;
+    }
+
     const requests = [
-      ["procesos", apiRequest(`/processes${processQuery}`)],
-      ...(canCreateProcess
-        ? [
-            ["lotes", apiRequest("/inventory/lots")],
-            ["ventas", apiRequest("/sales")],
-            ["catalogos", apiRequest("/catalogs")],
-            ["consecutivos", apiRequest("/code-counters")],
-          ]
-        : []),
+      ["lotes", apiRequest("/inventory/lots")],
+      ["ventas", apiRequest("/sales")],
+      ["catalogos", apiRequest("/catalogs")],
+      ["consecutivos", apiRequest("/code-counters")],
     ];
 
     const results = await Promise.allSettled(requests.map(([, request]) => request));
@@ -371,13 +374,11 @@ const ProcessesPage = ({
       return result.value;
     };
 
-    const processData = getResult(0, []);
-    const lotData = canCreateProcess ? getResult(1, []) : [];
-    const saleData = canCreateProcess ? getResult(2, []) : [];
-    const catalogData = canCreateProcess ? getResult(3, null) : null;
-    const codeCounterData = canCreateProcess ? getResult(4, []) : [];
+    const lotData = getResult(0, []);
+    const saleData = getResult(1, []);
+    const catalogData = getResult(2, null);
+    const codeCounterData = getResult(3, []);
 
-    setProcesses(processData);
     setAvailableLots(lotData);
     setSales(saleData.filter((sale) => !["despachada", "anulada"].includes(sale.status)));
     setCatalogs(catalogData);

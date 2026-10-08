@@ -1,7 +1,11 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const DEFAULT_TIMEOUT_MS = 45000;
 
 export const apiRequest = async (path, options = {}) => {
   const token = localStorage.getItem("finca_anaya_token");
+  const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
@@ -11,10 +15,23 @@ export const apiRequest = async (path, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || controller.signal,
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("La solicitud tardo demasiado. Revise la conexion e intente actualizar de nuevo.");
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   const contentType = response.headers.get("content-type") || "";
   const requestId = response.headers.get("x-request-id");
