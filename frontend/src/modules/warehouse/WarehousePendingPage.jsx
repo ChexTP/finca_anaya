@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Search, Trash2, Truck, X } from "lucide-react";
+import { AlertTriangle, Edit3, Eye, FlaskConical, ImagePlus, PackageCheck, Printer, RefreshCw, Search, Trash2, Truck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -158,6 +158,8 @@ const WarehousePendingPage = () => {
   const [saving, setSaving] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const canDeleteOrders = ["admin", "inventory_viewer"].includes(user?.role);
+  const canEditLinkedQuote = ["admin", "accounting"].includes(user?.role);
+  const quoteEditBlockedStatuses = ["alistada", "despachada", "anulada"];
 
   useEffect(() => {
     setDispatchReceiptFile(null);
@@ -1403,6 +1405,26 @@ const WarehousePendingPage = () => {
                             <Printer size={14} />
                             PDF
                           </button>
+                          {canEditLinkedQuote && sale.quote_id && (
+                            quoteEditBlockedStatuses.includes(sale.status) ? (
+                              <button
+                                className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 opacity-50"
+                                type="button"
+                                disabled
+                              >
+                                <Edit3 size={14} />
+                                Editar cotizacion
+                              </button>
+                            ) : (
+                              <Link
+                                className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                                to={`/comercial?editQuoteId=${sale.quote_id}`}
+                              >
+                                <Edit3 size={14} />
+                                Editar cotizacion
+                              </Link>
+                            )
+                          )}
                           {canDeleteOrders && (
                             <button
                               className="inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
@@ -1703,6 +1725,27 @@ const WarehousePendingPage = () => {
                 <Printer size={16} />
                 Imprimir orden / guardar PDF
               </button>
+
+              {canEditLinkedQuote && selectedSale.quote_id && (
+                quoteEditBlockedStatuses.includes(selectedSale.status) ? (
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-700 opacity-50"
+                    type="button"
+                    disabled
+                  >
+                    <Edit3 size={16} />
+                    Editar cotizacion
+                  </button>
+                ) : (
+                  <Link
+                    className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
+                    to={`/comercial?editQuoteId=${selectedSale.quote_id}`}
+                  >
+                    <Edit3 size={16} />
+                    Editar cotizacion
+                  </Link>
+                )
+              )}
 
               <textarea
                 className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
