@@ -103,7 +103,7 @@ export const getNextSaleCode = async () => {
   return getNextCode({ prefix: "VEN", tableName: "sales" });
 };
 
-export const listSales = async ({ status, paymentStatus, clientId, sellerId }) => {
+export const listSales = async ({ status, statuses, paymentStatus, clientId, sellerId, includeAssignedLots = false }) => {
   await ensureCoffeeProfilesCharacterizationNoteColumn();
 
   const params = [];
@@ -112,6 +112,11 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
   if (status) {
     params.push(status);
     conditions.push(`sales.status = $${params.length}`);
+  }
+
+  if (Array.isArray(statuses) && statuses.length > 0) {
+    params.push(statuses);
+    conditions.push(`sales.status = ANY($${params.length}::text[])`);
   }
 
   if (clientId) {
@@ -125,19 +130,11 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-
-  const result = await pool.query(
-    `
-    SELECT
-      sales.*,
-      clients.name AS client_name,
-      users.name AS seller_name,
-      quotes.code AS quote_code,
-      COALESCE(assigned_lots.lots, '[]'::json) AS assigned_lots_summary
-    FROM sales
-    INNER JOIN clients ON clients.id = sales.client_id
-    INNER JOIN users ON users.id = sales.seller_id
-    LEFT JOIN quotes ON quotes.id = sales.quote_id
+  const assignedLotsSelect = includeAssignedLots
+    ? "COALESCE(assigned_lots.lots, '[]'::json) AS assigned_lots_summary"
+    : "'[]'::json AS assigned_lots_summary";
+  const assignedLotsJoin = includeAssignedLots
+    ? `
     LEFT JOIN LATERAL (
       SELECT json_agg(
         json_build_object(
@@ -170,6 +167,22 @@ export const listSales = async ({ status, paymentStatus, clientId, sellerId }) =
       WHERE sale_items.sale_id = sales.id
         AND sale_item_lots.deducted_at IS NOT NULL
     ) assigned_lots ON TRUE
+    `
+    : "";
+
+  const result = await pool.query(
+    `
+    SELECT
+      sales.*,
+      clients.name AS client_name,
+      users.name AS seller_name,
+      quotes.code AS quote_code,
+      ${assignedLotsSelect}
+    FROM sales
+    INNER JOIN clients ON clients.id = sales.client_id
+    INNER JOIN users ON users.id = sales.seller_id
+    LEFT JOIN quotes ON quotes.id = sales.quote_id
+    ${assignedLotsJoin}
     ${where}
     ORDER BY
       CASE sales.warehouse_priority

@@ -101,11 +101,16 @@ const sanitizeSaleForSeller = (sale) => {
 export const getSales = async (req, res) => {
   try {
     const sellerId = req.user.role === "seller" ? req.user.id : req.query.sellerId;
+    const statuses = req.query.statuses
+      ? String(req.query.statuses).split(",").map((status) => status.trim()).filter(Boolean)
+      : null;
     const sales = await listSales({
       status: req.query.status,
+      statuses,
       paymentStatus: req.query.paymentStatus,
       clientId: req.query.clientId,
       sellerId,
+      includeAssignedLots: req.query.includeAssignedLots === "true",
     });
 
     res.json(req.user.role === "seller" ? sales.map(sanitizeSaleForSeller) : sales);

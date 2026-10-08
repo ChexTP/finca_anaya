@@ -568,6 +568,10 @@ const WarehousePage = () => {
   };
 
   const loadData = async () => {
+    const saleQuery = new URLSearchParams({
+      statuses: activeWarehouseStatuses.join(","),
+      includeAssignedLots: "true",
+    });
     const [catalogData, supplierData, lotData, physicalData, acceptedData, rejectedData, saleData, inventoryData] = await Promise.all([
       apiRequest("/catalogs"),
       apiRequest("/suppliers"),
@@ -575,7 +579,7 @@ const WarehousePage = () => {
       apiRequest("/lots?status=pendiente_revision_fisica"),
       apiRequest("/lots?status=pendiente_liquidacion"),
       apiRequest("/lots?status=rechazado"),
-      apiRequest("/sales"),
+      apiRequest(`/sales?${saleQuery.toString()}`),
       apiRequest("/inventory/lots"),
     ]);
     setCatalogs(catalogData);

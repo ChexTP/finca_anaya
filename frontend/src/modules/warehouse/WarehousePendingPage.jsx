@@ -707,8 +707,12 @@ const WarehousePendingPage = () => {
   const getDefaultAssignmentPresentation = () => "Pergamino";
 
   const loadData = async () => {
+    const saleQuery = new URLSearchParams({
+      statuses: activeWarehouseStatuses.join(","),
+      includeAssignedLots: "true",
+    });
     const [saleData, reservationData] = await Promise.all([
-      apiRequest("/sales"),
+      apiRequest(`/sales?${saleQuery.toString()}`),
       apiRequest("/sales/lot-reservations"),
     ]);
 
