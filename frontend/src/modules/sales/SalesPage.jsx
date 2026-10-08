@@ -137,7 +137,8 @@ const SalesPage = () => {
   const showFinancialData = false;
   const canEditCodes = ["admin", "accounting"].includes(user?.role);
   const canDeleteRecords = user?.role === "admin";
-  const canEditAcceptedQuote = user?.role === "admin";
+  const canEditAcceptedQuote = ["admin", "accounting"].includes(user?.role);
+  const quoteEditBlockedStatuses = ["alistada", "despachada", "anulada"];
   const pageCopy = roleCopy[user?.role] || {
     title: "Ordenes",
     subtitle: "Alistamiento, despacho y seguimiento operativo.",
@@ -665,7 +666,7 @@ const SalesPage = () => {
                           {canEditAcceptedQuote && sale.quote_id && (
                             <button
                               className="inline-flex items-center gap-1 rounded border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
-                              disabled={saving || ["despachada", "anulada"].includes(sale.status)}
+                              disabled={saving || quoteEditBlockedStatuses.includes(sale.status)}
                               onClick={() => editLinkedQuote(sale.quote_id)}
                               type="button"
                             >
@@ -781,7 +782,7 @@ const SalesPage = () => {
                   {canEditAcceptedQuote && (
                     <button
                       className="inline-flex w-full items-center justify-center gap-2 rounded border border-amber-300 px-3 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
-                      disabled={saving || ["despachada", "anulada"].includes(selectedSale.status)}
+                      disabled={saving || quoteEditBlockedStatuses.includes(selectedSale.status)}
                       onClick={() => editLinkedQuote(selectedSale.quote_id)}
                       type="button"
                     >
