@@ -10,7 +10,7 @@ const router = Router();
 router.get(
   "/quotes/:id",
   requireAuth,
-  requireRoles("admin", "accounting", "seller", "inventory_viewer"),
+  requireRoles("admin", "accounting", "warehouse", "seller", "inventory_viewer"),
   getQuoteDocument
 );
 router.get(

@@ -66,6 +66,19 @@ const operationalFilters = [
   { key: "alistada", label: "Alistadas" },
   { key: "despachada", label: "Despachadas" },
 ];
+const warehouseSaleStatuses = [
+  "pendiente_alistamiento",
+  "pendiente_bodega",
+  "lote_asignado",
+  "proceso_solicitado",
+  "en_proceso",
+  "listo_para_ensamble",
+  "ensamble_definido",
+  "pendiente_laboratorio",
+  "aprobada_laboratorio",
+  "alistada",
+  "despachada",
+];
 
 const paymentFilters = [
   { key: "all", label: "Todos los pagos" },
@@ -202,7 +215,10 @@ const SalesPage = () => {
   }, [sales]);
 
   const loadSales = async () => {
-    const requests = [apiRequest("/sales")];
+    const salesPath = user?.role === "warehouse"
+      ? `/sales?${new URLSearchParams({ statuses: warehouseSaleStatuses.join(",") }).toString()}`
+      : "/sales";
+    const requests = [apiRequest(salesPath)];
 
     if (showFinancialData) {
       requests.push(apiRequest("/catalogs"));
