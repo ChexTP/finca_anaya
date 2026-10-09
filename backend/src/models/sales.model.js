@@ -1835,13 +1835,6 @@ export const updateSaleOperationalStatus = async ({ saleId, status, notes, userI
         return { missingLabReview: true, sale };
       }
 
-      const hasLabReview = await haveCompleteSaleItemReviews(saleId);
-
-      if (!hasLabReview) {
-        await client.query("ROLLBACK");
-        return { missingLabReview: true, sale };
-      }
-
       if (!(await checkOutputsComplete())) {
         await client.query("ROLLBACK");
         return { missingAssignments: true, sale };
