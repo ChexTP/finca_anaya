@@ -1,9 +1,10 @@
-import { KeyRound, RefreshCw, Save, UserPlus } from "lucide-react";
+import { Eye, EyeOff, KeyRound, RefreshCw, Save, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
 import { roleLabels } from "../../utils/roles";
+import { useAuth } from "../../context/AuthContext";
 
 const initialSeller = {
   name: "",
@@ -12,9 +13,12 @@ const initialSeller = {
 };
 
 const UsersPage = () => {
+  const { user: currentUser, refreshUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [sellerForm, setSellerForm] = useState(initialSeller);
   const [passwords, setPasswords] = useState({});
+  const [operators, setOperators] = useState({});
+  const [visiblePasswords, setVisiblePasswords] = useState({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -22,6 +26,27 @@ const UsersPage = () => {
   const loadUsers = async () => {
     const data = await apiRequest("/users");
     setUsers(data);
+    setOperators(Object.fromEntries(data.map((user) => [user.id, user.operator_name || ""])));
+  };
+
+  const saveOperator = async (user) => {
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      const response = await apiRequest(`/users/${user.id}/operator`, {
+        method: "PUT",
+        body: JSON.stringify({ operatorName: operators[user.id] || "" }),
+      });
+      setUsers((items) => items.map((item) => item.id === user.id ? { ...item, ...response.data } : item));
+      setOperators((items) => ({ ...items, [user.id]: response.data.operator_name || "" }));
+      if (currentUser?.id === user.id) await refreshUser();
+      setMessage(`Operario de ${user.username} actualizado correctamente.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -71,6 +96,7 @@ const UsersPage = () => {
         body: JSON.stringify({ password }),
       });
       setPasswords({ ...passwords, [user.id]: "" });
+      setVisiblePasswords((items) => ({ ...items, [user.id]: false }));
       setMessage("Contrasena actualizada correctamente.");
     } catch (requestError) {
       setError(requestError.message);
@@ -113,7 +139,7 @@ const UsersPage = () => {
         </div>
         <button
           className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-          onClick={() => loadUsers()}
+          onClick={() => loadUsers().catch((requestError) => setError(requestError.message))}
         >
           <RefreshCw size={16} />
           Actualizar
@@ -123,7 +149,7 @@ const UsersPage = () => {
       {message && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+      <div className="grid min-w-0 gap-5">
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Usuarios registrados</h2>
@@ -140,7 +166,7 @@ const UsersPage = () => {
                   <tr>
                     <th className="px-4 py-3">Nombre</th>
                     <th className="px-4 py-3">Usuario</th>
-                    <th className="px-4 py-3">Rol</th>
+                    <th className="px-4 py-3">Rol / operario asignado</th>
                     <th className="px-4 py-3">Estado</th>
                     <th className="px-4 py-3">Nueva contrasena</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
@@ -151,20 +177,53 @@ const UsersPage = () => {
                     <tr key={user.id} className="align-top">
                       <td className="px-4 py-3 font-medium text-ink">{user.name}</td>
                       <td className="px-4 py-3 text-slate-600">{user.username}</td>
-                      <td className="px-4 py-3 text-slate-600">{roleLabels[user.role] || user.role}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        <p className="mb-2 font-medium">{roleLabels[user.role] || user.role}</p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            aria-label={`Operario de ${user.username}`}
+                            className="w-44 rounded border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Nombre del operario"
+                            maxLength={120}
+                            value={operators[user.id] || ""}
+                            onChange={(event) => setOperators({ ...operators, [user.id]: event.target.value })}
+                            disabled={saving}
+                          />
+                          <button
+                            aria-label={`Guardar operario de ${user.username}`}
+                            title="Guardar operario"
+                            className="rounded border border-leaf p-2 text-leaf disabled:opacity-60"
+                            type="button"
+                            disabled={saving || (operators[user.id] || "").trim() === (user.operator_name || "")}
+                            onClick={() => saveOperator(user)}
+                          ><Save size={16} /></button>
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <StatusBadge tone={user.is_active ? "success" : "danger"}>
                           {user.is_active ? "activo" : "inactivo"}
                         </StatusBadge>
                       </td>
                       <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
                         <input
                           className="w-44 rounded border border-slate-300 px-3 py-2 text-sm"
-                          type="password"
+                          type={visiblePasswords[user.id] ? "text" : "password"}
+                          aria-label={`Nueva contrasena de ${user.username}`}
+                          autoComplete="new-password"
                           placeholder="Nueva clave"
                           value={passwords[user.id] || ""}
                           onChange={(event) => setPasswords({ ...passwords, [user.id]: event.target.value })}
                         />
+                        <button
+                          type="button"
+                          title={visiblePasswords[user.id] ? "Ocultar nueva contrasena" : "Mostrar nueva contrasena"}
+                          aria-label={`Mostrar u ocultar nueva contrasena de ${user.username}`}
+                          aria-pressed={Boolean(visiblePasswords[user.id])}
+                          className="rounded border border-slate-300 p-2 text-slate-600"
+                          onClick={() => setVisiblePasswords({ ...visiblePasswords, [user.id]: !visiblePasswords[user.id] })}
+                        >{visiblePasswords[user.id] ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                        </div>
                       </td>
                       <td className="space-y-2 px-4 py-3 text-right">
                         <button
@@ -193,7 +252,7 @@ const UsersPage = () => {
           )}
         </div>
 
-        <form className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={createSeller}>
+        <form className="min-w-0 max-w-lg overflow-hidden rounded border border-slate-200 bg-white p-4" onSubmit={createSeller}>
           <div className="flex items-center gap-2">
             <UserPlus size={18} className="text-leaf" />
             <h2 className="text-sm font-semibold text-slate-800">Nuevo vendedor</h2>

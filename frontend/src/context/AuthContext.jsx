@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { apiRequest, getToken, removeToken, saveToken } from "../utils/api";
 import { setPrintUser, buildPrintAudit, printAuditStyles } from "../utils/printAudit";
 
@@ -7,6 +7,23 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshUser = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    const profile = await apiRequest("/auth/me");
+    if (getToken() === token) {
+      setPrintUser(profile);
+      setUser(profile);
+    }
+    return profile;
+  }, []);
+
+  useEffect(() => {
+    const refreshOnFocus = () => { refreshUser().catch(() => {}); };
+    window.addEventListener('focus', refreshOnFocus);
+    return () => window.removeEventListener('focus', refreshOnFocus);
+  }, [refreshUser]);
 
   useEffect(() => {
     setPrintUser(user);
@@ -72,8 +89,9 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated: Boolean(user),
       login,
       logout,
+      refreshUser,
     }),
-    [user, loading]
+    [user, loading, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

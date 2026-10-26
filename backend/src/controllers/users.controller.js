@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { changeUserOperator, listUserOperators } from "../models/userOperators.model.js";
 import {
   listUsers,
   createUser,
@@ -10,7 +11,8 @@ import {
 export const getUsers = async (req, res) => {
   try {
     const users = await listUsers();
-    res.json(users);
+    const operators = await listUserOperators();
+    res.json(users.map((user) => ({ ...user, operator_name: operators.get(Number(user.id)) || null })));
   } catch (error) {
     res.status(500).json({
       message: "Error al obtener usuarios",
@@ -83,6 +85,20 @@ export const updateUserPassword = async (req, res) => {
       message: "Error al actualizar contrasena",
       error: error.message,
     });
+  }
+};
+
+export const updateUserOperator = async (req, res) => {
+  try {
+    const { operatorName } = req.body;
+    if (typeof operatorName !== "string" || operatorName.trim().length > 120) {
+      return res.status(400).json({ message: "El nombre del operario debe tener hasta 120 caracteres" });
+    }
+    const user = await changeUserOperator(req.params.id, operatorName.trim());
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+    res.json({ message: "Operario actualizado correctamente", data: user });
+  } catch (error) {
+    res.status(500).json({ message: "Error al actualizar operario", error: error.message });
   }
 };
 

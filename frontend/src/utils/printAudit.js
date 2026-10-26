@@ -1,3 +1,5 @@
+import { roleLabels } from "./roles.js";
+
 let printUser = null;
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -7,7 +9,10 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => 
 export const setPrintUser = (user) => { printUser = user; };
 
 export const buildPrintAudit = ({ createdBy } = {}) => {
-  const actor = printUser?.name || printUser?.username || "Usuario no identificado";
+  const account = printUser?.username || printUser?.name;
+  const role = roleLabels[printUser?.role];
+  const identity = role ? `${role}${account ? ` (${account})` : ""}` : account || "Usuario no identificado";
+  const actor = printUser?.operator_name ? `${identity} - ${printUser.operator_name}` : identity;
   const timestamp = new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" });
   const creator = createdBy ? `Creado por: ${escapeHtml(createdBy)} | ` : "";
   return `<div class="document-print-audit">${creator}Generado para impresion por: ${escapeHtml(actor)} | ${escapeHtml(timestamp)}</div>`;

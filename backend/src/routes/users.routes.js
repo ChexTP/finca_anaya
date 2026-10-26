@@ -4,6 +4,7 @@ import {
   createSeller,
   updateUserPassword,
   updateUserStatus,
+  updateUserOperator,
 } from "../controllers/users.controller.js";
 import { requireAuth, requireRoles } from "../middlewares/auth.middleware.js";
 
@@ -13,5 +14,6 @@ router.get("/", requireAuth, requireRoles("admin"), getUsers);
 router.post("/sellers", requireAuth, requireRoles("admin"), createSeller);
 router.put("/:id/password", requireAuth, requireRoles("admin"), updateUserPassword);
 router.put("/:id/status", requireAuth, requireRoles("admin"), updateUserStatus);
+router.put("/:id/operator", requireAuth, requireRoles("admin"), updateUserOperator);
 
 export default router;

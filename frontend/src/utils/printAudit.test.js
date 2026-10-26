@@ -13,3 +13,12 @@ test('identifica creador e impresor y escapa nombres sin duplicar el pie', () =>
   setPrintUser(null);
   assert.ok(addPrintAudit('<head></head><body></body>').includes('Usuario no identificado'));
 });
+
+test('imprime rol, cuenta y operario sin sustituir la identidad de acceso', () => {
+  setPrintUser({ role: 'warehouse', username: 'bodega', name: 'Bodega', operator_name: 'Juan <Perez>' });
+  const html = addPrintAudit('<head></head><body>Orden</body>');
+  assert.ok(html.includes('Bodega (bodega) - Juan &lt;Perez&gt;'));
+  setPrintUser({ role: 'admin', username: 'administrador', operator_name: 'Ana' });
+  assert.ok(addPrintAudit('<head></head><body></body>').includes('Administrador (administrador) - Ana'));
+  setPrintUser(null);
+});

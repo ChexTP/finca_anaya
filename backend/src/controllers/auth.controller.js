@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config.js";
 import { findUserByUsername, findUserById } from "../models/users.model.js";
+import { getUserOperator } from "../models/userOperators.model.js";
 
 export const login = async (req, res) => {
   try {
@@ -25,6 +26,8 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Credenciales invalidas" });
     }
 
+    const operatorName = await getUserOperator(user.id);
+
     const token = jwt.sign(
       {
         id: user.id,
@@ -43,6 +46,7 @@ export const login = async (req, res) => {
         name: user.name,
         username: user.username,
         role: user.role_name,
+        operator_name: operatorName,
       },
     });
   } catch (error) {
@@ -66,6 +70,7 @@ export const getProfile = async (req, res) => {
       name: user.name,
       username: user.username,
       role: user.role_name,
+      operator_name: await getUserOperator(user.id),
     });
   } catch (error) {
     res.status(500).json({
