@@ -1,3 +1,5 @@
+import { addPrintAudit } from "./printAudit";
+
 const showPrintPreview = ({ html, title }) => {
   const existingPreview = document.getElementById("print-preview-overlay");
   if (existingPreview) existingPreview.remove();
@@ -82,10 +84,11 @@ const showPrintPreview = ({ html, title }) => {
   });
 };
 
-export const printHtmlDocument = (html, { title = "Documento" } = {}) => {
-  const fullHtml = html.includes("<title>")
-    ? html
-    : html.replace("<head>", `<head><title>${title}</title>`);
+export const printHtmlDocument = (html, { title = "Documento", createdBy } = {}) => {
+  const auditedHtml = addPrintAudit(html, { createdBy });
+  const fullHtml = auditedHtml.includes("<title>")
+    ? auditedHtml
+    : auditedHtml.replace("<head>", `<head><title>${title}</title>`);
   const blob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const tab = window.open(url, "_blank", "noopener,noreferrer");

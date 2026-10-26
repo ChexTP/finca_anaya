@@ -45,7 +45,7 @@ const navigation = [
 
   { label: "Cotizaciones", path: "/comercial", icon: ClipboardList, roles: ["admin", "accounting", "inventory_viewer"] },
   { label: "Ordenes de pedido", path: "/ventas", icon: ReceiptText, roles: ["admin", "accounting", "seller"] },
-  { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples"] },
+  { label: "Muestras", path: "/muestras", icon: FlaskConical, roles: ["admin", "accounting", "seller", "samples", "inventory_viewer"] },
 
   { label: "Historico aceptados", path: "/bodega/historico-aceptados", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },
   { label: "Historico rechazados", path: "/bodega/historico-rechazados", icon: FileText, roles: ["admin", "accounting", "warehouse", "inventory_viewer"] },

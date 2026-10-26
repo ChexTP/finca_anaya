@@ -42,7 +42,7 @@ const emptySampleItem = {
 
 const statusLabels = {
   borrador: "Borrador",
-  enviada: "Enviada",
+  enviada: "Pendiente de aprobacion",
   aprobada: "Aprobada",
   solicitada: "Solicitada",
   en_preparacion: "En preparacion",
@@ -68,6 +68,8 @@ const statusTones = {
 
 const sampleFilters = [
   { key: "all", label: "Todas" },
+  { key: "enviada", label: "Pendientes de aprobacion" },
+  { key: "aprobada", label: "Aprobadas" },
   { key: "solicitada", label: "Solicitadas" },
   { key: "en_preparacion", label: "En preparacion" },
   { key: "pendiente_laboratorio", label: "Pendientes lab" },
@@ -197,9 +199,12 @@ const formatRequestedCoffee = (item) => {
 };
 
 const getSampleActions = (sample) => {
+  if (sample.created_by_role === "samples" && ["enviada", "solicitada"].includes(sample.status)) {
+    return ["aprobada", "cancelada"];
+  }
   const actionsByStatus = {
     borrador: ["enviada", "cancelada"],
-    enviada: ["en_preparacion", "cancelada"],
+    enviada: ["aprobada", "en_preparacion", "cancelada"],
     aprobada: ["en_preparacion", "cancelada"],
     solicitada: ["en_preparacion", "cancelada"],
     en_preparacion: ["pendiente_laboratorio", "cancelada"],
@@ -394,17 +399,17 @@ const SamplesPage = () => {
   const [blendSampleId, setBlendSampleId] = useState(null);
   const [blendRows, setBlendRows] = useState([]);
 
-  const canCreate = false;
+  const canCreate = user?.role === "samples";
   const canManageSamples = ["admin", "samples"].includes(user?.role);
-  const canApproveSampleOrders = ["admin", "accounting"].includes(user?.role);
-  const canPrintSampleOrder = ["admin", "accounting", "seller", "samples"].includes(user?.role);
+  const canApproveSampleOrders = ["admin", "accounting", "inventory_viewer"].includes(user?.role);
+  const canPrintSampleOrder = ["admin", "accounting", "seller", "samples", "inventory_viewer"].includes(user?.role);
   const canUploadShippingGuide = ["admin", "samples"].includes(user?.role);
   const canDeleteSamples = user?.role === "admin";
   const salesCoffeeProfiles = useMemo(() => (
     sortProfilesByCodeDesc((catalogs?.coffeeProfiles || []).filter((profile) => profile.is_active !== false))
   ), [catalogs?.coffeeProfiles]);
   const canUseSampleStatusAction = (status) => {
-    const commercialStatuses = ["borrador", "enviada", "cancelada"];
+    const commercialStatuses = ["borrador", "enviada", "aprobada", "cancelada"];
     if (canApproveSampleOrders && commercialStatuses.includes(status)) return true;
     if (canManageSamples && !commercialStatuses.includes(status)) return true;
     return false;
@@ -524,6 +529,7 @@ const SamplesPage = () => {
         method: editingSampleId ? "PUT" : "POST",
         body: JSON.stringify({
           ...form,
+          status: user?.role === "samples" ? "enviada" : form.status,
           items,
         }),
       });
@@ -745,7 +751,7 @@ const SamplesPage = () => {
   };
 
   const printSampleOrder = (sample) => {
-    printHtmlDocument(buildSampleOrderHtml(sample), { title: `Orden ${sample.code}` });
+    printHtmlDocument(buildSampleOrderHtml(sample), { title: `Orden ${sample.code}`, createdBy: sample.created_by_name });
     setMessage("Orden de muestra abierta para imprimir o guardar como PDF.");
   };
 
@@ -793,7 +799,8 @@ const SamplesPage = () => {
             <div className="mt-4 space-y-3">
               <select
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                value={form.status}
+                value={user?.role === "samples" ? "enviada" : form.status}
+                disabled={user?.role === "samples"}
                 onChange={(event) => setForm({ ...form, status: event.target.value })}
               >
                 <option value="borrador">Borrador</option>
@@ -1094,7 +1101,7 @@ const SamplesPage = () => {
 
                   {(canManageSamples || canPrintSampleOrder || canCreate || canDeleteSamples) && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {canCreate && (["borrador", "enviada"].includes(sample.status) || (user?.role === "admin" && sample.status === "aprobada")) && (
+                      {canCreate && user?.role !== "samples" && (["borrador", "enviada"].includes(sample.status) || (user?.role === "admin" && sample.status === "aprobada")) && (
                         <button
                           className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                           type="button"

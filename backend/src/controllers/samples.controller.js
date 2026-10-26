@@ -208,7 +208,7 @@ export const postSample = async (req, res) => {
       tentativeDeliveryDate: tentativeDeliveryDate || null,
       notes,
       createdBy: req.user.id,
-      status,
+      status: req.user.role === "samples" ? "enviada" : status,
     });
 
     res.status(201).json({
@@ -306,8 +306,8 @@ export const putSampleStatus = async (req, res) => {
   try {
     const { status, notes } = req.body;
     const itemReviews = Array.isArray(req.body.itemReviews) ? req.body.itemReviews : [];
-    const commercialSampleStatuses = ["borrador", "enviada", "cancelada"];
-    const canManageCommercialSample = ["admin", "accounting"].includes(req.user.role);
+    const commercialSampleStatuses = ["borrador", "enviada", "aprobada", "cancelada"];
+    const canManageCommercialSample = ["admin", "accounting", "inventory_viewer"].includes(req.user.role);
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Estado de muestra no valido" });
@@ -317,6 +317,15 @@ export const putSampleStatus = async (req, res) => {
 
     if (!sampleBeforeUpdate) {
       return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+    }
+
+    if (status === "aprobada" && (!canManageCommercialSample || !["enviada", "solicitada"].includes(sampleBeforeUpdate.status))) {
+      return res.status(409).json({ message: "Solo administracion, contabilidad o Sergio puede aprobar una solicitud pendiente" });
+    }
+
+    if (sampleBeforeUpdate.created_by_role === "samples" && ["enviada", "solicitada"].includes(sampleBeforeUpdate.status)
+      && !["aprobada", "cancelada"].includes(status)) {
+      return res.status(409).json({ message: "La solicitud creada por Muestras esta pendiente de aprobacion" });
     }
 
     if (req.user.role === "laboratory") {
@@ -339,7 +348,7 @@ export const putSampleStatus = async (req, res) => {
       }
     }
 
-    if (req.user.role === "accounting" && !commercialSampleStatuses.includes(status)) {
+    if (["accounting", "inventory_viewer"].includes(req.user.role) && !commercialSampleStatuses.includes(status)) {
       return res.status(403).json({ message: "Contabilidad solo puede aprobar o cancelar muestras comerciales" });
     }
 
@@ -480,6 +489,10 @@ export const putSampleBlend = async (req, res) => {
 
     const sample = await findSampleRequestById(req.params.id);
     if (!sample) return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+
+    if (sample.created_by_role === "samples" && ["enviada", "solicitada"].includes(sample.status)) {
+      return res.status(409).json({ message: "Debe aprobarse la solicitud antes de definir el ensamble" });
+    }
 
     if (req.user.role === "laboratory" && sample.status !== "pendiente_laboratorio") {
       return res.status(409).json({ message: "Laboratorio solo puede ajustar el ensamble de muestras pendientes de analisis" });

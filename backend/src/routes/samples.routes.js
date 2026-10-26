@@ -15,10 +15,10 @@ const router = Router();
 
 router.get("/", requireAuth, requireRoles("admin", "accounting", "seller", "samples", "laboratory", "inventory_viewer"), getSamples);
 router.get("/:id", requireAuth, requireRoles("admin", "accounting", "seller", "samples", "laboratory", "inventory_viewer"), getSample);
-router.post("/", requireAuth, requireRoles("admin", "accounting", "seller", "inventory_viewer"), postSample);
+router.post("/", requireAuth, requireRoles("admin", "accounting", "seller", "samples", "inventory_viewer"), postSample);
 router.put("/:id", requireAuth, requireRoles("admin", "accounting", "seller", "inventory_viewer"), putSample);
 router.delete("/:id", requireAuth, requireRoles("admin"), deleteSample);
-router.put("/:id/status", requireAuth, requireRoles("admin", "accounting", "samples", "laboratory"), putSampleStatus);
+router.put("/:id/status", requireAuth, requireRoles("admin", "accounting", "samples", "laboratory", "inventory_viewer"), putSampleStatus);
 router.put("/:id/blend", requireAuth, requireRoles("admin", "samples", "laboratory"), putSampleBlend);
 router.put("/:id/shipping-guide", requireAuth, requireRoles("admin", "samples"), putSampleShippingGuide);
 

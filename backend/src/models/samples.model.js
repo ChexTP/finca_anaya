@@ -38,11 +38,13 @@ export const listSampleRequests = async ({ createdBy, status, statuses }) => {
       coffee_profiles.internal_code AS coffee_profile_code,
       coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       created_user.name AS created_by_name,
+      created_role.name AS created_by_role,
       handled_user.name AS handled_by_name
     FROM sample_requests
     LEFT JOIN coffee_types ON coffee_types.id = sample_requests.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sample_requests.coffee_profile_id
     LEFT JOIN users created_user ON created_user.id = sample_requests.created_by
+    LEFT JOIN roles created_role ON created_role.id = created_user.role_id
     LEFT JOIN users handled_user ON handled_user.id = sample_requests.handled_by
     ${where}
     ORDER BY sample_requests.created_at DESC
@@ -65,11 +67,13 @@ export const findSampleRequestById = async (id) => {
       coffee_profiles.internal_code AS coffee_profile_code,
       coffee_profiles.characterization_note AS coffee_profile_characterization_note,
       created_user.name AS created_by_name,
+      created_role.name AS created_by_role,
       handled_user.name AS handled_by_name
     FROM sample_requests
     LEFT JOIN coffee_types ON coffee_types.id = sample_requests.coffee_type_id
     LEFT JOIN coffee_profiles ON coffee_profiles.id = sample_requests.coffee_profile_id
     LEFT JOIN users created_user ON created_user.id = sample_requests.created_by
+    LEFT JOIN roles created_role ON created_role.id = created_user.role_id
     LEFT JOIN users handled_user ON handled_user.id = sample_requests.handled_by
     WHERE sample_requests.id = $1
     LIMIT 1

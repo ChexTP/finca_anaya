@@ -446,6 +446,7 @@ export const openCommercialDocumentPrint = (document, options = {}) => {
 
   printHtmlDocument(buildCommercialDocumentHtml(document, options), {
     title: `${documentName} ${document.code || ""}`.trim(),
+    createdBy: document.seller?.name,
   });
 };
 
@@ -531,5 +532,6 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
 export const openPriceListDocumentPrint = (document) => {
   printHtmlDocument(buildPriceListDocumentHtml(document), {
     title: document.code || "Lista de precios",
+    createdBy: document.seller?.name,
   });
 };

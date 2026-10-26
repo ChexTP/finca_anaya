@@ -430,5 +430,6 @@ export const buildPurchaseOrderHtml = (payable) => {
 export const openPurchaseOrderPrint = (payable) => {
   printHtmlDocument(buildPurchaseOrderHtml(payable), {
     title: payable?.code || "Orden de compra",
+    createdBy: payable?.created_by_name || payable?.purchase_order_snapshot?.createdByName,
   });
 };

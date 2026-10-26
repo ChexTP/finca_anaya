@@ -9,6 +9,7 @@ import { calculateOperationalKg, formatOperationalKg, roundKgUpToHalf } from "..
 import { formatCoffeeLotCodeName, formatCoffeeLotOption, groupCoffeeLots } from "../../utils/coffeeLots";
 import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
+import { addPrintAudit } from "../../utils/printAudit";
 import {
   getSaleNextAction,
   getSaleStatusTone,
@@ -1214,7 +1215,7 @@ const WarehousePendingPage = () => {
       return;
     }
 
-    printHtmlDocument(buildWarehouseOrderHtml(selectedSale), { title: `Orden ${selectedSale.code}` });
+    printHtmlDocument(buildWarehouseOrderHtml(selectedSale), { title: `Orden ${selectedSale.code}`, createdBy: selectedSale.seller_name });
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 
@@ -1227,7 +1228,7 @@ const WarehousePendingPage = () => {
 
     try {
       const saleDetail = await apiRequest(`/sales/${sale.id}`);
-      const html = buildWarehouseOrderHtml(saleDetail);
+      const html = addPrintAudit(buildWarehouseOrderHtml(saleDetail), { createdBy: saleDetail.seller_name });
 
       if (documentTab) {
         writeDocumentTab(documentTab, html);

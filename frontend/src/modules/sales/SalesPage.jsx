@@ -516,7 +516,7 @@ const SalesPage = () => {
       return;
     }
 
-    printHtmlDocument(buildWarehouseOrderDocumentHtml(selectedSale), { title: `Orden ${selectedSale.code}` });
+    printHtmlDocument(buildWarehouseOrderDocumentHtml(selectedSale), { title: `Orden ${selectedSale.code}`, createdBy: selectedSale.seller_name });
     setMessage("Orden abierta para imprimir o guardar como PDF.");
   };
 

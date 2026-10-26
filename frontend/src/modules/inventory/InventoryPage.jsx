@@ -1148,6 +1148,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
   const printFarmShipment = (shipment) => {
     printHtmlDocument(buildFarmShipmentHtml(shipment), {
       title: `Envio a finca ${shipment.lot_code || ""}`,
+      createdBy: shipment.shipped_by_name || shipment.created_by_name,
     });
   };
 
