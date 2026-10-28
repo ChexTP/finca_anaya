@@ -7,6 +7,7 @@ import { apiRequest } from "../../utils/api";
 import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
+import { renderDocumentNotes } from "../../utils/documentNotes";
 import { printable } from "../../utils/printFormatting";
 import { formatCoffeeNameWithCharacterization } from "../../utils/coffeeLots";
 
@@ -377,6 +378,7 @@ const buildSampleOrderHtml = (sample) => {
           <p class="line">RESPONSABLE</p>
           <p class="line">DESPACHA</p>
         </section>
+        ${renderDocumentNotes(sample.notes)}
       </body>
     </html>
   `;
@@ -965,7 +967,8 @@ const SamplesPage = () => {
               </div>
               <textarea
                 className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Notas internas"
+                aria-label="Nota de la solicitud de muestras"
+                placeholder="Nota para el documento (opcional)"
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
               />

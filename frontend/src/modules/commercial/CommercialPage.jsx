@@ -75,6 +75,7 @@ const initialQuote = {
 };
 
 const initialPriceList = {
+  notes: "",
   manualCodeNumber: "",
   manualCodeYear: String(new Date().getFullYear()),
   clientId: "",
@@ -1317,6 +1318,7 @@ const CommercialPage = () => {
         clientId: String(quote.client_id || ""),
         language: quote.currency === "USD" ? "en" : "es",
         currency: quote.currency || "COP",
+        notes: quote.notes || "",
         terms: { ...defaultQuoteTerms, ...(quote.quote_terms || {}) },
       });
       setPriceListItems((quote.items || []).map((item) => {
@@ -1579,7 +1581,7 @@ const CommercialPage = () => {
           },
           shippingCost: 0,
           estimatedDeliveryDate: null,
-          notes: "Lista de precios",
+          notes: priceListForm.notes || null,
           items,
         }),
       });
@@ -2131,7 +2133,7 @@ const CommercialPage = () => {
               </div>
             </div>
 
-            <textarea className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Notas" value={quoteForm.notes} onChange={(event) => setQuoteForm({ ...quoteForm, notes: event.target.value })} />
+            <textarea aria-label="Nota de la cotizacion" className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Nota para el documento (opcional)" value={quoteForm.notes} onChange={(event) => setQuoteForm({ ...quoteForm, notes: event.target.value })} />
             <button className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
               <Save size={16} />
               {editingQuoteId ? "Actualizar cotizacion" : "Guardar cotizacion"}
@@ -2272,7 +2274,7 @@ const CommercialPage = () => {
                     <input className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" type="date" value={sampleForm.tentativeDeliveryDate} onChange={(event) => setSampleForm({ ...sampleForm, tentativeDeliveryDate: event.target.value })} />
                   </label>
                 </div>
-                <textarea className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Notas internas" value={sampleForm.notes} onChange={(event) => setSampleForm({ ...sampleForm, notes: event.target.value })} />
+                <textarea aria-label="Nota de la solicitud de muestras" className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Nota para el documento (opcional)" value={sampleForm.notes} onChange={(event) => setSampleForm({ ...sampleForm, notes: event.target.value })} />
                 <button className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
                   <Save size={16} />
                   Crear solicitud de muestra
@@ -2671,6 +2673,13 @@ const CommercialPage = () => {
                   </div>
                 </div>
 
+                <textarea
+                  aria-label="Nota de la lista de precios"
+                  className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Nota para el documento (opcional)"
+                  value={priceListForm.notes}
+                  onChange={(event) => setPriceListForm({ ...priceListForm, notes: event.target.value })}
+                />
                 <button
                   className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={saving || priceListItems.length === 0}

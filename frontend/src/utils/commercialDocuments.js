@@ -1,6 +1,7 @@
 import { companyBrand, getPrintableLogo } from "./brand";
 import { formatRequestedKg } from "./coffeeCalculations";
 import { printHtmlDocument } from "./printHtml";
+import { renderDocumentNotes } from "./documentNotes";
 import { printable } from "./printFormatting";
 
 export const formatDocumentMoney = (currency, value) => {
@@ -421,7 +422,6 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
             : ""
         }
 
-        ${document.notes ? `<h3>${text.notes}</h3><p>${escapeHtml(document.notes)}</p>` : ""}
 
         ${
           document.dispatchReceipt?.hasImage
@@ -432,6 +432,7 @@ export const buildCommercialDocumentHtml = (document, { language = "es" } = {}) 
             `
             : ""
         }
+        ${renderDocumentNotes(document.notes, text.notes)}
       </body>
     </html>
   `;
@@ -450,7 +451,7 @@ export const openCommercialDocumentPrint = (document, options = {}) => {
   });
 };
 
-export const buildPriceListDocumentHtml = ({ client, currency = "COP", language = "es", terms = {}, items = [] }) => {
+export const buildPriceListDocumentHtml = ({ client, currency = "COP", language = "es", terms = {}, items = [], notes }) => {
   const text = labels[language] || labels.es;
   const title = language === "en" ? "Coffee Price List" : "Lista de precios de café";
   const intro = language === "en"
@@ -524,6 +525,7 @@ export const buildPriceListDocumentHtml = ({ client, currency = "COP", language 
             </tbody>
           </table>
         </section>
+        ${renderDocumentNotes(notes, text.notes)}
       </body>
     </html>
   `;
