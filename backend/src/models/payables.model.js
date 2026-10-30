@@ -1,5 +1,6 @@
 import { pool } from "../db.js";
 import { getNextCode } from "./codeCounters.model.js";
+import { normalizeLiquidationSnapshot } from "../utils/liquidationAmounts.js";
 
 export const findPayableCategoryById = async (id) => {
   const result = await pool.query("SELECT * FROM payable_categories WHERE id = $1 LIMIT 1", [id]);
@@ -157,6 +158,12 @@ export const findPayableById = async (id) => {
 };
 
 export const updatePurchaseOrderDocument = async ({ id, code, purchaseOrderSnapshot, total, notes }) => {
+  if (purchaseOrderSnapshot) {
+    const items = Array.isArray(purchaseOrderSnapshot.items) && purchaseOrderSnapshot.items.length
+      ? purchaseOrderSnapshot.items : [purchaseOrderSnapshot];
+    purchaseOrderSnapshot = normalizeLiquidationSnapshot(purchaseOrderSnapshot, items);
+    total = purchaseOrderSnapshot.purchaseTotal;
+  }
   const client = await pool.connect();
 
   try {
@@ -173,7 +180,7 @@ export const updatePurchaseOrderDocument = async ({ id, code, purchaseOrderSnaps
         status = CASE
           WHEN amount_paid >= COALESCE($4, total) THEN 'pagada'
           WHEN amount_paid > 0 THEN 'pago_parcial'
-          ELSE status
+          ELSE 'pendiente'
         END,
         notes = COALESCE($5, notes),
         updated_at = NOW()

@@ -4,6 +4,7 @@ import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
+import { calculateLiquidationPrices } from "../../utils/liquidationPrices";
 
 const formatMoney = (value) => `COP ${Number(value || 0).toLocaleString("es-CO")}`;
 const formatKg = (value) => `${Number(value || 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
@@ -50,43 +51,13 @@ const toInputDate = (value) => {
 
 const parseAmount = (value) => Number(String(value ?? "0").replace(",", ".")) || 0;
 
-const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor = 90) => {
-  const basePriceCarga = Number(priceFactor90 || 0);
-  const negotiatedBaseFactor = baseFactor === "" || baseFactor === null || baseFactor === undefined
-    ? 90
-    : Number(baseFactor);
-  const factor = performanceFactor === "" || performanceFactor === null || performanceFactor === undefined
-    ? negotiatedBaseFactor
-    : Number(performanceFactor);
-
-  if (
-    !Number.isFinite(basePriceCarga) ||
-    basePriceCarga <= 0 ||
-    !Number.isFinite(factor) ||
-    !Number.isFinite(negotiatedBaseFactor)
-  ) {
-    return {
-      adjustmentPercent: 0,
-      adjustedPriceCarga: 0,
-      purchasePricePerKg: 0,
-    };
-  }
-
-  const adjustmentPercent = negotiatedBaseFactor - factor;
-  const adjustedPriceCarga = Number((basePriceCarga * (1 + adjustmentPercent / 100)).toFixed(2));
-
-  return {
-    adjustmentPercent: Number(adjustmentPercent.toFixed(2)),
-    adjustedPriceCarga,
-    purchasePricePerKg: Number((adjustedPriceCarga / 125).toFixed(2)),
-  };
-};
 
 const calculateEditItem = (item) => {
   const priceData = calculateLiquidationPrices(
     item.purchasePriceFactor90,
     item.performanceFactor,
-    item.purchaseBaseFactor
+    item.purchaseBaseFactor,
+    item.purchasePricePerKg
   );
   const netWeightKg = parseAmount(item.netWeightKg);
   const purchaseTotal = Number((netWeightKg * Number(priceData.purchasePricePerKg || 0)).toFixed(2));

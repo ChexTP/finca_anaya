@@ -10,6 +10,7 @@ import { formatCoffeeLotCodeName, formatCoffeeNameWithCode, getCoffeeLotGroup, g
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
 import { lotStatusLabels, processStatusLabels } from "../../utils/workflow";
 import { printHtmlDocument } from "../../utils/printHtml";
+import { calculateLiquidationPrices } from "../../utils/liquidationPrices";
 
 const initialLiquidation = {
   orderCode: "",
@@ -204,7 +205,8 @@ const calculatePurchaseOrderEditItem = (item) => {
   const priceData = calculateLiquidationPrices(
     item.purchasePriceFactor90,
     item.performanceFactor,
-    item.purchaseBaseFactor
+    item.purchaseBaseFactor,
+    item.purchasePricePerKg
   );
   const netWeightKg = parseAmount(item.netWeightKg);
   const purchaseTotal = Number((netWeightKg * Number(priceData.purchasePricePerKg || 0)).toFixed(2));
@@ -322,37 +324,6 @@ const getProcessLocationGroup = (processType) => {
   if (processType === "Seleccion electronica") return "En seleccionadora";
   return "En finca";
 };
-const calculateLiquidationPrices = (priceFactor90, performanceFactor, baseFactor = 90) => {
-  const basePriceCarga = Number(priceFactor90 || 0);
-  const negotiatedBaseFactor = baseFactor === "" || baseFactor === null || baseFactor === undefined
-    ? 90
-    : Number(baseFactor);
-  const factor = performanceFactor === "" || performanceFactor === null || performanceFactor === undefined
-    ? negotiatedBaseFactor
-    : Number(performanceFactor);
-
-  if (
-    !Number.isFinite(basePriceCarga) ||
-    basePriceCarga <= 0 ||
-    !Number.isFinite(factor) ||
-    !Number.isFinite(negotiatedBaseFactor)
-  ) {
-    return {
-      adjustmentPercent: 0,
-      adjustedPriceCarga: 0,
-      purchasePricePerKg: 0,
-    };
-  }
-
-  const adjustmentPercent = negotiatedBaseFactor - factor;
-  const adjustedPriceCarga = Number((basePriceCarga * (1 + adjustmentPercent / 100)).toFixed(2));
-
-  return {
-    adjustmentPercent: Number(adjustmentPercent.toFixed(2)),
-    adjustedPriceCarga,
-    purchasePricePerKg: Number((adjustedPriceCarga / 125).toFixed(2)),
-  };
-};
 
 const buildLiquidationItem = (lot) => {
   const basePrice = Number(lot.purchase_base_price_factor90_cop || 0);
@@ -445,7 +416,7 @@ const buildPurchaseOrderSnapshot = (form) => {
     lotPresentation: form.lotPresentation,
     grossWeightKg,
     netWeightKg,
-    performanceFactor: form.performanceFactor,
+    performanceFactor: items.length === 1 ? items[0].performanceFactor : "",
     createdByName: form.createdByName,
     coffeeDetail: form.coffeeDetail,
     purchaseBaseFactor,
@@ -631,6 +602,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
         coffeeDetail: nextItems.length === 1 ? nextItems[0]?.coffeeDetail || "" : `Liquidacion agrupada de ${nextItems.length} lotes`,
         purchasePriceFactor90: nextItems.length === 1 ? nextItems[0]?.purchasePriceFactor90 || "" : "",
         purchasePricePerKg: nextItems.length === 1 ? nextItems[0]?.purchasePricePerKg || "" : "",
+        performanceFactor: nextItems.length === 1 ? nextItems[0]?.performanceFactor ?? "" : "",
       };
     });
   };
@@ -696,10 +668,11 @@ const InventoryPage = ({ mode = "inventory" }) => {
           }),
         });
       try {
+        const savedOrder = response?.purchase_order || response?.data?.purchase_order || {};
         openPurchaseOrderPrint({
-          ...(response?.purchase_order || response?.data?.purchase_order || {}),
-          purchase_order_snapshot: purchaseOrderSnapshot,
-          code: purchaseOrderSnapshot.orderCode || response?.purchase_order?.code || response?.data?.purchase_order?.code,
+          ...savedOrder,
+          purchase_order_snapshot: savedOrder.purchase_order_snapshot || purchaseOrderSnapshot,
+          code: savedOrder.code || purchaseOrderSnapshot.orderCode,
         });
       } catch (printError) {
         console.warn("No se pudo abrir la orden de compra automaticamente", printError);
@@ -717,20 +690,30 @@ const InventoryPage = ({ mode = "inventory" }) => {
     }
   };
 
-  const openPurchaseOrderPayment = (order) => {
-    const balanceDue = Number(order.balance_due ?? order.total ?? 0);
-    const defaultMethod = (catalogs?.paymentMethods || []).find((method) => isLiquidationPaymentMethod(method));
-
-    setPaymentOrder(order);
-    setPaymentForm({
-      amount: balanceDue > 0 ? String(balanceDue) : "",
-      paymentMethodId: defaultMethod?.id ? String(defaultMethod.id) : "",
-      paymentReference: "",
-      paidAt: todayInputDate(),
-      notes: "",
-    });
-    setMessage("");
+  const openPurchaseOrderPayment = async (order) => {
+    setSaving(true);
     setError("");
+    try {
+      const fullOrder = await apiRequest(`/payables/${order.id}`);
+      const balanceDue = Number(fullOrder.balance_due ?? fullOrder.total ?? 0);
+      const defaultMethod = (catalogs?.paymentMethods || []).find((method) => isLiquidationPaymentMethod(method));
+
+      setPurchaseOrders((orders) => orders.map((item) => Number(item.id) === Number(fullOrder.id) ? fullOrder : item));
+      setPaymentOrder(fullOrder);
+      setPaymentForm({
+        amount: balanceDue > 0 ? String(balanceDue) : "",
+        paymentMethodId: defaultMethod?.id ? String(defaultMethod.id) : "",
+        paymentReference: "",
+        paidAt: todayInputDate(),
+        notes: "",
+      });
+      setMessage("");
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openPurchaseOrderEdit = async (order) => {
@@ -3266,6 +3249,7 @@ const InventoryPage = ({ mode = "inventory" }) => {
             </div>
 
             <div className="space-y-4 p-4">
+              {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
               <div className="grid gap-3 rounded bg-slate-50 p-3 text-sm text-slate-700 sm:grid-cols-3">
                 <div>
                   <p className="text-xs font-semibold uppercase text-slate-500">Total</p>
@@ -3616,7 +3600,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     type="number"
                     step="0.001"
                     value={liquidationForm.grossWeightKg}
-                    onChange={(event) => setLiquidationForm({ ...liquidationForm, grossWeightKg: event.target.value })}
+                    readOnly={(liquidationForm.items || []).length !== 1}
+                    onChange={(event) => updateLiquidationItem(liquidationForm.items[0].id, "grossWeightKg", event.target.value)}
                   />
                 </label>
                 <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">
@@ -3626,7 +3611,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
                     type="number"
                     step="0.001"
                     value={liquidationForm.netWeightKg}
-                    onChange={(event) => setLiquidationForm({ ...liquidationForm, netWeightKg: event.target.value })}
+                    readOnly={(liquidationForm.items || []).length !== 1}
+                    onChange={(event) => updateLiquidationItem(liquidationForm.items[0].id, "netWeightKg", event.target.value)}
                     required
                   />
                 </label>
@@ -3635,7 +3621,8 @@ const InventoryPage = ({ mode = "inventory" }) => {
                   <input
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm normal-case text-ink"
                     value={liquidationForm.performanceFactor}
-                    onChange={(event) => setLiquidationForm({ ...liquidationForm, performanceFactor: event.target.value })}
+                    readOnly={(liquidationForm.items || []).length !== 1}
+                    onChange={(event) => updateLiquidationItem(liquidationForm.items[0].id, "performanceFactor", event.target.value)}
                   />
                 </label>
                 <label className="space-y-1 text-xs font-semibold uppercase text-slate-500">

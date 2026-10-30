@@ -113,7 +113,7 @@ const getPurchaseOrderItems = (payable) => {
     priceKg,
     priceCarga: priceKg * 125,
     priceArroba: priceKg * 12.5,
-    total: Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || (kilos * priceKg))),
+    total: Number(snapshotValue(payable, "purchaseTotal", payable.total ?? payable.purchase_total ?? (kilos * priceKg))),
     performanceFactor: snapshotValue(payable, "performanceFactor", payable.performance_factor || ""),
     adjustmentPercent: Number(snapshotValue(payable, "adjustmentPercent", 0)),
   }];
@@ -132,7 +132,7 @@ export const buildPurchaseOrderHtml = (payable) => {
   const items = getPurchaseOrderItems(payable);
   const kilos = items.reduce((sum, item) => sum + Number(item.kilos || 0), 0);
   const grossKilos = items.reduce((sum, item) => sum + Number(item.grossKilos || 0), 0);
-  const total = Number(snapshotValue(payable, "purchaseTotal", payable.purchase_total || payable.total || items.reduce((sum, item) => sum + Number(item.total || 0), 0)));
+  const total = Number(snapshotValue(payable, "purchaseTotal", payable.total ?? payable.purchase_total ?? items.reduce((sum, item) => sum + Number(item.total || 0), 0)));
   const firstItem = items[0] || {};
   const orderCode = getOrderCode(payable);
   const supplierName = printable(snapshotValue(payable, "supplierName", payable.supplier_name || payable.third_party_name || ""), "");

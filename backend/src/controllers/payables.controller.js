@@ -102,7 +102,7 @@ export const putPurchaseOrderDocument = async (req, res) => {
       return res.status(409).json({ message: "Ya existe una orden con ese codigo" });
     }
 
-    res.status(500).json({
+    res.status(error.status || 500).json({
       message: "Error al actualizar orden de compra",
       error: error.message,
     });

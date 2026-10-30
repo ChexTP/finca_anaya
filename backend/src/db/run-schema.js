@@ -3,6 +3,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { pool } from "../db.js";
 import { ensureUserOperatorColumn } from "../models/userOperators.model.js";
+import { reconcileLiquidationAmounts } from "../models/liquidationReconciliation.model.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 
@@ -13,6 +14,8 @@ const runSchema = async () => {
 
     await pool.query(schema);
     await ensureUserOperatorColumn();
+    const liquidationReport = await reconcileLiquidationAmounts();
+    console.log("Conciliacion de liquidaciones:", JSON.stringify(liquidationReport));
     console.log("Esquema de base de datos ejecutado correctamente");
   } catch (error) {
     console.error("Error al ejecutar el esquema:", error.message);

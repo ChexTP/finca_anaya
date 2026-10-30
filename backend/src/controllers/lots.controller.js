@@ -1093,7 +1093,7 @@ export const putLiquidation = async (req, res) => {
       data: lot,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.status || 500).json({
       message: "Error al liquidar lote",
       error: error.message,
     });
@@ -1165,7 +1165,7 @@ export const postGroupedLiquidation = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.status || 500).json({
       message: "Error al liquidar lotes agrupados",
       error: error.message,
     });

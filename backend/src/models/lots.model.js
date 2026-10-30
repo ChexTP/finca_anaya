@@ -1,6 +1,7 @@
 import { pool } from "../db.js";
 import { ensureCoffeeProfileExtraColumns } from "./catalogs.model.js";
 import { getNextCode } from "./codeCounters.model.js";
+import { calculateLiquidationItem, normalizeLiquidationSnapshot } from "../utils/liquidationAmounts.js";
 
 export const findPackagingTypeById = async (id) => {
   const result = await pool.query("SELECT * FROM packaging_types WHERE id = $1 LIMIT 1", [id]);
@@ -1160,19 +1161,26 @@ export const liquidateLot = async ({ id, purchaseBaseFactor, purchasePriceFactor
       return { invalidStatus: true, lot: currentLot };
     }
 
-    const requestedNetWeight = Number(purchaseOrderSnapshot?.netWeightKg);
-    const snapshotNetWeight = Number.isFinite(requestedNetWeight) && requestedNetWeight > 0
-      ? requestedNetWeight
-      : Number(currentLot.net_weight_kg || 0);
-    const finalPurchasePricePerKg = calculateLiquidationPricePerKg({
-      purchasePriceFactor90: purchasePriceFactor90 ?? purchaseOrderSnapshot?.purchasePriceFactor90,
-      purchasePricePerKg,
-      purchaseBaseFactor: purchaseBaseFactor ?? purchaseOrderSnapshot?.purchaseBaseFactor,
-      performanceFactor: purchaseOrderSnapshot?.performanceFactor ?? currentLot.performance_factor,
-    });
-    const purchaseTotal = finalPurchasePricePerKg !== null
-      ? Number((snapshotNetWeight * Number(finalPurchasePricePerKg)).toFixed(2))
-      : null;
+    const itemSnapshot = purchaseOrderSnapshot?.items?.find((item) => Number(item.id) === Number(id));
+    if (purchaseOrderSnapshot?.items?.length && (purchaseOrderSnapshot.items.length !== 1 || !itemSnapshot)) {
+      const error = new Error("El documento debe corresponder al lote que se esta liquidando");
+      error.status = 400;
+      throw error;
+    }
+    const source = itemSnapshot || purchaseOrderSnapshot || {};
+    const requestedNetWeight = Number(source.netWeightKg);
+    const snapshotNetWeight = source.netWeightKg === undefined
+      ? Number(currentLot.net_weight_kg || 0)
+      : requestedNetWeight;
+    purchaseOrderSnapshot = normalizeLiquidationSnapshot(purchaseOrderSnapshot || {}, [{
+      ...source, id: currentLot.id, netWeightKg: snapshotNetWeight,
+      purchasePriceFactor90: source.purchasePriceFactor90 === undefined ? purchasePriceFactor90 : source.purchasePriceFactor90,
+      purchasePricePerKg: source.purchasePricePerKg === undefined ? purchasePricePerKg : source.purchasePricePerKg,
+      purchaseBaseFactor: source.purchaseBaseFactor === undefined ? purchaseBaseFactor : source.purchaseBaseFactor,
+      performanceFactor: source.performanceFactor === undefined ? currentLot.performance_factor : source.performanceFactor,
+    }]);
+    const finalPurchasePricePerKg = purchaseOrderSnapshot.purchasePricePerKg;
+    const purchaseTotal = purchaseOrderSnapshot.purchaseTotal;
 
     const result = await client.query(
       `
@@ -1222,23 +1230,6 @@ export const liquidateLot = async ({ id, purchaseBaseFactor, purchasePriceFactor
   }
 };
 
-function calculateLiquidationPricePerKg({ purchaseBaseFactor, purchasePriceFactor90, purchasePricePerKg, performanceFactor }) {
-  const basePriceCarga = Number(purchasePriceFactor90);
-  const negotiatedBaseFactor = purchaseBaseFactor === null || purchaseBaseFactor === undefined || purchaseBaseFactor === ""
-    ? 90
-    : Number(purchaseBaseFactor);
-  const factor = performanceFactor === null || performanceFactor === undefined || performanceFactor === ""
-    ? negotiatedBaseFactor
-    : Number(performanceFactor);
-
-  if (Number.isFinite(basePriceCarga) && basePriceCarga > 0 && Number.isFinite(factor) && Number.isFinite(negotiatedBaseFactor)) {
-    const adjustedPriceCarga = basePriceCarga * (1 + (negotiatedBaseFactor - factor) / 100);
-    return Number((adjustedPriceCarga / 125).toFixed(2));
-  }
-
-  return Number(purchasePricePerKg || 0);
-}
-
 export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, liquidatedBy }) => {
   const client = await pool.connect();
 
@@ -1246,6 +1237,11 @@ export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, 
     await client.query("BEGIN");
 
     const lotIds = items.map((item) => Number(item.id)).filter(Number.isFinite);
+    if (new Set(lotIds).size !== items.length) {
+      const error = new Error("No se puede liquidar dos veces el mismo lote en una orden agrupada");
+      error.status = 400;
+      throw error;
+    }
     const currentResult = await client.query(
       `
       SELECT *
@@ -1277,22 +1273,26 @@ export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, 
     }
 
     const liquidatedLots = [];
+    const normalizedItems = [];
     let purchaseTotal = 0;
 
     for (const item of items) {
       const lot = lotsById.get(Number(item.id));
       const itemSnapshot = purchaseOrderSnapshot?.items?.find((snapshotItem) => Number(snapshotItem.id) === Number(item.id)) || {};
       const requestedNetWeight = Number(itemSnapshot.netWeightKg);
-      const snapshotNetWeight = Number.isFinite(requestedNetWeight) && requestedNetWeight > 0
-        ? requestedNetWeight
-        : Number(lot.net_weight_kg || 0);
-      const purchasePricePerKg = calculateLiquidationPricePerKg({
-        purchaseBaseFactor: item.purchaseBaseFactor ?? itemSnapshot.purchaseBaseFactor,
-        purchasePriceFactor90: item.purchasePriceFactor90 ?? itemSnapshot.purchasePriceFactor90,
-        purchasePricePerKg: item.purchasePricePerKg ?? itemSnapshot.purchasePricePerKg,
-        performanceFactor: itemSnapshot.performanceFactor ?? lot.performance_factor,
+      const snapshotNetWeight = itemSnapshot.netWeightKg === undefined
+        ? Number(lot.net_weight_kg || 0)
+        : requestedNetWeight;
+      const normalizedItem = calculateLiquidationItem({
+        ...itemSnapshot, id: lot.id, netWeightKg: snapshotNetWeight,
+        purchaseBaseFactor: itemSnapshot.purchaseBaseFactor === undefined ? item.purchaseBaseFactor : itemSnapshot.purchaseBaseFactor,
+        purchasePriceFactor90: itemSnapshot.purchasePriceFactor90 === undefined ? item.purchasePriceFactor90 : itemSnapshot.purchasePriceFactor90,
+        purchasePricePerKg: itemSnapshot.purchasePricePerKg === undefined ? item.purchasePricePerKg : itemSnapshot.purchasePricePerKg,
+        performanceFactor: itemSnapshot.performanceFactor === undefined ? lot.performance_factor : itemSnapshot.performanceFactor,
       });
-      const itemTotal = Number((snapshotNetWeight * purchasePricePerKg).toFixed(2));
+      normalizedItems.push(normalizedItem);
+      const purchasePricePerKg = normalizedItem.purchasePricePerKg;
+      const itemTotal = normalizedItem.purchaseTotal;
       purchaseTotal += itemTotal;
 
       const result = await client.query(
@@ -1372,7 +1372,7 @@ export const liquidateLotsGroup = async ({ items, notes, purchaseOrderSnapshot, 
         purchaseTotal,
         notes ? `Cuenta generada al liquidar lotes agrupados. ${notes}` : "Cuenta generada al liquidar lotes agrupados",
         JSON.stringify({
-          ...(purchaseOrderSnapshot || {}),
+          ...normalizeLiquidationSnapshot(purchaseOrderSnapshot || {}, normalizedItems),
           isGrouped: true,
           lotIds: liquidatedLots.map((lot) => lot.id),
           purchaseTotal,
