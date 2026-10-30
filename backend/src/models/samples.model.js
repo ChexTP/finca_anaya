@@ -480,7 +480,7 @@ export const updateSampleRequestStatus = async ({ id, status, notes, labReview, 
       sample_lab_residual = COALESCE($9, sample_lab_residual),
       sample_lab_clean_cup = COALESCE($10, sample_lab_clean_cup),
       sample_lab_score = COALESCE($11, sample_lab_score),
-      sample_lab_notes = COALESCE($12, sample_lab_notes),
+      sample_lab_notes = CASE WHEN $15::boolean THEN $12 ELSE sample_lab_notes END,
       handled_by = $13,
       handled_at = NOW(),
       updated_at = NOW()
@@ -502,6 +502,7 @@ export const updateSampleRequestStatus = async ({ id, status, notes, labReview, 
       labReview?.notes || null,
       handledBy,
       id,
+      Boolean(labReview),
     ]
   );
 

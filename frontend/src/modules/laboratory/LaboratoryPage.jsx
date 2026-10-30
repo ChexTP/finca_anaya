@@ -52,7 +52,6 @@ const buildEmptyProcessOutputReview = (output = {}) => ({
 
 const initialSampleReview = {
   decision: "aprobada_laboratorio",
-  itemReviews: [],
   notes: "",
 };
 
@@ -145,21 +144,6 @@ const normalizePercentageInput = (value) => {
   const digits = String(value || "").replace(/\D/g, "");
   if (!digits) return "";
   return String(Math.min(Number(digits), 100));
-};
-
-const buildBlankSampleItemReviews = (sample) => {
-  return (sample.items || []).map((item) => ({
-    sampleItemId: item.id,
-    humidityPercent: item.sample_humidity_percent || "",
-    aroma: item.sample_lab_aroma || "",
-    flavor: item.sample_lab_flavor || "",
-    sweetness: item.sample_lab_sweetness || "",
-    body: item.sample_lab_body || "",
-    residual: item.sample_lab_residual || "",
-    cleanCup: item.sample_lab_clean_cup || "",
-    score: item.sample_lab_score || "",
-    notes: item.sample_lab_notes || "",
-  }));
 };
 
 const buildSampleBlendRows = (sample) => {
@@ -615,30 +599,10 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const selectSample = (sample) => {
     setActivePanel("samples");
     setSelectedSample(sample);
-    setSampleReview(sampleReviewDrafts[sample.id] || {
-      ...initialSampleReview,
-      itemReviews: buildBlankSampleItemReviews(sample),
-    });
+    setSampleReview(sampleReviewDrafts[sample.id] || { ...initialSampleReview });
     setSampleBlendRows(buildSampleBlendRows(sample));
     setMessage("");
     setError("");
-  };
-
-  const updateSampleItemReview = (index, field, value) => {
-    setSampleReview((currentReview) => {
-      const next = {
-        ...currentReview,
-      itemReviews: currentReview.itemReviews.map((itemReview, itemIndex) =>
-        itemIndex === index ? { ...itemReview, [field]: value } : itemReview
-      ),
-      };
-
-      if (selectedSample) {
-        setSampleReviewDrafts((drafts) => ({ ...drafts, [selectedSample.id]: next }));
-      }
-
-      return next;
-    });
   };
 
   const updateLotReview = (field, value) => {
@@ -1076,33 +1040,10 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
     setError("");
 
     try {
-      if (decision === "aprobada_laboratorio") {
-        const blendSaved = await saveSampleBlendAdjustment({ skipConfirm: true });
-        if (!blendSaved) {
-          setSaving(false);
-          return;
-        }
-      }
-
       const requestBody = {
         status: decision,
         notes: sampleReview.notes || undefined,
       };
-
-      if (decision === "aprobada_laboratorio") {
-        requestBody.itemReviews = sampleReview.itemReviews.map((itemReview) => ({
-          sampleItemId: itemReview.sampleItemId,
-          humidityPercent: itemReview.humidityPercent,
-          aroma: itemReview.aroma,
-          flavor: itemReview.flavor,
-          sweetness: itemReview.sweetness,
-          body: itemReview.body,
-          residual: itemReview.residual,
-          cleanCup: itemReview.cleanCup,
-          score: itemReview.score,
-          notes: itemReview.notes || null,
-        }));
-      }
 
       await apiRequest(`/samples/${selectedSample.id}/status`, {
         method: "PUT",
@@ -2027,53 +1968,6 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <p className="text-sm font-semibold text-slate-800">Datos para aprobar la muestra</p>
-                    {sampleReview.itemReviews.map((itemReview, index) => {
-                      const item = selectedSample.items?.find((sampleItem) => sampleItem.id === itemReview.sampleItemId);
-
-                      return (
-                        <div key={itemReview.sampleItemId} className="rounded border border-slate-200 p-3">
-                          <p className="mb-3 text-sm font-semibold text-ink">
-                            {formatRequestedCoffee(item)} - {item?.quantity_grams} g
-                          </p>
-                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                            <input
-                              className="rounded border border-slate-300 px-3 py-2 text-sm"
-                              placeholder="Humedad"
-                              type="text"
-                              value={itemReview.humidityPercent}
-                              onChange={(event) => updateSampleItemReview(index, "humidityPercent", event.target.value)}
-                            />
-                            {cuppingFields.map(([field, label]) => (
-                              <input
-                                key={field}
-                                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                                placeholder={label}
-                                type="text"
-                                value={itemReview[field]}
-                                onChange={(event) => updateSampleItemReview(index, field, event.target.value)}
-                              />
-                            ))}
-                            <input
-                              className="rounded border border-slate-300 px-3 py-2 text-sm"
-                              placeholder="Score"
-                              type="text"
-                              value={itemReview.score}
-                              onChange={(event) => updateSampleItemReview(index, "score", event.target.value)}
-                            />
-                          </div>
-                          <textarea
-                            className="mt-3 min-h-16 w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                            placeholder="Notas de este cafe"
-                            value={itemReview.notes}
-                            onChange={(event) => updateSampleItemReview(index, "notes", event.target.value)}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-
                   <textarea
                     className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     placeholder="Notas de laboratorio o instrucciones para que muestras corrija el ensamble"
@@ -2087,7 +1981,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       disabled={saving || !selectedSample}
                       onClick={(event) => submitSampleReview(event, "en_preparacion")}
                     >
-                      Devolver a muestras
+                      Rechazar envio
                     </button>
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
@@ -2096,7 +1990,7 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
                       onClick={(event) => submitSampleReview(event, "aprobada_laboratorio")}
                     >
                       <Save size={16} />
-                      Aprobar analisis
+                      Aprobar envio
                     </button>
                   </div>
                 </div>

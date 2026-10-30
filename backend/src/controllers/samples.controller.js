@@ -7,7 +7,6 @@ import {
   replaceSampleBlend,
   updateSampleRequest,
   updateSampleRequestStatus,
-  updateSampleItemReviews,
   updateSampleShippingGuide,
   deleteSampleRequestById,
 } from "../models/samples.model.js";
@@ -41,33 +40,6 @@ const validStatuses = [
 ];
 const allowedShippingGuideStatuses = ["lista", "entregada"];
 const maxShippingGuideSize = 4 * 1024 * 1024;
-const requiredSampleLabFields = [
-  "humidityPercent",
-  "aroma",
-  "flavor",
-  "sweetness",
-  "body",
-  "residual",
-  "cleanCup",
-  "score",
-];
-
-const hasCompleteItemLabReview = (item) => {
-  return [
-    item.sample_humidity_percent,
-    item.sample_lab_aroma,
-    item.sample_lab_flavor,
-    item.sample_lab_sweetness,
-    item.sample_lab_body,
-    item.sample_lab_residual,
-    item.sample_lab_clean_cup,
-    item.sample_lab_score,
-  ].every((value) => value !== null && value !== undefined && String(value).trim() !== "");
-};
-
-const hasCompleteSampleLabReview = (sample) => {
-  return sample.items?.length > 0 && sample.items.every(hasCompleteItemLabReview);
-};
 
 export const getSamples = async (req, res) => {
   try {
@@ -305,7 +277,6 @@ export const putSample = async (req, res) => {
 export const putSampleStatus = async (req, res) => {
   try {
     const { status, notes } = req.body;
-    const itemReviews = Array.isArray(req.body.itemReviews) ? req.body.itemReviews : [];
     const commercialSampleStatuses = ["borrador", "enviada", "aprobada", "cancelada"];
     const canManageCommercialSample = ["admin", "accounting", "inventory_viewer"].includes(req.user.role);
 
@@ -317,6 +288,26 @@ export const putSampleStatus = async (req, res) => {
 
     if (!sampleBeforeUpdate) {
       return res.status(404).json({ message: "Solicitud de muestra no encontrada" });
+    }
+
+    const isLabDecision = status === "aprobada_laboratorio"
+      || (status === "en_preparacion" && sampleBeforeUpdate.status === "pendiente_laboratorio");
+    if (isLabDecision) {
+      if (!["admin", "laboratory"].includes(req.user.role)) {
+        return res.status(403).json({ message: "Solo laboratorio o administracion puede aprobar o rechazar el envio" });
+      }
+      if (sampleBeforeUpdate.status !== "pendiente_laboratorio" || !sampleBeforeUpdate.items?.length) {
+        return res.status(409).json({ message: "La muestra debe estar pendiente de laboratorio para revisar su envio" });
+      }
+      if (status === "en_preparacion" && !String(notes || "").trim()) {
+        return res.status(400).json({ message: "Indique el motivo de rechazo para que Muestras lo corrija" });
+      }
+    }
+    if (status === "lista" && sampleBeforeUpdate.status !== "aprobada_laboratorio") {
+      return res.status(409).json({ message: "Laboratorio debe aprobar el envio antes de marcar la muestra como lista" });
+    }
+    if (status === "entregada" && sampleBeforeUpdate.status !== "lista") {
+      return res.status(409).json({ message: "La muestra debe estar lista antes de registrar la entrega" });
     }
 
     if (status === "aprobada" && (!canManageCommercialSample || !["enviada", "solicitada"].includes(sampleBeforeUpdate.status))) {
@@ -353,7 +344,7 @@ export const putSampleStatus = async (req, res) => {
     }
 
     if (["admin", "samples"].includes(req.user.role)) {
-      if (status === "aprobada_laboratorio") {
+      if (status === "aprobada_laboratorio" && req.user.role === "samples") {
         return res.status(403).json({ message: "Solo laboratorio puede aprobar el analisis de muestra" });
       }
 
@@ -370,51 +361,11 @@ export const putSampleStatus = async (req, res) => {
       return res.status(403).json({ message: "Solo administracion o contabilidad puede cancelar muestras comerciales" });
     }
 
-    const cleanItemReviews = itemReviews.map((review) => ({
-      sampleItemId: Number(review.sampleItemId),
-      humidityPercent: toText(review.humidityPercent),
-      aroma: toText(review.aroma),
-      flavor: toText(review.flavor),
-      sweetness: toText(review.sweetness),
-      body: toText(review.body),
-      residual: toText(review.residual),
-      cleanCup: toText(review.cleanCup),
-      score: toText(review.score),
-      notes: toText(review.notes),
-    }));
-
-    if (status === "aprobada_laboratorio" && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
-      const missingLabField = cleanItemReviews.length !== sampleBeforeUpdate.items.length || cleanItemReviews.some((review) => (
-        !Number.isInteger(review.sampleItemId) ||
-        requiredSampleLabFields.some((field) => !review[field])
-      ));
-
-      if (missingLabField) {
-        return res.status(400).json({
-          message: "Los datos completos de laboratorio de cada cafe solicitado son obligatorios para aprobar el analisis",
-        });
-      }
-
-    }
-
-    if (["lista", "entregada"].includes(status) && !hasCompleteSampleLabReview(sampleBeforeUpdate)) {
-      return res.status(400).json({
-        message: "Antes de avanzar la muestra laboratorio debe registrar y aprobar los datos de analisis",
-      });
-    }
-
-    if (status === "aprobada_laboratorio" && cleanItemReviews.length > 0) {
-      await updateSampleItemReviews({
-        sampleId: Number(req.params.id),
-        itemReviews: cleanItemReviews,
-      });
-    }
-
     const sample = await updateSampleRequestStatus({
       id: req.params.id,
       status,
-      notes,
-      labReview: null,
+      notes: isLabDecision ? undefined : notes,
+      labReview: isLabDecision ? { notes: toText(notes) } : null,
       handledBy: req.user.id,
     });
 

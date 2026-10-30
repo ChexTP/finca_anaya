@@ -14,6 +14,7 @@ import { formatCoffeeNameWithCharacterization } from "../../utils/coffeeLots";
 const today = new Date().toISOString().slice(0, 10);
 
 const initialSample = {
+  clientId: "",
   requesterName: "",
   requesterPhone: "",
   requesterEmail: "",
@@ -317,7 +318,7 @@ const buildSampleOrderHtml = (sample) => {
             <p><strong>Fecha de Inicio orden:</strong> ${formatDate(sample.requested_at)}</p>
             <p><strong>Categoria:</strong> ${printable(sample.items?.[0]?.coffee_type_name || sample.coffee_type_name || "Cafe")}</p>
             <p><strong>Cliente:</strong> ${printable(sample.requester_company || sample.requester_name)}</p>
-            <p><strong>Datos laboratorio:</strong> ${buildSampleLabSummary(sample) || "-"}</p>
+            <p><strong>Datos laboratorio:</strong> ${buildSampleLabSummary(sample) || (["aprobada_laboratorio", "lista", "entregada"].includes(sample.status) ? "Aprobado para envio" : "-")}</p>
             <p><strong>Dia estimado de despacho:</strong> ${formatDate(sample.tentative_delivery_date)}</p>
             ${sample.sample_lab_notes ? `<p><strong>Notas laboratorio:</strong> ${sample.sample_lab_notes}</p>` : ""}
           </div>
@@ -388,6 +389,7 @@ const SamplesPage = () => {
   const { user } = useAuth();
   const [samples, setSamples] = useState([]);
   const [catalogs, setCatalogs] = useState(null);
+  const [clients, setClients] = useState([]);
   const [form, setForm] = useState(initialSample);
   const [sampleItems, setSampleItems] = useState([]);
   const [editingSampleId, setEditingSampleId] = useState(null);
@@ -442,12 +444,24 @@ const SamplesPage = () => {
   }, [samples, sampleFilter]);
 
   const loadData = async () => {
-    const [sampleData, catalogData] = await Promise.all([
+    const [sampleData, catalogData, clientData] = await Promise.all([
       apiRequest("/samples"),
       apiRequest("/catalogs"),
+      canCreate ? apiRequest("/clients") : Promise.resolve([]),
     ]);
     setSamples(sampleData.filter((sample) => sample.status !== "entregada"));
     setCatalogs(catalogData);
+    setClients([...clientData].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es")));
+  };
+
+  const selectClient = (clientId) => {
+    const client = clients.find((item) => String(item.id) === String(clientId));
+    setForm((current) => ({ ...current, clientId,
+      requesterName: client?.name || "", requesterCompany: client?.name || "",
+      requesterPhone: client?.phone || "", requesterEmail: client?.email || "",
+      requesterAddress: client?.address || "", requesterCity: client?.city || "",
+      requesterCountry: client?.country || "Colombia",
+    }));
   };
 
   useEffect(() => {
@@ -808,6 +822,18 @@ const SamplesPage = () => {
                 <option value="borrador">Borrador</option>
                 <option value="enviada">Enviada para aprobacion</option>
               </select>
+              <label className="grid gap-1 text-xs font-semibold text-slate-600">
+                Cliente registrado
+                <select
+                  aria-label="Cliente registrado"
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-ink"
+                  value={form.clientId || ""}
+                  onChange={(event) => selectClient(event.target.value)}
+                >
+                  <option value="">Datos manuales</option>
+                  {clients.map((client) => <option key={client.id} value={client.id}>{client.name}{client.phone ? ` - ${client.phone}` : ""}</option>)}
+                </select>
+              </label>
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Nombre de quien solicita"
@@ -1054,9 +1080,10 @@ const SamplesPage = () => {
                     </p>
                     <p>
                       <span className="font-medium text-slate-800">Laboratorio:</span>{" "}
-                      {hasCompleteSampleLabReview(sample) ? "Aprobado por cafe" : "-"}
+                      {["aprobada_laboratorio", "lista", "entregada"].includes(sample.status) ? "Aprobado para envio" : sample.status === "en_preparacion" && sample.sample_lab_notes ? "Devuelta a muestras" : "-"}
                     </p>
                   </div>
+                  {sample.sample_lab_notes && <p className="mt-2 text-sm text-amber-800">Observacion de laboratorio: {sample.sample_lab_notes}</p>}
 
                   {hasCompleteSampleLabReview(sample) && (
                     <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
