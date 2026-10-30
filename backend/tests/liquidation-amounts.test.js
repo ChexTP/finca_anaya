@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateLiquidationItem, normalizeLiquidationSnapshot, getVerifiedDocumentAmount } from '../src/utils/liquidationAmounts.js';
 import { calculateLiquidationPrices } from '../../frontend/src/utils/liquidationPrices.js';
+import { pool } from '../src/db.js';
+import { liquidateLot } from '../src/models/lots.model.js';
 
 test('la fila prevalece sobre cabecera obsoleta: reproduce el desfase exacto del 9%', () => {
   const row = { id: 46, netWeightKg: 1412.2, purchaseBaseFactor: 90, performanceFactor: 90, purchasePriceFactor90: 2000000 };
@@ -46,4 +48,35 @@ test('conciliacion no adivina documentos incompletos o inconsistentes', () => {
     { id: 1, netWeightKg: 10, purchasePricePerKg: 10 },
     { id: 1, netWeightKg: 10, purchasePricePerKg: 10 },
   ]), /repetido/);
+});
+
+test('guardar liquidacion persiste el mismo total y snapshot que el documento, incluso con cabecera antigua', async () => {
+  const originalConnect = pool.connect;
+  const lot = { id: 46, code: 'LOT-TEST', status: 'pendiente_liquidacion', net_weight_kg: 1412.2, performance_factor: 81 };
+  let savedSnapshot;
+  let savedTotal;
+  pool.connect = async () => ({
+    async query(sql, params) {
+      if (sql.includes('SELECT *') && sql.includes('FROM coffee_lots')) return { rows: [lot] };
+      if (sql.includes('FROM payable_categories')) return { rows: [{ id: 1, is_active: true }] };
+      if (sql.includes('FROM accounts_payable')) return { rows: [{ id: 46, amount_paid: 0 }] };
+      if (sql.includes('UPDATE coffee_lots')) return { rows: [{ ...lot, purchase_price_per_kg: params[0], purchase_total: params[1] }] };
+      if (sql.includes('UPDATE accounts_payable')) {
+        savedTotal = params[3];
+        savedSnapshot = JSON.parse(params[6]);
+        return { rows: [{ id: 46, total: savedTotal, purchase_order_snapshot: savedSnapshot }] };
+      }
+      return { rows: [] };
+    }, release() {},
+  });
+  try {
+    for (const factor of [90, null, '']) {
+      const result = await liquidateLot({ id: 46, purchaseBaseFactor: 90, purchasePriceFactor90: 2000000,
+        purchaseOrderSnapshot: { performanceFactor: 81, netWeightKg: 1500, purchaseTotal: 24628768,
+          items: [{ id:46, netWeightKg:1412.2, performanceFactor:factor, purchaseBaseFactor:90, purchasePriceFactor90:2000000 }] }, liquidatedBy: 1 });
+      assert.equal(result.purchase_order.total, 22595200);
+      assert.equal(savedTotal, savedSnapshot.purchaseTotal);
+      assert.equal(savedSnapshot.items[0].purchaseTotal, savedTotal);
+    }
+  } finally { pool.connect = originalConnect; await pool.end(); }
 });
