@@ -1,15 +1,15 @@
 import { pool } from "../db.js";
+import { sortContactsByName } from "../utils/nameOrder.js";
 
 export const listSuppliers = async () => {
   const result = await pool.query(
     `
     SELECT *
     FROM suppliers
-    ORDER BY created_at DESC
     `
   );
 
-  return result.rows;
+  return sortContactsByName(result.rows);
 };
 
 export const findSupplierById = async (id) => {

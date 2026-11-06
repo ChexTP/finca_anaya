@@ -2,7 +2,9 @@ import { RefreshCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import NameInitialFilter from "../../components/NameInitialFilter";
 import { apiRequest } from "../../utils/api";
+import { compareNames, matchesNameInitial } from "../../utils/alphabeticalNames";
 
 const initialClient = {
   name: "",
@@ -24,6 +26,7 @@ const ClientsPage = () => {
   const [form, setForm] = useState(initialClient);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [initialFilter, setInitialFilter] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -60,9 +63,9 @@ const ClientsPage = () => {
         .toLowerCase()
         .includes(term);
 
-      return matchesStatus && matchesSearch;
-    });
-  }, [clients, search, statusFilter]);
+      return matchesStatus && matchesSearch && matchesNameInitial(client.name, initialFilter);
+    }).sort(compareNames);
+  }, [clients, search, statusFilter, initialFilter]);
 
   const selectClient = async (clientId) => {
     const client = await apiRequest(`/clients/${clientId}`);
@@ -138,14 +141,15 @@ const ClientsPage = () => {
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Listado</h2>
-            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
                 placeholder="Buscar por cliente, documento, telefono, correo o ciudad"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
               <select
+                aria-label="Filtrar por estado"
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
@@ -154,6 +158,7 @@ const ClientsPage = () => {
                 <option value="active">Activos</option>
                 <option value="inactive">Inactivos</option>
               </select>
+              <NameInitialFilter value={initialFilter} onChange={setInitialFilter} />
             </div>
             <p className="mt-2 text-xs text-slate-500">{filteredClients.length} cliente(s) encontrados</p>
           </div>

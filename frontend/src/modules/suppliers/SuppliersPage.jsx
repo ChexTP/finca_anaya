@@ -2,7 +2,9 @@ import { RefreshCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
 import StatusBadge from "../../components/StatusBadge";
+import NameInitialFilter from "../../components/NameInitialFilter";
 import { apiRequest } from "../../utils/api";
+import { compareNames, matchesNameInitial } from "../../utils/alphabeticalNames";
 
 const initialSupplier = {
   name: "",
@@ -25,6 +27,7 @@ const SuppliersPage = () => {
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [initialFilter, setInitialFilter] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -66,9 +69,9 @@ const SuppliersPage = () => {
         .toLowerCase()
         .includes(term);
 
-      return matchesStatus && matchesSearch;
-    });
-  }, [suppliers, search, statusFilter]);
+      return matchesStatus && matchesSearch && matchesNameInitial(supplier.name, initialFilter);
+    }).sort(compareNames);
+  }, [suppliers, search, statusFilter, initialFilter]);
 
   const startEdit = (supplier) => {
     setEditingSupplier(supplier);
@@ -149,14 +152,15 @@ const SuppliersPage = () => {
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Listado de proveedores</h2>
-            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <input
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
+                className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
                 placeholder="Buscar por nombre, documento, telefono, correo, direccion o zona"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
               <select
+                aria-label="Filtrar por estado"
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
@@ -165,13 +169,14 @@ const SuppliersPage = () => {
                 <option value="active">Activos</option>
                 <option value="inactive">Inactivos</option>
               </select>
+              <NameInitialFilter value={initialFilter} onChange={setInitialFilter} />
             </div>
             <p className="mt-2 text-xs text-slate-500">{filteredSuppliers.length} proveedor(es) encontrados</p>
           </div>
 
           {filteredSuppliers.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin proveedores" message="Los proveedores registrados apareceran aqui." />
+              <EmptyState title="Sin proveedores" message="No hay proveedores para los filtros seleccionados." />
             </div>
           ) : (
             <div className="overflow-x-auto">

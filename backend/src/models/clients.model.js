@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { sortContactsByName } from "../utils/nameOrder.js";
 
 export const listClients = async ({ search }) => {
   const params = [];
@@ -18,12 +19,11 @@ export const listClients = async ({ search }) => {
     SELECT *
     FROM clients
     ${where}
-    ORDER BY created_at DESC
     `,
     params
   );
 
-  return result.rows;
+  return sortContactsByName(result.rows);
 };
 
 export const findClientById = async (id) => {
