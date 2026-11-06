@@ -1,4 +1,4 @@
-import { Edit, Eye, FileDown, FlaskConical, Plus, RefreshCw, Save, Trash2, UserPlus, XCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit, Eye, FileDown, FlaskConical, Plus, RefreshCw, Save, Search, Trash2, UserPlus, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -18,6 +18,10 @@ import {
 } from "../../utils/coffeeCalculations";
 import { openCommercialDocumentPrint } from "../../utils/commercialDocuments";
 import { getQuoteNextAction, quoteStatusLabels } from "../../utils/workflow";
+import { filterPriceListCatalog, togglePriceListResults } from "../../utils/priceListCatalog";
+
+const priceListPageSize = 8;
+const initialPriceListFilters = { search: "", category: "", process: "", inclusion: "all" };
 
 const defaultQuoteTerms = {
   advance: "30%",
@@ -373,6 +377,9 @@ const CommercialPage = () => {
   const [priceListItems, setPriceListItems] = useState([]);
   const [priceListAutoLoaded, setPriceListAutoLoaded] = useState(false);
   const [editingPriceListItemId, setEditingPriceListItemId] = useState("");
+  const [priceListFilters, setPriceListFilters] = useState(initialPriceListFilters);
+  const [priceListPage, setPriceListPage] = useState(1);
+  const priceListCatalogRef = useRef(null);
   const [quickClientForm, setQuickClientForm] = useState(initialQuickClient);
   const [showQuickClient, setShowQuickClient] = useState(false);
   const [quoteFilter, setQuoteFilter] = useState("all");
@@ -599,6 +606,7 @@ const CommercialPage = () => {
         source: "profile",
         sourceId: profile.id,
         label: formatProfileOptionLabel(profile),
+        characterization: profile.characterization_note || "",
         category: profile.category || "Exotico",
         processType: profile.process_type || "",
         priceLoadCop: getProfileLoadPriceByForm(profile, "Excelso"),
@@ -626,8 +634,33 @@ const CommercialPage = () => {
     priceListAvailableItems.filter((item) => item.source === "profile")
   ), [priceListAvailableItems]);
 
-  const allPriceListProfilesSelected = priceListSaleProfiles.length > 0
-    && priceListSaleProfiles.every((option) => priceListItems.some((item) => item.catalogId === option.id));
+  const priceListCategories = useMemo(() => (
+    [...new Set(priceListSaleProfiles.map((option) => option.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"))
+  ), [priceListSaleProfiles]);
+  const priceListProcesses = useMemo(() => (
+    [...new Set(priceListSaleProfiles.map((option) => option.processType).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"))
+  ), [priceListSaleProfiles]);
+  const filteredPriceListProfiles = useMemo(() => (
+    filterPriceListCatalog(priceListSaleProfiles, priceListItems, priceListFilters)
+  ), [priceListSaleProfiles, priceListItems, priceListFilters]);
+  const selectedPriceListIds = new Set(priceListItems.map((item) => item.catalogId));
+  const selectedPriceListResults = filteredPriceListProfiles.filter((option) => selectedPriceListIds.has(option.id)).length;
+  const allPriceListResultsSelected = filteredPriceListProfiles.length > 0 && selectedPriceListResults === filteredPriceListProfiles.length;
+  const priceListPageCount = Math.max(1, Math.ceil(filteredPriceListProfiles.length / priceListPageSize));
+  const currentPriceListPage = Math.min(priceListPage, priceListPageCount);
+  const priceListPageStart = (currentPriceListPage - 1) * priceListPageSize;
+  const visiblePriceListProfiles = filteredPriceListProfiles.slice(priceListPageStart, priceListPageStart + priceListPageSize);
+  const hasPriceListFilters = Object.entries(priceListFilters).some(([key, value]) => key === "inclusion" ? value !== "all" : Boolean(value));
+
+  const updatePriceListFilter = (key, value) => {
+    setPriceListFilters((filters) => ({ ...filters, [key]: value }));
+    setPriceListPage(1);
+  };
+
+  const clearPriceListFilters = () => {
+    setPriceListFilters(initialPriceListFilters);
+    setPriceListPage(1);
+  };
 
   const createPriceListItemFromOption = (option) => ({
     id: crypto.randomUUID(),
@@ -958,6 +991,7 @@ const CommercialPage = () => {
     setPriceListItems([]);
     setPriceListAutoLoaded(false);
     setEditingPriceListItemId("");
+    clearPriceListFilters();
     setError("");
   };
 
@@ -1312,6 +1346,7 @@ const CommercialPage = () => {
   const loadQuoteForEdit = async (quoteId) => {
     const quote = await apiRequest(`/quotes/${quoteId}`);
     if (quote.quote_type === "lista_precios") {
+      clearPriceListFilters();
       setEditingQuoteId(null);
       setEditingPriceListId(quote.id);
       setSelectedQuote(quote);
@@ -1600,6 +1635,7 @@ const CommercialPage = () => {
       setPriceListItems([]);
       setPriceListAutoLoaded(false);
       setEditingPriceListItemId("");
+      clearPriceListFilters();
       setSelectedQuote(response.data);
       openCommercialDocumentPrint(
         await apiRequest(`/documents/quotes/${response.data.id}`),
@@ -2362,34 +2398,70 @@ const CommercialPage = () => {
                   )}
                 </div>
 
-                <div className="mt-4 rounded border border-slate-200 p-3">
+                <div ref={priceListCatalogRef} aria-label="Catalogo de cafes para lista de precios" role="region" className="mt-4 min-w-0 scroll-mt-4 border-y border-slate-200 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">Cafes para lista de precios</p>
-                      <p className="text-xs text-slate-500">
-                        Seleccionados {priceListItems.length} de {priceListSaleProfiles.length}. Desmarque los cafes que no quiere incluir.
-                      </p>
+                      <p className="text-xs text-slate-500" aria-live="polite">{priceListItems.length} cafes incluidos en el documento</p>
                     </div>
-                    <button
-                      className="inline-flex items-center gap-2 rounded border border-leaf px-3 py-2 text-sm font-semibold text-leaf hover:bg-emerald-50"
-                      type="button"
-                      onClick={() => {
-                        setPriceListItems(allPriceListProfilesSelected ? [] : priceListSaleProfiles.map((option) => createPriceListItemFromOption(option)));
-                        setPriceListAutoLoaded(true);
-                        setEditingPriceListItemId("");
-                      }}
-                    >
-                      <Plus size={16} /> {allPriceListProfilesSelected ? "Desmarcar todos" : "Marcar todos"}
-                    </button>
+                    {hasPriceListFilters && <button className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-ink" type="button" onClick={clearPriceListFilters}><X size={14} /> Limpiar filtros</button>}
+                  </div>
+                  <div className="relative mt-3">
+                    <Search className="pointer-events-none absolute left-3 top-3 text-slate-400" size={16} />
+                    <input
+                      aria-label="Buscar cafes para lista de precios"
+                      className="w-full min-w-0 rounded border border-slate-300 bg-white py-2 pl-9 pr-10 text-sm"
+                      placeholder="Buscar por nombre, codigo o caracterizacion"
+                      type="search"
+                      value={priceListFilters.search}
+                      onChange={(event) => updatePriceListFilter("search", event.target.value)}
+                      onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }}
+                    />
+                    {priceListFilters.search && <button aria-label="Limpiar busqueda de cafes" title="Limpiar busqueda" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center text-slate-500 hover:text-ink" type="button" onClick={() => updatePriceListFilter("search", "")}><X size={16} /></button>}
+                  </div>
+                  <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-3">
+                    <select aria-label="Categoria de cafe" className="min-w-0 rounded border border-slate-300 bg-white px-2 py-2 text-sm" value={priceListFilters.category} onChange={(event) => updatePriceListFilter("category", event.target.value)}>
+                      <option value="">Todas las categorias</option>
+                      {priceListCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                    </select>
+                    <select aria-label="Proceso de cafe" className="min-w-0 rounded border border-slate-300 bg-white px-2 py-2 text-sm" value={priceListFilters.process} onChange={(event) => updatePriceListFilter("process", event.target.value)}>
+                      <option value="">Todos los procesos</option>
+                      {priceListProcesses.map((process) => <option key={process} value={process}>{process}</option>)}
+                    </select>
+                    <select aria-label="Inclusion en lista de precios" className="min-w-0 rounded border border-slate-300 bg-white px-2 py-2 text-sm" value={priceListFilters.inclusion} onChange={(event) => updatePriceListFilter("inclusion", event.target.value)}>
+                      <option value="all">Todos los cafes</option>
+                      <option value="included">Incluidos</option>
+                      <option value="excluded">No incluidos</option>
+                    </select>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-leaf"
+                        checked={allPriceListResultsSelected}
+                        ref={(node) => { if (node) node.indeterminate = selectedPriceListResults > 0 && !allPriceListResultsSelected; }}
+                        disabled={filteredPriceListProfiles.length === 0}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setPriceListItems((items) => togglePriceListResults(items, filteredPriceListProfiles, checked, createPriceListItemFromOption));
+                          setPriceListAutoLoaded(true);
+                        }}
+                      />
+                      {hasPriceListFilters ? `Incluir resultados (${filteredPriceListProfiles.length})` : `Incluir todos (${priceListSaleProfiles.length})`}
+                    </label>
+                    <span className="text-xs text-slate-500" aria-live="polite">{filteredPriceListProfiles.length ? `${priceListPageStart + 1}-${Math.min(priceListPageStart + priceListPageSize, filteredPriceListProfiles.length)}` : "0"} de {filteredPriceListProfiles.length} resultados</span>
                   </div>
                   <div className="mt-3 space-y-3">
                     {priceListSaleProfiles.length === 0 ? (
                       <EmptyState title="Sin cafes de venta" message="Los perfiles de venta activos apareceran aqui." />
-                    ) : priceListSaleProfiles.map((option) => {
+                    ) : filteredPriceListProfiles.length === 0 ? (
+                      <EmptyState title="Sin coincidencias" message="No hay cafes para los filtros seleccionados." />
+                    ) : visiblePriceListProfiles.map((option) => {
                       const item = priceListItems.find((priceItem) => priceItem.catalogId === option.id);
                       if (!item) {
                         return (
-                          <div key={option.id} className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-200 bg-white px-3 py-2">
+                          <div key={option.id} role="group" aria-label={option.label} className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-200 bg-white px-3 py-2">
                             <label className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold text-slate-700">
                               <input
                                 checked={false}
@@ -2397,7 +2469,7 @@ const CommercialPage = () => {
                                 onChange={(event) => togglePriceListProfile(option, event.target.checked)}
                                 type="checkbox"
                               />
-                              <span className="min-w-0 truncate">{option.label}</span>
+                              <span className="min-w-0 break-words">{option.label}<span className="block text-xs font-normal text-slate-500">{[option.category, option.processType].filter(Boolean).join(" / ")}</span></span>
                             </label>
                             <span className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-500">No incluido</span>
                           </div>
@@ -2424,7 +2496,7 @@ const CommercialPage = () => {
                         });
 
                       return (
-                        <div key={option.id} className="rounded border border-emerald-100 bg-emerald-50/40 p-3">
+                        <div key={option.id} role="group" aria-label={option.label} className="rounded border border-emerald-100 bg-emerald-50/40 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <label className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold text-ink">
                               <input
@@ -2433,7 +2505,7 @@ const CommercialPage = () => {
                                 onChange={(event) => togglePriceListProfile(option, event.target.checked)}
                                 type="checkbox"
                               />
-                              <span className="min-w-0 truncate">{option.label}</span>
+                              <span className="min-w-0 break-words">{option.label}<span className="block text-xs font-normal text-slate-500">{[option.category, option.processType].filter(Boolean).join(" / ")}</span></span>
                             </label>
                             <div className="flex flex-wrap items-center gap-2">
                               <label className="flex items-center gap-2 rounded bg-white px-2 py-1 text-xs font-semibold text-slate-600">
@@ -2462,7 +2534,7 @@ const CommercialPage = () => {
                           </div>
 
                           {editingPriceListItemId === option.id && (
-                            <div className="mt-3 grid gap-3 rounded border border-slate-200 bg-white p-3 md:grid-cols-2">
+                            <div className="mt-3 grid min-w-0 gap-3 border-t border-emerald-200 pt-3 md:grid-cols-2">
                             <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                               Presentacion
                               <select className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink" value={item.productForm} onChange={(event) => updatePriceListItem(item.id, "productForm", event.target.value)}>
@@ -2523,6 +2595,13 @@ const CommercialPage = () => {
                       );
                     })}
                   </div>
+                  {priceListPageCount > 1 && <nav aria-label="Paginas de cafes" className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
+                    <span className="text-xs text-slate-600">Pagina {currentPriceListPage} de {priceListPageCount}</span>
+                    <div className="flex items-center gap-2">
+                      <button aria-label="Pagina anterior de cafes" title="Pagina anterior" className="flex h-9 w-9 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 disabled:opacity-40" disabled={currentPriceListPage === 1} type="button" onClick={() => { setPriceListPage(currentPriceListPage - 1); priceListCatalogRef.current?.scrollIntoView({ block: "start" }); }}><ChevronLeft size={17} /></button>
+                      <button aria-label="Pagina siguiente de cafes" title="Pagina siguiente" className="flex h-9 w-9 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 disabled:opacity-40" disabled={currentPriceListPage === priceListPageCount} type="button" onClick={() => { setPriceListPage(currentPriceListPage + 1); priceListCatalogRef.current?.scrollIntoView({ block: "start" }); }}><ChevronRight size={17} /></button>
+                    </div>
+                  </nav>}
                 </div>
 
                 <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
