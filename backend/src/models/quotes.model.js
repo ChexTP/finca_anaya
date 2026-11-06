@@ -1,6 +1,7 @@
 import { pool } from "../db.js";
 import { calculateOperationalKg } from "../utils/coffeeCalculations.js";
 import { advanceCounterFromCode, getNextCode } from "./codeCounters.model.js";
+import { quoteContentUnchanged } from "../utils/quoteContent.js";
 
 export const getNextQuoteCode = async () => {
   return getNextCode({ prefix: "COT", tableName: "quotes" });
@@ -158,9 +159,10 @@ export const createQuote = async (quoteData) => {
         notes,
         quote_terms,
         subtotal,
-        total
+        total,
+        warehouse_notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
       `,
       [
@@ -178,6 +180,7 @@ export const createQuote = async (quoteData) => {
         quoteData.terms,
         quoteData.subtotal,
         quoteData.total,
+        quoteData.warehouseNotes,
       ]
     );
     const quote = quoteResult.rows[0];
@@ -417,6 +420,14 @@ export const updateQuote = async (id, quoteData) => {
   try {
     await client.query("BEGIN");
 
+    const previous = await client.query("SELECT * FROM quotes WHERE id = $1 FOR UPDATE", [id]);
+    if (!previous.rows[0]) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    const previousItems = await client.query("SELECT * FROM quote_items WHERE quote_id = $1 ORDER BY id ASC", [id]);
+    const notesOnly = quoteContentUnchanged(previous.rows[0], previousItems.rows, quoteData);
+
     const quoteResult = await client.query(
       `
       UPDATE quotes
@@ -434,6 +445,7 @@ export const updateQuote = async (id, quoteData) => {
         quote_terms = $11,
         subtotal = $12,
         total = $13,
+        warehouse_notes = $15,
         updated_at = NOW()
       WHERE id = $14
       RETURNING *
@@ -453,6 +465,7 @@ export const updateQuote = async (id, quoteData) => {
         quoteData.subtotal,
         quoteData.total,
         id,
+        quoteData.warehouseNotes,
       ]
     );
     const quote = quoteResult.rows[0];
@@ -469,6 +482,11 @@ export const updateQuote = async (id, quoteData) => {
     );
     const sale = saleResult.rows[0];
     ensureEditableSaleFromQuote(sale);
+
+    if (notesOnly) {
+      await client.query("COMMIT");
+      return quote;
+    }
 
     if (sale) {
       await clearSaleItemsForQuoteSync(client, sale.id);

@@ -104,6 +104,7 @@ export const postSample = async (req, res) => {
       requestedAt,
       tentativeDeliveryDate,
       notes,
+      warehouseNotes,
       status = "borrador",
       code,
     } = req.body;
@@ -179,6 +180,7 @@ export const postSample = async (req, res) => {
       requestedAt,
       tentativeDeliveryDate: tentativeDeliveryDate || null,
       notes,
+      warehouseNotes: toText(warehouseNotes),
       createdBy: req.user.id,
       status: req.user.role === "samples" ? "enviada" : status,
     });
@@ -224,6 +226,7 @@ export const putSample = async (req, res) => {
       requestedAt,
       tentativeDeliveryDate,
       notes,
+      warehouseNotes,
       status = sampleBeforeUpdate.status,
     } = req.body;
 
@@ -258,6 +261,7 @@ export const putSample = async (req, res) => {
       requestedAt,
       tentativeDeliveryDate: tentativeDeliveryDate || null,
       notes,
+      warehouseNotes: warehouseNotes === undefined ? sampleBeforeUpdate.warehouse_notes : toText(warehouseNotes),
       status,
       handledBy: req.user.id,
     });

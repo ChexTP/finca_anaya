@@ -217,7 +217,9 @@ export const findSaleById = async (id) => {
       clients.city AS client_city,
       clients.country AS client_country,
       users.name AS seller_name,
-      quotes.code AS quote_code
+      quotes.code AS quote_code,
+      quotes.warehouse_notes,
+      quotes.quote_terms AS warehouse_quote_terms
     FROM sales
     INNER JOIN clients ON clients.id = sales.client_id
     INNER JOIN users ON users.id = sales.seller_id
@@ -237,6 +239,7 @@ export const findSaleById = async (id) => {
     `
     SELECT
       sale_items.*,
+      quote_items.pricing_snapshot AS pricing_snapshot,
       coffee_lots.code AS lot_code,
       suppliers.name AS supplier_name,
       coffee_types.name AS coffee_type_name,
@@ -273,6 +276,7 @@ export const findSaleById = async (id) => {
         '[]'::json
       ) AS profile_components
     FROM sale_items
+    LEFT JOIN quote_items ON quote_items.id = sale_items.quote_item_id
     LEFT JOIN coffee_lots ON coffee_lots.id = sale_items.lot_id
     LEFT JOIN suppliers ON suppliers.id = coffee_lots.supplier_id
     LEFT JOIN coffee_types ON coffee_types.id = sale_items.coffee_type_id

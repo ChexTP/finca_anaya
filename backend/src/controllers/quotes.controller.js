@@ -108,6 +108,7 @@ const buildCleanQuoteData = async ({
   shippingCost = 0,
   estimatedDeliveryDate,
   notes,
+  warehouseNotes,
   terms,
   items,
 }) => {
@@ -254,6 +255,7 @@ const buildCleanQuoteData = async ({
     shippingCost: shipping,
     estimatedDeliveryDate: estimatedDeliveryDate || null,
     notes: notes || null,
+    warehouseNotes: typeof warehouseNotes === "string" ? warehouseNotes.trim() || null : null,
     terms: cleanQuoteTerms(terms),
     subtotal,
     total,
@@ -346,6 +348,7 @@ export const putQuote = async (req, res) => {
     const quoteData = await buildCleanQuoteData({
       ...req.body,
       code: req.body.code || existingQuote.code,
+      warehouseNotes: req.body.warehouseNotes === undefined ? existingQuote.warehouse_notes : req.body.warehouseNotes,
     });
     const quote = await updateQuote(req.params.id, quoteData);
     const fullQuote = await findQuoteById(quote.id);

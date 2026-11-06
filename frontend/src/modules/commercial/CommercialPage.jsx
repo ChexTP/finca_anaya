@@ -72,10 +72,12 @@ const initialQuote = {
   shippingCost: "",
   estimatedDeliveryDate: "",
   notes: "",
+  warehouseNotes: "",
 };
 
 const initialPriceList = {
   notes: "",
+  warehouseNotes: "",
   manualCodeNumber: "",
   manualCodeYear: String(new Date().getFullYear()),
   clientId: "",
@@ -107,6 +109,7 @@ const initialSample = {
   requestedAt: today,
   tentativeDeliveryDate: "",
   notes: "",
+  warehouseNotes: "",
   status: "solicitada",
   useFreeDescription: false,
 };
@@ -1234,6 +1237,7 @@ const CommercialPage = () => {
         shippingCost: Number(quoteForm.shippingCost || 0),
         estimatedDeliveryDate: quoteForm.estimatedDeliveryDate,
         notes: quoteForm.notes || null,
+        warehouseNotes: quoteForm.warehouseNotes || null,
         items,
       };
 
@@ -1319,6 +1323,7 @@ const CommercialPage = () => {
         language: quote.currency === "USD" ? "en" : "es",
         currency: quote.currency || "COP",
         notes: quote.notes || "",
+        warehouseNotes: quote.warehouse_notes || "",
         terms: { ...defaultQuoteTerms, ...(quote.quote_terms || {}) },
       });
       setPriceListItems((quote.items || []).map((item) => {
@@ -1366,6 +1371,7 @@ const CommercialPage = () => {
       shippingCost: quote.shipping_cost || "",
       estimatedDeliveryDate: quote.estimated_delivery_date ? String(quote.estimated_delivery_date).slice(0, 10) : "",
       notes: quote.notes || "",
+      warehouseNotes: quote.warehouse_notes || "",
     });
     setQuoteItems((quote.items || []).map(itemFromQuoteItem));
     setItemForm(initialItem);
@@ -1582,6 +1588,7 @@ const CommercialPage = () => {
           shippingCost: 0,
           estimatedDeliveryDate: null,
           notes: priceListForm.notes || null,
+          warehouseNotes: priceListForm.warehouseNotes || null,
           items,
         }),
       });
@@ -2134,6 +2141,10 @@ const CommercialPage = () => {
             </div>
 
             <textarea aria-label="Nota de la cotizacion" className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Nota para el documento (opcional)" value={quoteForm.notes} onChange={(event) => setQuoteForm({ ...quoteForm, notes: event.target.value })} />
+            <label className="mt-3 block border-l-4 border-amber-400 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+              Notas para bodega
+              <textarea aria-label="Notas para bodega" className="mt-1 min-h-20 w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm font-normal text-ink" value={quoteForm.warehouseNotes} onChange={(event) => setQuoteForm({ ...quoteForm, warehouseNotes: event.target.value })} />
+            </label>
             <button className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
               <Save size={16} />
               {editingQuoteId ? "Actualizar cotizacion" : "Guardar cotizacion"}
@@ -2275,6 +2286,10 @@ const CommercialPage = () => {
                   </label>
                 </div>
                 <textarea aria-label="Nota de la solicitud de muestras" className="mt-3 min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Nota para el documento (opcional)" value={sampleForm.notes} onChange={(event) => setSampleForm({ ...sampleForm, notes: event.target.value })} />
+                <label className="mt-3 block border-l-4 border-amber-400 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+                  Notas para bodega
+                  <textarea aria-label="Notas para bodega" className="mt-1 min-h-20 w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm font-normal text-ink" value={sampleForm.warehouseNotes} onChange={(event) => setSampleForm({ ...sampleForm, warehouseNotes: event.target.value })} />
+                </label>
                 <button className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={saving}>
                   <Save size={16} />
                   Crear solicitud de muestra
@@ -2680,6 +2695,10 @@ const CommercialPage = () => {
                   value={priceListForm.notes}
                   onChange={(event) => setPriceListForm({ ...priceListForm, notes: event.target.value })}
                 />
+                <label className="mt-3 block border-l-4 border-amber-400 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+                  Notas para bodega
+                  <textarea aria-label="Notas para bodega" className="mt-1 min-h-20 w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm font-normal text-ink" value={priceListForm.warehouseNotes} onChange={(event) => setPriceListForm({ ...priceListForm, warehouseNotes: event.target.value })} />
+                </label>
                 <button
                   className="mt-4 inline-flex items-center gap-2 rounded bg-leaf px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={saving || priceListItems.length === 0}

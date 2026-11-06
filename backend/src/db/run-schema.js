@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { pool } from "../db.js";
 import { ensureUserOperatorColumn } from "../models/userOperators.model.js";
 import { reconcileLiquidationAmounts } from "../models/liquidationReconciliation.model.js";
+import { addWarehouseNotesColumns } from "./warehouse-notes.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 
@@ -13,6 +14,7 @@ const runSchema = async () => {
     const schema = await readFile(schemaPath, "utf8");
 
     await pool.query(schema);
+    await addWarehouseNotesColumns(pool);
     await ensureUserOperatorColumn();
     const liquidationReport = await reconcileLiquidationAmounts();
     console.log("Conciliacion de liquidaciones:", JSON.stringify(liquidationReport));

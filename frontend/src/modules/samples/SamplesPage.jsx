@@ -8,6 +8,7 @@ import { companyBrand, getPrintableLogo } from "../../utils/brand";
 import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
 import { renderDocumentNotes } from "../../utils/documentNotes";
+import { renderWarehouseNotes } from "../../utils/warehouseInstructions";
 import { printable } from "../../utils/printFormatting";
 import { formatCoffeeNameWithCharacterization } from "../../utils/coffeeLots";
 
@@ -31,6 +32,7 @@ const initialSample = {
   requestedAt: today,
   tentativeDeliveryDate: "",
   notes: "",
+  warehouseNotes: "",
   status: "borrador",
 };
 
@@ -217,7 +219,7 @@ const getSampleActions = (sample) => {
   return actionsByStatus[sample.status] || [];
 };
 
-const buildSampleOrderHtml = (sample) => {
+export const buildSampleOrderHtml = (sample) => {
   const rows = (sample.items || [])
     .map(
       (item) => `
@@ -369,6 +371,7 @@ const buildSampleOrderHtml = (sample) => {
             : ""
         }
 
+        ${renderWarehouseNotes(sample.warehouse_notes)}
         <section class="instructions">
           <p>- Hacer registro fotografico.</p>
           <p>- Perfilar lotes.</p>
@@ -516,6 +519,7 @@ const SamplesPage = () => {
       requestedAt: sample.requested_at ? String(sample.requested_at).slice(0, 10) : today,
       tentativeDeliveryDate: sample.tentative_delivery_date ? String(sample.tentative_delivery_date).slice(0, 10) : "",
       notes: sample.notes || "",
+      warehouseNotes: sample.warehouse_notes || "",
       status: sample.status || "borrador",
     });
     setSampleItems((sample.items || []).map(itemFromSampleItem));
@@ -998,6 +1002,10 @@ const SamplesPage = () => {
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
               />
+              <label className="block border-l-4 border-amber-400 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+                Notas para bodega
+                <textarea aria-label="Notas para bodega" className="mt-1 min-h-20 w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm font-normal text-ink" value={form.warehouseNotes} onChange={(event) => setForm({ ...form, warehouseNotes: event.target.value })} />
+              </label>
             </div>
 
             <button
@@ -1104,6 +1112,7 @@ const SamplesPage = () => {
                     <p className="mt-2 text-sm text-slate-500">Envio: {sample.requester_address}</p>
                   )}
                   {sample.notes && <p className="mt-2 text-sm text-slate-500">Notas: {sample.notes}</p>}
+                  {sample.warehouse_notes && <div className="mt-2 whitespace-pre-wrap break-words border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900"><strong>Notas para bodega:</strong> {sample.warehouse_notes}</div>}
                   <p className="mt-2 text-xs text-slate-400">
                     Creada por {sample.created_by_name || "usuario"}.
                     {sample.handled_by_name ? ` Ultima gestion: ${sample.handled_by_name}.` : ""}

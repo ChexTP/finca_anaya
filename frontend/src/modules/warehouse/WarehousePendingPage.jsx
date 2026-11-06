@@ -1498,6 +1498,7 @@ const WarehousePendingPage = () => {
               <div>
                 <p className="font-semibold text-ink">{selectedSale.code}</p>
                 <p className="text-sm text-slate-500">{selectedSale.client_name}</p>
+                {selectedSale.warehouse_notes && <div className="mt-2 whitespace-pre-wrap break-words border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900"><strong>Notas para bodega:</strong> {selectedSale.warehouse_notes}</div>}
                 <p className="text-sm text-slate-500">Entrega: {formatDate(selectedSale.estimated_delivery_date)}</p>
                 <div className="mt-2">
                   <StatusBadge tone={getSaleStatusTone(selectedSale)}>

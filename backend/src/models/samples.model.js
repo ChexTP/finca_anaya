@@ -323,11 +323,12 @@ export const createSampleRequest = async (sampleData) => {
       requested_at,
       tentative_delivery_date,
       notes,
-      created_by
+      created_by,
+      warehouse_notes
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
     )
     RETURNING *
     `,
@@ -353,6 +354,7 @@ export const createSampleRequest = async (sampleData) => {
       sampleData.tentativeDeliveryDate,
       sampleData.notes,
       sampleData.createdBy,
+      sampleData.warehouseNotes,
     ]
     );
 
@@ -411,6 +413,7 @@ export const updateSampleRequest = async (sampleData) => {
         tentative_delivery_date = $18,
         notes = $19,
         handled_by = $20,
+        warehouse_notes = $22,
         handled_at = NOW(),
         updated_at = NOW()
       WHERE id = $21
@@ -438,6 +441,7 @@ export const updateSampleRequest = async (sampleData) => {
         sampleData.notes,
         sampleData.handledBy,
         sampleData.id,
+        sampleData.warehouseNotes,
       ]
     );
 

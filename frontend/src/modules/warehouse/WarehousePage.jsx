@@ -11,6 +11,7 @@ import { formatCoffeeLotCodeName } from "../../utils/coffeeLots";
 import { prepareImageForUpload } from "../../utils/files";
 import { printHtmlDocument } from "../../utils/printHtml";
 import { printable } from "../../utils/printFormatting";
+import { renderWarehouseNotes, renderWarehousePackaging } from "../../utils/warehouseInstructions";
 
 const initialSupplier = {
   name: "",
@@ -143,7 +144,7 @@ export const buildWarehouseOrderHtml = (sale) => {
         return `
         <tr>
           <td>${printable(itemLabel)}</td>
-          <td>${[item.product_form ? `<strong>Entrega en ${printable(item.product_form)}</strong>` : "", printable(processSummary, ""), componentSummary, item.item_assignee ? `<strong>Encargado:</strong> ${printable(item.item_assignee)}` : ""].filter(Boolean).join("<br>") || "-"}</td>
+          <td>${[item.product_form ? `<strong>Entrega en ${printable(item.product_form)}</strong>` : "", renderWarehousePackaging(item, sale), printable(processSummary, ""), componentSummary, item.item_assignee ? `<strong>Encargado:</strong> ${printable(item.item_assignee)}` : ""].filter(Boolean).join("<br>") || "-"}</td>
           <td>${formatOperationalKg(item.quantity_kg)}${item.operational_weight_kg && Number(item.operational_weight_kg) !== Number(item.quantity_kg) ? `<br><span class="muted">Operativo: ${formatOperationalKg(item.operational_weight_kg)}</span>` : ""}</td>
           <td></td>
         </tr>
@@ -331,6 +332,7 @@ export const buildWarehouseOrderHtml = (sale) => {
           <tbody>${productRows || ""}</tbody>
         </table>
 
+        ${renderWarehouseNotes(sale.warehouse_notes)}
         <h2>Porcentajes de mezcla para anotar</h2>
         <p class="muted">Espacio para registrar manualmente como quedo la mezcla final de cada item.</p>
         ${manualBlendNotes || '<p class="muted">No hay productos en esta orden.</p>'}
