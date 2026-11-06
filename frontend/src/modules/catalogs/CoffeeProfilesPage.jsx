@@ -1,6 +1,7 @@
 import { Plus, RefreshCw, Save, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
+import SearchableSelect from "../../components/SearchableSelect";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -565,8 +566,10 @@ const CoffeeProfilesPage = () => {
                         <option value="purchase">Compra</option>
                         <option value="profile">Proceso</option>
                       </select>
-                      <select
-                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                      <SearchableSelect
+                        key={component.componentType || "purchase"}
+                        label={`Cafe del componente ${index + 1}`}
+                        placeholder={(component.componentType || "purchase") === "profile" ? "Perfil/proceso" : "Cafe comprado"}
                         value={(component.componentType || "purchase") === "profile" ? component.componentProfileId : component.purchaseCoffeeId}
                         onChange={(event) => {
                           if ((component.componentType || "purchase") === "profile") {
@@ -575,20 +578,10 @@ const CoffeeProfilesPage = () => {
                             updateComponent(index, "purchaseCoffeeId", event.target.value);
                           }
                         }}
-                      >
-                        <option value="">{(component.componentType || "purchase") === "profile" ? "Perfil/proceso" : "Cafe comprado"}</option>
-                        {(component.componentType || "purchase") === "profile"
-                          ? componentProfileOptions.map((profile) => (
-                              <option key={profile.id} value={profile.id}>
-                                {profile.internal_code ? `${profile.internal_code} - ` : ""}{profile.name} - {profile.category} {profile.process_type || ""}
-                              </option>
-                            ))
-                          : catalogs?.purchaseCoffees?.map((coffee) => (
-                              <option key={coffee.id} value={coffee.id}>
-                                {coffee.name} - {coffee.family} {coffee.process_type}
-                              </option>
-                            ))}
-                      </select>
+                        options={(component.componentType || "purchase") === "profile"
+                          ? componentProfileOptions.map((profile) => ({ value: profile.id, label: [profile.internal_code, profile.name, profile.category, profile.process_type].filter(Boolean).join(" - ") }))
+                          : (catalogs?.purchaseCoffees || []).map((coffee) => ({ value: coffee.id, label: [coffee.internal_code, coffee.name, coffee.family, coffee.process_type].filter(Boolean).join(" - ") }))}
+                      />
                       <input
                         className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                         placeholder="%"
@@ -623,18 +616,13 @@ const CoffeeProfilesPage = () => {
             <div className="min-w-0 rounded border border-emerald-200 bg-emerald-50 p-3">
               <p className="text-xs font-semibold uppercase text-emerald-900">Base principal para deficit</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_100px]">
-                <select
-                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                <SearchableSelect
+                  label="Cafe base principal"
+                  placeholder="Sin base principal"
                   value={form.basePurchaseCoffeeId}
                   onChange={(event) => setForm({ ...form, basePurchaseCoffeeId: event.target.value })}
-                >
-                  <option value="">Sin base principal</option>
-                  {catalogs?.purchaseCoffees?.map((coffee) => (
-                    <option key={coffee.id} value={coffee.id}>
-                      {coffee.name} - {coffee.family} {coffee.process_type}
-                    </option>
-                  ))}
-                </select>
+                  options={(catalogs?.purchaseCoffees || []).map((coffee) => ({ value: coffee.id, label: [coffee.internal_code, coffee.name, coffee.family, coffee.process_type].filter(Boolean).join(" - ") }))}
+                />
                 <input
                   className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
                   placeholder="% base"

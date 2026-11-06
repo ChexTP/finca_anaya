@@ -2,6 +2,8 @@ import { Edit3, Eye, FileDown, FlaskConical, ImagePlus, PackageCheck, Printer, R
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
+import ListPagination from "../../components/ListPagination";
+import { usePagination } from "../../hooks/usePagination";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -207,6 +209,7 @@ const SalesPage = () => {
       return matchesStatus && matchesPayment && matchesAssignee && matchesSearch;
     });
   }, [sales, statusFilter, paymentFilter, assigneeFilter, saleCodeSearch, showFinancialData]);
+  const salePages = usePagination(filteredSales, JSON.stringify([statusFilter, paymentFilter, assigneeFilter, saleCodeSearch]));
 
   const assigneeOptions = useMemo(() => {
     return [...new Set(sales.map((sale) => sale.order_assignee || "Sin encargado"))].sort((left, right) =>
@@ -627,6 +630,7 @@ const SalesPage = () => {
               onChange={(event) => setSaleCodeSearch(event.target.value)}
             />
           </div>
+          <div className="px-4"><ListPagination pagination={salePages} label="pedidos" /></div>
           {filteredSales.length === 0 ? (
             <div className="p-4">
               <EmptyState title="Sin ordenes" message="Las ordenes creadas desde este modulo apareceran aqui." />
@@ -647,7 +651,7 @@ const SalesPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredSales.map((sale) => (
+                  {salePages.items.map((sale) => (
                     <tr key={sale.id}>
                       <td className="px-3 py-2 font-medium">{sale.code}</td>
                       <td className="px-3 py-2">{sale.client_name}</td>

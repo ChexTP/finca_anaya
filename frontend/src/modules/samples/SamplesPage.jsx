@@ -1,6 +1,11 @@
 import { Edit, Eye, FlaskConical, ImagePlus, Plus, Printer, RefreshCw, Save, Trash2, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
+import ListSearch from "../../components/ListSearch";
+import ListPagination from "../../components/ListPagination";
+import SearchableSelect from "../../components/SearchableSelect";
+import { usePagination } from "../../hooks/usePagination";
+import { matchesSearch } from "../../utils/listSearch";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -400,6 +405,7 @@ const SamplesPage = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [sampleFilter, setSampleFilter] = useState("all");
+  const [sampleSearch, setSampleSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploadingGuideId, setUploadingGuideId] = useState(null);
   const [guidePreview, setGuidePreview] = useState(null);
@@ -436,6 +442,8 @@ const SamplesPage = () => {
   const filteredSamples = useMemo(() => {
     return samples
       .filter((sample) => sampleFilter === "all" || sample.status === sampleFilter)
+      .filter((sample) => matchesSearch(sampleSearch, [sample.code, sample.requester_name, sample.requester_company, sample.requester_phone,
+        (sample.items || []).map((item) => [item.description, item.coffee_profile_name, item.coffee_type_name])]))
       .sort((left, right) => {
         const statusDiff = (statusOrder[left.status] || 99) - (statusOrder[right.status] || 99);
         if (statusDiff !== 0) return statusDiff;
@@ -444,7 +452,8 @@ const SamplesPage = () => {
         const rightDate = right.tentative_delivery_date || right.requested_at || "";
         return String(leftDate).localeCompare(String(rightDate));
       });
-  }, [samples, sampleFilter]);
+  }, [samples, sampleFilter, sampleSearch]);
+  const samplePages = usePagination(filteredSamples, JSON.stringify([sampleFilter, sampleSearch]));
 
   const loadData = async () => {
     const [sampleData, catalogData, clientData] = await Promise.all([
@@ -898,18 +907,13 @@ const SamplesPage = () => {
                     </option>
                   ))}
                 </select>
-                <select
-                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                <SearchableSelect
+                  label="Cafe de la muestra"
+                  placeholder="Perfil o cafe comercial"
                   value={form.coffeeProfileId}
                   onChange={(event) => updateCoffeeProfile(event.target.value)}
-                >
-                  <option value="">Perfil o cafe comercial</option>
-                  {salesCoffeeProfiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {formatProfileOptionLabel(profile)}
-                    </option>
-                  ))}
-                </select>
+                  options={salesCoffeeProfiles.map((profile) => ({ value: profile.id, label: formatProfileOptionLabel(profile), searchText: [profile.category, profile.process_type, profile.characterization_note].join(" ") }))}
+                />
               </div>
               <textarea
                 className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -1021,6 +1025,7 @@ const SamplesPage = () => {
         <div className="min-w-0 rounded border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Solicitudes registradas</h2>
+            <div className="mt-3"><ListSearch label="Buscar solicitudes de muestras" placeholder="Buscar por codigo, cliente, telefono o cafe" value={sampleSearch} onChange={setSampleSearch} /></div>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {sampleFilters.map((filter) => (
                 <button
@@ -1037,13 +1042,14 @@ const SamplesPage = () => {
             </div>
           </div>
 
+          <div className="px-4"><ListPagination pagination={samplePages} label="solicitudes de muestras" /></div>
           {filteredSamples.length === 0 ? (
             <div className="p-4">
-              <EmptyState title="Sin solicitudes" message="Las muestras solicitadas apareceran aqui." />
+              <EmptyState title="Sin solicitudes" message="No hay solicitudes para los filtros seleccionados." />
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {filteredSamples.map((sample) => (
+              {samplePages.items.map((sample) => (
                 <article key={sample.id} className="p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>

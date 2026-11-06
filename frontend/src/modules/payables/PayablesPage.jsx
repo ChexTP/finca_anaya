@@ -1,6 +1,8 @@
 import { Edit3, Eye, FileDown, RefreshCw, Save, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
+import ListPagination from "../../components/ListPagination";
+import { usePagination } from "../../hooks/usePagination";
 import StatusBadge from "../../components/StatusBadge";
 import { apiRequest } from "../../utils/api";
 import { openPurchaseOrderPrint } from "../../utils/purchaseOrderDocument";
@@ -200,6 +202,7 @@ const PayablesPage = () => {
       order.performance_factor,
     ].filter(Boolean).join(" ").toLowerCase().includes(term));
   }, [orders, search]);
+  const orderPages = usePagination(filteredOrders, search);
 
   const loadOrderDetail = async (orderId) => {
     const data = await apiRequest(`/payables/${orderId}`);
@@ -313,6 +316,7 @@ const PayablesPage = () => {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
+          <div className="px-4"><ListPagination pagination={orderPages} label="ordenes de compra" /></div>
           {filteredOrders.length === 0 ? (
             <div className="p-4">
               <EmptyState title="Sin ordenes" message="Cuando se liquide un lote de cafe, aparecera aqui su orden de compra." />
@@ -332,7 +336,7 @@ const PayablesPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredOrders.map((order) => (
+                  {orderPages.items.map((order) => (
                     <tr key={order.id}>
                       <td className="px-3 py-2 font-medium">{order.code}</td>
                       <td className="px-3 py-2">{getOrderLotLabel(order)}</td>

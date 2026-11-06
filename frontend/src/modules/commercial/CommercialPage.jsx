@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Edit, Eye, FileDown, FlaskConical, Plus, Ref
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
+import SearchableSelect from "../../components/SearchableSelect";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -1885,16 +1886,13 @@ const CommercialPage = () => {
                 {itemForm.itemType !== "description" ? (
                   <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                     Cafe exacto
-                    <select
-                      className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                    <SearchableSelect
+                      label="Cafe exacto"
+                      placeholder={`Cafe ${itemForm.itemType.toLowerCase()}`}
                       value={itemForm.coffeeProfileId}
                       onChange={(event) => selectRequestedCoffee(event.target.value)}
-                    >
-                      <option value="">Cafe {itemForm.itemType.toLowerCase()}</option>
-                      {availableCoffeeOptions.map((option) => (
-                        <option key={option.id} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                      options={availableCoffeeOptions.map((option) => ({ value: option.value, label: option.label, searchText: option.raw?.characterization_note }))}
+                    />
                   </label>
                 ) : (
                   <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
@@ -2268,8 +2266,9 @@ const CommercialPage = () => {
                     </label>
                     <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
                       Perfil o cafe comercial
-                      <select
-                        className="rounded border border-slate-300 px-3 py-2 text-sm font-normal normal-case text-ink"
+                      <SearchableSelect
+                        label="Perfil o cafe comercial"
+                        placeholder="Perfil o cafe comercial"
                         value={sampleForm.useFreeDescription ? "__free__" : sampleForm.coffeeProfileId}
                         onChange={(event) => {
                           if (event.target.value === "__free__") {
@@ -2279,13 +2278,8 @@ const CommercialPage = () => {
 
                           setSampleForm({ ...sampleForm, coffeeProfileId: event.target.value, useFreeDescription: false });
                         }}
-                      >
-                        <option value="">Perfil o cafe comercial</option>
-                        <option value="__free__">Descripcion libre</option>
-                        {salesCoffeeProfiles.map((profile) => (
-                          <option key={profile.id} value={profile.id}>{formatProfileOptionLabel(profile)}</option>
-                        ))}
-                      </select>
+                        options={[{ value: "__free__", label: "Descripcion libre" }, ...salesCoffeeProfiles.map((profile) => ({ value: profile.id, label: formatProfileOptionLabel(profile), searchText: [profile.category, profile.process_type, profile.characterization_note].join(" ") }))]}
+                      />
                     </label>
                     <textarea className="min-h-20 rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2" placeholder="Descripcion si no aplica tipo o perfil exacto" value={sampleForm.description} onChange={(event) => setSampleForm({ ...sampleForm, description: event.target.value })} />
                     <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Cantidad en gramos" type="number" step="1" value={sampleForm.quantityGrams} onChange={(event) => setSampleForm({ ...sampleForm, quantityGrams: event.target.value })} required={sampleItems.length === 0} />

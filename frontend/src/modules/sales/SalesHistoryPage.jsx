@@ -1,6 +1,8 @@
 import { Download, Edit, Eye, Printer, RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
+import ListPagination from "../../components/ListPagination";
+import { usePagination } from "../../hooks/usePagination";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -107,6 +109,7 @@ const SalesHistoryPage = () => {
       return matchesClient && matchesFrom && matchesTo && matchesPayment;
     });
   }, [sales, filters]);
+  const salePages = usePagination(filteredSales, JSON.stringify(filters));
 
   const paymentCounts = useMemo(() => {
     return sales.reduce(
@@ -444,6 +447,7 @@ const SalesHistoryPage = () => {
             </div>
           </div>
 
+          <div className="px-4"><ListPagination pagination={salePages} label="ventas del historico" /></div>
           {filteredSales.length === 0 ? (
             <div className="p-4">
               <EmptyState title="Sin ventas" message="No hay ventas para los filtros seleccionados." />
@@ -463,7 +467,7 @@ const SalesHistoryPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredSales.map((sale) => (
+                  {salePages.items.map((sale) => (
                         <tr key={sale.id}>
                           <td className="px-3 py-2 font-medium">{sale.code}</td>
                           <td className="px-3 py-2">{sale.client_name}</td>

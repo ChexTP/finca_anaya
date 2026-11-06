@@ -2,6 +2,10 @@ import { Plus, RefreshCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
+import ListSearch from "../../components/ListSearch";
+import ListPagination from "../../components/ListPagination";
+import SearchableSelect from "../../components/SearchableSelect";
+import { usePagination } from "../../hooks/usePagination";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -167,6 +171,7 @@ const ProcessesPage = ({
   const [physicalReviewProcessId, setPhysicalReviewProcessId] = useState(null);
   const [physicalReviewForm, setPhysicalReviewForm] = useState(initialPhysicalReviewForm);
   const [processSearch, setProcessSearch] = useState("");
+  const [lotSearch, setLotSearch] = useState("");
   const [processStatusFilter, setProcessStatusFilter] = useState("all");
   const [selectedPresentation, setSelectedPresentation] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
@@ -317,7 +322,7 @@ const ProcessesPage = ({
   }, [highHumidityLots]);
 
   const filteredAvailableLots = useMemo(() => {
-    const search = processSearch.trim().toLowerCase();
+    const search = lotSearch.trim().toLowerCase();
     const groupedLots = selectedGroup === HIGH_HUMIDITY_GROUP
       ? highHumidityLots
       : selectedGroup === "all"
@@ -346,7 +351,9 @@ const ProcessesPage = ({
 
       return text.includes(search);
     });
-  }, [highHumidityLots, presentationFilteredLots, processSearch, selectedGroup]);
+  }, [highHumidityLots, presentationFilteredLots, lotSearch, selectedGroup]);
+  const availableLotPages = usePagination(filteredAvailableLots, JSON.stringify([lotSearch, selectedGroup, selectedPresentation]));
+  const processPages = usePagination(filteredProcesses, JSON.stringify([processSearch, processStatusFilter]));
 
   const totalAvailableKg = presentationFilteredLots.reduce(
     (total, lot) => total + Number(lot.operational_available_kg ?? lot.available_weight_kg ?? 0),
@@ -761,11 +768,11 @@ const ProcessesPage = ({
       {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
       <div className="rounded border border-slate-200 bg-white p-3">
-        <input
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+        <ListSearch
+          label="Buscar envios y procesos registrados"
           placeholder="Buscar por perfil, lote, proveedor, cliente, venta o ubicacion"
           value={processSearch}
-          onChange={(event) => setProcessSearch(event.target.value)}
+          onChange={setProcessSearch}
         />
       </div>
 
@@ -790,7 +797,7 @@ const ProcessesPage = ({
             {processStatusFilterOptions.map((option) => (
               <button
                 key={option.value}
-                className={`rounded border px-3 py-2 text-left text-sm ${
+                className={`inline-flex flex-col items-start gap-1 rounded border px-3 py-2 text-left text-sm ${
                   processStatusFilter === option.value
                     ? "border-leaf bg-emerald-50 text-leaf"
                     : "border-slate-200 bg-white text-slate-700"
@@ -871,9 +878,10 @@ const ProcessesPage = ({
 
           <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-semibold uppercase text-slate-500">Filtrar cafe disponible</p>
+            <div className="mt-3"><ListSearch label="Buscar lotes para enviar" placeholder="Buscar por lote, proveedor o cafe disponible" value={lotSearch} onChange={setLotSearch} /></div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
-                className={`rounded border px-3 py-2 text-left text-sm ${
+                className={`inline-flex flex-col items-start gap-1 rounded border px-3 py-2 text-left text-sm ${
                   selectedPresentation === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
                 }`}
                 type="button"
@@ -888,7 +896,7 @@ const ProcessesPage = ({
               {presentationOptions.map((option) => (
                 <button
                   key={option.presentation}
-                  className={`rounded border px-3 py-2 text-left text-sm ${
+                  className={`inline-flex flex-col items-start gap-1 rounded border px-3 py-2 text-left text-sm ${
                     selectedPresentation === option.presentation ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
                   }`}
                   type="button"
@@ -904,7 +912,7 @@ const ProcessesPage = ({
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
-                className={`rounded border px-3 py-2 text-left text-sm ${
+                className={`inline-flex flex-col items-start gap-1 rounded border px-3 py-2 text-left text-sm ${
                   selectedGroup === "all" ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
                 }`}
                 type="button"
@@ -916,7 +924,7 @@ const ProcessesPage = ({
               {groupCards.map((group) => (
                 <button
                   key={group.name}
-                  className={`rounded border px-3 py-2 text-left text-sm ${
+                  className={`inline-flex flex-col items-start gap-1 rounded border px-3 py-2 text-left text-sm ${
                     selectedGroup === group.name ? "border-leaf bg-emerald-50 text-leaf" : "border-slate-200 bg-white text-slate-700"
                   }`}
                   type="button"
@@ -927,7 +935,7 @@ const ProcessesPage = ({
                 </button>
               ))}
               <button
-                className={`rounded border px-3 py-2 text-left text-sm ${
+                className={`inline-flex flex-col items-start gap-1 rounded border px-3 py-2 text-left text-sm ${
                   selectedGroup === HIGH_HUMIDITY_GROUP ? "border-amber-500 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"
                 }`}
                 type="button"
@@ -939,6 +947,7 @@ const ProcessesPage = ({
             </div>
           </div>
 
+          <ListPagination pagination={availableLotPages} label="lotes disponibles para proceso" />
           <div className="mt-4 overflow-x-auto rounded border border-slate-200">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-100 text-slate-600">
@@ -952,7 +961,7 @@ const ProcessesPage = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredAvailableLots.map((lot) => (
+                {availableLotPages.items.map((lot) => (
                   <tr key={lot.id}>
                     <td className="px-3 py-2">
                       <input
@@ -1006,6 +1015,7 @@ const ProcessesPage = ({
       )}
 
       <div className={fixedProcessType ? "order-6" : ""}>
+        <ListPagination pagination={processPages} label="envios y procesos" />
         {filteredProcesses.length === 0 ? (
           <EmptyState
             title={fixedProcessType ? "Sin envios" : "Sin procesos"}
@@ -1013,7 +1023,7 @@ const ProcessesPage = ({
           />
         ) : (
           <div className="grid gap-3">
-            {filteredProcesses.map((process) => (
+            {processPages.items.map((process) => (
               <div key={process.id} className="rounded border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -1247,31 +1257,21 @@ const ProcessesPage = ({
                       )}
                       <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
                         {createsInventoryDirectly(process) && output.profileSource === "purchase" ? (
-                          <select
-                            className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          <SearchableSelect
+                            label={`Cafe de compra recibido ${index + 1}`}
+                            placeholder="Cafe de compra"
                             value={output.purchaseCoffeeId}
                             onChange={(event) => updatePhysicalOutput(index, "purchaseCoffeeId", event.target.value)}
-                          >
-                            <option value="">Cafe de compra</option>
-                            {catalogs?.purchaseCoffees?.map((coffee) => (
-                              <option key={coffee.id} value={coffee.id}>
-                                {formatPurchaseCoffeeLabel(coffee)}
-                              </option>
-                            ))}
-                          </select>
+                            options={(catalogs?.purchaseCoffees || []).map((coffee) => ({ value: coffee.id, label: formatPurchaseCoffeeLabel(coffee) }))}
+                          />
                         ) : (
-                          <select
-                            className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"
+                          <SearchableSelect
+                            label={`Perfil comercial recibido ${index + 1}`}
+                            placeholder="Perfil comercial"
                             value={output.coffeeProfileId}
                             onChange={(event) => updatePhysicalOutput(index, "coffeeProfileId", event.target.value)}
-                          >
-                            <option value="">Perfil comercial</option>
-                            {catalogs?.coffeeProfiles?.map((profile) => (
-                              <option key={profile.id} value={profile.id}>
-                                {formatProfileLabel(profile)}
-                              </option>
-                            ))}
-                          </select>
+                            options={(catalogs?.coffeeProfiles || []).map((profile) => ({ value: profile.id, label: formatProfileLabel(profile) }))}
+                          />
                         )}
                         <select
                           className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm"

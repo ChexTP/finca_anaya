@@ -1,6 +1,11 @@
 import { ClipboardCheck, FileText, FlaskConical, RefreshCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
+import ListSearch from "../../components/ListSearch";
+import ListPagination from "../../components/ListPagination";
+import SearchableSelect from "../../components/SearchableSelect";
+import { usePagination } from "../../hooks/usePagination";
+import { matchesSearch } from "../../utils/listSearch";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -193,6 +198,8 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   const { user } = useAuth();
   const [activePanel, setActivePanel] = useState(initialPanel === "blends" ? "sales" : initialPanel);
   const [processFilter, setProcessFilter] = useState("pendiente_laboratorio");
+  const [pendingSearches, setPendingSearches] = useState({});
+  const updatePendingSearch = (value) => setPendingSearches((current) => ({ ...current, [activePanel]: value }));
   const [lots, setLots] = useState([]);
   const [inventoryLots, setInventoryLots] = useState([]);
   const [processes, setProcesses] = useState([]);
@@ -298,8 +305,20 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
   }, [processes]);
 
   const filteredProcesses = useMemo(() => {
-    return processes.filter((process) => processFilter === "all" || process.status === processFilter);
-  }, [processes, processFilter]);
+    return processes.filter((process) => (processFilter === "all" || process.status === processFilter)
+      && matchesSearch(pendingSearches.processes, [process.code, process.sale_code, process.sale_client_name, process.coffee_profile_name,
+        (process.inputs || []).map((item) => [item.lot_code, item.coffee_profile_name, item.coffee_type_name])]));
+  }, [processes, processFilter, pendingSearches.processes]);
+  const filteredPendingLots = useMemo(() => lots.filter((lot) => matchesSearch(pendingSearches.lots,
+    [lot.code, formatCoffeeLotCodeName(lot), lot.supplier_name, lot.coffee_profile_name, lot.coffee_type_name])), [lots, pendingSearches.lots]);
+  const filteredPendingSamples = useMemo(() => samples.filter((sample) => matchesSearch(pendingSearches.samples,
+    [sample.code, sample.requester_name, sample.requester_company, (sample.items || []).map((item) => [item.description, item.coffee_profile_name, item.coffee_type_name])])), [samples, pendingSearches.samples]);
+  const filteredPendingSales = useMemo(() => saleLabRequests.filter((sale) => matchesSearch(pendingSearches.sales,
+    [sale.code, sale.quote_code, sale.client_name, (sale.items || []).map((item) => [item.description, item.coffee_profile_name, item.coffee_type_name])])), [saleLabRequests, pendingSearches.sales]);
+  const pendingLotPages = usePagination(filteredPendingLots, pendingSearches.lots || "");
+  const pendingSamplePages = usePagination(filteredPendingSamples, pendingSearches.samples || "");
+  const pendingSalePages = usePagination(filteredPendingSales, pendingSearches.sales || "");
+  const processPages = usePagination(filteredProcesses, JSON.stringify([processFilter, pendingSearches.processes]));
 
   const filteredInventoryLots = useMemo(() => {
     const term = inventorySearch.trim().toLowerCase();
@@ -1274,14 +1293,16 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Lotes pendientes</h2>
+                <div className="mt-3"><ListSearch label="Buscar lotes pendientes de laboratorio" placeholder="Buscar por codigo, proveedor o cafe" value={pendingSearches.lots || ""} onChange={updatePendingSearch} /></div>
+                <ListPagination pagination={pendingLotPages} label="lotes pendientes" />
               </div>
-              {lots.length === 0 ? (
+              {filteredPendingLots.length === 0 ? (
                 <div className="p-4">
-                  <EmptyState title="Sin lotes pendientes" message="Los lotes recibidos por bodega apareceran aqui." />
+                  <EmptyState title={pendingSearches.lots ? "Sin coincidencias" : "Sin lotes pendientes"} message={pendingSearches.lots ? "No hay lotes para la busqueda seleccionada." : "Los lotes recibidos por bodega apareceran aqui."} />
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {lots.map((lot) => (
+                  {pendingLotPages.items.map((lot) => (
                     <button
                       key={lot.id}
                       className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
@@ -1580,6 +1601,8 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Procesos por etapa</h2>
+                <div className="mt-3"><ListSearch label="Buscar procesos de laboratorio" placeholder="Buscar por codigo, cliente, lote o cafe" value={pendingSearches.processes || ""} onChange={updatePendingSearch} /></div>
+                <ListPagination pagination={processPages} label="procesos de laboratorio" />
                 <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
                   {processFilters.map((filter) => (
                     <button
@@ -1599,11 +1622,11 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
               </div>
               {filteredProcesses.length === 0 ? (
                 <div className="p-4">
-                  <EmptyState title="Sin procesos pendientes" message="Los procesos creados por bodega apareceran aqui." />
+                  <EmptyState title={pendingSearches.processes ? "Sin coincidencias" : "Sin procesos pendientes"} message="No hay procesos para los filtros seleccionados." />
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {filteredProcesses.map((process) => (
+                  {processPages.items.map((process) => (
                     <button
                       key={process.id}
                       className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
@@ -1679,18 +1702,13 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
             ) : (
               <div className="mt-4 space-y-3">
                 {selectedProcess.outputs?.length === 0 && (
-                  <select
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  <SearchableSelect
+                    label="Perfil comercial de laboratorio"
+                    placeholder="Perfil comercial"
                     value={finishForm.coffeeProfileId}
                     onChange={(event) => updateFinishForm("coffeeProfileId", event.target.value)}
-                  >
-                    <option value="">Perfil comercial</option>
-                    {catalogs?.coffeeProfiles?.map((profile) => (
-                      <option key={profile.id} value={profile.id}>
-                        {formatProfileOptionLabel(profile)}
-                      </option>
-                    ))}
-                  </select>
+                    options={(catalogs?.coffeeProfiles || []).map((profile) => ({ value: profile.id, label: formatProfileOptionLabel(profile) }))}
+                  />
                 )}
                 <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
                   Revision fisica de Bodega: {selectedProcess.output_weight_kg} kg, humedad {selectedProcess.physical_humidity_percent}%, factor {selectedProcess.physical_performance_factor}.
@@ -1796,14 +1814,16 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Muestras pendientes de analisis</h2>
+                <div className="mt-3"><ListSearch label="Buscar muestras de laboratorio" placeholder="Buscar por codigo, cliente o cafe" value={pendingSearches.samples || ""} onChange={updatePendingSearch} /></div>
+                <ListPagination pagination={pendingSamplePages} label="muestras de laboratorio" />
               </div>
-              {samples.length === 0 ? (
+              {filteredPendingSamples.length === 0 ? (
                 <div className="p-4">
-                  <EmptyState title="Sin muestras pendientes" message="Las muestras enviadas por el usuario de muestras apareceran aqui." />
+                  <EmptyState title={pendingSearches.samples ? "Sin coincidencias" : "Sin muestras pendientes"} message={pendingSearches.samples ? "No hay muestras para la busqueda seleccionada." : "Las muestras enviadas por el usuario de muestras apareceran aqui."} />
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {samples.map((sample) => (
+                  {pendingSamplePages.items.map((sample) => (
                     <button
                       key={sample.id}
                       className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${
@@ -2002,14 +2022,16 @@ const LaboratoryPage = ({ initialPanel = "lots" }) => {
             <div className="rounded border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-800">Ventas pendientes de analisis</h2>
+                <div className="mt-3"><ListSearch label="Buscar pedidos de laboratorio" placeholder="Buscar por codigo, cliente o cafe" value={pendingSearches.sales || ""} onChange={updatePendingSearch} /></div>
+                <ListPagination pagination={pendingSalePages} label="pedidos de laboratorio" />
               </div>
-              {saleLabRequests.length === 0 ? (
+              {filteredPendingSales.length === 0 ? (
                 <div className="p-4">
-                  <EmptyState title="Sin ventas pendientes" message="Las ventas enviadas por bodega apareceran aqui." />
+                  <EmptyState title={pendingSearches.sales ? "Sin coincidencias" : "Sin ventas pendientes"} message={pendingSearches.sales ? "No hay pedidos para la busqueda seleccionada." : "Las ventas enviadas por bodega apareceran aqui."} />
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {saleLabRequests.map((sale) => (
+                  {pendingSalePages.items.map((sale) => (
                     <button
                       key={sale.id}
                       className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${

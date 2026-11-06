@@ -2,6 +2,8 @@ import { AlertTriangle, Edit3, Eye, FlaskConical, ImagePlus, PackageCheck, Print
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
+import ListPagination from "../../components/ListPagination";
+import { usePagination } from "../../hooks/usePagination";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
@@ -217,6 +219,7 @@ const WarehousePendingPage = () => {
         return leftDate - rightDate;
       });
   }, [sales, taskFilter, assigneeFilter, search]);
+  const salePages = usePagination(sortedSales, JSON.stringify([taskFilter, assigneeFilter, search]));
 
   const assigneeOptions = useMemo(() => {
     return [...new Set(sales.map((sale) => sale.order_assignee || "Sin encargado"))].sort((left, right) =>
@@ -1346,6 +1349,7 @@ const WarehousePendingPage = () => {
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Ordenes por hacer</h2>
           </div>
+          <div className="px-4"><ListPagination pagination={salePages} label="pedidos de bodega" /></div>
           {sortedSales.length === 0 ? (
             <div className="p-4">
               <EmptyState title="Sin pendientes" message="Las ventas activas de bodega apareceran aqui." />
@@ -1367,7 +1371,7 @@ const WarehousePendingPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sortedSales.map((sale) => (
+                  {salePages.items.map((sale) => (
                     <tr key={sale.id}>
                       <td className="px-3 py-2 font-medium">{sale.code}</td>
                       <td className="px-3 py-2">{sale.client_name}</td>

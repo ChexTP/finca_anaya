@@ -1,6 +1,9 @@
 import { Eye, ImagePlus, Printer, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EmptyState from "../../components/EmptyState";
+import ListPagination from "../../components/ListPagination";
+import { usePagination } from "../../hooks/usePagination";
+import { matchesSearch } from "../../utils/listSearch";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../utils/api";
 import { prepareImageForUpload } from "../../utils/files";
@@ -117,18 +120,16 @@ const SamplesHistoryPage = () => {
     const client = filters.client.trim().toLowerCase();
 
     return samples.filter((sample) => {
-      const text = [sample.requester_name, sample.requester_company, sample.requester_phone]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
       const date = String(sample.tentative_delivery_date || sample.requested_at || sample.created_at).slice(0, 10);
-      const matchesClient = !client || text.includes(client);
+      const matchesClient = matchesSearch(client, [sample.code, sample.requester_name, sample.requester_company, sample.requester_phone,
+        (sample.items || []).map((item) => [item.description, item.coffee_profile_name, item.coffee_type_name])]);
       const matchesFrom = !filters.from || date >= filters.from;
       const matchesTo = !filters.to || date <= filters.to;
 
       return matchesClient && matchesFrom && matchesTo;
     });
   }, [samples, filters]);
+  const samplePages = usePagination(filteredSamples, JSON.stringify(filters));
 
   const totals = useMemo(() => {
     return filteredSamples.reduce(
@@ -209,7 +210,7 @@ const SamplesHistoryPage = () => {
       <div className="grid min-w-0 gap-3 rounded border border-slate-200 bg-white p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,170px)_minmax(0,170px)]">
         <input
           className="rounded border border-slate-300 px-3 py-2 text-sm"
-          placeholder="Buscar por cliente, empresa o telefono"
+          placeholder="Buscar por codigo, cliente, empresa, telefono o cafe"
           value={filters.client}
           onChange={(event) => setFilters({ ...filters, client: event.target.value })}
         />
@@ -253,6 +254,7 @@ const SamplesHistoryPage = () => {
       <div className="rounded border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-800">Entregadas</h2>
+          <ListPagination pagination={samplePages} label="muestras entregadas" />
         </div>
         {filteredSamples.length === 0 ? (
           <div className="p-4">
@@ -260,7 +262,7 @@ const SamplesHistoryPage = () => {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {filteredSamples.map((sample) => {
+            {samplePages.items.map((sample) => {
               const isExpanded = expandedSampleId === sample.id;
               const itemCount = (sample.items || []).length;
               const grams = (sample.items || []).reduce((total, item) => total + Number(item.quantity_grams || 0), 0);
